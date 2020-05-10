@@ -109,7 +109,7 @@ class FilePusher(object):
     def files(self):
         return self._stats.files()
 
-    def file_changed(self, save_name, path, artifact_id=None, copy=True):
+    def file_changed(self, save_name, path, artifact_id=None, copy=True, save_fn=None, digest=None):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -123,7 +123,7 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
-        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy)
+        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, save_fn, digest)
         self._incoming_queue.put(event)
 
     def named_temp_file(self, mode='w+b'):

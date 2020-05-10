@@ -69,6 +69,11 @@ class Preprocessor:
     components = {}
     debug = os.getenv("IDENTIFIER", "XXX") in section.identifier   # "wandb.apis.public.Run.scan_history"
 
+    if "!NODOC" in section.content:
+        print("SKIP", section)
+        section.content = ""
+        return
+
     for line in section.content.split('\n'):
       orig_line = line
       indented = line.startswith("  ")
@@ -143,7 +148,7 @@ class Preprocessor:
             component.append(' {line}'.format(line=line))
 
     for key in components:
-      self._append_section(lines, key, components)
+        self._append_section(lines, key, components)
 
     if debug:
         print(lines)

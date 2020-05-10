@@ -8,7 +8,7 @@ from wandb import util
 EventJobDone = collections.namedtuple('EventJobDone', ('job'))
 
 class UploadJob(threading.Thread):
-    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, copied):
+    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, copied, save_fn, digest):
         """A file upload thread.
 
         Arguments:
@@ -29,6 +29,8 @@ class UploadJob(threading.Thread):
         self.artifact_id = artifact_id
         self.md5 = md5
         self.copied = copied
+        self.save_fn = save_fn
+        self.digest = digest
         super(UploadJob, self).__init__()
 
     def run(self):
@@ -44,6 +46,12 @@ class UploadJob(threading.Thread):
             size = os.path.getsize(self.save_path)
         except OSError:
             size = 0
+
+        if self.save_fn:
+            # TODO: this needs to retry
+            # TODO: track metrics
+            self.save_fn(self.save_path, self.digest, self._api)
+            return
 
         prepare_response = self._step_prepare.prepare(
             self.save_path, self.save_name, self.md5, self.artifact_id)

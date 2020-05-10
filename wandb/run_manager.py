@@ -90,6 +90,7 @@ class FileTailer(object):
     def stop(self):
         self.running = False
         self._thread.join()
+        self._file.close()
 
 
 class FileEventHandler(object):
@@ -263,7 +264,8 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def _update(self):
         try:
-            config_dict = util.load_yaml(open(self.file_path))
+            with open(self.file_path) as f:
+                config_dict = util.load_yaml(f)
         except yaml.parser.ParserError:
             wandb.termlog(
                 "Unable to parse config file; probably being modified by user process?")
@@ -296,10 +298,12 @@ class FileEventHandlerSummary(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
 
     def finish(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
@@ -1191,26 +1195,28 @@ class RunManager(object):
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
     
-    # def use_artifact(self, message):
-    #     # NOTE: This is currently disabled, we don't automatically save used artifacts
-    #     name = message['name']
-    #     path = message['path']
-    #     la = LocalArtifact(self._api, path,
-    #                                 file_pusher=self._file_pusher, is_user_created=True)
-    #     server_artifact = la.save(name)
-    #     self._api.use_artifact(server_artifact['id'])
+    def use_artifact(self, message):
+        type = message['type']
+        name = message['name']
+        manifest_entries = message['manifest_entries']
+        digest = message['digest']
+        metadata = message['metadata']
+        la = ArtifactSaver(self._api, digest, manifest_entries, file_pusher=self._file_pusher, is_user_created=True)
+        server_artifact = la.save(type, name, metadata=metadata)
+        self._api.use_artifact(server_artifact['id'])
 
     def log_artifact(self, message):
         type = message['type']
         name = message['name']
-        manifest_entries = message['manifest_entries']
+        server_manifest_entries = message['server_manifest_entries']
+        manifest = message['manifest']
         description = message['description']
         digest = message['digest']
         labels = json.dumps(message['labels']) if 'labels' in message else None
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 
-        la = LocalArtifact(self._api, digest, manifest_entries, file_pusher=self._file_pusher)
+        la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher)
         la.save(type, name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
@@ -1342,7 +1348,6 @@ class RunManager(object):
                     exitcode = self.proc.poll()
                     if exitcode is not None:
                         break
-                    time.sleep(1)
         except KeyboardInterrupt:
             logger.info("process received interrupt signal, shutting down")
             exitcode = 255
@@ -1469,15 +1474,16 @@ class RunManager(object):
         sys.exit(exitcode)
 
 
-class LocalArtifact(object):
-    def __init__(self, api, digest, manifest_entries, file_pusher=None, is_user_created=False):
+class ArtifactSaver(object):
+    def __init__(self, api, digest, server_manifest_entries, manifest_json, file_pusher=None, is_user_created=False):
         # NOTE: manifest_entries are LocalManifestEntry but they get converted to
         # arrays when we convert to json, so we need to access fields by index instead
         # of by name
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest_entries = manifest_entries
+        self._server_manifest_entries = server_manifest_entries
+        self._manifest = artifacts.ArtifactManifest.from_manifest_json(None, manifest_json)
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -1522,7 +1528,23 @@ class LocalArtifact(object):
         # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
-        for path, hash, local_path  in self._manifest_entries:
+        for entry in self._manifest.entries.values():
+            # Save all local_path entries, the others are references and have already been
+            # saved. It's weird to have this logic here. So it goes...
+            if entry.local_path:
+                self._file_pusher.file_changed(
+                    entry.path, entry.local_path,
+                    artifact_id=self._server_artifact['id'],
+                    save_fn=lambda local_path, digest, api: (
+                        # We shouldn't be using API settings here.
+                        self._manifest.storage_policy.store_file(
+                            self._api.settings('entity'),
+                            self._api.settings('project'),
+                            local_path,
+                            digest,
+                            api)),
+                    digest=entry.digest)
+        for path, hash, local_path in self._server_manifest_entries:
             self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
@@ -1535,28 +1557,3 @@ class LocalArtifact(object):
             raise ValueError('Must call save first')
         while self._server_artifact.state != 'READY':
             time.sleep(2)
-
-
-# Not currently used, would be used by use_artifact
-# class LocalArtifactRead(object):
-#     def __init__(self, name, path):
-#         self._artifact_dir = None
-#         if path is not None:
-#             if not isinstance(path, string_types):
-#                 raise ValueError("path must be a local file or directory")
-#             if os.path.isdir(path):
-#                 self._artifact_dir = path
-#             elif os.path.isfile(path):
-#                 self._artifact_dir = os.path.dirname(path)
-#             else:
-#                 raise ValueError("path must be a local file or directory")
-#         self._local_manifest = LocalArtifactManifestV1(path)
-
-#     # TODO: give some way for the user to check if we have this on the server?
-
-#     @property
-#     def digest(self):
-#         return self._local_manifest.digest()
-
-#     def download(self, *args, **kwargs):
-#         return self._artifact_dir

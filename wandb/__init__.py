@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.30'
+__version__ = '0.8.32'
 
 import atexit
 import click
@@ -43,7 +43,7 @@ from .core import *
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
 from wandb.apis import InternalApi, PublicApi, CommError
-from wandb.apis.artifacts import WriteableArtifact
+from wandb.apis.artifacts import Artifact
 from wandb.apis.artifacts_cache import get_artifacts_cache
 from wandb import wandb_types as types
 from wandb import wandb_config

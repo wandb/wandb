@@ -24,6 +24,7 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, PublicApi, CommError, artifacts
+from wandb.apis.public import Artifact as ApiArtifact
 from wandb.wandb_config import Config, ConfigStatic
 from wandb.viz import Visualize
 import six
@@ -203,6 +204,10 @@ class Run(object):
             elif options.get("tensorboard"):
                 self._jupyter_agent.rm.start_tensorboard_watcher(
                     options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+            elif options.get("use_artifact"):
+                self._jupyter_agent.rm.use_artifact(options["use_artifact"])
+            elif options.get("log_artifact"):
+                self._jupyter_agent.rm.log_artifact(options["log_artifact"])
         elif self._run_manager:
             # Running in the wandb process, used for tfevents saving
             if options.get("save_policy"):
@@ -390,94 +395,62 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    # Commented out, you can't currently create new artifacts by using them, they must be
-    # explicitly logged. We may want to reenable this.
-    # def use_artifact(self, type=None, name=None, artifact=None, path=None, metadata=None, api=None):
-    #     if name is not None:
-    #         if type is None:
-    #             raise ValueError('type required when specifying artifact name')
-    #         name = '%s/%s' % (type, name)
-    #     # One of artifact, name, paths must be passed in
-    #     api = api or self.api
-    #     entity_name = self.api.settings('entity')
-    #     project_name = self.api.settings('project')
-    #     if name is not None and path is None and metadata is None:
-    #         public_api = PublicApi(self.api.settings())
-    #         artifact = public_api.artifact(name)
-    #     if artifact is not None:
-    #         # TODO: assert artifact has correct entity_name, project_name
-    #         # TODO: This should throw if not available
-    #         api.use_artifact(artifact.id)
-    #         return artifact
-    #     elif name is not None and (path is not None or metadata is not None):
-    #         user_artifact = artifacts.LocalArtifactRead(name, path)
-    #         self.send_message({
-    #             'use_artifact': {
-    #                 'name': name,
-    #                 'path': path,
-    #             }
-    #         })
-    #         return user_artifact
-    #     # TODO
-    #     raise ValueError('Invalid use artifact call')
 
-    def use_artifact(self, type=None, name=None, api=None):
-        if type is None or name is None:
-            raise ValueError('type and name required')
-        api = api or self.api
-        public_api = PublicApi()
-        artifact = public_api.artifact(type=type, name=name)
+    def use_artifact(self, artifact=None, type=None, name=None):
         if artifact is None:
-            raise ValueError('Artifact %s doesn\'t exist' % artifact)
-        api.use_artifact(artifact.id)
-        return artifact
+            if type is None or name is None:
+                raise ValueError('type and name required')
+            public_api = PublicApi()
+            artifact = public_api.artifact(type=type, name=name)
+            self.api.use_artifact(artifact.id)
 
-    def log_artifact(self, artifact=None, type=None, name=None, paths=None, description=None, metadata=None, labels=None, aliases=None):
-        # TODO: change aliases to tags.
-        if isinstance(artifact, artifacts.WriteableArtifact):
-            if paths is not None:
-                raise ValueError('Passing paths to log_artifact is invalid when also passing artifact')
-            type = artifact.type or type
-            metadata = artifact.metadata or metadata
-            manifest = artifact.manifest
-
-            # move artifact files into cache
-            final_artifact_dir = artifact._cache.get_artifact_dir(type, manifest.digest)
-            shutil.rmtree(final_artifact_dir)
-            os.rename(artifact.artifact_dir, final_artifact_dir)
-            # update the manifest
-            manifest.move(artifact.artifact_dir, final_artifact_dir)
-
-            # move external files into cache if there are any
-            if len(os.listdir(artifact.external_data_dir)) > 0:
-                final_external_data_dir = artifact._cache.get_artifact_external_dir(
-                        artifact.type, manifest.digest)
-                shutil.rmtree(final_external_data_dir)
-                os.rename(
-                    artifact.artifact_dir,
-                    final_external_data_dir)
-
-        elif artifact is not None:
-            raise ValueError('artifact must be an instance of wandb.WriteableArtifact')
+            return artifact
         else:
-            manifest = artifacts.LocalArtifactManifestV1(paths)
-            if paths is None:
-                raise ValueError('paths required when not passing artifact')
-        
-        if name is None or type is None:
-            raise ValueError('type and name required')
-        if not isinstance(aliases, list):
+            if isinstance(artifact, wandb.Artifact):
+                if artifact.type is None:
+                    # TODO, we can make nameless artifacts
+                    raise ValueError('Artifacts must have a type and name')
+                if name is None:
+                    raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
+                entries = artifact.finalize()
+                self.send_message({
+                    'use_artifact': {
+                        'type': artifact.type,
+                        'name': artifact.name,
+                        'manifest_entries': entries,
+                        'digest': artifact.digest,
+                        'metadata': artifact.metadata
+                    }
+                })
+            elif isinstance(artifact, ApiArtifact):
+                self.api.use_artifact(artifact.id)
+            else:
+                # TODO: Improve message with instructions, maybe share base class with wandb.Artifact, and the
+                # API artifact?
+                raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
+
+    def log_artifact(self, artifact, name=None, aliases=['latest']):
+        if not isinstance(artifact, artifacts.Artifact):
+            raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+        if artifact.type is None:
+            raise ValueError('Artifacts must have a type and name')
+        if name is None:
+            raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
+        if isinstance(aliases, str):
             aliases = [aliases]
+
+        artifact.finalize()
         self.send_message({
             'log_artifact': {
-                'type': type,
+                'type': artifact.type,
                 'name': name,
-                'manifest_entries': manifest.entries,
-                'digest': manifest.digest,
-                'description': description,
-                'metadata': metadata,
-                'labels': labels,
-                'aliases': aliases
+                'server_manifest_entries': artifact.server_manifest.entries,
+                'manifest': artifact.manifest.to_manifest_json(include_local=True),
+                'digest': artifact.digest,
+                'description': artifact.description,
+                'metadata': artifact.metadata,
+                'labels': artifact.labels,
+                'aliases': aliases,
             }
         })
 
@@ -752,6 +725,36 @@ class Run(object):
             }
         }
         self.config.persist()
+
+    # Stores a singleton item to wandb config.
+    #
+    # A singleton in this context is a piece of data that is continually
+    # logged with the same value in each history step, but represented
+    # as a single item in the config.
+    #
+    # We do this to avoid filling up history with a lot of repeated uneccessary data
+    #
+    # Add singleton can be called many times in one run and it will only be updated when the value changes. The last value logged will be the one persisted to the server
+    def _add_singleton(self, type, key, value):
+        # Wrap te value with information
+        value_extra = {
+            'type': type,
+            'key': key,
+            'value': value
+        }
+
+        if not type in self.config['_wandb']:
+            self.config['_wandb'][type] = {}
+
+        if type in self.config['_wandb'][type]:
+            old_value = self.config['_wandb'][type][key]
+        else:
+            old_value = None
+
+        if value_extra != old_value:
+            self.config['_wandb'][type][key] = value_extra
+            self.config.persist()
+
 
     @property
     def history(self):

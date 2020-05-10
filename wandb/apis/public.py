@@ -15,6 +15,7 @@ from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
 import hashlib
 import base64
+import requests
 
 import wandb
 from wandb import Error, __version__
@@ -25,6 +26,7 @@ from wandb import env
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis import normalize_exceptions
 from wandb.apis import artifacts_cache
+from wandb.apis import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -1913,8 +1915,10 @@ class Artifact(object):
         self.artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
-            self.load()
+            self._load()
         self._cache = artifacts_cache.get_artifacts_cache()
+        self._manifest = None
+        self._is_downloaded = False
 
     @property
     def id(self):
@@ -1929,7 +1933,7 @@ class Artifact(object):
         # TODO: This is a different style than the rest of the paths. The rest of the
         # paths don't include the object type (which makes them hard to distinguish).
         # We should maybe use URIs here.
-        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name())
+        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name)
 
     @property
     def digest(self):
@@ -1947,7 +1951,74 @@ class Artifact(object):
     def type(self):
         return self.artifact_type_name
 
-    def load(self):
+    @normalize_exceptions
+    def files(self, names=None, per_page=50):
+        return ArtifactFiles(self.client, self, names, per_page)
+
+    @property
+    def artifact_dir(self):
+        return self._cache.get_artifact_dir(self.type, self.digest)
+
+    @property
+    def external_data_dir(self):
+        return self._cache.get_artifact_external_dir(self.type, self.digest)
+
+    def add_file(self, path, name=None):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
+    def add_reference(self, path, name=None):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
+    def get_path(self, name):
+        manifest = self._load_manifest()
+        storage_policy = manifest.storage_policy
+
+        entry = manifest.entries.get(name)
+        if entry is None:
+            raise KeyError('Path not contained in artifact: %s' % name)
+
+        class ArtifactEntry(object):
+            @staticmethod
+            def download():
+                if entry.ref is not None:
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
+
+                return storage_policy.load_file(self, name, manifest.entries[name])
+
+            @staticmethod
+            def ref():
+                if entry.ref is not None:
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
+                raise ValueError('Only reference entries support ref().')
+
+        return ArtifactEntry()
+
+    def download(self):
+        dirpath = self.artifact_dir
+
+        # Force all the files to download into the same directory.
+        # Download in parallel
+        # TODO: this may not be the right place to do this.
+        import multiprocessing.dummy  # this uses threads
+        pool = multiprocessing.dummy.Pool(16)
+        manifest = self._load_manifest()
+        pool.map(lambda name: self.get_path(name).download(), manifest.entries)
+        pool.close()
+        pool.join()
+
+        # TODO: make sure we clear any extra files
+        self._is_downloaded = True
+        return dirpath
+
+    # TODO: not yet public, but we probably want something like this.
+    def _list(self):
+        manifest = self._load_manifest()
+        return manifest.entries.keys()
+
+    def __repr__(self):
+        return "<Artifact {}>".format(self.id)
+
+    def _load(self):
         query = gql('''
         query Artifact(
             $entityName: String!,
@@ -1980,34 +2051,16 @@ class Artifact(object):
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError("Could not find artifact %s:%s" % (self.artifact_type_name, self.artifact_name))
+            raise ValueError('Could not find artifact %s:%s' % (self.artifact_type_name, self.artifact_name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
-    @normalize_exceptions
-    def files(self, names=[], per_page=50):
-        return ArtifactFiles(self.client, self, names, per_page)
-
-    @property
-    def artifact_dir(self):
-        return self._cache.get_artifact_dir(self.type, self.digest)
-
-    @property
-    def external_data_dir(self):
-        return self._cache.get_artifact_external_dir(self.type, self.digest)
-
-    def download(self):
-        dirpath = self.artifact_dir
-        for f in self.files():
-            local_file_path = os.path.join(dirpath, f.name)
-            if (not os.path.isfile(local_file_path)
-                    or util.md5_file(local_file_path) != f.digest):
-                f.download(root=dirpath, replace=True)
-        # TODO: make sure we clear any extra files
-        return dirpath
-
-    def __repr__(self):
-        return "<Artifact {}>".format(self.id)
+    def _load_manifest(self):
+        if self._manifest is None:
+            index_file_url = self.files(names=['wandb_manifest.json'])[0].url
+            with requests.get(index_file_url) as req:
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
+        return self._manifest
 
 
 class ArtifactFiles(Paginator):
@@ -2017,7 +2070,7 @@ class ArtifactFiles(Paginator):
             $projectName: String!,
             $artifactTypeName: String!,
             $artifactName: String!
-            $fileNames: [String] = [],
+            $fileNames: [String!],
             $fileCursor: String,
             $fileLimit: Int = 50
         ) {
@@ -2032,7 +2085,7 @@ class ArtifactFiles(Paginator):
         %s
     ''' % ARTIFACT_FILES_FRAGMENT)
 
-    def __init__(self, client, artifact, names=[], per_page=50):
+    def __init__(self, client, artifact, names=None, per_page=50):
         self.artifact = artifact
         variables = {
             'entityName': artifact.entity,

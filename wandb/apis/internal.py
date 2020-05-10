@@ -1107,10 +1107,12 @@ class Api(object):
             }
         }
         ''')
+
         entity_name = entity_name or self.settings('entity')
         project_name = project_name or self.settings('project')
         if not is_user_created:
             run_name = run_name or self.current_run_id
+
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
@@ -1121,7 +1123,7 @@ class Api(object):
             'description': description,
             'labels': labels,
             'aliases': [alias for alias in aliases],
-            'metadata': json.dumps(metadata),
+            'metadata': json.dumps(util.make_safe_for_json(metadata))
         })
         av = response['createArtifact']['artifact']
         return av

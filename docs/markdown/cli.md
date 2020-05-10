@@ -2,9 +2,6 @@
 description: wandb.cli
 ---
 
-# wandb.cli
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L0)
-
 
 ## cli.cli
 ```python
