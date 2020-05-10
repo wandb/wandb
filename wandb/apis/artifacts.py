@@ -13,6 +13,7 @@ from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache, InternalApi
 from wandb import util
+from wandb.core import termwarn
 
 
 def md5_string(string):
@@ -491,29 +492,6 @@ class S3BucketPolicy(StoragePolicy):
         return self._handler.store_path(artifact, path, name=name)
 
 
-class TrackingPolicy(StoragePolicy):
-
-    @classmethod
-    def name(cls):
-        return 'wandb-tracking-policy-v1'
-
-    @classmethod
-    def from_config(cls, config):
-        return cls()
-
-    def __init__(self):
-        self._handler = MultiHandler(default_handler=TrackingHandler())
-
-    def config(self):
-        return None
-
-    def load_path(self, artifact, manifest_entry, local=False):
-        return self._handler.load_path(artifact, manifest_entry, local=local)
-
-    def store_path(self, artifact, path, name=None):
-        return self._handler.store_path(artifact, path, name=name)
-
-
 class StorageHandler(ABC):
 
     @abstractmethod
@@ -605,15 +583,18 @@ class TrackingHandler(StorageHandler):
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
             # no way of actually loading it.
-            url = urlparse(manifest_entry.path)
+            url = urlparse(manifest_entry.ref)
             raise ValueError('Cannot download file at path %s, scheme %s not recognized' %
-                             (manifest_entry.path, url.scheme))
+                             (manifest_entry.ref, url.scheme))
         return manifest_entry.path
 
     def store_path(self, artifact, path, name=None):
         url = urlparse(path)
+        if name is None:
+            raise ValueError('You must pass name="<entry_name>" when tracking references with unknown schemes. ref: %s' % path)
+        termwarn('Artifact references with unsupported schemes cannot be checksummed: %s' % path)
         name = name or url.path[1:]  # strip leading slash
-        return [ArtifactManifestEntry(name, path, digest=md5_string(path))]
+        return [ArtifactManifestEntry(name, path, digest=path)]
 
 
 class LocalFileHandler(StorageHandler):
