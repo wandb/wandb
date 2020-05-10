@@ -130,7 +130,9 @@ class Artifact(object):
 
         name = name or os.path.basename(local_path)
         entry = ArtifactManifestEntry(
-            name, None, digest=md5_file_b64(local_path), local_path=local_path)
+            name, None, digest=md5_file_b64(local_path),
+            size=os.path.getsize(local_path),
+            local_path=local_path)
         self._manifest.add_entry(entry)
 
     def add_dir(self, local_path, name=None):
@@ -312,6 +314,8 @@ class ArtifactManifestV1(ArtifactManifest):
                 json_entry['ref'] = entry.ref
             if entry.extra:
                 json_entry['extra'] = entry.extra
+            if entry.size is not None:
+                json_entry['size'] = entry.size
             if include_local and entry.local_path is not None:
                 json_entry['local_path'] = entry.local_path
             contents[entry.path] = json_entry
@@ -658,7 +662,7 @@ class LocalFileHandler(StorageHandler):
             #         entries.append(entry)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
-            entry = ArtifactManifestEntry(name, path, digest=md5_file_b64(local_path))
+            entry = ArtifactManifestEntry(name, path, size=os.path.getsize(local_path), digest=md5_file_b64(local_path))
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
