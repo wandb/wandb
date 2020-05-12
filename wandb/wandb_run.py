@@ -416,7 +416,7 @@ class Run(object):
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
-                        'name': name,
+                        'name': artifact.name,
                         'manifest_entries': entries,
                         'digest': artifact.digest,
                         'metadata': artifact.metadata
@@ -429,15 +429,15 @@ class Run(object):
                 # API artifact?
                 raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact, name=None, tags=['latest']):
+    def log_artifact(self, artifact, name=None, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
         if artifact.type is None:
             raise ValueError('Artifacts must have a type and name')
         if name is None:
             raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
-        if isinstance(tags, str):
-            tags = [tags]
+        if isinstance(aliases, str):
+            aliases = [aliases]
 
         artifact.finalize()
         self.send_message({
@@ -450,7 +450,7 @@ class Run(object):
                 'description': artifact.description,
                 'metadata': artifact.metadata,
                 'labels': artifact.labels,
-                'aliases': tags,
+                'aliases': aliases,
             }
         })
 
