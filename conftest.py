@@ -481,7 +481,7 @@ def live_mock_server(request):
             if res.status_code == 200:
                 break
             print("Attempting to connect but got: %s", res)
-        except requests.exceptions.Error:
+        except requests.exceptions.RequestException:
             print("timed out")
     yield server
     server.terminate()
