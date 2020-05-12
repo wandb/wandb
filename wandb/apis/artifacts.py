@@ -152,14 +152,14 @@ class Artifact(object):
                     size=size, local_path=physical_path)
                 self._manifest.add_entry(entry)
 
-    def add_reference(self, path, name=None):
-        url = urlparse(path)
+    def add_reference(self, uri, name=None):
+        url = urlparse(uri)
         if not url.scheme:
             raise ValueError('References must be URIs. To reference a local file, use file://')
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
         manifest_entries = self._storage_policy.store_reference(
-            self, path, name=name)
+            self, uri, name=name)
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
