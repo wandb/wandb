@@ -125,6 +125,10 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
     global _global_watch_idx
 
+    # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
+    if os.getenv("WANDB_WATCH") == "false":
+        return
+
     if run is None:
         raise ValueError(
             "You must call `wandb.init` before calling watch")
@@ -902,6 +906,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global run
     global __stage_dir__
     global _global_watch_idx
+
+    # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
+    if os.getenv("WANDB_DISABLED") == "true":
+        return None
+    elif wandb_config.huggingface_version() is not None:
+        if InternalApi().api_key is None:
+            termwarn("W&B installed but not logged in.  Run `wandb login` or set the WANDB_API_KEY env variable.")
+            return None
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
