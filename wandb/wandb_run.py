@@ -416,7 +416,7 @@ class Run(object):
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
-                        'name': artifact.name,
+                        'name': name,
                         'manifest_entries': entries,
                         'digest': artifact.digest,
                         'metadata': artifact.metadata
