@@ -10,6 +10,7 @@ from wandb.apis import InternalApi
 import six
 import json
 import sys
+import time
 import threading
 import logging
 from multiprocessing import Process
@@ -472,6 +473,7 @@ def live_mock_server(request):
     app = create_app()
     server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
     server.start()
+    time.sleep(3) # Saw procs hang, so added this nasty sleep
     yield server
     server.terminate()
     server.join()

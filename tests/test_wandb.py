@@ -212,8 +212,6 @@ def test_login_no_key(local_netrc, mocker):
 
 
 def test_run_context_multi_run(live_mock_server, git_repo):
-    # Time for mock server to start
-    time.sleep(1)
     os.environ[env.BASE_URL] = "http://localhost:%i" % 8765
     os.environ["WANDB_API_KEY"] = "B" * 40
     with wandb.init() as run:

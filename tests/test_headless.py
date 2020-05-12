@@ -134,8 +134,6 @@ def test_mock_server_no_internet(runner):
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="Funky things in python 2 land and multiprocessing")
 def test_mock_server_with_internet(runner, live_mock_server):
-    # Mock server can take a second to startup :(
-    time.sleep(1)
     with runner.isolated_filesystem():
         with open("train.py", "w") as f:
             f.write(train_py)
