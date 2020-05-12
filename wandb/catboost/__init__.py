@@ -47,7 +47,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
     if not hasattr(model, attributes_to_check):
         wandb.termwarn(
-            "%s attribute not in classifier. Cannot plot feature importances." % attributes_to_check)
+            "%s attribute not in model. Cannot plot feature importances." % attributes_to_check)
         return
 
     if (test_types(model=model) and test_fitted(model)):
