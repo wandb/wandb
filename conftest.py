@@ -10,10 +10,12 @@ from wandb.apis import InternalApi
 import six
 import json
 import sys
+import time
 import threading
 import logging
 from multiprocessing import Process
 from vcr.request import Request
+import requests
 from wandb import wandb_socket
 from wandb import env
 from wandb import util
@@ -472,6 +474,15 @@ def live_mock_server(request):
     app = create_app()
     server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
     server.start()
+    for i in range(5):
+        try:
+            time.sleep(1)
+            res = requests.get("http://localhost:%s/storage" % port, timeout=1)
+            if res.status_code == 200:
+                break
+            print("Attempting to connect but got: %s", res)
+        except requests.exceptions.RequestException:
+            print("timed out")
     yield server
     server.terminate()
     server.join()

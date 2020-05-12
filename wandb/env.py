@@ -44,6 +44,7 @@ HTTP_TIMEOUT = 'WANDB_HTTP_TIMEOUT'
 API_KEY = 'WANDB_API_KEY'
 JOB_TYPE = 'WANDB_JOB_TYPE'
 DISABLE_CODE = 'WANDB_DISABLE_CODE'
+SAVE_CODE = 'WANDB_SAVE_CODE'
 TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
@@ -66,7 +67,7 @@ def immutable_keys():
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
             ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            HOST]
+            HOST, SAVE_CODE]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -87,6 +88,11 @@ def is_debug(default=None, env=None):
 def error_reporting_enabled():
     return _env_as_bool(ERROR_REPORTING, default=True)
 
+def should_save_code():
+    save_code = _env_as_bool(SAVE_CODE, default=False)
+    code_disabled = _env_as_bool(DISABLE_CODE, default=False)
+    # SAVE_CODE takes precedence over DISABLE_CODE
+    return save_code and not code_disabled
 
 def get_error_reporting(default=True, env=None):
     if env is None:

@@ -184,6 +184,7 @@ def test_remove_auto_resume(mocker, run_manager):
 def test_code_path_in_config(mocker, git_repo):
     mocker.patch('wandb._get_python_type', lambda: "jupyter")
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    os.environ[env.SAVE_CODE] = "true"
     with open("test.ipynb", "w") as f:
         f.write("{}")
     run = Run()

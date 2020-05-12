@@ -96,13 +96,16 @@ class Meta(object):
                             self.data["program"] = meta["path"]
                             self.data["root"] = meta["root"]
 
+        # Always save git information unless code saving is completely disabled
         if not os.getenv(env.DISABLE_CODE):
+            self._setup_code_git()
+
+        if env.should_save_code():
             logger.debug("code probe starting")
             in_jupyter = wandb._get_python_type() != "python"
             # windows doesn't support alarm() and jupyter could call this in a thread context
             if platform.system() == "Windows" or not hasattr(signal, 'SIGALRM') or in_jupyter:
                 logger.debug("non time limited probe of code")
-                self._setup_code_git()
                 self._setup_code_program()
             else:
                 old_alarm = None
@@ -110,7 +113,6 @@ class Meta(object):
                     try:
                         old_alarm = signal.signal(signal.SIGALRM, alarm_handler)
                         signal.alarm(25)
-                        self._setup_code_git()
                         self._setup_code_program()
                     finally:
                         signal.alarm(0)

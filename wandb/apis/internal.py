@@ -325,6 +325,7 @@ class Api(object):
         query Viewer{
             viewer {
                 id
+                flags
                 entity
                 teams {
                     edges {
