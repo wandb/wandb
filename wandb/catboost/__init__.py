@@ -1,3 +1,16 @@
+'''W&B plot_feature_importances for catboost
+
+Simple function to send catboost feature importances metrics to the server
+
+Example usage:
+
+catboost_model.fit(...)
+.
+.
+.
+wandb.catboost.plot_feature_importances(catboost_model, X_train.columns)
+'''
+
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import numpy as np

@@ -73,6 +73,7 @@ class Config(object):
         # detect framework by checking what is loaded
         loaded = {}
         loaded['lightgbm'] = sys.modules.get('lightgbm')
+        loaded['catboost'] = sys.modules.get('catboost')
         loaded['xgboost'] = sys.modules.get('xgboost')
         loaded['fastai'] = sys.modules.get('fastai')
         loaded['torch'] = sys.modules.get('torch')
@@ -82,7 +83,7 @@ class Config(object):
         # TODO(jhr): tfkeras is always loaded with recent tensorflow
         #loaded['tfkeras'] = sys.modules.get('tensorflow.python.keras')
 
-        priority = ('lightgbm', 'xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
+        priority = ('lightgbm', 'catboost', 'xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
         framework = next((f for f in priority if loaded.get(f)), None)
         if framework:
             self._set_wandb('framework', framework)
