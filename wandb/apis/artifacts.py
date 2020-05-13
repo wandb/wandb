@@ -48,17 +48,6 @@ class ServerManifestV1(object):
         # lexicographic sort. paths must be unique, so sort doesn't ever visit hash
         self.entries = sorted(entries)
 
-    def dump(self, fp):
-        fp.write('wandb-artifact-manifest-v1\n')
-        for entry in self.entries:
-            fp.write('%s %s\n' % (requests.utils.quote(entry.path), entry.hash))
-
-    def get_digest(self):
-        with tempfile.NamedTemporaryFile('w+') as fp:
-            self.dump(fp)
-            fp.seek(0)
-            return md5_file_hex(fp.name)
-
 
 class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
@@ -80,6 +69,7 @@ class Artifact(object):
         self._cache = artifacts_cache.get_artifacts_cache()
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
         self._new_files = []
+        self.server_manifest = None
         self.type = type
         self.description = description
         self.metadata = metadata
@@ -181,6 +171,7 @@ class Artifact(object):
         with tempfile.NamedTemporaryFile('w+', suffix=".json", delete=False) as fp:
             json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             self._file_specs['wandb_manifest.json'] = fp.name
+            manifest_file = fp.name
 
         # Calculate the server manifest
         file_entries = []
@@ -188,7 +179,7 @@ class Artifact(object):
             file_entries.append(self.LocalArtifactManifestEntry(
                 name, md5_file_b64(local_path), os.path.abspath(local_path)))
         self.server_manifest = ServerManifestV1(file_entries)
-        self._digest = self.server_manifest.get_digest()
+        self._digest = md5_file_b64(manifest_file)
 
         # TODO: move new_files to final cache location
 
