@@ -185,6 +185,15 @@ class _WandbInit(object):
                     "currently unsupported wandb.init() arg: %s", key
                 )
 
+        # prevent setting project, entity if in sweep
+        # TODO(jhr): these should be locked elements in the future or at least
+        #            moved to apply_init()
+        if settings.sweep_id:
+            for key in ("project", "entity"):
+                val = kwargs.pop(key, None)
+                if val:
+                    print("Ignored wandb.init() arg %s when running a sweep" % key)
+
         settings.apply_init(kwargs)
 
         # TODO(jhr): should this be moved? probably.

@@ -76,12 +76,14 @@ env_settings = dict(
     entity=None,
     project=None,
     base_url=None,
+    sweep_id=None,
     mode=None,
     run_group=None,
     job_type=None,
     problem=None,
     console=None,
     config_paths=None,
+    run_id=None,
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
@@ -140,6 +142,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_name = None,
         run_notes = None,
         run_tags=None,
+        sweep_id=None,
         # compatibility / error handling
         compat_version=None,  # set to "0.8" for safer defaults for older users
         strict=None,  # set to "on" to enforce current best practices (also "warn")

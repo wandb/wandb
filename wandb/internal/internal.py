@@ -198,16 +198,18 @@ class _SendManager(object):
         if run.HasField("config"):
             config_dict = _config_dict_from_proto_list(run.config.update)
 
+        print("debug upsert", run.job_type, type(run.job_type))
         ups = self._api.upsert_run(
-            entity=run.entity,
-            project=run.project,
-            group=run.run_group,
-            job_type=run.job_type,
             name=run.run_id,
-            display_name=run.display_name,
-            notes=run.notes,
-            tags=run_tags,
-            config=config_dict,
+            entity=run.entity or None,
+            project=run.project or None,
+            group=run.run_group or None,
+            job_type=run.job_type or None,
+            display_name=run.display_name or None,
+            notes=run.notes or None,
+            tags=run_tags or None,
+            config=config_dict or None,
+            sweep_name=run.sweep_id or None,
         )
 
         if data.control.req_resp:
