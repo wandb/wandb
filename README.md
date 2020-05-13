@@ -80,3 +80,10 @@ If you'd like a free academic account for your research group, [reach out to us 
 
 We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
 [![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)
+
+## Community
+Got questions, feedback or want to join a community of ML engineers working on exciting projects?
+
+[![Slack](https://i.imgur.com/fSP5ro7.png)](http://bit.ly/wandb-forum) Join our community [slack](http://bit.ly/wandb-forum).
+
+[![Twitter](https://i.imgur.com/efGJdm6.png)](https://twitter.com/weights_biases) Find us on [twitter](https://twitter.com/weights_biases).
