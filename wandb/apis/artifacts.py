@@ -426,9 +426,9 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(artifact, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5, upload=False):
-        base64_md5 = base64.b64encode(md5.encode('ascii')).decode('ascii')
+        md5_hex = base64.b64decode(md5).hex()
         suffix = "/uploadURL" if upload else ""
-        return f'{api.settings("base_url")}/artifacts/{entity_name}/{base64_md5}{suffix}'
+        return f'{api.settings("base_url")}/artifacts/{entity_name}/{md5_hex}{suffix}'
 
     def store_file(self, entity_name, project_name, local_path, digest, api):
         # This is the "back half". It's called in run manager, for each local path
