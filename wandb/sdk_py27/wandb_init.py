@@ -156,7 +156,7 @@ class _WandbInit(object):
         )
 
         # Remove parameters that are not part of settings
-        init_config = kwargs.pop("config", dict())
+        init_config = kwargs.pop("config", None) or dict()
 
         # merge config with sweep (or config file)
         self.config = wl._config or dict()
@@ -473,7 +473,7 @@ class _WandbInit(object):
         self._redirect(stdout_slave_fd, stderr_slave_fd)
 
         # for super agent
-        run._save_job_spec()
+        # run._save_job_spec()
 
         return run
 

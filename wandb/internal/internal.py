@@ -198,7 +198,6 @@ class _SendManager(object):
         if run.HasField("config"):
             config_dict = _config_dict_from_proto_list(run.config.update)
 
-        print("debug upsert", run.job_type, type(run.job_type))
         ups = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
@@ -441,8 +440,8 @@ def _check_process(settings, pid):
 
     exists = psutil.pid_exists(pid)
     if not exists:
-        my_pid = os.getpid()
-        print("badness: process gone", pid, my_pid)
+        # my_pid = os.getpid()
+        # print("badness: process gone", pid, my_pid)
         os._exit(-1)
 
 

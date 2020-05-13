@@ -189,6 +189,13 @@ class RunManaged(Run):
     def join(self):
         self._backend.cleanup()
 
+    def _get_project_url(self):
+        s = self._settings
+        r = self._run_obj
+        app_url = s.base_url.replace("//api.", "//app.")
+        url = "{}/{}/{}".format(app_url, r.entity, r.project)
+        return url
+
     def _get_run_url(self):
         s = self._settings
         r = self._run_obj
@@ -196,25 +203,44 @@ class RunManaged(Run):
         url = "{}/{}/{}/runs/{}".format(app_url, r.entity, r.project, r.run_id)
         return url
 
+    def _get_run_name(self):
+        r = self._run_obj
+        return r.display_name
+
     def _display_run(self):
         emojis = dict(star="", broom="", rocket="")
         if platform.system() != "Windows":
             emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-        url = self._get_run_url()
+        project_url = self._get_project_url()
+        run_url = self._get_run_url()
+        wandb.termlog(
+            "{} View project at {}".format(
+                emojis.get("star", ""),
+                click.style(project_url, underline=True, fg="blue"),
+            )
+        )
         wandb.termlog(
             "{} View run at {}".format(
-                emojis.get("rocket", ""), click.style(url, underline=True, fg="blue")
+                emojis.get("rocket", ""),
+                click.style(run_url, underline=True, fg="blue"),
             )
         )
 
     def on_start(self):
+        wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
         if self._run_obj:
+            run_state_str = "Syncing run"
+            run_name = self._get_run_name()
+            wandb.termlog(
+                "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
+            )
             self._display_run()
+        print("")
 
     def on_finish(self):
         # check for warnings and errors, show log file locations
-        if self._run_obj:
-            self._display_run()
+        # if self._run_obj:
+        #    self._display_run()
         if self._reporter:
             warning_lines = self._reporter.warning_lines
             if warning_lines:
@@ -239,6 +265,14 @@ class RunManaged(Run):
             wandb.termlog(
                 "Find internal logs for this run at: {}".format(
                     self._settings.log_internal
+                )
+            )
+        if self._run_obj:
+            run_url = self._get_run_url()
+            run_name = self._get_run_name()
+            wandb.termlog(
+                "Synced {}: {}".format(
+                    click.style(run_name, fg="yellow"), click.style(run_url, fg="blue")
                 )
             )
 
