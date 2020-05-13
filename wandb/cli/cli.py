@@ -1,6 +1,6 @@
-
 from functools import wraps
 import logging
+import os
 import sys
 import traceback
 
@@ -9,6 +9,11 @@ from click.exceptions import ClickException
 import six
 import wandb
 from wandb import Error
+from wandb import util
+from wandb import wandb_agent
+from wandb import wandb_controller
+from wandb.apis import InternalApi
+import yaml
 
 logger = logging.getLogger("wandb")
 
@@ -96,3 +101,155 @@ def sync(ctx, path, id, project, entity, ignore):
     # resp = interface_sync_file(fname)
     # while interface_sync_poll(resp):
     #     pass
+
+
+@cli.command(context_settings=CONTEXT, help="Create a sweep")  # noqa: C901
+@click.pass_context
+@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@click.option('--controller', is_flag=True, default=False, help="Run local controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.option('--name', default=False, help="Set sweep name")
+@click.option('--program', default=False, help="Set sweep program")
+@click.option('--settings', default=False, help="Set sweep settings", hidden=True)
+@click.option('--update', default=None, help="Update pending sweep")
+@click.argument('config_yaml')
+@display_error
+def sweep(ctx, project, entity, controller, verbose, name, program, settings, update, config_yaml):
+    def _parse_settings(settings):
+        """settings could be json or comma seperated assignments."""
+        ret = {}
+        # TODO(jhr): merge with magic_impl:_parse_magic
+        if settings.find('=') > 0:
+            for item in settings.split(","):
+                kv = item.split("=")
+                if len(kv) != 2:
+                    wandb.termwarn("Unable to parse sweep settings key value pair", repeat=False)
+                ret.update(dict([kv]))
+            return ret
+        wandb.termwarn("Unable to parse settings parameter", repeat=False)
+        return ret
+
+    api = InternalApi()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep feature")
+        ctx.invoke(login, no_offline=True)
+
+    sweep_obj_id = None
+    if update:
+        parts = dict(entity=entity, project=project, name=update)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or update
+        found = api.sweep(sweep_id, '{}', entity=entity, project=project)
+        if not found:
+            wandb.termerror('Could not find sweep {}/{}/{}'.format(entity, project, sweep_id))
+            return
+        sweep_obj_id = found['id']
+
+    wandb.termlog('{} sweep from: {}'.format(
+        'Updating' if sweep_obj_id else 'Creating', config_yaml))
+    try:
+        yaml_file = open(config_yaml)
+    except OSError:
+        wandb.termerror('Couldn\'t open sweep file: %s' % config_yaml)
+        return
+    try:
+        config = util.load_yaml(yaml_file)
+    except yaml.YAMLError as err:
+        wandb.termerror('Error in configuration file: %s' % err)
+        return
+    if config is None:
+        wandb.termerror('Configuration file is empty')
+        return
+
+    # Set or override parameters
+    if name:
+        config["name"] = name
+    if program:
+        config["program"] = program
+    if settings:
+        settings = _parse_settings(settings)
+        if settings:
+            config.setdefault("settings", {})
+            config["settings"].update(settings)
+    if controller:
+        config.setdefault("controller", {})
+        config["controller"]["type"] = "local"
+
+    is_local = config.get('controller', {}).get('type') == 'local'
+    if is_local:
+        tuner = wandb_controller.controller()
+        err = tuner._validate(config)
+        if err:
+            wandb.termerror('Error in sweep file: %s' % err)
+            return
+
+    env = os.environ
+    entity = entity or env.get("WANDB_ENTITY") or config.get('entity')
+    project = project or env.get("WANDB_PROJECT") or config.get('project') or util.auto_project_name(
+        config.get("program"), api)
+    sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
+    wandb.termlog('{} sweep with ID: {}'.format(
+        'Updated' if sweep_obj_id else 'Created',
+        click.style(sweep_id, fg="yellow")))
+    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+    if sweep_url:
+        wandb.termlog("View sweep at: {}".format(
+            click.style(sweep_url, underline=True, fg='blue')))
+
+    # reprobe entity and project if it was autodetected by upsert_sweep
+    entity = entity or env.get("WANDB_ENTITY")
+    project = project or env.get("WANDB_PROJECT")
+
+    if entity and project:
+        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+    elif project:
+        sweep_path = "{}/{}".format(project, sweep_id)
+    else:
+        sweep_path = sweep_id
+
+    if sweep_path.find(' ') >= 0:
+        sweep_path = '"{}"'.format(sweep_path)
+
+    wandb.termlog("Run sweep agent with: {}".format(
+        click.style("wandb agent %s" % sweep_path, fg="yellow")))
+    if controller:
+        wandb.termlog('Starting wandb controller...')
+        tuner = wandb_controller.controller(sweep_id)
+        tuner.run(verbose=verbose)
+
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B agent")
+@click.pass_context
+@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@click.option("--count", default=None, type=int, help="The max number of runs for this agent.")
+@click.argument('sweep_id')
+@display_error
+def agent(ctx, project, entity, count, sweep_id):
+    api = InternalApi()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep agent feature")
+        ctx.invoke(login, no_offline=True)
+
+    wandb.termlog('Starting wandb agent 🕵️')
+    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
+
+    # you can send local commands like so:
+    # agent_api.command({'type': 'run', 'program': 'train.py',
+    #                'args': ['--max_epochs=10']})
+
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
+@click.option('--verbose', is_flag=True, default=False, help="Display verbose output")
+@click.argument('sweep_id')
+@display_error
+def controller(verbose, sweep_id):
+    click.echo('Starting wandb controller...')
+    tuner = wandb_controller.controller(sweep_id)
+    tuner.run(verbose=verbose)

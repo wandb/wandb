@@ -17,6 +17,8 @@ import os
 import sys
 import threading
 
+import wandb
+
 from . import wandb_settings
 
 logger = (
@@ -73,6 +75,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
+        self._config = None
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -151,6 +154,13 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             ctx = multiprocessing
         self._multiprocessing = ctx
         # print("t3b", self._multiprocessing.get_start_method())
+
+        # if config_paths was set, read in config dict
+        if self._settings.config_paths:
+            # TODO(jhr): handle load errors, handle list of files
+            self._config = wandb.wandb_sdk.Config._dict_from_config_file(
+                self._settings.config_paths
+            )
 
     def on_finish(self):
         logger.info("done")

@@ -81,6 +81,7 @@ env_settings = dict(
     job_type=None,
     problem=None,
     console=None,
+    config_paths=None,
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
@@ -150,26 +151,28 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         system_sample_seconds=2,
         system_samples=15,
         heartbeat_seconds=30,
+        config_paths=None,
+        _config_dict=None,
         # directories and files
         wandb_dir="wandb",
-        config_system_spec="~/.config/wandb/settings",
-        config_workspace_spec="{wandb_dir}/settings",
-        config_system=None,  # computed
-        config_workspace=None,  # computed
-        sync_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}",
+        settings_system_spec="~/.config/wandb/settings",
+        settings_workspace_spec="{wandb_dir}/settings",
+        settings_system=None,  # computed
+        settings_workspace=None,  # computed
+        sync_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}",
         sync_file_spec="run-{timespec}-{run_id}.wandb",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest",
         sync_file=None,  # computed
-        log_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/logs",
+        log_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}/logs",
         log_user_spec="debug-{timespec}-{run_id}.log",
         log_internal_spec="debug-internal-{timespec}-{run_id}.log",
         log_symlink_user_spec="{wandb_dir}/debug.log",
         log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
         log_user=None,  # computed
         log_internal=None,  # computed
-        files_dir_spec="{wandb_dir}/runs/wandb-{timespec}-{run_id}/files",
+        files_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}/files",
         files_dir=None,  # computed
         symlink=None,  # probed
         # where files are temporary stored when saving
@@ -237,12 +240,14 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             self.update(env_dict, _setter="env")
         if _files:
             # TODO(jhr): permit setting of config in system and workspace
-            config_system = self._path_convert(self.__dict__.get("config_system_spec"))
-            self.update(self._load(config_system), _setter="system")
-            config_workspace = self._path_convert(
-                self.__dict__.get("config_workspace_spec")
+            settings_system = self._path_convert(
+                self.__dict__.get("settings_system_spec")
             )
-            self.update(self._load(config_workspace), _setter="workspace")
+            self.update(self._load(settings_system), _setter="system")
+            settings_workspace = self._path_convert(
+                self.__dict__.get("settings_workspace_spec")
+            )
+            self.update(self._load(settings_workspace), _setter="workspace")
         if _settings:
             self.update(_settings)
 

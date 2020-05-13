@@ -7,8 +7,6 @@ from __future__ import print_function
 
 import atexit
 import datetime
-import errno
-import json
 import logging
 import os
 import platform
@@ -20,7 +18,7 @@ from six import raise_from
 import wandb
 from wandb.backend.backend import Backend
 from wandb.errors import Error
-from wandb.lib import redirect, reporting
+from wandb.lib import filesystem, redirect, reporting
 from wandb.lib.globals import set_global
 from wandb.old import io_wrap
 
@@ -158,7 +156,12 @@ class _WandbInit(object):
         )
 
         # Remove parameters that are not part of settings
-        self.config = kwargs.pop("config", None)
+        init_config = kwargs.pop("config", dict())
+
+        # merge config with sweep (or config file)
+        self.config = wl._config or dict()
+        for k, v in init_config.items():
+            self.config.setdefault(k, v)
 
         # Temporarily unsupported parameters
         unsupported = (
@@ -178,7 +181,9 @@ class _WandbInit(object):
         for key in unsupported:
             val = kwargs.pop(key, None)
             if val:
-                self._reporter.warning("unsupported wandb.init() arg: %s", key)
+                self._reporter.warning(
+                    "currently unsupported wandb.init() arg: %s", key
+                )
 
         settings.apply_init(kwargs)
 
@@ -224,17 +229,6 @@ class _WandbInit(object):
         logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
 
-    def _safe_makedirs(self, dir_name):
-        try:
-            os.makedirs(dir_name)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-        if not os.path.isdir(dir_name):
-            raise Exception("not dir")
-        if not os.access(dir_name, os.W_OK):
-            raise Exception("cant write: {}".format(dir_name))
-
     def _safe_symlink(self, base, target, name, delete=False):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
         if not hasattr(os, "symlink"):
@@ -267,10 +261,10 @@ class _WandbInit(object):
             settings.sync_dir_spec, settings.sync_file_spec
         )
         settings.files_dir = settings._path_convert(settings.files_dir_spec)
-        self._safe_makedirs(os.path.dirname(settings.log_user))
-        self._safe_makedirs(os.path.dirname(settings.log_internal))
-        self._safe_makedirs(os.path.dirname(settings.sync_file))
-        self._safe_makedirs(settings.files_dir)
+        filesystem._safe_makedirs(os.path.dirname(settings.log_user))
+        filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
+        filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
+        filesystem._safe_makedirs(settings.files_dir)
 
         log_symlink_user = settings._path_convert(settings.log_symlink_user_spec)
         log_symlink_internal = settings._path_convert(
@@ -390,15 +384,6 @@ class _WandbInit(object):
     def init(self):
         s = self.settings
         config = self.config
-
-        data = ""
-        if os.path.exists("config.json"):
-            with open("config.json", "r") as f:
-                data = f.read()
-            print("got data", data)
-            c = json.loads(data)
-            for k, v in c.items():
-                config[k] = v
 
         if s.mode == "noop":
             # TODO(jhr): return dummy object

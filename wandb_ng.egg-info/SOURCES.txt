@@ -49,6 +49,7 @@ wandb/internal/mpmain/__main__.py
 wandb/keras/__init__.py
 wandb/lib/__init__.py
 wandb/lib/apikey.py
+wandb/lib/filesystem.py
 wandb/lib/globals.py
 wandb/lib/ipython.py
 wandb/lib/lazyloader.py
