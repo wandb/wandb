@@ -142,14 +142,14 @@ class Artifact(object):
                     size=size, local_path=physical_path)
                 self._manifest.add_entry(entry)
 
-    def add_reference(self, path, name=None):
-        url = urlparse(path)
+    def add_reference(self, uri, name=None):
+        url = urlparse(uri)
         if not url.scheme:
             raise ValueError('References must be URIs. To reference a local file, use file://')
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
         manifest_entries = self._storage_policy.store_reference(
-            self, path, name=name)
+            self, uri, name=name)
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
@@ -733,7 +733,7 @@ class S3Handler(StorageHandler):
         size = obj.content_length
         extra = self._extra_from_obj(obj)
 
-        return [ArtifactManifestEntry(name or key, path, md5, size=size, extra=extra)]
+        return [ArtifactManifestEntry(name or os.path.basename(key), path, md5, size=size, extra=extra)]
 
     def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
