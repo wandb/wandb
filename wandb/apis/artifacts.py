@@ -742,7 +742,7 @@ class S3Handler(StorageHandler):
         size = obj.content_length
         extra = self._extra_from_obj(obj)
 
-        return [ArtifactManifestEntry(name or key, path, md5, size=size, extra=extra)]
+        return [ArtifactManifestEntry(name or os.path.basename(key), path, md5, size=size, extra=extra)]
 
     def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
