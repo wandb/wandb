@@ -1212,7 +1212,7 @@ class RunManager(object):
         manifest = message['manifest']
         description = message['description']
         digest = message['digest']
-        labels = json.dumps(message['labels']) if 'labels' in message else None
+        labels = message['labels'] if 'labels' in message else None
         metadata = message['metadata'] if 'metadata' in message else None
         aliases = message['aliases'] if 'aliases' in message else None
 

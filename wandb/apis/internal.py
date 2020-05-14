@@ -1121,9 +1121,9 @@ class Api(object):
             'artifactCollectionNames': [artifact_collection_name],
             'digest': digest,
             'description': description,
-            'labels': labels,
             'aliases': [alias for alias in aliases],
-            'metadata': json.dumps(util.make_safe_for_json(metadata))
+            'labels': json.dumps(util.make_safe_for_json(labels)) if labels is not None else None,
+            'metadata': json.dumps(util.make_safe_for_json(metadata)) if metadata is not None else None,
         })
         av = response['createArtifact']['artifact']
         return av
