@@ -167,7 +167,7 @@ class TorchHistory(object):
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            history.row.update({
+            history._row_update({
                 name: wandb.Histogram(tensor)
             })
             return
@@ -235,7 +235,7 @@ class TorchHistory(object):
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        history.row.update({
+        history._row_update({
             name: wandb.Histogram(np_histogram=(
                 tensor.tolist(), bins.tolist()))
         })
