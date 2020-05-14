@@ -5,7 +5,7 @@ import threading
 import wandb
 from wandb import util
 
-EventJobDone = collections.namedtuple('EventJobDone', ('job'))
+EventJobDone = collections.namedtuple('EventJobDone', ('job', 'success'))
 
 class UploadJob(threading.Thread):
     def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, copied, save_fn, digest):
@@ -34,12 +34,13 @@ class UploadJob(threading.Thread):
         super(UploadJob, self).__init__()
 
     def run(self):
+        success = False
         try:
-            self.push()
+            success = self.push()
         finally:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
-            self._done_queue.put(EventJobDone(self))
+            self._done_queue.put(EventJobDone(self, success))
 
     def push(self):
         try:
@@ -49,13 +50,18 @@ class UploadJob(threading.Thread):
 
         if self.save_fn:
             self._stats.add_uploaded_file(self.save_path, size)
-            # Retry logic must happen in save_fn currencly
-            deduped = self.save_fn(self.save_path, self.digest, self._api)
+            # Retry logic must happen in save_fn currently
+            try:
+                deduped = self.save_fn(self.save_path, self.digest, self._api)
+            except:
+                self._stats.update_failed_file(self.save_path)
+                return False
+
             if deduped:
                 self._stats.set_file_deduped(self.save_path)
             else:
                 self._stats.update_uploaded_file(self.save_path, size)
-            return
+            return True
 
         prepare_response = self._step_prepare.prepare(
             self.save_path, self.save_name, self.md5, self.artifact_id)
@@ -87,6 +93,8 @@ class UploadJob(threading.Thread):
                 wandb.util.sentry_exc(e)
                 wandb.termerror('Error uploading "{}": {}, {}'.format(
                     self.save_name, type(e).__name__, e))
+                return False
+            return True
 
     def progress(self, total_bytes):
         self._stats.update_uploaded_file(self.save_name, total_bytes)

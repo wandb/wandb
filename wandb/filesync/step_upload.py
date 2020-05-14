@@ -7,6 +7,7 @@ import time
 from six.moves import queue
 
 from wandb.filesync import upload_job
+from wandb import termerror
 
 
 RequestUpload = collections.namedtuple(
@@ -69,8 +70,11 @@ class StepUpload(object):
             job = event.job
             job.join()
             if job.artifact_id:
-                self._artifacts[job.artifact_id]['pending_count'] -= 1
-                self._maybe_commit_artifact(job.artifact_id)
+                if event.success:
+                    self._artifacts[job.artifact_id]['pending_count'] -= 1
+                    self._maybe_commit_artifact(job.artifact_id)
+                else:
+                    termerror('Uploading artifact file failed. Artifact won\'t be committed.')
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
