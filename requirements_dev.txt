@@ -42,6 +42,7 @@ plotly
 Keras
 xgboost
 lightgbm
+catboost
 ray[tune]
 gym
 scikit-plot
