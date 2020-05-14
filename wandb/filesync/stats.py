@@ -18,6 +18,11 @@ class Stats(object):
             'failed': False
         }
 
+    def set_file_deduped(self, save_name):
+        file_stats = self._stats[save_name]
+        file_stats['deduped'] = True
+        file_stats['uploaded'] = file_stats['total']
+
     def update_uploaded_file(self, save_name, total_uploaded):
         self._stats[save_name]['uploaded'] = total_uploaded
 

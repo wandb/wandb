@@ -48,9 +48,13 @@ class UploadJob(threading.Thread):
             size = 0
 
         if self.save_fn:
-            # TODO: this needs to retry
-            # TODO: track metrics
-            self.save_fn(self.save_path, self.digest, self._api)
+            self._stats.add_uploaded_file(self.save_path, size)
+            # Retry logic must happen in save_fn currencly
+            deduped = self.save_fn(self.save_path, self.digest, self._api)
+            if deduped:
+                self._stats.set_file_deduped(self.save_path)
+            else:
+                self._stats.update_uploaded_file(self.save_path, size)
             return
 
         prepare_response = self._step_prepare.prepare(

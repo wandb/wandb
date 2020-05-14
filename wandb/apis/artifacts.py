@@ -402,6 +402,16 @@ class WandbStoragePolicy(StoragePolicy):
             file_handler,
         ], default_handler=TrackingHandler())
 
+        # Retry for ~30 hours
+        retry_strategy = requests.packages.urllib3.util.retry.Retry(total=17)
+        self._session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=64,
+            pool_maxsize=64)
+        self._session.mount('http://', adapter)
+        self._session.mount('https://', adapter)
+
     def config(self):
         return None
 
@@ -444,7 +454,7 @@ class WandbStoragePolicy(StoragePolicy):
     def store_file(self, entity_name, project_name, local_path, digest, api):
         # This is the "back half". It's called in run manager, for each local path
         # in the artifact.
-        r = requests.get(
+        r = self._session.get(
             self._file_url(self._api, entity_name, digest, upload=True),
             auth=("api", self._api.api_key))
         r.raise_for_status()
@@ -458,10 +468,13 @@ class WandbStoragePolicy(StoragePolicy):
                               for header in (resp["uploadHeaders"] or {})}
 
             with open(local_path, "rb") as file:
-                r = requests.put(upload_url,
+                # TODO(artifacts): I'm getting a 400: Bad request for URL here
+                # sometimes, on a bad connection. Is this an md5 mismatch?
+                r = self._session.put(upload_url,
                                  headers=upload_headers,
                                  data=file)
                 r.raise_for_status()
+        return exists
 
 
 class S3BucketPolicy(StoragePolicy):

@@ -1454,6 +1454,11 @@ class RunManager(object):
         wandb_files = set([save_name for save_name in self._file_pusher.files() if util.is_wandb_file(save_name)])
         media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
         other_files = set(self._file_pusher.files()) - wandb_files - media_files
+
+        # Skip printing files. Do we really want this?
+        # TODO(artifacts): clean up
+        other_files = []
+
         logger.info("syncing files to cloud storage")
         if other_files:
             wandb.termlog('Syncing files in %s:' % os.path.relpath(self._run.dir))
@@ -1534,6 +1539,7 @@ class ArtifactSaver(object):
             if entry.local_path:
                 self._file_pusher.file_changed(
                     entry.path, entry.local_path,
+                    copy=False,
                     artifact_id=self._server_artifact['id'],
                     save_fn=lambda local_path, digest, api: (
                         # We shouldn't be using API settings here.
