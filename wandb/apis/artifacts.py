@@ -179,7 +179,7 @@ class Artifact(object):
             file_entries.append(self.LocalArtifactManifestEntry(
                 name, md5_file_b64(local_path), os.path.abspath(local_path)))
         self.server_manifest = ServerManifestV1(file_entries)
-        self._digest = md5_file_b64(manifest_file)
+        self._digest = self._manifest.digest()
 
         # TODO: move new_files to final cache location
 
@@ -230,6 +230,10 @@ class ArtifactManifest(ABC):
 
     @abstractmethod
     def to_manifest_json(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def digest(self):
         raise NotImplementedError()
 
     def load_path(self, path, local=False, expand_dirs=False):
@@ -316,6 +320,13 @@ class ArtifactManifestV1(ArtifactManifest):
             'storagePolicyConfig': self.storage_policy.config() or {},
             'contents': contents
         }
+
+    def digest(self):
+        hasher = hashlib.md5()
+        hasher.update("wandb-artifact-manifest-v1\n".encode())
+        for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
+            hasher.update(f'{name}:{entry.digest}\n'.encode())
+        return hasher.hexdigest()
 
 
 class ArtifactManifestEntry(object):
