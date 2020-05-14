@@ -80,4 +80,5 @@ def plot_feature_importances(model=None, feature_names=None,
                 ))
 
         wandb.log({'feature_importances': feature_importances_table(feature_names, importances)})
+        print("Go to your dashboard to see the Catboost's Feature Importances graph plotted.")
         return feature_importances_table(feature_names, importances)
