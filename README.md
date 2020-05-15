@@ -17,6 +17,8 @@ This repo contains experimental changes to the production wandb client at [githu
 This package is considered experimental but it is *Actively Supported*.  Issues will be responded to within 1
 working day.
 
+Please specify the version when reporting issues: `wandb --version`
+
 ## Compatibility status
 
 - Only online mode is supported.  Only use this on a machine with a stable internet connection.
