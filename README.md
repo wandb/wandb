@@ -17,7 +17,7 @@ This repo contains experimental changes to the production wandb client at [githu
 This package is considered experimental but it is *Actively Supported*.  Issues will be responded to within 1
 working day.
 
-Please specify the version when reporting issues: `wandb --version`
+File bugs [here](https://github.com/wandb/client-ng/issues). Please specify the version when reporting issues: `wandb --version`
 
 ## Compatibility status
 
