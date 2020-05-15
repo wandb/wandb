@@ -466,7 +466,7 @@ class WandbStoragePolicy(StoragePolicy):
         resp = r.json()
         exists, upload_url = resp["exists"], resp["uploadURL"]
 
-        if not exists or exists:
+        if not exists:
             upload_headers = {header.split(":", 1)[0]: header.split(":", 1)[1]
                               for header in (resp["uploadHeaders"] or {})}
 
