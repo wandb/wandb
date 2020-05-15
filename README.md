@@ -12,12 +12,14 @@ This repo contains experimental changes to the production wandb client at [githu
 - Improved configurability (Documentation coming soon)
 - Improved syncing and offline mode to support compute nodes without internet connection (Not in current release)
 
-## File issues in this repository
+## Support
 
 This package is considered experimental but it is *Actively Supported*.  Issues will be responded to within 1
 working day.
 
-File bugs [here](https://github.com/wandb/client-ng/issues). Please specify the version when reporting issues: `wandb --version`
+File issues [in this repository](https://github.com/wandb/client-ng/issues). Please specify the version when reporting issues: `wandb --version`
+
+Alternatively you can discuss problems in the [Public Slack Forum](http://bit.ly/wandb-forum) in channel `#wandb-cling`.
 
 ## Compatibility status
 
