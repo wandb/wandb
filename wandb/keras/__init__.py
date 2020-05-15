@@ -175,6 +175,7 @@ class WandbCallback(keras.callbacks.Callback):
         save_model:
             True - save a model when monitor beats all previous epochs
             False - don't save models
+        save_graph: (boolean): if True save model graph to wandb (default: True).
         save_weights_only (boolean): if True, then only the model's weights will be
             saved (`model.save_weights(filepath)`), else the full model
             is saved (`model.save(filepath)`).
@@ -219,7 +220,7 @@ class WandbCallback(keras.callbacks.Callback):
                  labels=[], data_type=None, predictions=36, generator=None,
                  input_type=None, output_type=None, log_evaluation=False,
                  validation_steps=None, class_colors=None, log_batch_frequency=None,
-                 log_best_prefix="best_"):
+                 log_best_prefix="best_", save_graph=True):
         if wandb.run is None:
             raise wandb.Error(
                 'You must call wandb.init() before WandbCallback()')
@@ -238,6 +239,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.monitor = monitor
         self.verbose = verbose
         self.save_weights_only = save_weights_only
+        self.save_graph = save_graph
 
         wandb.save('model-best.h5')
         self.filepath = os.path.join(wandb.run.dir, 'model-best.h5')
@@ -337,7 +339,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     # This is what keras used pre tensorflow.keras
     def on_batch_end(self, batch, logs=None):
-        if not self._graph_rendered:
+        if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
@@ -349,7 +351,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
-        if not self._graph_rendered:
+        if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
