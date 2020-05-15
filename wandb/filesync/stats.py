@@ -40,4 +40,4 @@ class Stats(object):
         }
 
     def files(self):
-        return self._stats.keys()
+        return self._stats.copy().keys()
