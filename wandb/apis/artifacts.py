@@ -402,8 +402,11 @@ class WandbStoragePolicy(StoragePolicy):
             file_handler,
         ], default_handler=TrackingHandler())
 
-        # Retry for ~30 hours
-        retry_strategy = requests.packages.urllib3.util.retry.Retry(total=17)
+        # I believe this makes the first sleep 1s, and then doubles it up to
+        # total times, which makes for ~18 hours.
+        retry_strategy = requests.packages.urllib3.util.retry.Retry(
+            backoff_factor=1,
+            total=16)
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             max_retries=retry_strategy,
@@ -463,13 +466,13 @@ class WandbStoragePolicy(StoragePolicy):
         resp = r.json()
         exists, upload_url = resp["exists"], resp["uploadURL"]
 
-        if not exists:
+        if not exists or exists:
             upload_headers = {header.split(":", 1)[0]: header.split(":", 1)[1]
                               for header in (resp["uploadHeaders"] or {})}
 
             with open(local_path, "rb") as file:
-                # TODO(artifacts): I'm getting a 400: Bad request for URL here
-                # sometimes, on a bad connection. Is this an md5 mismatch?
+                # This fails if we don't send the first byte before the signed URL
+                # expires.
                 r = self._session.put(upload_url,
                                  headers=upload_headers,
                                  data=file)

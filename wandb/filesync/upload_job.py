@@ -53,8 +53,11 @@ class UploadJob(threading.Thread):
             # Retry logic must happen in save_fn currently
             try:
                 deduped = self.save_fn(self.save_path, self.digest, self._api)
-            except:
+            except Exception as e:
                 self._stats.update_failed_file(self.save_path)
+                wandb.util.sentry_exc(e)
+                wandb.termerror('Error uploading "{}": {}, {}'.format(
+                    self.save_path, type(e).__name__, e))
                 return False
 
             if deduped:
