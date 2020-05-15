@@ -6,11 +6,11 @@
 
 This repo contains experimental changes to the production wandb client at [github.com/wandb/client](http://github.com/wandb/client).
 
-## Features
+## Primary Features
 
-- Better support for diferent operating environments including windows and juypter
-- Improved configurability
-- Improved offline mode to support compute nodes without internet connection (Not in current release)
+- Better support for different operating environments including windows and juypter
+- Improved configurability (Documentation coming soon)
+- Improved syncing and offline mode to support compute nodes without internet connection (Not in current release)
 
 ## File issues in this repository
 
