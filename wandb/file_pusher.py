@@ -52,7 +52,7 @@ class FilePusher(object):
     uploads are complete.
     """
 
-    MAX_UPLOAD_JOBS = 16
+    MAX_UPLOAD_JOBS = 64
 
     def __init__(self, api):
         self._api = api
