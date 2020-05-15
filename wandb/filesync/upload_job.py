@@ -97,7 +97,7 @@ class UploadJob(threading.Thread):
                 wandb.termerror('Error uploading "{}": {}, {}'.format(
                     self.save_name, type(e).__name__, e))
                 return False
-            return True
+        return True
 
     def progress(self, total_bytes):
         self._stats.update_uploaded_file(self.save_name, total_bytes)
