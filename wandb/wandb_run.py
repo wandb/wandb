@@ -412,12 +412,13 @@ class Run(object):
                     raise ValueError('Artifacts must have a type and name')
                 if name is None:
                     raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
-                entries = artifact.finalize()
+                artifact.finalize()
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
                         'name': name,
-                        'manifest_entries': entries,
+                        'server_manifest_entries': artifact.server_manifest.entries,
+                        'manifest': artifact.manifest.to_manifest_json(include_local=True),
                         'digest': artifact.digest,
                         'metadata': artifact.metadata
                     }
