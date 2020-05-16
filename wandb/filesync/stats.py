@@ -1,17 +1,21 @@
+import threading
+
 from wandb import util
 
 class Stats(object):
     def __init__(self):
         self._stats = {}
+        self._lock = threading.Lock()
 
     def init_file(self, save_name, size, is_artifact_file=False):
-        self._stats[save_name] = {
-            'deduped': False,
-            'total': size,
-            'uploaded': 0,
-            'failed': False,
-            'artifact_file': is_artifact_file
-        }
+        with self._lock:
+            self._stats[save_name] = {
+                'deduped': False,
+                'total': size,
+                'uploaded': 0,
+                'failed': False,
+                'artifact_file': is_artifact_file
+            }
 
     def set_file_deduped(self, save_name):
         file_stats = self._stats[save_name]
@@ -28,7 +32,8 @@ class Stats(object):
     def summary(self):
         # Need to use list to ensure we get a copy, since other threads may
         # modify this while we iterate
-        stats = list(self._stats.values())
+        with self._lock:
+            stats = list(self._stats.values())
         return {
             'uploaded_bytes': sum(f['uploaded'] for f in stats),
             'total_bytes': sum(f['total'] for f in stats),
@@ -42,7 +47,8 @@ class Stats(object):
         other_files = 0
         # Need to use list to ensure we get a copy, since other threads may
         # modify this while we iterate
-        file_stats = list(self._stats.items())
+        with self._lock:
+            file_stats = list(self._stats.items())
         for save_name, stats in file_stats:
             if stats['artifact_file']:
                 artifact_files += 1
