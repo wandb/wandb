@@ -68,7 +68,7 @@ class FilePusher(object):
         self._step_prepare.start()
 
         self._step_checksum = step_checksum.StepChecksum(
-            self._api, self._tempdir, self._incoming_queue, self._event_queue)
+            self._api, self._tempdir, self._incoming_queue, self._event_queue, self._stats)
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
@@ -89,11 +89,10 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped). %s files\r' % (
+            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r' % (
                 summary['uploaded_bytes'] / 1048576.0,
                 summary['total_bytes'] / 1048576.0,
-                summary['deduped_bytes'] / 1048576.0,
-                summary['nfiles'])
+                summary['deduped_bytes'] / 1048576.0)
             line = spinner_states[step % 4] + line
             step += 1
             wandb.termlog(line, newline=False)
@@ -106,8 +105,8 @@ class FilePusher(object):
         # clear progress line.
         wandb.termlog(' ' * 79)
 
-    def files(self):
-        return self._stats.files()
+    def file_counts_by_category(self):
+        return self._stats.file_counts_by_category()
 
     def file_changed(self, save_name, path, artifact_id=None, copy=True, save_fn=None, digest=None):
         """Tell the file pusher that a file's changed and should be uploaded.
@@ -124,6 +123,10 @@ class FilePusher(object):
             return
 
         event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, save_fn, digest)
+        self._incoming_queue.put(event)
+
+    def store_manifest_files(self, manifest, artifact_id, save_fn):
+        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
     def named_temp_file(self, mode='w+b'):

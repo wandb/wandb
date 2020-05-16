@@ -16,17 +16,20 @@ from wandb.filesync import step_upload
 
 RequestUpload = collections.namedtuple(
     'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy', 'save_fn', 'digest'))
+RequestStoreManifestFiles = collections.namedtuple(
+    'RequestStoreManifestFiles', ('manifest', 'artifact_id', 'save_fn'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', ))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
 class StepChecksum(object):
-    def __init__(self, api, tempdir, request_queue, output_queue):
+    def __init__(self, api, tempdir, request_queue, output_queue, stats):
         self._api = api
         self._tempdir = tempdir
         self._request_queue = request_queue
         self._output_queue = output_queue
+        self._stats = stats
 
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
@@ -43,10 +46,24 @@ class StepChecksum(object):
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     shutil.copy2(req.path, path)
                 checksum = wandb.util.md5_file(path)
+                self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
                         path, req.save_name, req.artifact_id, checksum, req.copy,
                         req.save_fn, req.digest))
+            elif isinstance(req, RequestStoreManifestFiles):
+                for entry in req.manifest.entries.values():
+                    if entry.local_path:
+                        self._stats.init_file(entry.local_path, entry.size, is_artifact_file=True)
+                        self._output_queue.put(
+                            step_upload.RequestUpload(
+                                entry.local_path,
+                                entry.path,
+                                req.artifact_id,
+                                entry.digest,
+                                False,
+                                req.save_fn,
+                                entry.digest))
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id))
             elif isinstance(req, RequestFinish):

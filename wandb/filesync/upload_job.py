@@ -49,7 +49,6 @@ class UploadJob(threading.Thread):
             size = 0
 
         if self.save_fn:
-            self._stats.add_uploaded_file(self.save_path, size)
             # Retry logic must happen in save_fn currently
             try:
                 deduped = self.save_fn(self.save_path, self.digest, self._api)
@@ -69,9 +68,8 @@ class UploadJob(threading.Thread):
         prepare_response = self._step_prepare.prepare(
             self.save_path, self.save_name, self.md5, self.artifact_id)
         if prepare_response.upload_url == None:
-            self._stats.add_deduped_file(self.save_name, size)
+            self._stats.set_file_deduped(self.save_name)
         else:
-            self._stats.add_uploaded_file(self.save_name, size)
             upload_url = prepare_response.upload_url
             upload_headers = prepare_response.upload_headers
 

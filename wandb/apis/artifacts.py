@@ -4,6 +4,7 @@ import base64
 import hashlib
 import os
 import tempfile
+import time
 import shutil
 import requests
 from abc import ABC, abstractmethod
@@ -13,7 +14,7 @@ from wandb.compat import tempfile as compat_tempfile
 
 from wandb.apis import artifacts_cache, InternalApi
 from wandb import util
-from wandb.core import termwarn
+from wandb.core import termwarn, termlog
 
 
 def md5_string(string):
@@ -25,7 +26,7 @@ def md5_string(string):
 def md5_hash_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+        for chunk in iter(lambda: f.read(64 * 1024), b""):
             hash_md5.update(chunk)
     return hash_md5
 
@@ -130,17 +131,39 @@ class Artifact(object):
         if not os.path.isdir(local_path):
             raise ValueError('Path is not dir: %s' % local_path)
 
+
+        termlog('Checksumming artifact directory (%s)... ' % os.path.join('.', local_path), newline=False)
+        start_time = time.time()
+
+        paths = []
         for dirpath, _, filenames in os.walk(local_path, followlinks=True):
             for fname in filenames:
                 physical_path = os.path.join(dirpath, fname)
                 logical_path = os.path.relpath(physical_path, start=local_path)
                 if name is not None:
                     logical_path = os.path.join(name, logical_path)
-                size = os.path.getsize(physical_path)
-                entry = ArtifactManifestEntry(
-                    logical_path, None, digest=md5_file_b64(physical_path),
-                    size=size, local_path=physical_path)
-                self._manifest.add_entry(entry)
+                paths.append((logical_path, physical_path))
+
+        def add_manifest_file(log_phy_path):
+            logical_path, physical_path = log_phy_path
+            self._manifest.add_entry(
+                ArtifactManifestEntry(
+                    logical_path,
+                    None,
+                    digest=md5_file_b64(physical_path),
+                    size=os.path.getsize(physical_path),
+                    local_path=physical_path
+                )
+            )
+
+        import multiprocessing.dummy  # this uses threads
+        NUM_THREADS = 8
+        pool = multiprocessing.dummy.Pool(NUM_THREADS)
+        pool.map(add_manifest_file, paths)
+        pool.close()
+        pool.join()
+
+        termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None):
         url = urlparse(uri)

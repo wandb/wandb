@@ -1,21 +1,16 @@
+from wandb import util
+
 class Stats(object):
     def __init__(self):
         self._stats = {}
 
-    def add_deduped_file(self, save_name, size):
-        self._stats[save_name] = {
-            'deduped': True,
-            'total': size,
-            'uploaded': size,
-            'failed': False
-        }
-
-    def add_uploaded_file(self, save_name, size):
+    def init_file(self, save_name, size, is_artifact_file=False):
         self._stats[save_name] = {
             'deduped': False,
             'total': size,
             'uploaded': 0,
-            'failed': False
+            'failed': False,
+            'artifact_file': is_artifact_file
         }
 
     def set_file_deduped(self, save_name):
@@ -31,13 +26,36 @@ class Stats(object):
         self._stats[save_name]['failed'] = True
 
     def summary(self):
+        # Need to use list to ensure we get a copy, since other threads may
+        # modify this while we iterate
         stats = list(self._stats.values())
         return {
-            'nfiles': len(stats),
             'uploaded_bytes': sum(f['uploaded'] for f in stats),
             'total_bytes': sum(f['total'] for f in stats),
             'deduped_bytes': sum(f['total'] for f in stats if f['deduped'])
         }
 
-    def files(self):
-        return self._stats.copy().keys()
+    def file_counts_by_category(self):
+        artifact_files = 0
+        wandb_files = 0
+        media_files = 0
+        other_files = 0
+        # Need to use list to ensure we get a copy, since other threads may
+        # modify this while we iterate
+        file_stats = list(self._stats.items())
+        for save_name, stats in file_stats:
+            if stats['artifact_file']:
+                artifact_files += 1
+            elif util.is_wandb_file(save_name):
+                wandb_files += 1
+            elif save_name.startswith('media'):
+                media_files += 1
+            else:
+                other_files += 1
+        return {
+            'artifact': artifact_files,
+            'wandb': wandb_files,
+            'media': media_files,
+            'other': other_files
+        }
+
