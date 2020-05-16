@@ -30,7 +30,6 @@ class Stats(object):
         # modify this while we iterate
         stats = list(self._stats.values())
         return {
-            'nfiles': len(stats),
             'uploaded_bytes': sum(f['uploaded'] for f in stats),
             'total_bytes': sum(f['total'] for f in stats),
             'deduped_bytes': sum(f['total'] for f in stats if f['deduped'])
