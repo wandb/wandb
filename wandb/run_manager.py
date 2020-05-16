@@ -1302,7 +1302,7 @@ class RunManager(object):
                     payload = b''
                 else:
                     try:
-                        res = self._socket.recv(1024)
+                        res = self._socket.recv(64 * 1024)
                     except socket.error as e:
                         # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
                         if e.errno == errno.EINTR or isinstance(e, socket.timeout):
