@@ -1452,22 +1452,11 @@ class RunManager(object):
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
 
-        wandb_files = set([save_name for save_name in self._file_pusher.files() if util.is_wandb_file(save_name)])
-        media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
-        other_files = set(self._file_pusher.files()) - wandb_files - media_files
-
-        # Skip printing files. Do we really want this?
-        # TODO(artifacts): clean up
-        other_files = []
+        file_counts = self._file_pusher.file_counts_by_category()
 
         logger.info("syncing files to cloud storage")
-        if other_files:
-            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._run.dir))
-            for save_name in sorted(other_files):
-                wandb.termlog('  %s' % save_name)
-            wandb.termlog('plus {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
-        else:
-            wandb.termlog('Syncing {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
+        wandb.termlog('Syncing {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)'.format(
+            file_counts['wandb'], file_counts['media'], file_counts['artifact'], file_counts['other']))
 
         self._file_pusher.print_status()
 
@@ -1534,23 +1523,18 @@ class ArtifactSaver(object):
         # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
         # creating the same artifact. In theory this could be ok but the backend doesn't handle
         # it right now.
-        for entry in self._manifest.entries.values():
-            # Save all local_path entries, the others are references and have already been
-            # saved. It's weird to have this logic here. So it goes...
-            if entry.local_path:
-                self._file_pusher.file_changed(
-                    entry.path, entry.local_path,
-                    copy=False,
-                    artifact_id=self._server_artifact['id'],
-                    save_fn=lambda local_path, digest, api: (
-                        # We shouldn't be using API settings here.
-                        self._manifest.storage_policy.store_file(
-                            self._api.settings('entity'),
-                            self._api.settings('project'),
-                            local_path,
-                            digest,
-                            api)),
-                    digest=entry.digest)
+        self._file_pusher.store_manifest_files(
+            self._manifest, 
+            self._server_artifact['id'],
+            lambda local_path, digest, api: (
+                # We shouldn't be using API settings here.
+                self._manifest.storage_policy.store_file(
+                    self._api.settings('entity'),
+                    self._api.settings('project'),
+                    local_path,
+                    digest,
+                    api)),
+        )
         for path, hash, local_path in self._server_manifest_entries:
             self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
         self._file_pusher.commit_artifact(self._server_artifact['id'])
