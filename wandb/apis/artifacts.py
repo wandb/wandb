@@ -157,7 +157,7 @@ class Artifact(object):
             )
 
         import multiprocessing.dummy  # this uses threads
-        NUM_THREADS = 4
+        NUM_THREADS = 8
         pool = multiprocessing.dummy.Pool(NUM_THREADS)
         pool.map(add_manifest_file, paths)
         pool.close()
