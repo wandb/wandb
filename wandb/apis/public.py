@@ -18,6 +18,7 @@ import base64
 import requests
 
 import wandb
+from wandb.core import termlog
 from wandb import Error, __version__
 from wandb import artifacts
 from wandb import artifacts_cache
@@ -1992,17 +1993,30 @@ class Artifact(object):
     def download(self):
         dirpath = self.artifact_dir
 
+        manifest = self._load_manifest()
+        nfiles = len(manifest.entries)
+        size = sum(e.size for e in manifest.entries.values())
+        log = False
+        if nfiles  > 5000 or size > 50 * 1024 * 1024:
+            log = True
+        if log:
+            termlog('Downloading large artifact %s, %.2fMB. %s files... ' % (
+                self.artifact_name, size / (1024 * 1024), nfiles), newline=False)
+        start_time = time.time()
+
         # Force all the files to download into the same directory.
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
         pool = multiprocessing.dummy.Pool(32)
-        manifest = self._load_manifest()
         pool.map(lambda name: self.get_path(name).download(), manifest.entries)
         pool.close()
         pool.join()
 
         # TODO: make sure we clear any extra files
         self._is_downloaded = True
+
+        if log:
+            termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
     # TODO: not yet public, but we probably want something like this.
