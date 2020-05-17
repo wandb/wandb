@@ -441,7 +441,7 @@ class WandbStoragePolicy(StoragePolicy):
                 return path
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        response = requests.get(
+        response = self._session.get(
             self._file_url(
                 self._api,
                 self._api.settings('entity'),
@@ -451,7 +451,7 @@ class WandbStoragePolicy(StoragePolicy):
         response.raise_for_status()
 
         with open(path, "wb") as file:
-            for data in response.iter_content(chunk_size=1024):
+            for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
 

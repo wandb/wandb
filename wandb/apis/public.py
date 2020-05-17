@@ -1994,9 +1994,8 @@ class Artifact(object):
 
         # Force all the files to download into the same directory.
         # Download in parallel
-        # TODO: this may not be the right place to do this.
         import multiprocessing.dummy  # this uses threads
-        pool = multiprocessing.dummy.Pool(16)
+        pool = multiprocessing.dummy.Pool(32)
         manifest = self._load_manifest()
         pool.map(lambda name: self.get_path(name).download(), manifest.entries)
         pool.close()

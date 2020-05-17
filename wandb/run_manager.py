@@ -1519,10 +1519,15 @@ class ArtifactSaver(object):
         elif self._server_artifact['state'] != 'PENDING':
             # TODO: what to do in this case?
             raise Exception('Server artifact not in PENDING state', self._server_artifact)
-        # TODO(artifacts)
-        # if it is in PENDING but not created by us, we also have a problem (two parallel runs)
-        # creating the same artifact. In theory this could be ok but the backend doesn't handle
-        # it right now.
+
+        # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
+        # the use_prepare_flow, so that the file entry is created in our database before the
+        # upload to cloud storage commences
+        for path, hash, local_path in self._server_manifest_entries:
+            # We need to use the "use_prepare_flow" option
+            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'], use_prepare_flow=True)
+        
+        # Upload Artifact "L1" files, the actual artifact contents
         self._file_pusher.store_manifest_files(
             self._manifest, 
             self._server_artifact['id'],
@@ -1535,12 +1540,8 @@ class ArtifactSaver(object):
                     digest,
                     api)),
         )
-        # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
-        # the use_prepare_flow, so that the file entry is created in our database before the
-        # upload to cloud storage commences
-        for path, hash, local_path in self._server_manifest_entries:
-            # We need to use the "use_prepare_flow" option
-            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'], use_prepare_flow=True)
+
+        # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
 
