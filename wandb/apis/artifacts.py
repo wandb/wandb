@@ -348,7 +348,7 @@ class ArtifactManifestV1(ArtifactManifest):
         hasher = hashlib.md5()
         hasher.update("wandb-artifact-manifest-v1\n".encode())
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
-            hasher.update(f'{name}:{entry.digest}\n'.encode())
+            hasher.update('{}:{}\n'.format(name, entry.digest).encode())
         return hasher.hexdigest()
 
 
@@ -443,7 +443,7 @@ class WandbStoragePolicy(StoragePolicy):
         return None
 
     def load_file(self, artifact, name, manifest_entry):
-        path = f'{artifact.artifact_dir}/{name}'
+        path = '{}/{}'.format(artifact.artifact_dir, name)
         if os.path.isfile(path):
             cur_md5 = md5_file_b64(path)
             if cur_md5 == manifest_entry.digest:
@@ -476,7 +476,7 @@ class WandbStoragePolicy(StoragePolicy):
     def _file_url(self, api, entity_name, md5, upload=False):
         md5_hex = base64.b64decode(md5).hex()
         suffix = "/uploadURL" if upload else ""
-        return f'{api.settings("base_url")}/artifacts/{entity_name}/{md5_hex}{suffix}'
+        return '{}/artifacts/{}/{}{}'.format(api.settings("base_url"), entity_name, md5_hex, suffix)
 
     def store_file(self, entity_name, project_name, local_path, digest, api):
         # This is the "back half". It's called in run manager, for each local path
