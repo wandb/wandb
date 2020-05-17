@@ -9,4 +9,4 @@ def test_one_file_manifest(runner):
         artifact.add_file('file1.txt')
 
         # This checks the L0 (server) manifest digest.
-        assert artifact.digest == '0365175c40e8b18c029bd49bf7d0cf99'
+        assert artifact.digest == 'a00c2239f036fb656c1dcbf9a32d89b4'

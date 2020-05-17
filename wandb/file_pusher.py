@@ -64,15 +64,12 @@ class FilePusher(object):
         self._incoming_queue = queue.Queue()
         self._event_queue = queue.Queue()
 
-        self._step_prepare = step_prepare.StepPrepare(self._api, 3.0, 0.1, self.MAX_UPLOAD_JOBS / 2)
-        self._step_prepare.start()
-
         self._step_checksum = step_checksum.StepChecksum(
             self._api, self._tempdir, self._incoming_queue, self._event_queue, self._stats)
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
-            self._api, self._step_prepare, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS)
+            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS)
         self._step_upload.start()
 
         # Holds refs to tempfiles if users need to make a temporary file that
@@ -108,7 +105,7 @@ class FilePusher(object):
     def file_counts_by_category(self):
         return self._stats.file_counts_by_category()
 
-    def file_changed(self, save_name, path, artifact_id=None, copy=True, save_fn=None, digest=None):
+    def file_changed(self, save_name, path, artifact_id=None, copy=True, use_prepare_flow=False, save_fn=None, digest=None):
         """Tell the file pusher that a file's changed and should be uploaded.
 
         Arguments:
@@ -122,7 +119,7 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
-        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, save_fn, digest)
+        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest)
         self._incoming_queue.put(event)
 
     def store_manifest_files(self, manifest, artifact_id, save_fn):
@@ -146,5 +143,4 @@ class FilePusher(object):
 
     def is_alive(self):
         return (self._step_checksum.is_alive()
-            or self._step_upload.is_alive()
-            or self._step_prepare.is_alive())
+            or self._step_upload.is_alive())
