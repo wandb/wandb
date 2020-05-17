@@ -1535,8 +1535,12 @@ class ArtifactSaver(object):
                     digest,
                     api)),
         )
+        # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
+        # the use_prepare_flow, so that the file entry is created in our database before the
+        # upload to cloud storage commences
         for path, hash, local_path in self._server_manifest_entries:
-            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'])
+            # We need to use the "use_prepare_flow" option
+            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'], use_prepare_flow=True)
         self._file_pusher.commit_artifact(self._server_artifact['id'])
         return self._server_artifact
 

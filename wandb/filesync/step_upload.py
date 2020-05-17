@@ -18,9 +18,8 @@ RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
 class StepUpload(object):
-    def __init__(self, api, step_prepare, stats, event_queue, max_jobs):
+    def __init__(self, api, stats, event_queue, max_jobs):
         self._api = api
-        self._step_prepare = step_prepare
         self._stats = stats
         self._event_queue = event_queue
         self._max_jobs = max_jobs
@@ -62,8 +61,6 @@ class StepUpload(object):
             elif not self._running_jobs:
                 # Queue was empty and no jobs left.
                 break
-        
-        self._step_prepare.finish()
 
     def _handle_event(self, event):
         if isinstance(event, upload_job.EventJobDone):
@@ -111,7 +108,6 @@ class StepUpload(object):
 
         # Start it.
         job = upload_job.UploadJob(
-            self._step_prepare,
             self._event_queue, self._stats, self._api,
             event.save_name, event.path, event.artifact_id, event.md5, event.copied,
             event.save_fn, event.digest)

@@ -15,7 +15,7 @@ from wandb.filesync import step_upload
 
 
 RequestUpload = collections.namedtuple(
-    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy', 'save_fn', 'digest'))
+    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy', 'use_prepare_flow', 'save_fn', 'digest'))
 RequestStoreManifestFiles = collections.namedtuple(
     'RequestStoreManifestFiles', ('manifest', 'artifact_id', 'save_fn'))
 RequestCommitArtifact = collections.namedtuple(
@@ -45,7 +45,13 @@ class StepChecksum(object):
                         wandb.util.generate_id(), req.save_name))
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     shutil.copy2(req.path, path)
-                checksum = wandb.util.md5_file(path)
+                checksum = None
+                if req.use_prepare_flow:
+                    # passing a checksum through indicates that we'd like to use the
+                    # "prepare" file upload flow, in which we prepare the files in
+                    # the database before uploading them. This is currently only
+                    # used for artifact manifests
+                    checksum = wandb.util.md5_file(path)
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(

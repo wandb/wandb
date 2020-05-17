@@ -8,7 +8,7 @@ from wandb import util
 EventJobDone = collections.namedtuple('EventJobDone', ('job', 'success'))
 
 class UploadJob(threading.Thread):
-    def __init__(self, step_prepare, done_queue, stats, api, save_name, path, artifact_id, md5, copied, save_fn, digest):
+    def __init__(self, done_queue, stats, api, save_name, path, artifact_id, md5, copied, save_fn, digest):
         """A file upload thread.
 
         Arguments:
@@ -20,7 +20,6 @@ class UploadJob(threading.Thread):
                 directory.
             path: actual string path of the file to upload on the filesystem.
         """
-        self._step_prepare = step_prepare
         self._done_queue = done_queue
         self._stats = stats
         self._api = api
@@ -65,14 +64,30 @@ class UploadJob(threading.Thread):
                 self._stats.update_uploaded_file(self.save_path, size)
             return True
 
-        prepare_response = self._step_prepare.prepare(
-            self.save_path, self.save_name, self.md5, self.artifact_id)
-        if prepare_response.upload_url == None:
+        if self.md5:
+            # This is the new file "prepare" upload flow, in which we create the
+            # database entry for the file before creating it. This is used for
+            # artifact L0 files. Which now is only artifact_manifest.json
+            response = self._api.prepare_files([{
+                'name': self.save_name,
+                'artifactID': self.artifact_id,
+                'digest': self.md5
+            }])
+            file_response = response[self.save_name]
+            upload_url = file_response['uploadUrl']
+            upload_headers = file_response['uploadHeaders']
+        else:
+            # The classic file upload flow. We get a signed url and upload the file
+            # then the backend handles the cloud storage metadata callback to create the
+            # file entry. This flow has aged like a fine wine.
+            project = self._api.get_project()
+            _, upload_headers, result = self._api.upload_urls(project, [self.save_name])
+            file_info = result[self.save_name]
+            upload_url = file_info['url']
+
+        if upload_url == None:
             self._stats.set_file_deduped(self.save_name)
         else:
-            upload_url = prepare_response.upload_url
-            upload_headers = prepare_response.upload_headers
-
             extra_headers = {}
             for upload_header in upload_headers:
                 key, val = upload_header.split(':', 1)
