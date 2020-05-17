@@ -57,14 +57,22 @@ def is_generator_like(data):
 def patch_tf_keras():
     import tensorflow as tf
     from tensorflow.python.eager import context
+    from tensorflow.python.keras.engine import training
     from tensorflow.python.keras.engine import training_arrays
     from tensorflow.python.keras.engine import training_generator
 
-    training_v2 = wandb.util.get_module('tensorflow.python.keras.engine.training_v2')
+    # Tensorflow 2.1
+    training_v2_1 = wandb.util.get_module('tensorflow.python.keras.engine.training_v2')
+    # Tensorflow 2.2
+    training_v2_2 = wandb.util.get_module('tensorflow.python.keras.engine.training_v1')
+
+    if training_v2_1:
+        old_v2 = training_v2_1.Loop.fit
+    elif training_v2_2:
+        old_v2 = training.Model.fit
+
     old_arrays = training_arrays.fit_loop
     old_generator = training_generator.fit_generator
-    if training_v2:
-        old_v2 = training_v2.Loop.fit
 
     def set_wandb_attrs(cbk, val_data):
         if isinstance(cbk, WandbCallback):
@@ -115,16 +123,19 @@ def patch_tf_keras():
     training_arrays.fit_loop = new_arrays
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
-    if training_v2:
-        training_v2.Loop.fit = new_v2
-        wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training_v2.Loop", "fit"])
-
     wandb.patched["keras"].append(
         ["tensorflow.python.keras.engine.training_arrays", "fit_loop"])
     wandb.patched["keras"].append(
         ["tensorflow.python.keras.engine.training_generator", "fit_generator"])
 
+    if training_v2_1:
+        training_v2_1.Loop.fit = new_v2
+        wandb.patched["keras"].append(
+            ["tensorflow.python.keras.engine.training_v2.Loop", "fit"])
+    elif training_v2_2:
+        training.Model.fit = new_v2
+        wandb.patched["keras"].append(
+            ["tensorflow.python.keras.engine.training.Model", "fit"])
 
 if "tensorflow" in wandb.util.get_full_typename(keras):
     try:
@@ -268,6 +279,15 @@ class WandbCallback(keras.callbacks.Callback):
             else:
                 self.monitor_op = operator.lt
                 self.best = float('inf')
+
+    def _implements_train_batch_hooks(self):
+        return self.log_batch_frequency is not None
+
+    def _implements_test_batch_hooks(self):
+        return self.log_batch_frequency is not None
+
+    def _implements_predict_batch_hooks(self):
+        return self.log_batch_frequency is not None
 
     def set_params(self, params):
         self.params = params

@@ -10,10 +10,12 @@ from wandb.apis import InternalApi
 import six
 import json
 import sys
+import time
 import threading
 import logging
 from multiprocessing import Process
 from vcr.request import Request
+import requests
 from wandb import wandb_socket
 from wandb import env
 from wandb import util
@@ -23,28 +25,29 @@ from tests.mock_server import create_app
 import socket
 
 # Turn off the internets in tests
-_true_connect = socket.socket.connect
-def host_from_address(address):
-    host = address[0]
-    if isinstance(host, str) or isinstance(host, unicode):
-        return host
+# _true_connect = socket.socket.connect
+# def host_from_address(address):
+#     host = address[0]
+#     if isinstance(host, str) or isinstance(host, unicode):
+#         return host
 
-def guarded_connect(inst, *args):
-    address = args[0]
-    if isinstance(address, tuple):
-        host = host_from_address(address)
-        if host and host in ["localhost"]:
-            return _true_connect(inst, *args)
-        raise Exception("Network connection blocked to host %s" % host)
-    else:
-        return _true_conect(inst, *args)
-socket.socket.connect = guarded_connect
+# def guarded_connect(inst, *args):
+#     address = args[0]
+#     if isinstance(address, tuple):
+#         host = host_from_address(address)
+#         if host and host in ["localhost"]:
+#             return _true_connect(inst, *args)
+#         raise Exception("Network connection blocked to host %s" % host)
+#     else:
+#         return _true_conect(inst, *args)
+# socket.socket.connect = guarded_connect
 
 @pytest.fixture
 def socket_enabled():
-    socket.socket.connect = _true_connect
-    yield
-    socket.socket.connect = guarded_connect
+    pass
+    # socket.socket.connect = _true_connect
+    # yield
+    # socket.socket.connect = guarded_connect
 
 def pytest_runtest_setup(item):
     wandb.reset_env()
@@ -53,7 +56,7 @@ def pytest_runtest_setup(item):
     if os.path.exists(global_settings):
         try:
             os.remove(global_settings)
-        except IOError:
+        except OSError:
             pass
     # This is used to find tests that are leaking outside of tmp directories
     os.environ["WANDB_DESCRIPTION"] = item.parent.name + "#" + item.name
@@ -161,12 +164,24 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
                             class Hook(object):
                                 def register(self, what, where):
                                     pass
+
+                            class Pub(object):
+                                def publish(self, **kwargs):
+                                    pass
+
+                            class Hist(object):
+                                def get_range(self, **kwargs):
+                                    return [[None, 1, ('#source code', None)]]
+
                             self.events = Hook()
+                            self.display_pub = Pub()
+                            self.history_manager = Hist()
 
                         def register_magics(self, magic):
                             pass
                     return Jupyter()
                 wandb.get_ipython = fake_ipython
+                wandb.jupyter.get_ipython = fake_ipython
             # no i/o wrapping - it breaks pytest
             os.environ['WANDB_MODE'] = 'clirun'
 
@@ -484,6 +499,15 @@ def live_mock_server(request):
     app = create_app()
     server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
     server.start()
+    for i in range(5):
+        try:
+            time.sleep(1)
+            res = requests.get("http://localhost:%s/storage" % port, timeout=1)
+            if res.status_code == 200:
+                break
+            print("Attempting to connect but got: %s", res)
+        except requests.exceptions.RequestException:
+            print("timed out")
     yield server
     server.terminate()
     server.join()

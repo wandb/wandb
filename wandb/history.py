@@ -226,9 +226,11 @@ class History(object):
 
     def _write(self):
         self._current_timestamp = self._current_timestamp or time.time()
-        # Saw a race in tests where we closed history and another log was called
-        # we check if self._file is set to ensure we don't bomb out
-        if self.row and self._file:
+        # Jupyter closes files between cell executions, this reopens the file
+        # for resuming.
+        if self._file == None:
+            self._file = open(self.fname, 'a')
+        if self.row:
             self._lock.acquire()
             # Jupyter starts logging the first time wandb.log is called in a cell.
             # This will resume the run and potentially update self._steps

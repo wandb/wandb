@@ -1,3 +1,4 @@
+llvmlite==0.31.0
 fastparquet==0.2.1
 pip>=19.0.1
 bumpversion==0.5.3
@@ -35,11 +36,13 @@ imageio==2.5.0
 psutil>=5.2.2
 tensorboardX
 ipython
+nbformat
 matplotlib
 plotly
 Keras
 xgboost
 lightgbm
+catboost
 ray[tune]
 gym
 scikit-plot

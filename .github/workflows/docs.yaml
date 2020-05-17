@@ -16,9 +16,9 @@ jobs:
             - uses: actions/cache@v1
               with:
                   path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+                  key: ${{ runner.os }}-pip-v2-${{ hashFiles('**/setup.py') }}
                   restore-keys: |
-                      ${{ runner.os }}-pip-
+                      ${{ runner.os }}-pip-v2
             - name: Install dependencies
               if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
               run: |

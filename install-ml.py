@@ -6,5 +6,5 @@ from subprocess import call
 version = "".join([str(v) for v in sys.version_info[:2]])
 if version == "27":
     pass
-call(["venv/bin/pip", "install", "torch==1.4.0+cpu", "torchvision==0.5.0+cpu",
-      "-f", "https://download.pytorch.org/whl/torch_stable.html"])
+call(["venv/bin/pip", "install", "--pre", "torch", "torchvision",
+      "-f", "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html"])

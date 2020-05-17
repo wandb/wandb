@@ -842,10 +842,16 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
+        
+        self._boxes = None 
+        if boxes: 
+            if not isinstance(boxes, dict):
+                raise ValueError("Images \"boxes\" argument must be a dictionary")
+            boxes_final = {}
+            for key in boxes:
+                boxes_final[key] = BoundingBoxes2D(boxes[key], key)
+            self._boxes = boxes_final
 
-        self._boxes = None
-        if boxes:
-            self._boxes = BoundingBoxes2D(boxes)
         self._masks = None
         if masks:
             if not isinstance(masks, dict):
@@ -897,7 +903,8 @@ class Image(BatchableMedia):
     def bind_to_run(self, *args, **kwargs):
         super(Image, self).bind_to_run(*args, **kwargs)
         if self._boxes is not None:
-            self._boxes.bind_to_run(*args, **kwargs)
+            for k in self._boxes:
+                self._boxes[k].bind_to_run(*args, **kwargs)
 
         if self._masks is not None:
             for k in self._masks:
@@ -917,7 +924,8 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict['caption'] = self._caption
         if self._boxes:
-            json_dict['boxes'] = self._boxes.to_json(run)
+            json_dict['boxes'] = {
+                    k: box.to_json(run) for (k, box) in self._boxes.items()}
         if self._masks:
             json_dict['masks'] = {
                 k: mask.to_json(run) for (k, mask) in self._masks.items()}
@@ -1038,17 +1046,21 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_boxes(cls, images, run, key, step):
-        boxes = []
-        for i in images:
-            if i._boxes:
-                i._boxes.bind_to_run(run, key, step)
-                boxes.append(i._boxes.to_json(run))
+    def all_boxes(cls, images, run, run_key, step):
+        all_box_groups = []
+        for image in images:
+            if image._boxes:
+                box_group = {}
+                for k in image._boxes:
+                    box = image._boxes[k]
+                    box.bind_to_run(run, run_key, step)
+                    box_group[k] = box.to_json(run)
+                all_box_groups.append(box_group)
             else:
-                boxes.append(None)
-        if boxes and not all(x is None for x in boxes):
-            return boxes
-        else:
+                all_box_groups.append(None)
+        if all_box_groups and not all(x is None for x in all_box_groups):
+            return all_box_groups
+        else: 
             return False
 
     @classmethod
@@ -1103,10 +1115,37 @@ class BoundingBoxes2D(JSONMetadata):
     Wandb class for 2D bounding Boxes
     """
 
+    def __init__(self, val, key, **kwargs):
+        super(BoundingBoxes2D, self).__init__(val)
+        self._val = val["box_data"]
+        self._key = key
+        # Add default class mapping
+        if not "class_labels" in val:
+            np = util.get_module("numpy", required="Semantic Segmentation mask support requires numpy")
+            classes = np.unique(list(map( lambda box: box["class_id"], val["box_data"]))).astype(np.int32).tolist()
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            self._class_labels = class_labels
+        else:
+            self._class_labels = val["class_labels"]
+
+    def bind_to_run(self, run, key, step):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(BoundingBoxes2D, self).bind_to_run(run, key, step)
+        run._add_singleton("bounding_box/class_labels", key + "_wandb_delimeter_" + self._key , self._class_labels)
+
+
     def type_name(self):
         return "boxes2D"
 
-    def validate(self, boxes):
+    def validate(self, val):
+        # Optional argument
+        if ("class_labels" in val):
+            for k, v in list(val["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, six.string_types)):
+                    raise TypeError("Class labels must be a dictionary of numbers to string")
+
+        boxes = val['box_data']
         if not isinstance(boxes, collections.Sequence):
             raise TypeError("Boxes must be a list")
 
@@ -1157,6 +1196,13 @@ class ImageMask(Media):
     def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
 
+        # Add default class mapping
+        if not "class_labels" in val:
+            np = util.get_module("numpy", required="Semantic Segmentation mask support requires numpy")
+            classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            val["class_labels"] = class_labels
+
         self.validate(val)
         self._val = val
         self._key = key
@@ -1166,7 +1212,7 @@ class ImageMask(Media):
 
         PILImage = util.get_module(
             "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
-        image = PILImage.fromarray(Image.to_uint8(val["mask_data"]), mode="L")
+        image = PILImage.fromarray(val["mask_data"], mode="L")
 
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
@@ -1175,7 +1221,9 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(ImageMask, self).bind_to_run(run, key, step)
-        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key, self._val["class_labels"])
+        class_labels = self._val["class_labels"]
+
+        run._add_singleton("mask/class_labels", key + "_wandb_delimeter_" + self._key , class_labels)
 
     def get_media_subdir(self):
         return os.path.join('media', 'images', self.type_name())

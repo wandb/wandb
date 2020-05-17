@@ -25,7 +25,7 @@ from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, PublicApi, CommError, artifacts
 from wandb.apis.public import Artifact as ApiArtifact
-from wandb.wandb_config import Config, ConfigStatic
+from wandb.wandb_config import Config, ConfigStatic, is_kaggle
 from wandb.viz import Visualize
 import six
 from six.moves import input
@@ -150,6 +150,9 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+        self._viewer = None
+        self._flags = {}
+        self._load_viewer()
 
         # give access to watch method
         self.watch = wandb.watch
@@ -177,6 +180,18 @@ class Run(object):
     def path(self):
         # TODO: theres an edge case where self.entity is None
         return "/".join([str(self.entity), self.project_name(), self.id])
+
+    def _load_viewer(self):
+        if self.mode != "dryrun" and not self._api.disabled() and self._api.api_key:
+            # Kaggle has internet disabled by default, this checks for that case
+            async_viewer = util.async_call(self._api.viewer, timeout=env.get_http_timeout(5))
+            viewer, viewer_thread = async_viewer()
+            if viewer_thread.is_alive():
+                if is_kaggle():
+                    raise CommError("To use W&B in kaggle you must enable internet in the settings panel on the right.")
+            else:
+                self._viewer = viewer
+                self._flags = json.loads(viewer.get("flags", "{}"))
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -468,6 +483,12 @@ class Run(object):
         environment[env.MODE] = self.mode
         environment[env.RUN_DIR] = self.dir
 
+        # Load global environment vars from viewer flags
+        # This should be scoped to entity / project, this work is happening in CLI-NG
+        if self._flags.get("code_saving_enabled") is not None:
+            if environment.get(env.SAVE_CODE) is None:
+                environment[env.SAVE_CODE] = str(self._flags["code_saving_enabled"])
+
         if self.group:
             environment[env.RUN_GROUP] = self.group
         if self.job_type:
@@ -516,10 +537,11 @@ class Run(object):
         entity = api.settings('entity')
         if network:
             if api.settings('entity') is None:
-                viewer = api.viewer()
-                if viewer.get('entity'):
-                    api.set_setting('entity', viewer['entity'])
-
+                if self._viewer:
+                    if self._viewer.get('entity'):
+                        api.set_setting('entity', self._viewer['entity'])
+                    else:
+                        raise CommError("Can't connect to network to query viewer from API key")
             entity = api.settings('entity')
 
         if not entity:

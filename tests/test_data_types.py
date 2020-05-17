@@ -62,10 +62,10 @@ full_box = {
     "position": {
         "middle" : (0.5,0.5), "width" : 0.1, "height": 0.2
         },
-    "class_label": "car",
+    "class_id": 2,
     "box_caption": "This is a big car",
     "scores": {
-    "acc": 0.3
+        "acc": 0.3
     }
 }
 
@@ -75,25 +75,25 @@ def dissoc(d, key):
     new_d.pop(key)
     return new_d
 
-optional_keys = ["class_label", "box_caption", "scores"]
+optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 def test_image_accepts_bounding_boxes():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        img = wandb.Image(image, boxes=[full_box])
+        img = wandb.Image(image, boxes={"predictions": {"box_data": [full_box]}})
         img.bind_to_run(run, "images", 0)
         img_json = img.to_json(run)
-        path = img_json["boxes"]["path"]
+        path = img_json["boxes"]["predictions"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 def test_image_accepts_bounding_boxes_optional_args():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
-        img = data_types.Image(image, boxes=boxes_with_removed_optional_args)
+        img = data_types.Image(image, boxes={"predictions": {"box_data": boxes_with_removed_optional_args}})
         img.bind_to_run(run, "images", 0)
         img_json = img.to_json(run)
-        path = img_json["boxes"]["path"]
+        path = img_json["boxes"]["predictions"]["path"]
         assert os.path.exists(os.path.join(run.dir, path))
 
 standard_mask = {
@@ -110,6 +110,15 @@ def test_image_accepts_masks():
     with CliRunner().isolated_filesystem():
         run = wandb.wandb_run.Run()
         img = wandb.Image(image, masks={"overlay": standard_mask})
+        img.bind_to_run(run, "images", 0)
+        img_json = img.to_json(run)
+        path = img_json["masks"]["overlay"]["path"]
+        assert os.path.exists(os.path.join(run.dir, path))
+
+def test_image_accepts_masks_without_class_labels():
+    with CliRunner().isolated_filesystem():
+        run = wandb.wandb_run.Run()
+        img = wandb.Image(image, masks={"overlay": dissoc(standard_mask, "class_labels")})
         img.bind_to_run(run, "images", 0)
         img_json = img.to_json(run)
         path = img_json["masks"]["overlay"]["path"]

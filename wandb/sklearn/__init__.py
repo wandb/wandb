@@ -482,13 +482,35 @@ def plot_feature_importances(model=None, feature_names=None,
     Example:
         wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
     """
-    if not hasattr(model, 'feature_importances_'):
-        wandb.termwarn("feature_importances_ attribute not in classifier. Cannot plot feature importances.")
+    attributes_to_check = ['feature_importances_', 'coef_']
+    def get_attributes_as_formatted_string():
+        result = ''
+        for index in range(len(attributes_to_check) - 1):
+            if result == '':
+                result = attributes_to_check[index]
+            else:
+                result = ", ".join([result, attributes_to_check[index]])
+
+        return " or ".join([result, attributes_to_check[-1]])
+
+    def check_for_attribute_on(model):
+        for each in attributes_to_check:
+            if hasattr(model, each):
+                return each
+        return None
+
+    found_attribute = check_for_attribute_on(model)
+    if found_attribute is None:
+        wandb.termwarn("%s attribute not in classifier. Cannot plot feature importances." % get_attributes_as_formatted_string())
         return
+
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
         feature_names = np.asarray(feature_names)
-        importances = model.feature_importances_
+        if found_attribute == 'feature_importances_':
+            importances = model.feature_importances_
+        if found_attribute == 'coef_':  # ElasticNet or ElasticNetCV like models
+            importances = model.coef_
 
         indices = np.argsort(importances)[::-1]
 
@@ -512,8 +534,7 @@ def plot_feature_importances(model=None, feature_names=None,
                 ]
             ))
         wandb.log({'feature_importances': feature_importances_table(feature_names, importances)})
-        return
-
+        return feature_importances_table(feature_names, importances)
 
 def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
                     show_cluster_time=True):
