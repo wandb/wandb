@@ -7,7 +7,6 @@ import tempfile
 import time
 import shutil
 import requests
-from abc import ABC, abstractmethod
 from six.moves.urllib.parse import urlparse
 
 from wandb.compat import tempfile as compat_tempfile
@@ -228,10 +227,9 @@ class Artifact(object):
         # return self._file_entries
 
 
-class ArtifactManifest(ABC):
+class ArtifactManifest(object):
 
     @classmethod
-    @abstractmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
         if 'version' not in manifest_json:
@@ -242,7 +240,6 @@ class ArtifactManifest(ABC):
                 return sub.from_manifest_json(artifact, manifest_json)
 
     @classmethod
-    @abstractmethod
     def version(cls):
         pass
 
@@ -251,11 +248,9 @@ class ArtifactManifest(ABC):
         self.storage_policy = storage_policy
         self.entries = entries or {}
 
-    @abstractmethod
     def to_manifest_json(self):
         raise NotImplementedError()
 
-    @abstractmethod
     def digest(self):
         raise NotImplementedError()
 
@@ -373,7 +368,7 @@ class ArtifactManifestEntry(object):
         return "<ManifestEntry %s>" % summary
 
 
-class StoragePolicy(ABC):
+class StoragePolicy(object):
 
     @classmethod
     def lookup_by_name(cls, name):
@@ -383,24 +378,19 @@ class StoragePolicy(ABC):
         return None
 
     @classmethod
-    @abstractmethod
     def name(cls):
         pass
 
     @classmethod
-    @abstractmethod
     def from_config(cls, config):
         pass
 
-    @abstractmethod
     def config(self):
         pass
 
-    @abstractmethod
     def load_path(self, artifact, manifest_entry, local=False):
         pass
 
-    @abstractmethod
     def store_reference(self, artifact, path, name=None):
         pass
 
@@ -538,9 +528,8 @@ class S3BucketPolicy(StoragePolicy):
         return self._handler.store_path(artifact, path, name=name)
 
 
-class StorageHandler(ABC):
+class StorageHandler(object):
 
-    @abstractmethod
     def scheme(self):
         """
         :return: The scheme to which this handler applies.
@@ -548,7 +537,6 @@ class StorageHandler(ABC):
         """
         pass
 
-    @abstractmethod
     def load_path(self, artifact, manifest_entry, local=False):
         """
         Loads the file or directory within the specified artifact given its
@@ -561,7 +549,6 @@ class StorageHandler(ABC):
         """
         pass
 
-    @abstractmethod
     def store_path(self, artifact, path, name=None):
         """
         Stores the file or directory at the given path within the specified artifact.

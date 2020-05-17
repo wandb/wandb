@@ -63,16 +63,6 @@ def gen_mask_img_classless():
         {"mask_data": mask_data }})
     return mask_img
 
-def gen_mask_img_2():
-    mask_img = wandb.Image(np.array(image), masks={
-        "predictions_0":
-        {"mask_data": mask_data,
-            "class_labels": class_labels },
-        "predictions_1":
-        {"mask_data": mask_data,
-            "class_labels": class_labels }}) 
-
-    return mask_img 
 wandb.log({
     "mask_img_single": gen_mask_img(),
     "mask_img_no_class": gen_mask_img_classless(),

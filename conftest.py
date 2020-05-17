@@ -24,35 +24,6 @@ from tests import utils
 from tests.mock_server import create_app
 import socket
 
-# Note: Chris added this in the artifacts branch when we were trying
-# to debug test breakage. After later merging master into the branch,
-# a lot of tests fail with this enabled. So I disabled it again. The
-# tests all pass, but a lot of them hit the internet.
-
-# Turn off the internets in tests
-# _true_connect = socket.socket.connect
-# def host_from_address(address):
-#     host = address[0]
-#     if isinstance(host, str) or isinstance(host, unicode):
-#         return host
-
-# def guarded_connect(inst, *args):
-#     address = args[0]
-#     if isinstance(address, tuple):
-#         host = host_from_address(address)
-#         if host and host in ["localhost"]:
-#             return _true_connect(inst, *args)
-#         raise Exception("Network connection blocked to host %s" % host)
-#     else:
-#         return _true_conect(inst, *args)
-# socket.socket.connect = guarded_connect
-
-@pytest.fixture
-def socket_enabled():
-    pass
-    # socket.socket.connect = _true_connect
-    # yield
-    # socket.socket.connect = guarded_connect
 
 def pytest_runtest_setup(item):
     wandb.reset_env()

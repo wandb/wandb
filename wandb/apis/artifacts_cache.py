@@ -13,12 +13,6 @@ class ArtifactsCache(object):
         util.mkdir_exists_ok(dirname)
         return dirname
 
-    def get_artifact_external_dir(self, artifact_type, artifact_digest):
-        dirname = os.path.join(self._cache_dir, 'final', artifact_type, artifact_digest, 'external_files')
-        util.mkdir_exists_ok(dirname)
-        return dirname
-
-
 _artifacts_cache = None
 
 def get_artifacts_cache():

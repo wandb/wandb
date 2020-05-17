@@ -1959,10 +1959,6 @@ class Artifact(object):
     def artifact_dir(self):
         return self._cache.get_artifact_dir(self.type, self.digest)
 
-    @property
-    def external_data_dir(self):
-        return self._cache.get_artifact_external_dir(self.type, self.digest)
-
     def add_file(self, path, name=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
