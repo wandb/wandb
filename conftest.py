@@ -24,6 +24,11 @@ from tests import utils
 from tests.mock_server import create_app
 import socket
 
+# Note: Chris added this in the artifacts branch when we were trying
+# to debug test breakage. After later merging master into the branch,
+# a lot of tests fail with this enabled. So I disabled it again. The
+# tests all pass, but a lot of them hit the internet.
+
 # Turn off the internets in tests
 # _true_connect = socket.socket.connect
 # def host_from_address(address):
