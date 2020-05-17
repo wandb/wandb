@@ -43,13 +43,13 @@ from .core import *
 # These imports need to be below "from .core import *" until we remove
 # 'from wandb import __stage_dir__' from api.py etc.
 from wandb.apis import InternalApi, PublicApi, CommError
-from wandb.apis.artifacts import Artifact
 from wandb import wandb_types as types
 from wandb import wandb_config
 from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
+from wandb.artifacts import Artifact
 from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video

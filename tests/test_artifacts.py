@@ -1,5 +1,5 @@
 import pytest
-from wandb.apis import artifacts
+from wandb import artifacts
 from .utils import runner
 
 def test_one_file_manifest(runner):

@@ -14,6 +14,7 @@ from sentry_sdk import configure_scope
 
 from . import env
 import wandb
+from wandb import artifacts
 from wandb import history
 from wandb import jsonlfile
 from wandb import summary
@@ -23,7 +24,7 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi, PublicApi, CommError, artifacts
+from wandb.apis import InternalApi, PublicApi, CommError
 from wandb.apis.public import Artifact as ApiArtifact
 from wandb.wandb_config import Config, ConfigStatic, is_kaggle
 from wandb.viz import Visualize

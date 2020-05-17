@@ -19,14 +19,14 @@ import requests
 
 import wandb
 from wandb import Error, __version__
+from wandb import artifacts
+from wandb import artifacts_cache
 from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary
 from wandb import env
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis import normalize_exceptions
-from wandb.apis import artifacts_cache
-from wandb.apis import artifacts
 
 logger = logging.getLogger(__name__)
 

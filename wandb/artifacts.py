@@ -11,7 +11,8 @@ from six.moves.urllib.parse import urlparse
 
 from wandb.compat import tempfile as compat_tempfile
 
-from wandb.apis import artifacts_cache, InternalApi
+from wandb.apis import InternalApi
+from wandb import artifacts_cache
 from wandb import util
 from wandb.core import termwarn, termlog
 

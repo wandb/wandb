@@ -34,6 +34,7 @@ from wandb.apis import file_stream
 from wandb import __version__
 from wandb import env as wandb_env
 from wandb import Error
+from wandb import artifacts
 from wandb import io_wrap
 from wandb import jsonlfile
 from wandb import file_pusher
@@ -49,7 +50,6 @@ from wandb import wandb_socket
 from wandb.compat import windows
 from wandb.apis import InternalApi
 from wandb.apis import CommError
-from wandb.apis import artifacts
 
 
 logger = logging.getLogger(__name__)
