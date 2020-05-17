@@ -130,8 +130,8 @@ class Artifact(object):
         if not os.path.isdir(local_path):
             raise ValueError('Path is not dir: %s' % local_path)
 
-
-        termlog('Checksumming artifact directory (%s)... ' % os.path.join('.', local_path), newline=False)
+        termlog('Checksumming artifact directory (%s)... ' %
+            os.path.join('.', os.path.normpath(local_path)), newline=False)
         start_time = time.time()
 
         paths = []
