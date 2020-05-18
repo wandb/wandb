@@ -66,6 +66,7 @@ def is_generator_like(data):
 
 def patch_tf_keras():
     import tensorflow as tf
+    from tensorflow.python.eager import context
     from tensorflow.python.keras.engine import training
     from tensorflow.python.keras.engine import training_arrays
     from tensorflow.python.keras.engine import training_generator
