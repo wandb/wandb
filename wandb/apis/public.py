@@ -252,6 +252,21 @@ class Api(object):
             project = parts[0]
         return entity, project, run
 
+    def _parse_artifact_path(self, path):
+        """Returns project, entity and artifact name for project specified by path"""
+        project = self.settings['project']
+        entity = self.settings['entity']
+        if path is None:
+            return entity, project
+        parts = path.split('/')
+        if len(parts) > 3:
+            raise ValueError('Invalid artifact path: %s' % path)
+        elif len(parts) == 1:
+            return entity, project, path
+        elif len(parts) == 2:
+            return entity, parts[0], parts[1]
+        return parts
+
     def _parse_project_path(self, path):
         """Returns project and entity for project specified by path"""
         project = self.settings['project']
@@ -401,9 +416,26 @@ class Api(object):
         return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact(self, type=None, name=None, project=None):
-        entity, project = self._parse_project_path(project)
-        return Artifact(self.client, entity, project, type, name)
+    def artifact(self, type=None, name=None):
+        """Returns a single artifact by parsing path in the form entity/project/run_id.
+
+        Args:
+            type (str): The type of artifact to fetch.
+            name (str): An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    sequence_name:version
+                    sequence_name:alias
+                    digest
+
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        if name is None:
+            raise ValueError('You must specify name= to fetch an artifact.')
+        entity, project, artifact_name = self._parse_artifact_path(name)
+        if type is None:
+            raise ValueError('Artifact type required to fetch artifact.')
+        return Artifact(self.client, entity, project, type, artifact_name)
 
 
 class Attrs(object):
@@ -1929,12 +1961,12 @@ class Artifact(object):
     def metadata(self):
         return json.loads(self._attrs["metadata"])
 
-    @property
-    def path(self):
-        # TODO: This is a different style than the rest of the paths. The rest of the
-        # paths don't include the object type (which makes them hard to distinguish).
-        # We should maybe use URIs here.
-        return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name)
+    # @property
+    # def path(self):
+    #     # TODO: This is a different style than the rest of the paths. The rest of the
+    #     # paths don't include the object type (which makes them hard to distinguish).
+    #     # We should maybe use URIs here.
+    #     return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name)
 
     @property
     def digest(self):
@@ -1952,15 +1984,22 @@ class Artifact(object):
     def type(self):
         return self.artifact_type_name
 
-    @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        return ArtifactFiles(self.client, self, names, per_page)
+    @property
+    def name(self):
+        """The name by which the artifact was fetched."""
+        return self.artifact_name
 
     @property
     def artifact_dir(self):
         return self._cache.get_artifact_dir(self.type, self.digest)
 
+    def new_file(self, name):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
     def add_file(self, path, name=None):
+        raise ValueError('Cannot add files to an artifact once it has been saved')
+
+    def add_dir(self, path, name=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
     def add_reference(self, path, name=None):
@@ -2064,9 +2103,13 @@ class Artifact(object):
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
+    # The only file should be wandb_manifest.json
+    def _files(self, names=None, per_page=50):
+        return ArtifactFiles(self.client, self, names, per_page)
+
     def _load_manifest(self):
         if self._manifest is None:
-            index_file_url = self.files(names=['wandb_manifest.json'])[0].url
+            index_file_url = self._files(names=['wandb_manifest.json'])[0].url
             with requests.get(index_file_url) as req:
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
         return self._manifest

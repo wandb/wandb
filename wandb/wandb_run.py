@@ -441,6 +441,7 @@ class Run(object):
                 })
             elif isinstance(artifact, ApiArtifact):
                 self.api.use_artifact(artifact.id)
+                return artifact
             else:
                 # TODO: Improve message with instructions, maybe share base class with wandb.Artifact, and the
                 # API artifact?
