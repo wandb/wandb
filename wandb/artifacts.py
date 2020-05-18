@@ -68,8 +68,9 @@ class Artifact(object):
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = artifacts_cache.get_artifacts_cache()
+        self._added_new = False
+        # You can write into this directory when creating artifact files
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
-        self._new_files = []
         self.server_manifest = None
         self.type = type
         self.description = description
@@ -111,7 +112,7 @@ class Artifact(object):
         if os.path.exists(path):
             raise ValueError('File with name "%s" already exists' % name)
         util.mkdir_exists_ok(os.path.dirname(path))
-        self._new_files.append((name, path))
+        self._added_new = True
         return open(path, 'w')
 
     def add_file(self, local_path, name=None):
@@ -131,7 +132,7 @@ class Artifact(object):
         if not os.path.isdir(local_path):
             raise ValueError('Path is not dir: %s' % local_path)
 
-        termlog('Checksumming artifact directory (%s)... ' %
+        termlog('Adding directory to artifact (%s)... ' %
             os.path.join('.', os.path.normpath(local_path)), newline=False)
         start_time = time.time()
 
@@ -184,8 +185,8 @@ class Artifact(object):
             return self._file_entries
 
         # Record any created files in the manifest.
-        for (name, path) in self._new_files:
-            self.add_file(path, name)
+        if self._added_new:
+            self.add_dir(self._artifact_dir.name)
 
         # mark final after all files are added
         self._final = True
@@ -204,28 +205,22 @@ class Artifact(object):
         self.server_manifest = ServerManifestV1(file_entries)
         self._digest = self._manifest.digest()
 
-        # TODO: move new_files to final cache location
+        # If there are new files, move them into the artifact cache. We do this
+        # so that they'll definitely be available when file_pusher tries to upload
+        # them. Other files don't get written through the cache.
+        if self._added_new > 0:
+            final_artifact_dir = self._cache.get_artifact_dir(self.type, self._digest)
+            shutil.rmtree(final_artifact_dir)
+            os.rename(self._artifact_dir.name, final_artifact_dir)
 
-        # # If there are new files, move them into the artifact cache.
-        # # TODO: careful with the download logic to make sure it still knows when to download files
-        # if len(self._new_files) > 0:
-        #     final_artifact_dir = self._cache.get_artifact_dir(self.type, server_manifest.digest)
-        #     shutil.rmtree(final_artifact_dir)
-        #     os.rename(self._artifact_dir.name, final_artifact_dir)
-
-        #     # Update the file entries for new files to point at their new location.
-        #     def remap_file_entry(file_entry):
-        #         if not file_entry.local_path.startswith(self._artifact_dir.name):
-        #             return file_entry
-        #         rel_path = os.path.relpath(file_entry.local_path, start=self._artifact_dir.name)
-        #         local_path = os.path.join(final_artifact_dir, rel_path)
-        #         return self.LocalArtifactManifestEntry(
-        #             file_entry.path, file_entry.hash, local_path)
-
-        #     file_entries = [remap_file_entry(file_entry) for file_entry in file_entries]
-
-        # self._file_entries = file_entries
-        # return self._file_entries
+            # Update the file entries for new files to point at their new location.
+            def remap_entry(entry):
+                if entry.local_path is None or not entry.local_path.startswith(self._artifact_dir.name):
+                    return entry
+                rel_path = os.path.relpath(entry.local_path, start=self._artifact_dir.name)
+                entry.local_path = os.path.join(final_artifact_dir, rel_path)
+            for entry in self._manifest.entries.values():
+                remap_entry(entry)
 
 
 class ArtifactManifest(object):
