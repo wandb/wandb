@@ -490,7 +490,8 @@ class WandbStoragePolicy(StoragePolicy):
         return exists
 
 
-class S3BucketPolicy(StoragePolicy):
+# Don't use this yet!
+class __S3BucketPolicy(StoragePolicy):
 
     @classmethod
     def name(cls):
@@ -670,21 +671,6 @@ class LocalFileHandler(StorageHandler):
         entries = []
         if os.path.isdir(local_path):
             raise ValueError('Can\'t add directory reference')
-            # We want to map each file to where it will be
-            # relative to the root of the artifact. If no
-            # name was specified, we assume the for directory
-            # 'foo' all files under it will be placed under
-            # under '/foo/'. If a name is specified, use that
-            # as the root instead. If the name is "/", then
-            # simply use that as the root.
-            # artifact_root = "" if name is "/" else name or os.path.basename(path) for dirpath, _, filenames in os.walk(path, followlinks=True):
-            #     for fname in filenames:
-            #         physical_path = os.path.join(dirpath, fname)
-            #         logical_path = os.path.join(artifact_root, os.path.relpath(physical_path, start=path))
-            #         entry = ArtifactManifestEntry(logical_path, physical_path, md5= md5_file_b64(physical_path))
-            #         if not reference:
-            #             self._upload_callback(artifact, entry)
-            #         entries.append(entry)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(name, path, size=os.path.getsize(local_path), digest=md5_file_b64(local_path))
@@ -738,15 +724,10 @@ class S3Handler(StorageHandler):
 
         path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
 
-        # md5 the path, and skip the download if we already have this file.
-        # TODO:
-        #   - this will cause etag files to always redownload (maybe ok?).
-        #   - this only works for s3 files currently
-        if os.path.isfile(path):
-            md5 = md5_file_b64(path)
-            if md5 == manifest_entry.ref:
-                # Skip download.
-                return path
+        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
+        # downloading. Switching to object caching (caching files by their digest instead
+        # of file name), this would work. Or we can store a list of known etags for local
+        # files.
 
         util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_file(path, ExtraArgs=extra_args)
@@ -769,6 +750,7 @@ class S3Handler(StorageHandler):
 
         return [ArtifactManifestEntry(name or os.path.basename(key), path, md5, size=size, extra=extra)]
 
+    # TODO: we don't need this here anymore. It will move into the S3 policy.
     def upload_callback(self, artifact, manifest_entry):
         key = self._content_addressed_path(manifest_entry.md5)
         obj = self._s3.Object(self._bucket, key)
