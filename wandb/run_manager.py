@@ -1203,8 +1203,7 @@ class RunManager(object):
         metadata = message['metadata']
         manifest = message['manifest']
         la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher, is_user_created=True)
-        server_artifact = la.save(type, name, metadata=metadata)
-        self._api.use_artifact(server_artifact['id'])
+        server_artifact = la.save(type, name, metadata=metadata, use_after_commit=True)
 
     def log_artifact(self, message):
         type = message['type']
@@ -1482,7 +1481,7 @@ class ArtifactSaver(object):
         self._is_user_created = is_user_created
         self._server_artifact = None
 
-    def save(self, type, name, metadata=None, description=None, aliases=None, labels=None):
+    def save(self, type, name, metadata=None, description=None, aliases=None, labels=None, use_after_commit=False):
         aliases = aliases or []
         alias_specs = []
         for alias in aliases:
@@ -1542,7 +1541,7 @@ class ArtifactSaver(object):
         )
 
         # This will queue the commit. It will only happen after all the file uploads are done
-        self._file_pusher.commit_artifact(self._server_artifact['id'])
+        self._file_pusher.commit_artifact(self._server_artifact['id'], use_after_commit=use_after_commit)
         return self._server_artifact
 
     def commit(self):

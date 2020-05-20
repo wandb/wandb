@@ -13,7 +13,7 @@ from wandb import termerror
 RequestUpload = collections.namedtuple(
     'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5', 'copied', 'save_fn', 'digest'))
 RequestCommitArtifact = collections.namedtuple(
-    'RequestCommitArtifact', ('artifact_id', ))
+    'RequestCommitArtifact', ('artifact_id', 'use_after_commit'))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
@@ -79,6 +79,7 @@ class StepUpload(object):
                 self._start_upload_job(event)
         elif isinstance(event, RequestCommitArtifact):
             self._artifacts[event.artifact_id]['commit_requested'] = True
+            self._artifacts[event.artifact_id]['use_after_commit'] = event.use_after_commit
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
             if event.artifact_id is not None:
@@ -118,6 +119,8 @@ class StepUpload(object):
         artifact_status = self._artifacts[artifact_id]
         if artifact_status['pending_count'] == 0 and artifact_status['commit_requested']:
             self._api.commit_artifact(artifact_id)
+            if artifact_status['use_after_commit']:
+                self._api.use_artifact(artifact_id)
 
     def start(self):
         self._thread.start()

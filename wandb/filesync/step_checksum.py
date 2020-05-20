@@ -19,7 +19,7 @@ RequestUpload = collections.namedtuple(
 RequestStoreManifestFiles = collections.namedtuple(
     'RequestStoreManifestFiles', ('manifest', 'artifact_id', 'save_fn'))
 RequestCommitArtifact = collections.namedtuple(
-    'RequestCommitArtifact', ('artifact_id', ))
+    'RequestCommitArtifact', ('artifact_id', 'use_after_commit'))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
@@ -71,7 +71,7 @@ class StepChecksum(object):
                                 req.save_fn,
                                 entry.digest))
             elif isinstance(req, RequestCommitArtifact):
-                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id))
+                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id, req.use_after_commit))
             elif isinstance(req, RequestFinish):
                 break
             else:

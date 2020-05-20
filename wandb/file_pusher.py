@@ -135,8 +135,8 @@ class FilePusher(object):
         self._temp_file_refs.append(f)
         return f
 
-    def commit_artifact(self, artifact_id):
-        event = step_checksum.RequestCommitArtifact(artifact_id)
+    def commit_artifact(self, artifact_id, use_after_commit=False):
+        event = step_checksum.RequestCommitArtifact(artifact_id, use_after_commit)
         self._incoming_queue.put(event)
 
     def finish(self):
