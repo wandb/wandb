@@ -36,7 +36,6 @@ All these compatibility issues will be addressed in upcoming releases.
 
 | Problem | Bug | Estimated fix date |
 | - | - | - |
-| Media files are not uploaded until script is complete | | May 16, 2020 |
 | Console logs have extra linefeed | | |
 | python2 occasionally throws spurious exception at end of script execution | | |
 
