@@ -1,5 +1,6 @@
 MANIFEST.in
 README.md
+package_readme.md
 pyproject.toml
 setup.cfg
 setup.py

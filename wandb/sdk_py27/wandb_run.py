@@ -15,10 +15,12 @@ import shutil
 
 import click
 import wandb
+from wandb.data_types import _datatypes_set_callback
 
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
+
 
 logger = logging.getLogger("wandb")
 
@@ -41,6 +43,8 @@ class RunManaged(Run):
         self.summary._set_callback(self._summary_callback)
         self.history = wandb_history.History()
         self.history._set_callback(self._history_callback)
+
+        _datatypes_set_callback(self._datatypes_callback)
 
         self._settings = settings
         self._backend = None
@@ -166,6 +170,10 @@ class RunManaged(Run):
 
     def _summary_callback(self, key=None, val=None, data=None):
         self._backend.interface.send_summary(data)
+
+    def _datatypes_callback(self, fname):
+        files = dict(files=[(fname,)])
+        self._backend.interface.send_files(files)
 
     def _history_callback(self, row=None):
         self.summary.update(row)

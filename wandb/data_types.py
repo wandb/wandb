@@ -40,6 +40,17 @@ MEDIA_TMP = tempfile.TemporaryDirectory('wandb-media')
 DATA_FRAMES_SUBDIR = os.path.join('media', 'data_frames')
 
 
+# cling below
+_glob_datatypes_callback = None
+def _datatypes_set_callback(cb):
+    global _glob_datatypes_callback
+    _glob_datatypes_callback = cb
+def _datatypes_callback(fname):
+    if _glob_datatypes_callback:
+        _glob_datatypes_callback(fname)
+# cling above
+
+
 class WBValue(object):
     """Abstract parent class for things that can be logged by wandb.log() and
         visualized by wandb.
@@ -190,14 +201,18 @@ class Media(WBValue):
             if self._is_tmp:
                 if id_ is None:
                     id_ = self._sha256[:8]
-
-                new_path = os.path.join(base_path, '{}_{}_{}{}'.format(key, step, id_, extension))
+                # cling below
+                file_path = '{}_{}_{}{}'.format(key, step, id_, extension)
+                media_path = os.path.join(self.get_media_subdir(), file_path)
+                new_path = os.path.join(base_path, file_path)
+                # cling above
                 util.mkdir_exists_ok(os.path.dirname(new_path))
 
                 shutil.move(self._path, new_path)
 
                 self._path = new_path
                 self._is_tmp = False
+                _datatypes_callback(media_path)
             else:
                 new_path = os.path.join(base_path, '{}_{}{}'.format(rootname, self._sha256[:8], extension))
                 util.mkdir_exists_ok(os.path.dirname(new_path))
