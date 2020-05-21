@@ -339,10 +339,13 @@ class Run(object):
             from wandb import tensorflow as wbtf
             wandb.termlog("Found tfevents file, converting...")
             summary = {}
+            step = 0
             for path in tfevents:
                 filename = os.path.basename(path)
                 namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
-                summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
+                last_row = wbtf.stream_tfevents(path, file_api, run, step=step, namespace=namespace)
+                step = last_row["_step"]
+                summary.update(last_row)
             for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
                 if os.path.isfile(path):
                     paths.append(path)

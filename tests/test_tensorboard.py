@@ -56,6 +56,8 @@ def test_tensorboard_load_complex(wandb_init_run):
     for summary in tf.train.summary_iterator(os.path.join(os.path.dirname(__file__),
                                                           "fixtures/events.out.tfevents.111.complex.localdomain")):
         parsed = wandb.tensorboard.tf_summary_to_dict(summary)
+        if parsed is None:
+            continue
         if parsed.get("meta/activation/D/mean/high"):
             steps_for_meta.append(summary.step)
         wandb.tensorboard.log(summary, step=summary.step)

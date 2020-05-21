@@ -53,6 +53,8 @@ def stream_tfevents(path, file_api, run, step=0, namespace=""):
     try:
         for summary in summary_iterator(path):
             parsed = tf_summary_to_dict(summary, namespace=namespace)
+            if parsed is None:
+                continue
             if last_step != parsed[global_step_key]:
                 last_step = parsed[global_step_key]
                 if len(row) > 3:  # Must have more than _timestamp, _step, and global_step
