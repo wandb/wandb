@@ -403,11 +403,13 @@ class WandbStoragePolicy(StoragePolicy):
 
     def __init__(self):
         s3 = S3Handler()
+        gcs = GCSHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(handlers=[
             s3,
+            gcs,
             file_handler,
         ], default_handler=TrackingHandler())
 
@@ -782,6 +784,93 @@ class S3Handler(StorageHandler):
         return {
             'etag': obj.e_tag[1:-1],  # escape leading and trailing quote
             'versionID': obj.version_id,
+        }
+
+    @staticmethod
+    def _content_addressed_path(md5):
+        # TODO: is this the structure we want? not at all human
+        # readable, but that's probably OK. don't want people
+        # poking around in the bucket
+        return 'wandb/%s' % base64.b64encode(md5.encode("ascii")).decode("ascii")
+
+class GCSHandler(StorageHandler):
+    def __init__(self, scheme=None):
+        self._scheme = scheme or "gs"
+        self._client = None
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    def init_gcs(self):
+        if self._client is not None:
+            return self._client
+        storage = util.get_module('google.cloud.storage', required="GCS requires the google-cloud-storage library, run pip install wandb[gcs]")
+        self._client = storage.Client()
+        return self._client
+
+    def load_path(self, artifact, manifest_entry, local=False):
+        self.init_gcs()
+
+        url = urlparse(manifest_entry.ref)
+        bucket = url.netloc
+        key = url.path[1:]
+        version = manifest_entry.extra.get('versionID')
+
+        extra_args = {}
+        if version is None:
+            # Object versioning is disabled on the bucket, so just get
+            # the latest version and make sure the MD5 matches.
+            obj = self._client.bucket(bucket).get_blob(key)
+            md5 = obj.md5_hash
+            if md5 != manifest_entry.digest:
+                raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
+                                 (self._bucket, key, manifest_entry.digest, md5))
+        else:
+            obj = self._client.bucket(bucket).get_blob(key, generation=version)
+
+        if not local:
+            return manifest_entry.ref
+
+        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
+
+        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
+        # downloading. Switching to object caching (caching files by their digest instead
+        # of file name), this would work. Or we can store a list of known etags for local
+        # files.
+
+        util.mkdir_exists_ok(os.path.dirname(path))
+        obj.download_to_file(path)
+        return path
+
+    def store_path(self, artifact, path, name=None):
+        self.init_gcs()
+
+        url = urlparse(path)
+        bucket = url.netloc
+        key = url.path[1:]  # strip leading slash
+        obj = self._client.bucket(bucket).get_blob(key)
+        if obj is None:
+            objects = self._client.bucket(bucket).list_blobs(prefix=key)
+        else:
+            objects = [obj]
+
+        return [self._entry_from_path(obj, path, name, prefix=key) for obj in objects]
+
+    def _entry_from_path(self, obj, path, name=None, prefix=""):
+        if name is None:
+            # TODO: this what we want?
+            if prefix in obj.name:
+                name = os.path.relpath(obj.name, start=prefix)
+            else:
+                name = os.path.basename(obj.name)
+        return ArtifactManifestEntry(name, path, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj))
+
+    @staticmethod
+    def _extra_from_obj(obj):
+        return {
+            'etag': obj.etag,  # escape leading and trailing quote
+            'versionID': obj.generation,
         }
 
     @staticmethod

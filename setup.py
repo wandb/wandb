@@ -29,6 +29,8 @@ test_requirements = [
     'tox-pyenv>=1.0.3'
 ]
 
+gcs_requirements = ['google-cloud-storage']
+
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
@@ -79,6 +81,7 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     extras_require={
-        'kubeflow': kubeflow_requirements
+        'kubeflow': kubeflow_requirements,
+        'gcs': gcs_requirements
     }
 )
