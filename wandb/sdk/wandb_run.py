@@ -16,6 +16,7 @@ import shutil
 import click
 import wandb
 from wandb.data_types import _datatypes_set_callback
+from wandb.viz import Visualize
 
 from . import wandb_config
 from . import wandb_history
@@ -176,6 +177,22 @@ class RunManaged(Run):
         self._backend.interface.send_files(files)
 
     def _history_callback(self, row=None):
+
+        # TODO(jhr): move visualize hack somewhere else
+        visualize_persist_config = False
+        for k in row:
+            if isinstance(row[k], Visualize):
+                if "viz" not in self._config["_wandb"]:
+                    self._config["_wandb"]["viz"] = dict()
+                self._config["_wandb"]["viz"][k] = {
+                    "id": row[k].viz_id,
+                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
+                }
+                row[k] = row[k].value
+                visualize_persist_config = True
+        if visualize_persist_config:
+            self._config_callback(data=self._config._as_dict())
+
         self.summary.update(row)
         self._backend.interface.send_history(row)
 

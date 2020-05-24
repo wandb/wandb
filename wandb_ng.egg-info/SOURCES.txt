@@ -9,6 +9,7 @@ wandb/data_types.py
 wandb/env.py
 wandb/py.typed
 wandb/util.py
+wandb/viz.py
 wandb/wandb_agent.py
 wandb/wandb_controller.py
 wandb/wandb_torch.py
@@ -66,6 +67,15 @@ wandb/old/meta.py
 wandb/old/retry.py
 wandb/old/settings.py
 wandb/old/summary.py
+wandb/plots/__init__.py
+wandb/plots/explain_text.py
+wandb/plots/heatmap.py
+wandb/plots/named_entity.py
+wandb/plots/part_of_speech.py
+wandb/plots/plot_definitions.py
+wandb/plots/precision_recall.py
+wandb/plots/roc.py
+wandb/plots/utils.py
 wandb/proto/__init__.py
 wandb/proto/wandb_internal_codegen.py
 wandb/proto/wandb_internal_pb2.py
@@ -91,6 +101,8 @@ wandb/sdk_py27/wandb_settings.py
 wandb/sdk_py27/wandb_setup.py
 wandb/sdk_py27/wandb_summary.py
 wandb/sdk_py27/wandb_watch.py
+wandb/sklearn/__init__.py
+wandb/sklearn/utils.py
 wandb/superagent/__init__.py
 wandb/superagent/agent.py
 wandb/sweeps/__init__.py

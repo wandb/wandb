@@ -55,6 +55,8 @@ from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
 #from wandb.core import *
+from wandb.viz import visualize
+from wandb import plots
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
@@ -84,6 +86,7 @@ log = _preinit.PreInitCallable("wandb.log")
 join = _preinit.PreInitCallable("wandb.join")
 
 keras = _lazyloader.LazyLoader('wandb.keras', globals(), 'wandb.framework.keras')
+sklearn = _lazyloader.LazyLoader('wandb.sklearn', globals(), 'wandb.sklearn')
 
 __all__ = [
     "__version__",
