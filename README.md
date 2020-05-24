@@ -2,7 +2,7 @@
   <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
-# **Experimental**
+# **Experimental Client - Next Generation**
 
 This repo contains experimental changes to the production wandb client at [github.com/wandb/client](http://github.com/wandb/client).
 
