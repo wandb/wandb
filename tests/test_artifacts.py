@@ -7,7 +7,6 @@ def test_add_one_file(runner):
     with runner.isolated_filesystem():
         with open('file1.txt', 'w') as f:
             f.write('hello')
-        print('list', os.listdir())
         artifact = artifacts.Artifact(type='dataset')
         artifact.add_file('file1.txt')
 
@@ -20,7 +19,6 @@ def test_add_named_file(runner):
     with runner.isolated_filesystem():
         with open('file1.txt', 'w') as f:
             f.write('hello')
-        print('list', os.listdir())
         artifact = artifacts.Artifact(type='dataset')
         artifact.add_file('file1.txt', name='great-file.txt')
 
