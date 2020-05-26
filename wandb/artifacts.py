@@ -58,9 +58,10 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, description=None, metadata=None, labels=None,
-                 storage_policy=None):
-        self._storage_policy = storage_policy or WandbStoragePolicy()
+    def __init__(self, type, description=None, metadata=None):
+        # TODO: this shouldn't be a property of the artifact. It's a more like an
+        # argument to log_artifact.
+        self._storage_policy = WandbStoragePolicy()
         self._file_specs = {}
         self._api = InternalApi()
         self._final = False
@@ -75,7 +76,6 @@ class Artifact(object):
         self.type = type
         self.description = description
         self.metadata = metadata
-        self.labels = labels
 
     @property
     def id(self):

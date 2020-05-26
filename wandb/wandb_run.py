@@ -470,7 +470,7 @@ class Run(object):
                 'digest': artifact.digest,
                 'description': artifact.description,
                 'metadata': artifact.metadata,
-                'labels': artifact.labels,
+                'labels': None,
                 'aliases': aliases,
             }
         })
