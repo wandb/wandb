@@ -70,9 +70,10 @@ def cli(ctx):
 
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@click.option("--relogin", default=None, is_flag=True, help="Force relogin if already logged in.")
 @display_error
-def login():
-    wandb.login()
+def login(relogin):
+    wandb.login(relogin=relogin)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)

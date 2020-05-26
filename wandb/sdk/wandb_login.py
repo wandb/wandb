@@ -26,8 +26,13 @@ def _get_python_type():
         return "python"
 
 
-def login(settings=None):
-    if is_logged_in():
+def login(settings=None, relogin=None):
+    if is_logged_in() and not relogin:
+        # TODO(jhr): show logged in information
+        # should we actually hit the API to check if we really have access
+        wandb.termlog(
+            "Currently logged in (use `wandb login --relogin` to force relogin)"
+        )
         return
 
     if not settings:
