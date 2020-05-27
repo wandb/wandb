@@ -1514,6 +1514,8 @@ class ArtifactSaver(object):
         #   do
         if self._server_artifact['state'] == 'COMMITTED' or self._server_artifact['state'] == 'COMMITTING':
             # TODO: update aliases, labels, description etc?
+            if use_after_commit:
+                self._api.use_artifact(self._server_artifact['id'])
             return self._server_artifact
         elif self._server_artifact['state'] != 'PENDING':
             # TODO: what to do in this case?
