@@ -29,7 +29,8 @@ test_requirements = [
     'tox-pyenv>=1.0.3'
 ]
 
-gcs_requirements = ['google-cloud-storage']
+gcp_requirements = ['google-cloud-storage']
+aws_requirements = ['boto3']
 
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
@@ -82,6 +83,7 @@ setup(
     tests_require=test_requirements,
     extras_require={
         'kubeflow': kubeflow_requirements,
-        'gcs': gcs_requirements
+        'gcp': gcs_requirements,
+        'aws': aws_requirements
     }
 )
