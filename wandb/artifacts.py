@@ -387,7 +387,7 @@ class StoragePolicy(object):
     def load_path(self, artifact, manifest_entry, local=False):
         pass
 
-    def store_reference(self, artifact, path, name=None, checksum=True):
+    def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
         pass
 
 

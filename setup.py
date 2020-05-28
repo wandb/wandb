@@ -83,7 +83,7 @@ setup(
     tests_require=test_requirements,
     extras_require={
         'kubeflow': kubeflow_requirements,
-        'gcp': gcs_requirements,
+        'gcp': gcp_requirements,
         'aws': aws_requirements
     }
 )
