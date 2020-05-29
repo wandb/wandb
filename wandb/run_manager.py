@@ -1529,7 +1529,7 @@ class ArtifactSaver(object):
             # We need to use the "use_prepare_flow" option
             self._file_pusher.file_changed(path, local_path, artifact_id, use_prepare_flow=True)
 
-        step_prepare = file_pusher.step_prepare.StepPrepare(self._api, 1, 0.1, 100)  # TODO: params
+        step_prepare = file_pusher.step_prepare.StepPrepare(self._api, 0.1, 0.01, 1000)  # TODO: params
         step_prepare.start()
 
         # Upload Artifact "L1" files, the actual artifact contents
