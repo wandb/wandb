@@ -1149,6 +1149,87 @@ class Api(object):
         })
         return response
 
+    def create_artifact_manifest(self, name, digest, artifact_id, entity=None, project=None, run=None):
+        mutation = gql('''
+        mutation CreateArtifactManifest(
+            $name: String!,
+            $digest: String!,
+            $artifactID: ID!,
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!
+        ) {
+            createArtifactManifest(input: {
+                name: $name,
+                digest: $digest,
+                artifactID: $artifactID,
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName
+            }) {
+                artifactManifest {
+                    id
+                    file {
+                        id
+                        name
+                        displayName
+                        uploadUrl
+                        uploadHeaders
+                    }
+                }
+            }
+        }
+        ''')
+
+        entity_name = entity or self.settings('entity')
+        project_name = project or self.settings('project')
+        run_name = run or self.current_run_id
+
+        response = self.gql(mutation, variable_values={
+            'name': name,
+            'digest': digest,
+            'artifactID': artifact_id,
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+        })
+
+        return response['createArtifactManifest']['artifactManifest']['file']
+
+    @normalize_exceptions
+    def create_artifact_files(self, artifact_files):
+        mutation = gql('''
+        mutation CreateArtifactFiles(
+            $artifactFiles: [CreateArtifactFileSpecInput!]!
+        ) {
+            createArtifactFiles(input: {
+                artifactFiles: $artifactFiles
+            }) {
+                files {
+                    edges {
+                        node {
+                            id
+                            name
+                            displayName
+                            uploadUrl
+                            uploadHeaders
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={
+            'artifactFiles': [af for af in artifact_files]
+        })
+
+        result = {}
+        for edge in response['createArtifactFiles']['files']['edges']:
+            node = edge['node']
+            result[node['displayName']] = node
+        return result
+
     @normalize_exceptions
     def prepare_files(self, file_specs, entity=None, project=None, run=None):
         """TODO

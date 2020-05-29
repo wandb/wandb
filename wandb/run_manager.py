@@ -1512,10 +1512,11 @@ class ArtifactSaver(object):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
         #   correct. It may be better to poll until it's committed or failed, and then decided what to
         #   do
+        artifact_id = self._server_artifact['id']
         if self._server_artifact['state'] == 'COMMITTED' or self._server_artifact['state'] == 'COMMITTING':
             # TODO: update aliases, labels, description etc?
             if use_after_commit:
-                self._api.use_artifact(self._server_artifact['id'])
+                self._api.use_artifact(artifact_id)
             return self._server_artifact
         elif self._server_artifact['state'] != 'PENDING':
             # TODO: what to do in this case?
@@ -1526,28 +1527,29 @@ class ArtifactSaver(object):
         # upload to cloud storage commences
         for path, hash, local_path in self._server_manifest_entries:
             # We need to use the "use_prepare_flow" option
-            self._file_pusher.file_changed(path, local_path, self._server_artifact['id'], use_prepare_flow=True)
-        
+            self._file_pusher.file_changed(path, local_path, artifact_id, use_prepare_flow=True)
+
+        step_prepare = file_pusher.step_prepare.StepPrepare(self._api, 1, 0.1, 100)  # TODO: params
+        step_prepare.start()
+
         # Upload Artifact "L1" files, the actual artifact contents
         self._file_pusher.store_manifest_files(
-            self._manifest, 
-            self._server_artifact['id'],
-            lambda local_path, digest, api: (
-                # We shouldn't be using API settings here.
-                self._manifest.storage_policy.store_file(
-                    self._api.settings('entity'),
-                    self._api.settings('project'),
-                    local_path,
-                    digest,
-                    api)),
+            self._manifest,
+            artifact_id,
+            lambda entry: self._manifest.storage_policy.store_file(
+                artifact_id,
+                entry,
+                step_prepare)
         )
 
-        # This will queue the commit. It will only happen after all the file uploads are done
-        self._file_pusher.commit_artifact(self._server_artifact['id'], use_after_commit=use_after_commit)
-        return self._server_artifact
+        def on_commit():
+            if use_after_commit:
+                self._api.use_artifact(artifact_id)
+            step_prepare.shutdown()
 
-    def commit(self):
-        self._api.commit_artifact(self._server_artifact.id)
+        # This will queue the commit. It will only happen after all the file uploads are done
+        self._file_pusher.commit_artifact(artifact_id, on_commit=on_commit)
+        return self._server_artifact
 
     def wait(self):
         if self._server_artifact is None:

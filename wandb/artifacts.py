@@ -459,32 +459,27 @@ class WandbStoragePolicy(StoragePolicy):
     def load_reference(self, artifact, name, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local)
 
-    def _file_url(self, api, entity_name, md5, upload=False):
+    def _file_url(self, api, entity_name, md5):
         md5_hex = base64.b64decode(md5).hex()
-        suffix = "/uploadURL" if upload else ""
-        return '{}/artifacts/{}/{}{}'.format(api.settings("base_url"), entity_name, md5_hex, suffix)
+        return '{}/artifacts/{}/{}'.format(api.settings("base_url"), entity_name, md5_hex)
 
-    def store_file(self, entity_name, project_name, local_path, digest, api):
-        # This is the "back half". It's called in run manager, for each local path
-        # in the artifact.
-        r = self._session.get(
-            self._file_url(self._api, entity_name, digest, upload=True),
-            auth=("api", self._api.api_key))
-        r.raise_for_status()
+    def store_file(self, artifact_id, entry, preparer):
+        resp = preparer.prepare(lambda: {
+            "artifactID": artifact_id,
+            "name": entry.path,
+            "md5": entry.digest,
+        })
 
-        # TODO: this may be best served as a gql API instead of this pseudo-REST jank.
-        resp = r.json()
-        exists, upload_url = resp["exists"], resp["uploadURL"]
-
+        exists = resp.upload_url is None
         if not exists:
-            upload_headers = {header.split(":", 1)[0]: header.split(":", 1)[1]
-                              for header in (resp["uploadHeaders"] or {})}
-
-            with open(local_path, "rb") as file:
+            with open(entry.local_path, "rb") as file:
                 # This fails if we don't send the first byte before the signed URL
                 # expires.
-                r = self._session.put(upload_url,
-                                 headers=upload_headers,
+                r = self._session.put(resp.upload_url,
+                                 headers={
+                                     header.split(":", 1)[0]: header.split(":", 1)[1]
+                                     for header in (resp.upload_headers or {})
+                                 },
                                  data=file)
                 r.raise_for_status()
         return exists

@@ -8,7 +8,7 @@ from six.moves import queue
 
 # Request for a file to be prepared.
 RequestPrepare = collections.namedtuple(
-    'RequestPrepare', ('path', 'save_name', 'md5', 'artifact_id', 'response_queue'))
+    'RequestPrepare', ('prepare_fn', 'on_prepare', 'response_queue'))
 
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
@@ -41,7 +41,10 @@ class StepPrepare(object):
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
-                response_file = prepare_response[prepare_request.save_name]
+                name = prepare_request.prepare_fn()['name']
+                response_file = prepare_response[name]
+                if prepare_request.on_prepare:
+                    prepare_request.on_prepare(response_file['uploadUrl'], response_file['uploadHeaders'])
                 prepare_request.response_queue.put(
                     ResponsePrepare(response_file['uploadUrl'], response_file['uploadHeaders']))
             if finish:
@@ -75,13 +78,11 @@ class StepPrepare(object):
         """
         file_specs = []
         for prepare_request in batch:
-            file_specs.append({
-                'name': prepare_request.save_name,
-                'artifactID': prepare_request.artifact_id,
-                'digest': prepare_request.md5})
-        return self._api.prepare_files(file_specs)
+            file_spec = prepare_request.prepare_fn()
+            file_specs.append(file_spec)
+        return self._api.create_artifact_files(file_specs)
 
-    def prepare_async(self, path, save_name, md5, artifact_id):
+    def prepare_async(self, prepare_fn, on_prepare=None):
         """Request the backend to prepare a file for upload.
         
         Returns:
@@ -89,11 +90,11 @@ class StepPrepare(object):
                 either a file upload url, or None if the file doesn't need to be uploaded.
         """
         response_queue = queue.Queue()
-        self._request_queue.put(RequestPrepare(path, save_name, md5, artifact_id, response_queue))
+        self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
         return response_queue
 
-    def prepare(self, path, save_name, md5, artifact_id):
-        return self.prepare_async(path, save_name, md5, artifact_id).get()
+    def prepare(self, prepare_fn):
+        return self.prepare_async(prepare_fn).get()
 
     def start(self):
         self._thread.start()
