@@ -678,7 +678,7 @@ class LocalFileHandler(StorageHandler):
 
         if os.path.isdir(local_path):
             i = 0
-            termlog('Generating checksum for upto %i files in %s' % (max_objects, local_path))
+            termlog('Generating checksum for up to %i files in %s' % (max_objects, local_path))
             for root, dirs, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
@@ -764,7 +764,7 @@ class S3Handler(StorageHandler):
             objs[0].load()
         except self._botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "404":
-                termlog('Generating checksum for upto %i objects with prefix %s' % (max_objects, key))
+                termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
                 objs = self._s3.Bucket(bucket).filter(Prefix=key).limit(max_objects)
             else:
                 raise
@@ -831,7 +831,7 @@ class GCSHandler(StorageHandler):
 
     def load_path(self, artifact, manifest_entry, local=False):
         self.init_gcs()
-        bucket, key = self._parse_uri(path)
+        bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
 
         extra_args = {}
@@ -869,7 +869,7 @@ class GCSHandler(StorageHandler):
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         obj = self._client.bucket(bucket).get_blob(key)
         if obj is None:
-            termlog('Generating checksum for upto %i objects with prefix %s' % (max_objects, key))
+            termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
             objects = self._client.bucket(bucket).list_blobs(prefix=key, max_results=max_objects)
         else:
             objects = [obj]
@@ -891,7 +891,7 @@ class GCSHandler(StorageHandler):
     @staticmethod
     def _extra_from_obj(obj):
         return {
-            'etag': obj.etag,  # escape leading and trailing quote
+            'etag': obj.etag,
             'versionID': obj.generation,
         }
 
