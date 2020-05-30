@@ -166,14 +166,14 @@ class Artifact(object):
 
         termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
 
-    def add_reference(self, uri, name=None):
+    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError('References must be URIs. To reference a local file, use file://')
         if self._final:
             raise ValueError('Can\'t add to finalized artifact.')
         manifest_entries = self._storage_policy.store_reference(
-            self, uri, name=name)
+            self, uri, name=name, checksum=checksum, max_objects=max_objects)
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
@@ -387,7 +387,7 @@ class StoragePolicy(object):
     def load_path(self, artifact, manifest_entry, local=False):
         pass
 
-    def store_reference(self, artifact, path, name=None):
+    def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
         pass
 
 
@@ -403,11 +403,13 @@ class WandbStoragePolicy(StoragePolicy):
 
     def __init__(self):
         s3 = S3Handler()
+        gcs = GCSHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(handlers=[
             s3,
+            gcs,
             file_handler,
         ], default_handler=TrackingHandler())
 
@@ -453,8 +455,8 @@ class WandbStoragePolicy(StoragePolicy):
     def load_path(self, artifact, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
-    def store_reference(self, artifact, path, name=None):
-        return self._handler.store_path(artifact, path, name=name)
+    def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
+        return self._handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
 
     def load_reference(self, artifact, name, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local)
@@ -521,8 +523,8 @@ class __S3BucketPolicy(StoragePolicy):
     def load_path(self, artifact, manifest_entry, local=False):
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None):
-        return self._handler.store_path(artifact, path, name=name)
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        return self._handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
 
 
 class StorageHandler(object):
@@ -546,7 +548,7 @@ class StorageHandler(object):
         """
         pass
 
-    def store_path(self, artifact, path, name=None):
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -582,13 +584,13 @@ class MultiHandler(StorageHandler):
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
         return self._handlers[url.scheme].load_path(artifact, manifest_entry, local=local)
 
-    def store_path(self, artifact, path, name=None):
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         url = urlparse(path)
         if url.scheme not in self._handlers:
             if self._handlers is not None:
-                return self._default_handler.store_path(artifact, path, name=name)
+                return self._default_handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
-        return self._handlers[url.scheme].store_path(artifact, path, name=name)
+        return self._handlers[url.scheme].store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
 
 
 class TrackingHandler(StorageHandler):
@@ -618,7 +620,7 @@ class TrackingHandler(StorageHandler):
                              (manifest_entry.ref, url.scheme))
         return manifest_entry.path
 
-    def store_path(self, artifact, path, name=None):
+    def store_path(self, artifact, path, name=None, checksum=False, max_objects=None):
         url = urlparse(path)
         if name is None:
             raise ValueError('You must pass name="<entry_name>" when tracking references with unknown schemes. ref: %s' % path)
@@ -626,6 +628,7 @@ class TrackingHandler(StorageHandler):
         name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(name, path, digest=path)]
 
+DEFAULT_MAX_OBJECTS = 10000
 
 class LocalFileHandler(StorageHandler):
 
@@ -663,14 +666,27 @@ class LocalFileHandler(StorageHandler):
         shutil.copy(local_path, path)
         return path
 
-    def store_path(self, artifact, path, name=None):
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         url = urlparse(path)
         local_path = '%s%s' % (url.netloc, url.path)
+        max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
+        if checksum == False:
+            return [ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)]
+
         if os.path.isdir(local_path):
-            raise ValueError('Can\'t add directory reference')
+            i = 0
+            termlog('Generating checksum for up to %i files in %s' % (max_objects, local_path))
+            for root, dirs, files in os.walk(local_path):
+                for sub_path in files:
+                    i += 1
+                    if i >= max_objects:
+                        raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
+                    entry = ArtifactManifestEntry(os.path.basename(sub_path),
+                        os.path.join(path, sub_path), size=os.path.getsize(sub_path), digest=md5_file_b64(sub_path))
+                    entries.append(entry)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(name, path, size=os.path.getsize(local_path), digest=md5_file_b64(local_path))
@@ -679,7 +695,6 @@ class LocalFileHandler(StorageHandler):
             # TODO: update error message if we don't allow directories.
             raise ValueError('Path "%s" must be a valid file or directory path' % path)
         return entries
-
 
 class S3Handler(StorageHandler):
 
@@ -694,16 +709,20 @@ class S3Handler(StorageHandler):
     def init_boto(self):
         if self._s3 is not None:
             return self._s3
-        boto3 = util.get_module('boto3', required=True)
+        boto3 = util.get_module('boto3', required="s3:// references requires the boto3 library, run pip install wandb[aws]")
         self._s3 = boto3.resource('s3')
+        self._botocore = util.get_module("botocore")
         return self._s3
+
+    def _parse_uri(self, uri):
+        url = urlparse(uri)
+        bucket = url.netloc
+        key = url.path[1:] # strip leading slash
+        return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
         self.init_boto()
-
-        url = urlparse(manifest_entry.ref)
-        bucket = url.netloc
-        key = url.path[1:]
+        bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
 
         extra_args = {}
@@ -733,39 +752,36 @@ class S3Handler(StorageHandler):
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
-    def store_path(self, artifact, path, name=None):
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         self.init_boto()
+        bucket, key = self._parse_uri(path)
+        max_objects = max_objects or DEFAULT_MAX_OBJECTS
+        if checksum == False:
+            return [ArtifactManifestEntry(name or key, path, digest=path)]
 
-        url = urlparse(path)
-        bucket = url.netloc
-        key = url.path[1:]  # strip leading slash
-        obj = self._s3.Object(bucket, key)
+        objs = [self._s3.Object(bucket, key)]
+        try:
+            objs[0].load()
+        except self._botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == "404":
+                termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
+                objs = self._s3.Bucket(bucket).filter(Prefix=key).limit(max_objects)
+            else:
+                raise
 
-        # This will cause an exception for auth issues, but it's just a general 400
-        # TODO: Figure out how to confirm the user has bucket permissions ealier,
-        #   and give a nice error if they don't.
-        md5 = self._md5_from_obj(obj)
-        size = obj.content_length
-        extra = self._extra_from_obj(obj)
+        entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objs]
+        if len(entries) >= max_objects:
+            raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
+        return entries
 
-        return [ArtifactManifestEntry(name or os.path.basename(key), path, md5, size=size, extra=extra)]
-
-    # TODO: we don't need this here anymore. It will move into the S3 policy.
-    def upload_callback(self, artifact, manifest_entry):
-        key = self._content_addressed_path(manifest_entry.md5)
-        obj = self._s3.Object(self._bucket, key)
-
-        # Only upload the file if it doesn't already exist.
-        if len(list(self._s3.Bucket(self._bucket).objects.filter(Prefix=key))) == 0:
-            obj.upload_file(manifest_entry.path, ExtraArgs={
-                'Metadata': {
-                    'md5': manifest_entry.md5,
-                }
-            })
-
-        manifest_entry.path = 's3://%s/%s' % (self._bucket, key)
-        manifest_entry.size = obj.content_length
-        manifest_entry.extra = self._extra_from_obj(obj)
+    def _entry_from_obj(self, obj, path, name=None, prefix=""):
+        if name is None:
+            # TODO: this what we want?
+            if prefix in obj.name:
+                name = os.path.relpath(obj.name, start=prefix)
+            else:
+                name = os.path.basename(obj.name)
+        return ArtifactManifestEntry(name, path, self._md5_from_obj(obj), size=obj.content_length, extra=self._extra_from_obj(obj))
 
     @staticmethod
     def _md5_from_obj(obj):
@@ -782,6 +798,101 @@ class S3Handler(StorageHandler):
         return {
             'etag': obj.e_tag[1:-1],  # escape leading and trailing quote
             'versionID': obj.version_id,
+        }
+
+    @staticmethod
+    def _content_addressed_path(md5):
+        # TODO: is this the structure we want? not at all human
+        # readable, but that's probably OK. don't want people
+        # poking around in the bucket
+        return 'wandb/%s' % base64.b64encode(md5.encode("ascii")).decode("ascii")
+
+class GCSHandler(StorageHandler):
+    def __init__(self, scheme=None):
+        self._scheme = scheme or "gs"
+        self._client = None
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    def init_gcs(self):
+        if self._client is not None:
+            return self._client
+        storage = util.get_module('google.cloud.storage', required="gs:// references requires the google-cloud-storage library, run pip install wandb[gcp]")
+        self._client = storage.Client()
+        return self._client
+
+    def _parse_uri(self, uri):
+        url = urlparse(uri)
+        bucket = url.netloc
+        key = url.path[1:]
+        return bucket, key
+
+    def load_path(self, artifact, manifest_entry, local=False):
+        self.init_gcs()
+        bucket, key = self._parse_uri(manifest_entry.ref)
+        version = manifest_entry.extra.get('versionID')
+
+        extra_args = {}
+        if version is None:
+            # Object versioning is disabled on the bucket, so just get
+            # the latest version and make sure the MD5 matches.
+            obj = self._client.bucket(bucket).get_blob(key)
+            md5 = obj.md5_hash
+            if md5 != manifest_entry.digest:
+                raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
+                                 (self._bucket, key, manifest_entry.digest, md5))
+        else:
+            obj = self._client.bucket(bucket).get_blob(key, generation=version)
+
+        if not local:
+            return manifest_entry.ref
+
+        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
+
+        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
+        # downloading. Switching to object caching (caching files by their digest instead
+        # of file name), this would work. Or we can store a list of known etags for local
+        # files.
+
+        util.mkdir_exists_ok(os.path.dirname(path))
+        obj.download_to_file(path)
+        return path
+
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        self.init_gcs()
+        bucket, key = self._parse_uri(path)
+        max_objects = max_objects or DEFAULT_MAX_OBJECTS
+
+        if checksum == False:
+            return [ArtifactManifestEntry(name or key, path, digest=path)]
+        obj = self._client.bucket(bucket).get_blob(key)
+        if obj is None:
+            termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
+            objects = self._client.bucket(bucket).list_blobs(prefix=key, max_results=max_objects)
+        else:
+            objects = [obj]
+
+        entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objects]
+        if len(entries) >= max_objects:
+            raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
+        return entries
+
+    def _entry_from_obj(self, obj, path, name=None, prefix=""):
+        if name is None:
+            # TODO: this what we want?
+            if prefix in obj.name:
+                name = os.path.relpath(obj.name, start=prefix)
+            else:
+                name = os.path.basename(obj.name)
+        return ArtifactManifestEntry(name, path, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj))
+
+    @staticmethod
+    def _extra_from_obj(obj):
+        return {
+            'etag': obj.etag,
+            'versionID': obj.generation,
         }
 
     @staticmethod
