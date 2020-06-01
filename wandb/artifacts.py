@@ -1,5 +1,6 @@
 import collections
 import json
+import codecs
 import base64
 import hashlib
 import os
@@ -37,6 +38,11 @@ def md5_file_b64(path):
 
 def md5_file_hex(path):
     return md5_hash_file(path).hexdigest()
+
+
+def bytes_to_hex(bytestr):
+    # Works in python2 / python3
+    return codecs.getencoder('hex')(bytestr)[0]
 
 
 class ServerManifestV1(object):
@@ -462,7 +468,7 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(artifact, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5, upload=False):
-        md5_hex = base64.b64decode(md5).hex()
+        md5_hex = bytes_to_hex(base64.b64decode(md5))
         suffix = "/uploadURL" if upload else ""
         return '{}/artifacts/{}/{}{}'.format(api.settings("base_url"), entity_name, md5_hex, suffix)
 
