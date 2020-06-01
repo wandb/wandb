@@ -18,7 +18,7 @@ RequestUpload = collections.namedtuple(
 RequestStoreManifestFiles = collections.namedtuple(
     'RequestStoreManifestFiles', ('manifest', 'artifact_id', 'save_fn'))
 RequestCommitArtifact = collections.namedtuple(
-    'RequestCommitArtifact', ('artifact_id', 'use_after_commit'))
+    'RequestCommitArtifact', ('artifact_id', 'on_commit'))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
     
@@ -59,6 +59,9 @@ class StepChecksum(object):
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
+                        # This stupid thing is needed so the closure works correctly.
+                        def make_save_fn_with_entry(save_fn, entry):
+                            return lambda: save_fn(entry)
                         self._stats.init_file(entry.local_path, entry.size, is_artifact_file=True)
                         self._output_queue.put(
                             step_upload.RequestUpload(
@@ -67,10 +70,10 @@ class StepChecksum(object):
                                 req.artifact_id,
                                 entry.digest,
                                 False,
-                                req.save_fn,
+                                make_save_fn_with_entry(req.save_fn, entry),
                                 entry.digest))
             elif isinstance(req, RequestCommitArtifact):
-                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id, req.use_after_commit))
+                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id, req.on_commit))
             elif isinstance(req, RequestFinish):
                 break
             else:

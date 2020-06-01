@@ -7,6 +7,7 @@ from wandb import util
 
 EventJobDone = collections.namedtuple('EventJobDone', ('job', 'success'))
 
+
 class UploadJob(threading.Thread):
     def __init__(self, done_queue, stats, api, save_name, path, artifact_id, md5, copied, save_fn, digest):
         """A file upload thread.
@@ -50,7 +51,7 @@ class UploadJob(threading.Thread):
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
-                deduped = self.save_fn(self.save_path, self.digest, self._api)
+                deduped = self.save_fn()
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 wandb.util.sentry_exc(e)
@@ -69,17 +70,12 @@ class UploadJob(threading.Thread):
             return True
 
         if self.md5:
-            # This is the new file "prepare" upload flow, in which we create the
-            # database entry for the file before creating it. This is used for
+            # This is the new artifact manifest upload flow, in which we create the
+            # database entry for the manifest file before creating it. This is used for
             # artifact L0 files. Which now is only artifact_manifest.json
-            response = self._api.prepare_files([{
-                'name': self.save_name,
-                'artifactID': self.artifact_id,
-                'digest': self.md5
-            }])
-            file_response = response[self.save_name]
-            upload_url = file_response['uploadUrl']
-            upload_headers = file_response['uploadHeaders']
+            response = self._api.create_artifact_manifest(self.save_name, self.md5, self.artifact_id)
+            upload_url = response['uploadUrl']
+            upload_headers = response['uploadHeaders']
         else:
             # The classic file upload flow. We get a signed url and upload the file
             # then the backend handles the cloud storage metadata callback to create the
@@ -89,7 +85,7 @@ class UploadJob(threading.Thread):
             file_info = result[self.save_name]
             upload_url = file_info['url']
 
-        if upload_url == None:
+        if upload_url is None:
             self._stats.set_file_deduped(self.save_name)
         else:
             extra_headers = {}

@@ -414,7 +414,6 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-
     def use_artifact(self, artifact=None, type=None, name=None):
         if artifact is None:
             if type is None or name is None:
