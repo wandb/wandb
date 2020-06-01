@@ -4,7 +4,6 @@ import multiprocessing
 import multiprocessing.pool
 import collections
 import os
-import queue
 import shutil
 import threading
 import time

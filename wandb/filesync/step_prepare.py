@@ -1,7 +1,6 @@
 """Batching file prepare requests to our API."""
 
 import collections
-import queue
 import threading
 import time
 from six.moves import queue
