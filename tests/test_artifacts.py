@@ -11,6 +11,7 @@ def mock_boto(artifact, path=False):
             self.e_tag = '"1234567890abcde"'
             self.version_id = "1"
             self.name = name
+            self.key = name
             self.content_length = 10
 
         def load(self):
