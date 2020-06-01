@@ -21,9 +21,13 @@ def mock_boto(artifact, path=False):
         def limit(self, *args, **kwargs):
             return [S3Object(), S3Object(name="my_other_object.pb")]
 
-    class S3Bucket(object):
+    class S3Objects(object):
         def filter(self, **kwargs):
             return Filtered()
+
+    class S3Bucket(object):
+        def __init__(self, *args, **kwargs):
+            self.objects = S3Objects()
 
     class S3Resource(object):
         def Object(self, bucket, key):

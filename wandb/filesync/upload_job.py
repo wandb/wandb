@@ -54,8 +54,12 @@ class UploadJob(threading.Thread):
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 wandb.util.sentry_exc(e)
+                message = str(e)
+                # TODO: this is usually XML, but could be JSON
+                if hasattr(e, "response"):
+                    message = e.response.content
                 wandb.termerror('Error uploading "{}": {}, {}'.format(
-                    self.save_path, type(e).__name__, e))
+                    self.save_path, type(e).__name__, message))
                 return False
 
             if deduped:

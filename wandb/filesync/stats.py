@@ -64,4 +64,3 @@ class Stats(object):
             'media': media_files,
             'other': other_files
         }
-

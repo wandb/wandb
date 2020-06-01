@@ -678,7 +678,8 @@ class LocalFileHandler(StorageHandler):
 
         if os.path.isdir(local_path):
             i = 0
-            termlog('Generating checksum for up to %i files in %s' % (max_objects, local_path))
+            start_time = time.time()
+            termlog('Generating checksum for up to %i files in "%s"...' % (max_objects, local_path), newline=False)
             for root, dirs, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
@@ -687,6 +688,7 @@ class LocalFileHandler(StorageHandler):
                     entry = ArtifactManifestEntry(os.path.basename(sub_path),
                         os.path.join(path, sub_path), size=os.path.getsize(sub_path), digest=md5_file_b64(sub_path))
                     entries.append(entry)
+            termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(name, path, size=os.path.getsize(local_path), digest=md5_file_b64(local_path))
@@ -710,7 +712,7 @@ class S3Handler(StorageHandler):
         if self._s3 is not None:
             return self._s3
         boto3 = util.get_module('boto3', required="s3:// references requires the boto3 library, run pip install wandb[aws]")
-        self._s3 = boto3.resource('s3')
+        self._s3 = boto3.resource('s3', endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"), region_name=os.getenv("AWS_REGION"))
         self._botocore = util.get_module("botocore")
         return self._s3
 
@@ -760,16 +762,20 @@ class S3Handler(StorageHandler):
             return [ArtifactManifestEntry(name or key, path, digest=path)]
 
         objs = [self._s3.Object(bucket, key)]
+        start_time = None
         try:
             objs[0].load()
         except self._botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "404":
-                termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
-                objs = self._s3.Bucket(bucket).filter(Prefix=key).limit(max_objects)
+                start_time = time.time()
+                termlog('Generating checksum for up to %i objects with prefix "%s"... ' % (max_objects, key), newline=False)
+                objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
             else:
                 raise
 
         entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objs]
+        if start_time is not None:
+            termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         if len(entries) >= max_objects:
             raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
         return entries
@@ -777,16 +783,21 @@ class S3Handler(StorageHandler):
     def _entry_from_obj(self, obj, path, name=None, prefix=""):
         if name is None:
             # TODO: this what we want?
-            if prefix in obj.name:
-                name = os.path.relpath(obj.name, start=prefix)
+            if prefix in obj.key:
+                name = os.path.relpath(obj.key, start=prefix)
             else:
-                name = os.path.basename(obj.name)
-        return ArtifactManifestEntry(name, path, self._md5_from_obj(obj), size=obj.content_length, extra=self._extra_from_obj(obj))
+                name = os.path.basename(obj.key)
+        # ObjectSummary has size, Object has content_length
+        if hasattr(obj, "size"):
+            size = obj.size
+        else:
+            size = obj.content_length
+        return ArtifactManifestEntry(name, path, self._md5_from_obj(obj), size=size, extra=self._extra_from_obj(obj))
 
     @staticmethod
     def _md5_from_obj(obj):
         # If we're lucky, the MD5 is directly in the metadata.
-        if 'md5' in obj.metadata:
+        if hasattr(obj, "metadata") and 'md5' in obj.metadata:
             return obj.metadata['md5']
         # Unfortunately, this is not the true MD5 of the file. Without
         # streaming the file and computing an MD5 manually, there is no
@@ -795,10 +806,13 @@ class S3Handler(StorageHandler):
 
     @staticmethod
     def _extra_from_obj(obj):
-        return {
+        extra = {
             'etag': obj.e_tag[1:-1],  # escape leading and trailing quote
-            'versionID': obj.version_id,
         }
+        # ObjectSummary will never have version_id
+        if hasattr(obj, "version_id") and obj.version_id != "null":
+            extra['versionID'] = obj.version_id
+        return extra
 
     @staticmethod
     def _content_addressed_path(md5):
@@ -867,14 +881,18 @@ class GCSHandler(StorageHandler):
 
         if checksum == False:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
+        start_time = None
         obj = self._client.bucket(bucket).get_blob(key)
         if obj is None:
-            termlog('Generating checksum for up to %i objects with prefix %s' % (max_objects, key))
+            start_time = time.time()
+            termlog('Generating checksum for up to %i objects with prefix "%s"... ' % (max_objects, key), newline=False)
             objects = self._client.bucket(bucket).list_blobs(prefix=key, max_results=max_objects)
         else:
             objects = [obj]
 
         entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objects]
+        if start_time is not None:
+            termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         if len(entries) >= max_objects:
             raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
         return entries
