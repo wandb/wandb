@@ -427,7 +427,7 @@ class Run(object):
             if type is not None:
                 raise ValueError('cannot specify type when passing artifact')
             if name is not None:
-                raise ValueError('cannot specify type when passing artifat')
+                raise ValueError('cannot specify name when passing artifact')
             if isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
