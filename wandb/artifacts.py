@@ -64,7 +64,7 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, name, description=None, metadata=None, aliases=['latest']):
+    def __init__(self, type, name, description=None, metadata=None):
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         self._storage_policy = WandbStoragePolicy()
@@ -83,9 +83,6 @@ class Artifact(object):
         self.name = name
         self.description = description
         self.metadata = metadata
-        if isinstance(aliases, str):
-            aliases = [aliases]
-        self.aliases = aliases
 
     @property
     def id(self):

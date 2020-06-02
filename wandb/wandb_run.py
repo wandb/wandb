@@ -414,7 +414,7 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def use_artifact(self, artifact=None, type=None, name=None):
+    def use_artifact(self, artifact=None, type=None, name=None, aliases=None):
         if artifact is None:
             if type is None or name is None:
                 raise ValueError('type and name required')
@@ -428,6 +428,8 @@ class Run(object):
                 raise ValueError('cannot specify type when passing artifact')
             if name is not None:
                 raise ValueError('cannot specify type when passing artifat')
+            if isinstance(aliases, str):
+                aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
                 artifact.finalize()
                 self.send_message({
@@ -438,7 +440,7 @@ class Run(object):
                         'manifest': artifact.manifest.to_manifest_json(include_local=True),
                         'digest': artifact.digest,
                         'metadata': artifact.metadata,
-                        'aliases': artifact.aliases
+                        'aliases': aliases
                     }
                 })
             elif isinstance(artifact, ApiArtifact):
@@ -449,9 +451,11 @@ class Run(object):
                 # API artifact?
                 raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact):
+    def log_artifact(self, artifact, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+        if isinstance(aliases, str):
+            aliases = [aliases]
 
         artifact.finalize()
         self.send_message({
@@ -464,7 +468,7 @@ class Run(object):
                 'description': artifact.description,
                 'metadata': artifact.metadata,
                 'labels': None,
-                'aliases': artifact.aliases,
+                'aliases': aliases,
             }
         })
 
