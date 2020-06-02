@@ -22,82 +22,89 @@ wandb/proto              - Protocol buffers for inter-process communication and 
 wandb/internal           - Backend threads/processes
 wandb/apis               - Public api (still has internal api but this should be moved to wandb/internal)
 wandb/cli                - Handlers for command line functionality
-wandb/stuff              - Stuff copied from wandb-og, needs to be refactored or find a place
-wandb/agent              - agent/super agent stuff
+wandb/superagent         - super agent / run queue work in progress
+wandb/sweeps             - sweeps stuff (mostly unmodified for now)
 wandb/framework/keras    - keras integration
 wandb/framework/pytorch  - pytorch integration
 ```
 
 ## Code checks
 
- - Reformat: `tox -e reformat`
- - Type check: `tox -e mypy`
+ - Reformat: `tox -e format`
+ - Type check: `tox -e flake8,mypy`
  - Misc: `tox`
 
-## Tasks
+## Design principles
 
- - [ ] Improve hybrid (poor connectivity mode) - jhr
- - [X] Add metadata sync - jhr
- - [X] Add system metrics - jhr
- - [X] Add summary metrics mirror - jhr
- - [x] Add file sync
- - [X] Add media logging
- - [x] Add keras framework
- - [ ] Fix grouping / job_type / run naming
- - [ ] Fix file descriptor close (message + hang on pix2pix)
- - [ ] Fix colab console redir error
- - [ ] Fix issue in pix2pix with logging
- - [ ] Add code saving
- - [ ] Add pytorch framework
- - [ ] Add other frameworks
- - [ ] Basic CLI functionality
- - [ ] Support modes
- - [ ] Decide on persistant storage
- - [ ] Offline sync - jhr
+### Supported user interface
 
-## Progress
+All objects and methods that users are intended to interact with are in the wand/sdk directory.  Any
+method on an object that is not prefixed with an underscore is part of the supported interface and should
+be documented.
 
-API:
- - [x] wandb.init() basic
- - [x] wandb.log() basic
- - [x] wandb.join() basic
- - [x] wandb.run basic
- - [x] wandb.config basic
- - [ ] wandb.save()
- - [ ] wandb.restore()
- - [ ] wandb.init() full
- - [ ] wandb.log() full
- - [ ] wandb.join() full
- - [ ] wandb.run full
- - [ ] wandb.config full
- - [ ] wandb.sweep()
- - [ ] wandb.agent()
- - [ ] wandb.controller()
- 
-CLI:
- - [ ] wandb login
- - [ ] wandb sync
+User interface should be typed using python 3.6+ type annotations.  Older versions will use untyped interface.
 
-Functionality:
- - [X] system metrics
- - [x] console log
- - [ ] offline
- - [ ] Unit tests
- - [ ] code coverage
+### Arguments/environment variables impacting wandb functions are merged with Settings
 
-Goals:
- - [ ] standardize all CLI->backend updates
- - [ ] reorganize code to avoid different contexts (run_manager)
- - [ ] jupyter simplification using request queues or RPC
- - [ ] utilize more standard methods for background process
- - [ ] better isolation for extended features (system monitoring, git logging)
- - [ ] offline support improvements: enforce constraints at sync time (code logging, etc)
- - [ ] internal api becomes fully internal, only used by "internal" process
- - [ ] telemetry of all operations
- 
-Bonus:
-- [ ] multi-language synchronizer
-- [ ] schema'ed binary? cloud? log for offline run data
-- [ ] less (no) dependance on local filesytem
-- [ ] type annotations
-- [ ] cleaned up logger
+See below for more about the Settings object.  The primary objective of this design principle is that
+behavior of code can be impacted by multiple sources.  These sources need to be merged consistently
+and information given to the user when settings are overwritten to inform the user.  Examples of sources
+of settings:
+
+ - Enforced settings from organization, team, project
+ - settings set by environment variables: WANDB_PROJECT=
+ - settings passed to wand function: wandb.init(project=)
+ - Default settings from organization, team, project
+ - settings in global settings file: ~/.config/wandb/settings
+ - settings in local settings file: ./wandb/settings
+
+### Data to be synced to server is fully validated
+
+Calls to wandb.log() result in the dictionary being serialized into a schema'ed data structure.
+Any non supported element should result in an immediate exception.
+
+### All changes to objects are reflected in sync data
+
+When changing properties of objects, those objects should serialize the changes into a schema'ed data
+structure.  There should be no need for .save() methods on objects.
+
+### Library can be disabled
+
+When running in disabled mode, all objects act as in memory stores of attribute information but they do
+not perform any serialization to sync data.
+
+## Changes from production library
+
+### wandb.Settings
+
+Main settings object that is passed explicitly or implicitly to all wandb functions
+
+### wandb.setup()
+
+Similar to wandb.init() but it impacts the entire process or session.  This allows multiple wandb.init() calls to share
+some common setup.   It is not necessary as it will be called implicitly by the first wandb.init() call.
+
+
+## Detailed walk through of a simple program
+
+### Program
+
+```
+import wandb
+run = wandb.init(config=dict(param1=1))
+run.config.param2 = 2
+run.log(dict(this=3))
+```
+
+### Steps
+
+#### wandb.init()
+
+- Creates a Run object (specifically RunManaged)
+- Sets a global Run object for users who use wandb.log() syntax
+- Returns Run object
+
+TODO(jhr): finish this
+
+
+
