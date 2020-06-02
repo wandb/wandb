@@ -11,6 +11,7 @@ run_id can be resolved.
 """
 
 import copy
+import json
 import logging
 import multiprocessing
 import os
@@ -18,8 +19,12 @@ import sys
 import threading
 
 import wandb
+from wandb import util
+from wandb.apis import InternalApi
+from wandb.errors.error import CommError
 
 from . import wandb_settings
+
 
 logger = (
     None  # will be configured to be either a standard logger instance or _EarlyLogger
@@ -68,6 +73,13 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
+def _is_kaggle():
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules  # noqa: W503
+    )
+
+
 class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
@@ -87,6 +99,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._check()
         self._setup()
         self._gitstuff()
+        self._load_viewer()
 
     def _gitstuff(self):
         # self.git = GitRepo(remote=self.settings("git_remote"))
@@ -128,6 +141,25 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s = copy.copy(self._settings)
         s.update(__d, **kwargs)
         return s
+
+    def _load_viewer(self):
+        self._api = InternalApi()
+        self.mode = "run"
+        # TODO(jhr): Move this to settings
+        http_timeout = 5
+        if self.mode != "dryrun" and not self._api.disabled() and self._api.api_key:
+            # Kaggle has internet disabled by default, this checks for that case
+            async_viewer = util.async_call(self._api.viewer, timeout=http_timeout)
+            viewer, viewer_thread = async_viewer()
+            if viewer_thread.is_alive():
+                if _is_kaggle():
+                    raise CommError(
+                        "To use W&B in kaggle you must enable internet in the settings panel on the right."  # noqa: E501
+                    )
+            else:
+                # self._viewer = viewer
+                self._flags = json.loads(viewer.get("flags", "{}"))
+                # print("loadviewer3", self._flags, viewer)
 
     def _check(self):
         if hasattr(threading, "main_thread"):
