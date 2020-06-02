@@ -64,7 +64,7 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, description=None, metadata=None):
+    def __init__(self, type, name, description=None, metadata=None, aliases=['latest']):
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         self._storage_policy = WandbStoragePolicy()
@@ -80,8 +80,12 @@ class Artifact(object):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True)
         self.server_manifest = None
         self.type = type
+        self.name = name
         self.description = description
         self.metadata = metadata
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        self.aliases = aliases
 
     @property
     def id(self):
