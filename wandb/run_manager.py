@@ -1202,8 +1202,9 @@ class RunManager(object):
         digest = message['digest']
         metadata = message['metadata']
         manifest = message['manifest']
+        aliases = message['aliases']
         la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher, is_user_created=True)
-        server_artifact = la.save(type, name, metadata=metadata, use_after_commit=True)
+        server_artifact = la.save(type, name, metadata=metadata, aliases=aliases, use_after_commit=True)
 
     def log_artifact(self, message):
         type = message['type']

@@ -414,7 +414,7 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def use_artifact(self, artifact=None, type=None, name=None):
+    def use_artifact(self, artifact=None, type=None, name=None, aliases=None):
         if artifact is None:
             if type is None or name is None:
                 raise ValueError('type and name required')
@@ -424,21 +424,23 @@ class Run(object):
 
             return artifact
         else:
+            if type is not None:
+                raise ValueError('cannot specify type when passing artifact')
+            if name is not None:
+                raise ValueError('cannot specify name when passing artifact')
+            if isinstance(aliases, str):
+                aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
-                if artifact.type is None:
-                    # TODO, we can make nameless artifacts
-                    raise ValueError('Artifacts must have a type and name')
-                if name is None:
-                    raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
                 artifact.finalize()
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
-                        'name': name,
+                        'name': artifact.name,
                         'server_manifest_entries': artifact.server_manifest.entries,
                         'manifest': artifact.manifest.to_manifest_json(include_local=True),
                         'digest': artifact.digest,
-                        'metadata': artifact.metadata
+                        'metadata': artifact.metadata,
+                        'aliases': aliases
                     }
                 })
             elif isinstance(artifact, ApiArtifact):
@@ -449,13 +451,9 @@ class Run(object):
                 # API artifact?
                 raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact, name=None, aliases=['latest']):
+    def log_artifact(self, artifact, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
-        if artifact.type is None:
-            raise ValueError('Artifacts must have a type and name')
-        if name is None:
-            raise ValueError('You must specify an artifact sequence to add this artifact to by passing name=\'<sequence_name>\'.')
         if isinstance(aliases, str):
             aliases = [aliases]
 
@@ -463,7 +461,7 @@ class Run(object):
         self.send_message({
             'log_artifact': {
                 'type': artifact.type,
-                'name': name,
+                'name': artifact.name,
                 'server_manifest_entries': artifact.server_manifest.entries,
                 'manifest': artifact.manifest.to_manifest_json(include_local=True),
                 'digest': artifact.digest,

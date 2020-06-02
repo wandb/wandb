@@ -6,7 +6,7 @@ import tempfile
 import wandb
 
 def artifact_with_various_paths():
-    art = wandb.Artifact(type='artsy')
+    art = wandb.Artifact(type='artsy', name='my artys')
 
     # internal file
     with open('random.txt', 'w') as f:
@@ -41,12 +41,12 @@ def main(argv):
     with wandb.init(reinit=True, job_type='user') as run:
         # Use artifact that doesn't exist
         art2 = artifact_with_various_paths()
-        run.use_artifact(art2, name='my artys')
+        run.use_artifact(art2)
 
     with wandb.init(reinit=True, job_type='writer') as run:
         # Log artifact that doesn't exist
         art1 = artifact_with_various_paths()
-        run.log_artifact(art1, name='my artys')
+        run.log_artifact(art1)
 
     with wandb.init(reinit=True, job_type='reader') as run:
         # Downloading should probably fail or warn when your artifact contains

@@ -1745,7 +1745,7 @@ class ProjectArtifactCollections(Paginator):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifactType(name: $artifactTypeName) {
-                    artifactBranches(after: $cursor) {
+                    artifactSequences(after: $cursor) {
                         pageInfo {
                             endCursor
                             hasNextPage
@@ -1784,14 +1784,14 @@ class ProjectArtifactCollections(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return self.last_response['project']['artifactType']['artifactBranches']['pageInfo']['hasNextPage']
+            return self.last_response['project']['artifactType']['artifactSequences']['pageInfo']['hasNextPage']
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response['project']['artifactType']['artifactBranches']['edges'][-1]['cursor']
+            return self.last_response['project']['artifactType']['artifactSequences']['edges'][-1]['cursor']
         else:
             return None
 
@@ -1800,7 +1800,7 @@ class ProjectArtifactCollections(Paginator):
 
     def convert_objects(self):
         return [ArtifactCollection(self.client, self.entity, self.project, r["node"]["name"], r["node"])
-                for r in self.last_response['project']['artifactType']['artifactBranches']['edges']]
+                for r in self.last_response['project']['artifactType']['artifactSequences']['edges']]
 
 
 class RunArtifacts(Paginator):
