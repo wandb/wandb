@@ -2084,6 +2084,13 @@ class Artifact(object):
                         createdAt
                         labels
                         metadata
+                        currentManifest {
+                            id
+                            file {
+                                id
+                                url
+                            }
+                        }
                     }
                 }
             }
@@ -2109,7 +2116,8 @@ class Artifact(object):
 
     def _load_manifest(self):
         if self._manifest is None:
-            index_file_url = self._files(names=['wandb_manifest.json'])[0].url
+            index_file_url = self._attrs['currentManifest']['file']['url']
+            print(index_file_url)
             with requests.get(index_file_url) as req:
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
         return self._manifest
