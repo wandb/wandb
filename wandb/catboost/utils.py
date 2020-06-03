@@ -17,7 +17,8 @@ def test_types(**kwargs):
 def test_fitted(model):
     try:
         X, y = make_regression(n_features=2, random_state=24)
-        model.fit(X, y)
+        temp_model = model.copy()
+        temp_model.fit(X, y, verbose=False)
     except Exception:
         wandb.termerror("Please fit the model before passing it in.")
         return False

@@ -1075,7 +1075,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
-    except AttributeError:
+    except (ValueError, AttributeError):
         pass
 
     try:

@@ -1268,7 +1268,7 @@ class Api(object):
         def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if not(e.response.status_code >= 400 and e.response.status_code < 500):
+            if not(e.response.status_code >= 400 and e.response.status_code < 500) or e.response.status_code == 429:
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
@@ -1374,7 +1374,7 @@ class Api(object):
         def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if not(e.response.status_code >= 400 and e.response.status_code < 500):
+            if not(e.response.status_code >= 400 and e.response.status_code < 500) or e.response.status_code == 429:
                 return True
             body = json.loads(e.response.content)
             raise UsageError(body['errors'][0]['message'])
