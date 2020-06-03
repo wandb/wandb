@@ -364,7 +364,7 @@ class ArtifactManifestEntry(object):
 
     def __repr__(self):
         if self.ref is not None:
-            summary = 'ref: %s' % self.ref
+            summary = 'ref: %s/%s' % (self.ref, self.path)
         else:
             summary = 'digest: %s' % self.digest
 
@@ -705,6 +705,7 @@ class S3Handler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "s3"
         self._s3 = None
+        self._versioning_enabled = None
 
     @property
     def scheme(self):
@@ -714,7 +715,7 @@ class S3Handler(StorageHandler):
         if self._s3 is not None:
             return self._s3
         boto3 = util.get_module('boto3', required="s3:// references requires the boto3 library, run pip install wandb[aws]")
-        self._s3 = boto3.resource('s3', endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"), region_name=os.getenv("AWS_REGION"))
+        self._s3 = boto3.session.Session().resource('s3', endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"), region_name=os.getenv("AWS_REGION"))
         self._botocore = util.get_module("botocore")
         return self._s3
 
@@ -724,6 +725,14 @@ class S3Handler(StorageHandler):
         key = url.path[1:] # strip leading slash
         return bucket, key
 
+    def versioning_enabled(self, bucket):
+        self.init_boto()
+        if self._versioning_enabled is not None:
+            return self._versioning_enabled
+        res = self._s3.BucketVersioning(bucket)
+        self._versioning_enabled = res.status == 'Enabled'
+        return self._versioning_enabled
+
     def load_path(self, artifact, manifest_entry, local=False):
         self.init_boto()
         bucket, key = self._parse_uri(manifest_entry.ref)
@@ -731,13 +740,26 @@ class S3Handler(StorageHandler):
 
         extra_args = {}
         if version is None:
-            # Object versioning is disabled on the bucket, so just get
-            # the latest version and make sure the MD5 matches.
+            # We don't have version information so just get the latest version
+            # and fallback to listing all versions if we don't have a match.
             obj = self._s3.Object(bucket, key)
             md5 = self._md5_from_obj(obj)
             if md5 != manifest_entry.digest:
-                raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
-                                 (self._bucket, key, manifest_entry.digest, md5))
+                if self.versioning_enabled(bucket):
+                    # Fallback to listing versions
+                    obj = None
+                    object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
+                    for object_version in object_versions:
+                        if manifest_entry.extra.get('etag') == object_version.e_tag[1:-1]:
+                            obj = object_version.Object()
+                            extra_args['VersionId'] = object_version.version_id
+                            break
+                    if obj is None:
+                        raise ValueError("Couldn't find object version for %s/%s matching etag %s",
+                            (self._bucket, key, manifest_entry.extra.get('etag')))
+                else:
+                    raise ValueError('Digest mismatch for object %s: expected %s but found %s',
+                                    (manifest_entry.ref, manifest_entry.digest, md5))
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args['VersionId'] = version
@@ -765,36 +787,49 @@ class S3Handler(StorageHandler):
 
         objs = [self._s3.Object(bucket, key)]
         start_time = None
+        multi = False
         try:
             objs[0].load()
         except self._botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "404":
+                multi = True
                 start_time = time.time()
                 termlog('Generating checksum for up to %i objects with prefix "%s"... ' % (max_objects, key), newline=False)
                 objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
             else:
                 raise
 
-        entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objs]
+        # Weird iterator scoping makes us assign this to a local function
+        size = self._size_from_obj
+        entries = [self._entry_from_obj(obj, path, name, prefix=key, multi=multi) for obj in objs if size(obj) > 0]
         if start_time is not None:
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         if len(entries) >= max_objects:
             raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
         return entries
 
-    def _entry_from_obj(self, obj, path, name=None, prefix=""):
-        if name is None:
-            # TODO: this what we want?
-            if prefix in obj.key:
-                name = os.path.relpath(obj.key, start=prefix)
-            else:
-                name = os.path.basename(obj.key)
+    def _size_from_obj(self, obj):
         # ObjectSummary has size, Object has content_length
         if hasattr(obj, "size"):
             size = obj.size
         else:
             size = obj.content_length
-        return ArtifactManifestEntry(name, path, self._md5_from_obj(obj), size=size, extra=self._extra_from_obj(obj))
+        return size
+
+    def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
+        ref = path
+        if name is None:
+            if prefix in obj.key:
+                name = os.path.relpath(obj.key, start=prefix)
+                ref = os.path.join(path, name)
+            else:
+                name = os.path.basename(obj.key)
+        elif multi:
+            # We're listing a path and user provided name, just prepend it
+            name = os.path.join(name, os.path.basename(obj.key))
+            ref = os.path.join(path, name)
+        return ArtifactManifestEntry(name, ref,
+            self._md5_from_obj(obj), size=self._size_from_obj(obj), extra=self._extra_from_obj(obj))
 
     @staticmethod
     def _md5_from_obj(obj):
@@ -885,28 +920,35 @@ class GCSHandler(StorageHandler):
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key)
-        if obj is None:
+        multi = obj is None
+        if multi:
             start_time = time.time()
             termlog('Generating checksum for up to %i objects with prefix "%s"... ' % (max_objects, key), newline=False)
             objects = self._client.bucket(bucket).list_blobs(prefix=key, max_results=max_objects)
         else:
             objects = [obj]
 
-        entries = [self._entry_from_obj(obj, path, name, prefix=key) for obj in objects]
+        entries = [self._entry_from_obj(obj, path, name, prefix=key, multi=multi) for obj in objects]
         if start_time is not None:
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         if len(entries) >= max_objects:
             raise ValueError('Exceeded %i objects tracked, pass max_objects to add_reference' % max_objects)
         return entries
 
-    def _entry_from_obj(self, obj, path, name=None, prefix=""):
+    def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
+        ref = path
         if name is None:
             # TODO: this what we want?
             if prefix in obj.name:
                 name = os.path.relpath(obj.name, start=prefix)
+                ref = os.path.join(path, name)
             else:
                 name = os.path.basename(obj.name)
-        return ArtifactManifestEntry(name, path, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj))
+        elif multi:
+            # We're listing a path and user provided name, just prepend it
+            name = os.path.join(name, os.path.basename(obj.key))
+            ref = os.path.join(path, name)
+        return ArtifactManifestEntry(name, ref, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj))
 
     @staticmethod
     def _extra_from_obj(obj):
