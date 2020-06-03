@@ -10,7 +10,7 @@ from __future__ import print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.29'
+__version__ = '0.8.36'
 
 import atexit
 import click
@@ -58,6 +58,7 @@ from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
 from wandb.data_types import Object3D
+from wandb.data_types import Molecule
 from wandb.data_types import Histogram
 from wandb.data_types import Graph
 from wandb import trigger
@@ -66,6 +67,7 @@ from wandb.dataframes import image_segmentation_dataframe
 from wandb.dataframes import image_segmentation_binary_dataframe
 from wandb.dataframes import image_segmentation_multiclass_dataframe
 from wandb.viz import visualize
+from wandb import plots
 
 from wandb import wandb_torch
 from wandb.wandb_agent import agent
@@ -124,6 +126,10 @@ def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     :return: (wandb.Graph) The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
+
+    # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
+    if os.getenv("WANDB_WATCH") == "false":
+        return
 
     if run is None:
         raise ValueError(
@@ -424,6 +430,7 @@ def _init_jupyter(run):
     """
     from wandb import jupyter
     from IPython.core.display import display, HTML
+
     # TODO: Should we log to jupyter?
     # global logging had to be disabled because it set the level to debug
     # I also disabled run logging because we're rairly using it.
@@ -476,16 +483,32 @@ def _init_jupyter(run):
     ipython = get_ipython()
     ipython.register_magics(jupyter.WandBMagics)
 
+    # Monkey patch ipython publish to capture displayed outputs
+    if not hasattr(ipython.display_pub, "_orig_publish"):
+        ipython.display_pub._orig_publish = ipython.display_pub.publish
+    def publish(data, metadata=None, source=None, transient=None, update=False, **kwargs):
+        ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+        run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
+    ipython.display_pub.publish = publish
+
+    # Cell start
     def reset_start():
         """Reset START_TIME to when the cell starts"""
         global START_TIME
         START_TIME = time.time()
+    if hasattr(ipython.events, "_orig_pre_run"):
+        ipython.events.unregister("pre_run_cell", ipython.events._orig_pre_run)
+    ipython.events._orig_pre_run = reset_start
     ipython.events.register("pre_run_cell", reset_start)
 
+    # Cell shutdown
     def cleanup():
         # shutdown async logger because _user_process_finished isn't called in jupyter
         shutdown_async_log_thread()
         run._stop_jupyter_agent()
+    if hasattr(ipython.events, "_orig_post_run"):
+        ipython.events.unregister("post_run_cell", ipython.events._orig_post_run)
+    ipython.events._orig_post_run = cleanup
     ipython.events.register('post_run_cell', cleanup)
 
 
@@ -789,7 +812,7 @@ def try_to_set_up_global_logging():
 
     It may fail (and return False) eg. if the current directory isn't user-writable
     """
-    root = logging.getLogger()
+    root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d [%(filename)s:%(funcName)s():%(lineno)s] %(message)s')
@@ -844,7 +867,7 @@ def sagemaker_auth(overrides={}, path="."):
 def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit=None, tags=None,
          group=None, allow_val_change=False, resume=False, force=False, tensorboard=False,
          sync_tensorboard=False, monitor_gym=False, name=None, notes=None, id=None, magic=None,
-         anonymous=None, config_exclude_keys=None, config_include_keys=None):
+         anonymous=None, config_exclude_keys=None, config_include_keys=None, save_code=None):
     """Initialize W&B
 
     If called from within Jupyter, initializes a new run and waits for a call to
@@ -868,6 +891,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         resume (bool, str, optional): Automatically resume this run if run from the same machine,
             you can also pass a unique run_id
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or tensorboardX
+        save_code (bool, optional): Save the entrypoint or jupyter session history source code.
         force (bool, optional): Force authentication with wandb, defaults to False
         magic (bool, dict, or str, optional): magic configuration as bool, dict, json string,
             yaml filename
@@ -884,6 +908,14 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     global __stage_dir__
     global _global_watch_idx
     global _global_run_stack
+
+    # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
+    if os.getenv("WANDB_DISABLED") == "true":
+        return None
+    elif wandb_config.huggingface_version() is not None:
+        if InternalApi().api_key is None:
+            termwarn("W&B installed but not logged in.  Run `wandb login` or set the WANDB_API_KEY env variable.")
+            return None
 
     # We allow re-initialization when we're in Jupyter or explicity opt-in to it.
     in_jupyter = _get_python_type() != "python"
@@ -952,7 +984,8 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
             termwarn("Ignoring entity='{}' passed to wandb.init when running a sweep".format(entity))
         if project and project != os.environ.get(env.PROJECT):
             termwarn("Ignoring project='{}' passed to wandb.init when running a sweep".format(project))
-
+    if save_code is not None:
+        os.environ[env.SAVE_CODE]= str(save_code)
     if group:
         os.environ[env.RUN_GROUP] = group
     if job_type:
@@ -1128,6 +1161,7 @@ fastai = util.LazyLoader('fastai', globals(), 'wandb.fastai')
 docker = util.LazyLoader('docker', globals(), 'wandb.docker')
 xgboost = util.LazyLoader('xgboost', globals(), 'wandb.xgboost')
 lightgbm = util.LazyLoader('lightgbm', globals(), 'wandb.lightgbm')
+catboost = util.LazyLoader('catboost', globals(), 'wandb.catboost')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
@@ -1137,5 +1171,5 @@ mlflow.patch()
 
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
-    'docker', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Histogram', 'Graph', 'Api']
+    'docker', 'lightgbm', 'catboost', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
+    'Audio',  'Table', 'Html', 'Object3D', 'Molecule', 'Histogram', 'Graph', 'Api']

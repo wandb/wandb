@@ -71,6 +71,7 @@ Framework specific and detailed usage can be found in our [documentation](http:/
 ## Testing
 
 To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
+To run the tests with coverage use `make coverage`, a html report is created in the `htmlcov` folder, if all tests pass. 
 
 We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
 
@@ -79,3 +80,10 @@ If you'd like a free academic account for your research group, [reach out to us 
 
 We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
 [![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)
+
+## Community
+Got questions, feedback or want to join a community of ML engineers working on exciting projects?
+
+[![Slack](https://i.imgur.com/fSP5ro7.png)](http://bit.ly/wandb-forum) Join our community [slack](http://bit.ly/wandb-forum).
+
+[![Twitter](https://i.imgur.com/efGJdm6.png)](https://twitter.com/weights_biases) Find us on [twitter](https://twitter.com/weights_biases).

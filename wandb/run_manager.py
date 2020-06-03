@@ -89,6 +89,7 @@ class FileTailer(object):
     def stop(self):
         self.running = False
         self._thread.join()
+        self._file.close()
 
 
 class FileEventHandler(object):
@@ -262,7 +263,8 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def _update(self):
         try:
-            config_dict = util.load_yaml(open(self.file_path))
+            with open(self.file_path) as f:
+                config_dict = util.load_yaml(f)
         except yaml.parser.ParserError:
             wandb.termlog(
                 "Unable to parse config file; probably being modified by user process?")
@@ -276,7 +278,8 @@ class FileEventHandlerConfig(FileEventHandler):
 
     def finish(self):
         if self._thread:
-            self._thread.join()
+            # Cancel the current thread to keep moving
+            self._thread.cancel()
             self._thread = None
 
         self._update()
@@ -295,10 +298,12 @@ class FileEventHandlerSummary(FileEventHandler):
         self.on_modified()
 
     def on_modified(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
 
     def finish(self):
-        self._api.get_file_stream_api().push(self.save_name, open(self.file_path).read())
+        with open(self.file_path) as f:
+            self._api.get_file_stream_api().push(self.save_name, f.read())
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
 
@@ -660,11 +665,9 @@ class RunManager(object):
         """Stops file syncing/streaming but doesn't actually wait for everything to
         finish. We print progress info later.
         """
-
         # TODO: there was a case where _file_event_handlers was getting modified in the loop.
         for handler in list(self._file_event_handlers.values()):
             handler.finish()
-
         self._file_pusher.finish()
         self._api.get_file_stream_api().finish(exitcode)
         # In Jupyter notebooks, wandb.init can be called multiple times in the same
@@ -1044,7 +1047,7 @@ class RunManager(object):
 
         env = self._run.set_environment(environment=env)
 
-        if not env.get(wandb_env.DISABLE_CODE):
+        if wandb_env.should_save_code():
             logger.info("saving patches")
             self._api.save_patches(self._run.dir)
         if env.get("SPELL_RUN_URL"):
@@ -1076,11 +1079,12 @@ class RunManager(object):
         if self._run_status_checker:
             self._run_status_checker.shutdown()
 
+        self._run.history.close()
+
         if self._cloud:
             logger.info("stopping streaming files and file change observer")
             self._end_file_syncing(exitcode)
 
-        self._run.history.close()
 
     def run_user_process(self, program, args, env):
         """Launch a user process, capture its output, and sync its files to the backend.

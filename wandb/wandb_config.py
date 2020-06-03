@@ -37,6 +37,15 @@ def boolify(s):
         return False
     raise ValueError("Not a boolean")
 
+def is_kaggle():
+    return os.getenv("KAGGLE_KERNEL_RUN_TYPE") != None or "kaggle_environments" in sys.modules
+
+def huggingface_version():
+    if "transformers" in sys.modules:
+        trans = wandb.util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
 
 class Config(object):
     """Creates a W&B config object."""
@@ -56,6 +65,10 @@ class Config(object):
         self._set_wandb('cli_version', wandb.__version__)
         self._set_wandb('python_version', platform.python_version())
         self._set_wandb('is_jupyter_run', wandb._get_python_type() != "python")
+        self._set_wandb('is_kaggle_kernel', is_kaggle())
+        hf_version = huggingface_version()
+        if hf_version:
+            self._set_wandb('huggingface_version', hf_version)
 
         # Do this after defaults because it triggers loading of pre-existing
         # config.yaml (if it exists)
@@ -70,6 +83,7 @@ class Config(object):
         # detect framework by checking what is loaded
         loaded = {}
         loaded['lightgbm'] = sys.modules.get('lightgbm')
+        loaded['catboost'] = sys.modules.get('catboost')
         loaded['xgboost'] = sys.modules.get('xgboost')
         loaded['fastai'] = sys.modules.get('fastai')
         loaded['torch'] = sys.modules.get('torch')
@@ -79,7 +93,7 @@ class Config(object):
         # TODO(jhr): tfkeras is always loaded with recent tensorflow
         #loaded['tfkeras'] = sys.modules.get('tensorflow.python.keras')
 
-        priority = ('lightgbm', 'xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
+        priority = ('lightgbm', 'catboost', 'xgboost', 'fastai', 'torch', 'keras', 'tfkeras', 'tensorflow', 'sklearn')
         framework = next((f for f in priority if loaded.get(f)), None)
         if framework:
             self._set_wandb('framework', framework)
@@ -176,7 +190,7 @@ class Config(object):
     def load_json(self, json):
         """Loads existing config from JSON"""
         for key in json:
-            if key == "wandb_version":
+            if key == "wandb_version" or key == "_wandb":
                 continue
             self._items[key] = json[key].get('value')
             self._descriptions[key] = json[key].get('desc')
@@ -237,6 +251,9 @@ class Config(object):
             converted = {}
             for key, value in six.iteritems(val):
                 converted[key] = self._sanitize_val(value)
+            return converted
+        if isinstance(val, slice):
+            converted = dict(slice_start=val.start, slice_step=val.step, slice_stop=val.stop)
             return converted
         val, _ = wandb.util.json_friendly(val)
         if isinstance(val, Sequence) and not isinstance(val, six.string_types):

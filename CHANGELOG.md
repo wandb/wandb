@@ -1,3 +1,82 @@
+## 0.8.36 (May 11, 2020)
+
+#### :bug: Bug Fix
+
+-   Catch all exceptions when saving Jupyter sessions
+-   validation_data automatically set in TF >= 2.2
+-   _implements_\* hooks now implemented in keras callback for TF >= 2.2
+
+#### :nail_care: Enhancement
+
+-   Raw source code saving now disabled by default
+-   We now support global settings on boot to enable code saving on the server
+-   New `code_save=True` argument to wandb.init to enable code saving manually
+
+## 0.8.35 (May 1, 2020)
+
+#### :bug: Bug Fix
+
+-   Ensure cells don't hang on completion
+-   Fixed jupyter integration in PyCharm shells
+-   Made session history saving handle None metadata in outputs
+
+## 0.8.34 (Apr 28, 2020)
+
+#### :nail_care: Enhancement
+
+-   Save session history in jupyter notebooks
+-   Kaggle internet enable notification
+-   Extend wandb.plots.feature_importances to work with more model types, thanks @neomatrix369!
+
+#### :bug: Bug Fix
+
+-   Code saving for jupyter notebooks restored
+-   Fixed thread errors in jupyter
+-   Ensure final history rows aren't dropped in jupyter
+
+## 0.8.33 (Apr 24, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add default class labels for semantic segmentation
+-   Enhance bounding box API to be similar to semantic segmentation API
+
+#### :bug: Bug Fix
+
+-   Increase media table rows to improve ROC/PR curve logging
+-   Fix issue where pre binned histograms were not being handled properly
+-   Handle nan values in pytorch histograms
+-   Fix handling of binary image masks
+
+## 0.8.32 (Apr 14, 2020)
+
+#### :nail_care: Enhancement
+
+-   Improve semantic segmentation image mask logging
+
+## 0.8.31 (Mar 19, 2020)
+
+#### :nail_care: Enhancement
+
+-   Close all open files to avoice ResourceWarnings, thanks @CrafterKolyan!
+
+#### :bug: Bug Fix
+
+-   Parse "tensor" protobufs, fixing issues with tensorboard syncing in 2.1
+
+## 0.8.30 (Mar 19, 2020)
+
+#### :nail_care: Enhancement
+
+-   Add ROC, precision_recall, HeatMap, explainText, POS, and NER to wandb.plots
+-   Add wandb.Molecule() logging
+-   Capture kaggle runs for metrics
+-   Add ability to watch from run object
+
+#### :bug: Bug Fix
+
+-   Avoid accidently picking up global debugging logs
+
 ## 0.8.29 (Mar 5, 2020)
 
 #### :nail_care: Enhancement
@@ -87,7 +166,7 @@
 
 #### :nail_care: Enhancement
 
--   Ignore wandb.init() specified project and entity when running a sweep 
+-   Ignore wandb.init() specified project and entity when running a sweep
 
 #### :bug: Bug Fix
 

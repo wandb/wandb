@@ -333,12 +333,12 @@ class FilePusher(object):
                 if len(batch) <= self.BATCH_MIN_FILES:
                     # If less than the minimum files are found, just upload
                     # them individually.
-                    for event in batch:
+                    for event in set(batch):
                         self._event_queue.put(event)
                 else:
                     # Otherwise, send all the files as a batch.
                     new_batch_id = str(self._batch_num)
-                    self._event_queue.put(EventFileBatch(new_batch_id, batch))
+                    self._event_queue.put(EventFileBatch(new_batch_id, list(set(batch))))
                     self._batch_num += 1
             
             # And stop the infinite loop if we've finished

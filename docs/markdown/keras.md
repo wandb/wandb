@@ -2,12 +2,9 @@
 description: wandb.keras
 ---
 
-# wandb.keras
-[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L0)
-
 
 ## WandbCallback
-[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L137)
+[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L148)
 ```python
 WandbCallback(self,
               monitor='val_loss',

@@ -24,7 +24,7 @@ from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
 from wandb.apis import InternalApi, CommError
-from wandb.wandb_config import Config, ConfigStatic
+from wandb.wandb_config import Config, ConfigStatic, is_kaggle
 from wandb.viz import Visualize
 import six
 from six.moves import input
@@ -149,6 +149,12 @@ class Run(object):
         self._meta = None
         self._run_manager = None
         self._jupyter_agent = None
+        self._viewer = None
+        self._flags = {}
+        self._load_viewer()
+
+        # give access to watch method
+        self.watch = wandb.watch
 
     @property
     def config_static(self):
@@ -173,6 +179,18 @@ class Run(object):
     def path(self):
         # TODO: theres an edge case where self.entity is None
         return "/".join([str(self.entity), self.project_name(), self.id])
+
+    def _load_viewer(self):
+        if self.mode != "dryrun" and not self._api.disabled() and self._api.api_key:
+            # Kaggle has internet disabled by default, this checks for that case
+            async_viewer = util.async_call(self._api.viewer, timeout=env.get_http_timeout(5))
+            viewer, viewer_thread = async_viewer()
+            if viewer_thread.is_alive():
+                if is_kaggle():
+                    raise CommError("To use W&B in kaggle you must enable internet in the settings panel on the right.")
+            else:
+                self._viewer = viewer
+                self._flags = json.loads(viewer.get("flags", "{}"))
 
     def _init_jupyter_agent(self):
         from wandb.jupyter import JupyterAgent
@@ -401,6 +419,12 @@ class Run(object):
         environment[env.MODE] = self.mode
         environment[env.RUN_DIR] = self.dir
 
+        # Load global environment vars from viewer flags
+        # This should be scoped to entity / project, this work is happening in CLI-NG
+        if self._flags.get("code_saving_enabled") is not None:
+            if environment.get(env.SAVE_CODE) is None:
+                environment[env.SAVE_CODE] = str(self._flags["code_saving_enabled"])
+
         if self.group:
             environment[env.RUN_GROUP] = self.group
         if self.job_type:
@@ -449,10 +473,11 @@ class Run(object):
         entity = api.settings('entity')
         if network:
             if api.settings('entity') is None:
-                viewer = api.viewer()
-                if viewer.get('entity'):
-                    api.set_setting('entity', viewer['entity'])
-
+                if self._viewer:
+                    if self._viewer.get('entity'):
+                        api.set_setting('entity', self._viewer['entity'])
+                    else:
+                        raise CommError("Can't connect to network to query viewer from API key")
             entity = api.settings('entity')
 
         if not entity:
@@ -660,6 +685,36 @@ class Run(object):
             }
         }
         self.config.persist()
+
+    # Stores a singleton item to wandb config.
+    #
+    # A singleton in this context is a piece of data that is continually
+    # logged with the same value in each history step, but represented
+    # as a single item in the config.
+    #
+    # We do this to avoid filling up history with a lot of repeated uneccessary data
+    #
+    # Add singleton can be called many times in one run and it will only be updated when the value changes. The last value logged will be the one persisted to the server
+    def _add_singleton(self, type, key, value):
+        # Wrap te value with information
+        value_extra = {
+            'type': type,
+            'key': key,
+            'value': value
+        }
+
+        if not type in self.config['_wandb']:
+            self.config['_wandb'][type] = {}
+
+        if type in self.config['_wandb'][type]:
+            old_value = self.config['_wandb'][type][key]
+        else:
+            old_value = None
+
+        if value_extra != old_value:
+            self.config['_wandb'][type][key] = value_extra
+            self.config.persist()
+
 
     @property
     def history(self):

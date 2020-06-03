@@ -88,6 +88,19 @@ def test_keras(wandb_init_run, model):
     assert [n.name for n in wandb_init_run.summary["graph"].nodes] == [
         "dense", "dense_1"]
 
+@pytest.mark.mocked_run_manager()
+def test_tensorboard_tensor(wandb_init_run):
+    wandb.tensorboard.patch(tensorboardX=False)
+    writer = tf.summary.create_file_writer("test_wandb_summaries")
+    for i in range(10):
+        with writer.as_default():
+            tf.summary.scalar("avg_loss", i, step=i)
+            writer.flush()
+            wandb.log({"avg_loss_wandb": i})
+    writer.close()
+    wandb_init_run.run_manager.test_shutdown()
+    print("ROWS", wandb_init_run.history.rows)
+    assert wandb_init_run.history.rows[-1]["avg_loss"] == 9.0
 
 @pytest.mark.skip("Turning off tensorboard spec because of intense flakyness")
 @pytest.mark.mocked_run_manager()

@@ -56,12 +56,21 @@ def test_disable_code(git_repo):
     assert meta.data.get("git") is None
     del os.environ[env.DISABLE_CODE]
 
+def test_no_save_code(git_repo):
+    with open("test.ipynb", "w") as f:
+        f.write("{}")
+    os.environ[env.SAVE_CODE] = "false"
+    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    meta = Meta(InternalApi())
+    assert meta.data.get("codePath") is None
+
 
 def test_colab(mocker, monkeypatch):
     with CliRunner().isolated_filesystem():
         mocker.patch('wandb._get_python_type', lambda: "jupyter")
         with open("test.ipynb", "w") as f:
             f.write("{}")
+        os.environ[env.SAVE_CODE] = "true"
         module = types.ModuleType("fake_jupyter")
         module.notebook_metadata = lambda: {"path": "fileId=123abc", "name": "test.ipynb", "root": os.getcwd()}
         monkeypatch.setattr(wandb, 'jupyter', module)
@@ -77,6 +86,7 @@ def test_git_untracked_notebook_env(monkeypatch, git_repo, mocker):
     with open("test.ipynb", "w") as f:
         f.write("{}")
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    os.environ[env.SAVE_CODE] = "true"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "test.ipynb"
     assert meta.data["codePath"] == "test.ipynb"
@@ -90,6 +100,7 @@ def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
     with open("sub/test.ipynb", "w") as f:
         f.write("{}")
     os.environ[env.NOTEBOOK_NAME] = "sub/test.ipynb"
+    os.environ[env.SAVE_CODE] = "true"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "sub/test.ipynb"
     assert meta.data["codePath"] == "sub/test.ipynb"
@@ -104,6 +115,7 @@ def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
         f.write("{}")
     subprocess.check_call(['git', 'add', 'test.ipynb'])
     os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
+    os.environ[env.SAVE_CODE] = "true"
     meta = Meta(InternalApi())
     assert meta.data["program"] == "test.ipynb"
     assert meta.data.get("codePath") == "test.ipynb"
@@ -116,7 +128,11 @@ def test_meta_cuda(mocker):
 
     def magic(path, mode="w"):
         if "cuda/version.txt" in path:
-            return six.StringIO("CUDA Version 9.0.176")
+            stringIO = six.StringIO("CUDA Version 9.0.176")
+            # Monkeypatching for Python 2 compatibility
+            stringIO.__enter__ = lambda: stringIO
+            stringIO.__exit__ = lambda type, value, traceback: True
+            return stringIO
         else:
             return open(path, mode=mode)
     mocker.patch('wandb.meta.open', magic)

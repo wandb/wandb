@@ -60,6 +60,9 @@ class Meta(object):
         logger.debug("save program starting: {}".format(program))
         if os.path.exists(program):
             relative_path = os.path.relpath(program, start=self.data["root"])
+            # Ignore paths outside of out_dir when using custom dir
+            if "../" in relative_path:
+                relative_path = os.path.basename(relative_path)
             util.mkdir_exists_ok(os.path.join(self.out_dir, "code", os.path.dirname(relative_path)))
             saved_program = os.path.join(self.out_dir, "code", relative_path)
             logger.debug("save program saved: {}".format(saved_program))
@@ -76,7 +79,7 @@ class Meta(object):
 
         self.data["root"] = os.getcwd()
         program = os.getenv(env.PROGRAM) or util.get_program()
-        if program:
+        if program and program != '<python with no main file>':
             self.data["program"] = program
         else:
             self.data["program"] = '<python with no main file>'
@@ -93,13 +96,16 @@ class Meta(object):
                             self.data["program"] = meta["path"]
                             self.data["root"] = meta["root"]
 
+        # Always save git information unless code saving is completely disabled
         if not os.getenv(env.DISABLE_CODE):
+            self._setup_code_git()
+
+        if env.should_save_code():
             logger.debug("code probe starting")
             in_jupyter = wandb._get_python_type() != "python"
             # windows doesn't support alarm() and jupyter could call this in a thread context
             if platform.system() == "Windows" or not hasattr(signal, 'SIGALRM') or in_jupyter:
                 logger.debug("non time limited probe of code")
-                self._setup_code_git()
                 self._setup_code_program()
             else:
                 old_alarm = None
@@ -107,7 +113,6 @@ class Meta(object):
                     try:
                         old_alarm = signal.signal(signal.SIGALRM, alarm_handler)
                         signal.alarm(25)
-                        self._setup_code_git()
                         self._setup_code_program()
                     finally:
                         signal.alarm(0)
@@ -153,8 +158,8 @@ class Meta(object):
             pass
         # TODO: we should use the cuda library to collect this
         if os.path.exists("/usr/local/cuda/version.txt"):
-            self.data["cuda"] = open(
-                "/usr/local/cuda/version.txt").read().split(" ")[-1].strip()
+            with open("/usr/local/cuda/version.txt") as f:
+                self.data["cuda"] = f.read().split(" ")[-1].strip()
         self.data["args"] = sys.argv[1:]
         self.data["state"] = "running"
 
@@ -173,7 +178,7 @@ class Meta(object):
         self._shutdown = True
         try:
             self._thread.join()
-        # Incase we never start it
+        # In case we never start it
         except RuntimeError:
             pass
 

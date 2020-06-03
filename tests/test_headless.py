@@ -110,7 +110,6 @@ def test_mock_server_no_internet(runner):
             "WANDB_API_KEY": "a" * 40,
             "WANDB_HTTP_TIMEOUT": "1"
         }
-
         res = sh.python("train.py", epochs=10, _bg=True, _env=environ)
         stdout, stderr = "", ""
         try:
@@ -121,7 +120,8 @@ def test_mock_server_no_internet(runner):
             pass
         stdout = res.stdout.decode("utf8")
         stderr = res.stderr.decode("utf8")
-        print(res)
+        print(stdout)
+        print(stderr)
         if os.path.exists("wandb/debug.log"):
             print(open("wandb/debug.log").read())
         assert "Finished" in stdout

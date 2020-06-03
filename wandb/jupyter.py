@@ -1,6 +1,7 @@
 import wandb
 from wandb.apis import InternalApi, CommError
 from wandb.run_manager import RunManager
+from wandb import env
 import time
 import os
 import threading
@@ -13,6 +14,7 @@ from IPython.display import display, Javascript
 import requests
 from requests.compat import urljoin
 import re
+import sys
 from pkg_resources import resource_filename
 from importlib import import_module
 
@@ -116,13 +118,15 @@ class JupyterAgent(object):
 
     def __init__(self):
         self.paused = True
+        self.outputs = {}
+        self.shell = get_ipython()
 
     def start(self):
         if self.paused:
+            self.paused = False
             self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
             wandb.run.api._file_stream_api = None
             self.rm.mirror_stdout_stderr()
-            self.paused = False
             # Init will return the last step of a resumed run
             # we update the runs history._steps in extreme hack fashion
             # TODO: this reserves a bigtime refactor
@@ -132,10 +136,72 @@ class JupyterAgent(object):
 
     def stop(self):
         if not self.paused:
+            self.save_history()
             self.rm.unmirror_stdout_stderr()
-            self.rm.shutdown()
             wandb.run.close_files()
+            self.rm.shutdown()
             self.paused = True
+
+    def save_display(self, exc_count, data):
+        self.outputs[exc_count] = self.outputs.get(exc_count, [])
+        self.outputs[exc_count].append(data)
+
+    def save_history(self):
+        """This saves all cell executions in the current session as a new notebook"""
+        try:
+            from nbformat import write, v4, validator
+        except ImportError:
+            logger.error("Run pip install nbformat to save notebook history")
+            return
+
+        # TODO: some tests didn't patch ipython properly?
+        if self.shell == None:
+            return
+
+        cells = []
+        hist = list(self.shell.history_manager.get_range(output=True))
+        if len(hist) <= 1 or not env.should_save_code():
+            return
+
+        try:
+            for session, execution_count, exc in hist:
+                if exc[1]:
+                    # TODO: capture stderr?
+                    outputs = [v4.new_output(output_type="stream", name="stdout", text=exc[1])]
+                else:
+                    outputs = []
+                if self.outputs.get(execution_count):
+                    for out in self.outputs[execution_count]:
+                        outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
+                cells.append(v4.new_code_cell(
+                    execution_count=execution_count,
+                    source=exc[0],
+                    outputs=outputs
+                ))
+            if hasattr(self.shell, "kernel"):
+                language_info = self.shell.kernel.language_info
+            else:
+                language_info = {
+                    'name': "python",
+                    "version": sys.version
+                }
+            nb = v4.new_notebook(cells=cells, metadata={
+                'kernelspec': {
+                    'display_name': 'Python %i' % sys.version_info[0],
+                    'name': 'python%i' % sys.version_info[0],
+                    'language': 'python'
+                },
+                'language_info': language_info
+            })
+            state_path = os.path.join("code", "_session_history.ipynb")
+            wandb.run.config._set_wandb("session_history", state_path)
+            wandb.run.config.persist()
+            wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
+                write(nb, f, version=4)
+        except (OSError, validator.NotebookValidationError) as e:
+            logger.error("Unable to save ipython session history:\n%s", e)
+            pass
 
 
 class Run(object):
