@@ -168,9 +168,9 @@ def test_add_s3_reference_object(runner, mocker):
         mock_boto(artifact)
         artifact.add_reference("s3://my-bucket/my_object.pb")
 
-        assert artifact.digest == '41887a5625cc1e6cae9404a81f778edd'
+        assert artifact.digest == '8aec0d6978da8c2b0bf5662b3fd043a4'
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest['contents']['.'] == {
+        assert manifest['contents']['my_object.pb'] == {
             'digest': '1234567890abcde', 'ref': 's3://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
@@ -183,7 +183,7 @@ def test_add_s3_reference_path(runner, mocker, capsys):
         assert artifact.digest == '17955d00a20e1074c3bc96c74b724bfe'
         manifest = artifact.manifest.to_manifest_json()
         assert manifest['contents']['my_object.pb'] == {
-            'digest': '1234567890abcde', 'ref': 's3://my-bucket/',
+            'digest': '1234567890abcde', 'ref': 's3://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
@@ -213,9 +213,9 @@ def test_add_gs_reference_object(runner, mocker):
         mock_gcs(artifact)
         artifact.add_reference("gs://my-bucket/my_object.pb")
 
-        assert artifact.digest == '41887a5625cc1e6cae9404a81f778edd'
+        assert artifact.digest == '8aec0d6978da8c2b0bf5662b3fd043a4'
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest['contents']['.'] == {
+        assert manifest['contents']['my_object.pb'] == {
             'digest': '1234567890abcde', 'ref': 'gs://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
@@ -228,7 +228,7 @@ def test_add_gs_reference_path(runner, mocker, capsys):
         assert artifact.digest == '17955d00a20e1074c3bc96c74b724bfe'
         manifest = artifact.manifest.to_manifest_json()
         assert manifest['contents']['my_object.pb'] == {
-            'digest': '1234567890abcde', 'ref': 'gs://my-bucket/',
+            'digest': '1234567890abcde', 'ref': 'gs://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
         _, err = capsys.readouterr()
         assert "Generating checksum" in err

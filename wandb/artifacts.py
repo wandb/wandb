@@ -938,14 +938,14 @@ class GCSHandler(StorageHandler):
     def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
         ref = path
         if name is None:
-            if prefix in obj.name and prefix != obj.key:
+            if prefix in obj.name and prefix != obj.name:
                 name = os.path.relpath(obj.name, start=prefix)
                 ref = os.path.join(path, name)
             else:
                 name = os.path.basename(obj.name)
         elif multi:
             # We're listing a path and user provided name, just prepend it
-            name = os.path.join(name, os.path.basename(obj.key))
+            name = os.path.join(name, os.path.basename(obj.name))
             ref = os.path.join(path, name)
         return ArtifactManifestEntry(name, ref, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj))
 
