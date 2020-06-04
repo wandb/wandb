@@ -215,7 +215,7 @@ class Artifact(object):
         # If there are new files, move them into the artifact cache. We do this
         # so that they'll definitely be available when file_pusher tries to upload
         # them. Other files don't get written through the cache.
-        if self._added_new > 0:
+        if self._added_new:
             final_artifact_dir = self._cache.get_artifact_dir(self.type, self._digest)
             shutil.rmtree(final_artifact_dir)
             os.rename(self._artifact_dir.name, final_artifact_dir)

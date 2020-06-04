@@ -415,6 +415,10 @@ class Run(object):
         return upsert_result
 
     def use_artifact(self, artifact=None, type=None, name=None, aliases=None):
+        if self.mode == "dryrun":
+            wandb.termwarn("Persisting artifacts in dryrun mode is not supported.")
+            return artifact
+        self.history.ensure_jupyter_started()
         if artifact is None:
             if type is None or name is None:
                 raise ValueError('type and name required')
@@ -454,6 +458,10 @@ class Run(object):
     def log_artifact(self, artifact, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+        if self.mode == "dryrun":
+            wandb.termwarn("Persisting artifacts in dryrun mode is not supported.")
+            return artifact
+        self.history.ensure_jupyter_started()
         if isinstance(aliases, str):
             aliases = [aliases]
 
