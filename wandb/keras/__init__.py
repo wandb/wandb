@@ -24,6 +24,10 @@ else:
         import keras
         import keras.backend as K
 
+# TODO: Decide what to do with:
+from sklearn.metrics import confusion_matrix
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 
 def is_dataset(data):
     dataset_ops = wandb.util.get_module(
