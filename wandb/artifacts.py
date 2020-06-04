@@ -819,7 +819,7 @@ class S3Handler(StorageHandler):
     def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
         ref = path
         if name is None:
-            if prefix in obj.key:
+            if prefix in obj.key and prefix != obj.key:
                 name = os.path.relpath(obj.key, start=prefix)
                 ref = os.path.join(path, name)
             else:
@@ -938,8 +938,7 @@ class GCSHandler(StorageHandler):
     def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
         ref = path
         if name is None:
-            # TODO: this what we want?
-            if prefix in obj.name:
+            if prefix in obj.name and prefix != obj.key:
                 name = os.path.relpath(obj.name, start=prefix)
                 ref = os.path.join(path, name)
             else:
