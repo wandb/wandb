@@ -101,8 +101,8 @@ latest_gcs_cmp.report()
 print("latest S3")
 latest_s3_cmp.report()
 
-assert v1_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-assert v1_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+assert v1_gcs_cmp.common == ['every.txt', 'odd.txt']
+assert v1_s3_cmp.common == ['every.txt', 'odd.txt']
 
 assert v2_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
 assert v2_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
