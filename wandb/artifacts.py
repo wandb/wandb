@@ -3,6 +3,7 @@ import json
 import codecs
 import base64
 import hashlib
+import re
 import os
 import tempfile
 import time
@@ -65,6 +66,8 @@ class Artifact(object):
         'path', 'hash', 'local_path'))
 
     def __init__(self, type, name, description=None, metadata=None):
+        if not re.match('^[a-zA-Z0-9_-]+$', name): 
+            raise ValueError('Artifact name may only contain alphanumeric characters, dashes and underscores. Invalid name: "%s"' % name)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         self._storage_policy = WandbStoragePolicy()

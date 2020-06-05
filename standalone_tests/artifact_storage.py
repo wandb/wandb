@@ -6,7 +6,7 @@ import tempfile
 import wandb
 
 def artifact_with_various_paths():
-    art = wandb.Artifact(type='artsy', name='my artys')
+    art = wandb.Artifact(type='artsy', name='my-artys')
 
     # internal file
     with open('random.txt', 'w') as f:

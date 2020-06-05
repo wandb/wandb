@@ -2030,7 +2030,7 @@ class Artifact(object):
         return ArtifactEntry()
 
     def download(self):
-        dirpath = self.artifact_dir
+        dirpath = self.cache_dir
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
