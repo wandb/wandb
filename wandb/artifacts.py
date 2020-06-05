@@ -125,7 +125,7 @@ class Artifact(object):
     def add_file(self, local_path, name=None):
         self._ensure_can_add()
         if not os.path.isfile(local_path):
-            raise ValueError('Path is not file: %s' % local_path)
+            raise ValueError('Path is not a file: %s' % local_path)
 
         name = name or os.path.basename(local_path)
         entry = ArtifactManifestEntry(
@@ -137,7 +137,7 @@ class Artifact(object):
     def add_dir(self, local_path, name=None):
         self._ensure_can_add()
         if not os.path.isdir(local_path):
-            raise ValueError('Path is not dir: %s' % local_path)
+            raise ValueError('Path is not a directory: %s' % local_path)
 
         termlog('Adding directory to artifact (%s)... ' %
             os.path.join('.', os.path.normpath(local_path)), newline=False)
@@ -184,8 +184,11 @@ class Artifact(object):
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
-    def load_path(self, name, expand_dirs=False):
+    def get_path(self, name):
         raise ValueError('Cannot load paths from an artifact before it has been saved')
+
+    def download(self):
+        raise ValueError('Cannot call download on an artifact before it has been saved')
 
     def finalize(self):
         if self._final:
@@ -268,7 +271,7 @@ class ArtifactManifest(object):
                 paths.append(self.storage_policy.load_path(self.artifact, entry, local=local))
 
         if len(paths) > 0 and local:
-            return os.path.join(self.artifact.artifact_dir, path)
+            return os.path.join(self.artifact.cache_dir, path)
         if len(paths) > 0 and not local:
             if expand_dirs:
                 return paths
@@ -438,7 +441,7 @@ class WandbStoragePolicy(StoragePolicy):
         return None
 
     def load_file(self, artifact, name, manifest_entry):
-        path = '{}/{}'.format(artifact.artifact_dir, name)
+        path = '{}/{}'.format(artifact.cache_dir, name)
         if os.path.isfile(path):
             cur_md5 = md5_file_b64(path)
             if cur_md5 == manifest_entry.digest:
@@ -653,7 +656,7 @@ class LocalFileHandler(StorageHandler):
         if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % local_path)
 
-        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
+        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
         if os.path.isfile(path):
             md5 = md5_file_b64(path)
             if md5 == manifest_entry.digest:
@@ -767,7 +770,7 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
+        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
 
         # TODO: We only have etag for this file, so we can't compare to an md5 to skip
         # downloading. Switching to object caching (caching files by their digest instead
@@ -900,7 +903,7 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = '%s/%s' % (artifact.artifact_dir, manifest_entry.path)
+        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
 
         # TODO: We only have etag for this file, so we can't compare to an md5 to skip
         # downloading. Switching to object caching (caching files by their digest instead

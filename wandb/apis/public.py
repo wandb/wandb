@@ -1990,7 +1990,7 @@ class Artifact(object):
         return self.artifact_name
 
     @property
-    def artifact_dir(self):
+    def cache_dir(self):
         return self._cache.get_artifact_dir(self.type, self.digest)
 
     def new_file(self, name):
@@ -2106,7 +2106,8 @@ class Artifact(object):
             or response.get('project') is None \
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
-            raise ValueError('Could not find artifact %s:%s' % (self.artifact_type_name, self.artifact_name))
+            raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
+                self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 
