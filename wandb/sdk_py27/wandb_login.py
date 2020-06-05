@@ -8,6 +8,7 @@ from __future__ import print_function
 import getpass
 import logging
 
+import click
 from prompt_toolkit import prompt  # type: ignore
 import requests
 import wandb
@@ -27,25 +28,32 @@ def _get_python_type():
 
 
 def login(settings=None, relogin=None):
+    wl = wandb.setup(settings=settings)
+    settings = wl.settings()
+
     if is_logged_in() and not relogin:
-        # TODO(jhr): show logged in information
-        # should we actually hit the API to check if we really have access
+        entity = wl._get_entity()
+        login_state_str = "Currently logged in as:"
+        login_info_str = "(use `wandb login --relogin` to force relogin)"
         wandb.termlog(
-            "Currently logged in (use `wandb login --relogin` to force relogin)"
+            "{} {} {}".format(
+                login_state_str, click.style(entity, fg="yellow"), login_info_str
+            )
         )
         return
 
-    if not settings:
-        wl = wandb.setup()
-        settings = wl.settings()
-
     app_url = settings.base_url.replace("//api.", "//app.")
+    # TODO(jhr): use settings object
     in_jupyter = _get_python_type() != "python"
+    authorize_str = "Go to this URL in a browser"
+    authorize_link_str = "{}/authorize".format(app_url)
     if in_jupyter:
-        print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+        print("{}: {}\n".format(authorize_str, authorize_link_str))
         key = getpass.getpass("Enter your authorization code:\n")
     else:
-        print("Go to this URL in a browser: {}/authorize\n".format(app_url))
+        wandb.termlog(
+            "{}: {}".format(authorize_str, click.style(authorize_link_str, fg="blue"))
+        )
         key = prompt(u"Enter api key: ", is_password=True)
 
     apikey.write_key(settings, key)
@@ -65,7 +73,6 @@ def api_key(settings=None):
 
 
 def is_logged_in(settings=None):
-    if not settings:
-        wl = wandb.setup()
-        settings = wl.settings()
+    wl = wandb.setup(settings=settings)
+    settings = wl.settings()
     return api_key(settings=settings) is not None

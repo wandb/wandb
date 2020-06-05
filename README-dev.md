@@ -34,7 +34,7 @@ wandb/framework/pytorch  - pytorch integration
  - Type check: `tox -e flake8,mypy`
  - Misc: `tox`
 
-## Design principles
+## Library Objectives
 
 ### Supported user interface
 
@@ -51,7 +51,7 @@ behavior of code can be impacted by multiple sources.  These sources need to be 
 and information given to the user when settings are overwritten to inform the user.  Examples of sources
 of settings:
 
- - Enforced settings from organization, team, project
+ - Enforced settings from organization, team, user, project
  - settings set by environment variables: WANDB_PROJECT=
  - settings passed to wand function: wandb.init(project=)
  - Default settings from organization, team, project
@@ -107,4 +107,4 @@ run.log(dict(this=3))
 TODO(jhr): finish this
 
 
-
+## Sync details

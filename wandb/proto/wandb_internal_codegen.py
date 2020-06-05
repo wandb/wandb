@@ -11,3 +11,12 @@ protoc.main((
     '--python_out=.',
     'wandb/proto/wandb_internal.proto',
     ))
+
+protoc.main((
+    '',
+    '-I', 'vendor/protobuf/src',
+    '-I', '.',
+    '--python_out=.',
+    '--grpc_python_out=.',
+    'wandb/proto/wandb_server.proto',
+    ))

@@ -58,6 +58,7 @@ wandb/lib/lazyloader.py
 wandb/lib/preinit.py
 wandb/lib/redirect.py
 wandb/lib/reporting.py
+wandb/lib/server.py
 wandb/lib/term.py
 wandb/old/__init__.py
 wandb/old/core.py
@@ -79,6 +80,8 @@ wandb/plots/utils.py
 wandb/proto/__init__.py
 wandb/proto/wandb_internal_codegen.py
 wandb/proto/wandb_internal_pb2.py
+wandb/proto/wandb_server_pb2.py
+wandb/proto/wandb_server_pb2_grpc.py
 wandb/sdk/__init__.py
 wandb/sdk/wandb_config.py
 wandb/sdk/wandb_history.py
@@ -101,6 +104,8 @@ wandb/sdk_py27/wandb_settings.py
 wandb/sdk_py27/wandb_setup.py
 wandb/sdk_py27/wandb_summary.py
 wandb/sdk_py27/wandb_watch.py
+wandb/server/wandb_internal_client.py
+wandb/server/wandb_internal_server.py
 wandb/sklearn/__init__.py
 wandb/sklearn/utils.py
 wandb/superagent/__init__.py

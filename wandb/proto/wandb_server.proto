@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_internal.proto";
+
+service InternalService {
+  rpc Log(HistoryData) returns (LogResult) {}
+  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
+  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+  //rpc RunGet(RunGetRequest) returns (RunGetResult) {}
+  //rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResult) {}
+}
+
+message LogResult {
+  int32  code = 1;
+  string status = 2;
+}
+
+message ServerShutdownRequest {
+}
+
+message ServerShutdownResult {
+  int32  code = 1;
+  string status = 2;
+}
+
+message ServerStatusRequest {
+}
+
+message ServerStatusResult {
+  int32  code = 1;
+  string status = 2;
+}
