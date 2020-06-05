@@ -118,7 +118,7 @@ class Artifact(object):
 
     def new_file(self, name):
         self._ensure_can_add()
-        path = os.path.join(self._artifact_dir.name, name)
+        path = os.path.join(self._artifact_dir.name, name.lstrip('/'))
         if os.path.exists(path):
             raise ValueError('File with name "%s" already exists' % name)
         util.mkdir_exists_ok(os.path.dirname(path))
