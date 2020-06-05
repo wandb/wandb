@@ -761,10 +761,10 @@ class S3Handler(StorageHandler):
                             extra_args['VersionId'] = object_version.version_id
                             break
                     if obj is None:
-                        raise ValueError("Couldn't find object version for %s/%s matching etag %s",
+                        raise ValueError("Couldn't find object version for %s/%s matching etag %s" %
                             (self._bucket, key, manifest_entry.extra.get('etag')))
                 else:
-                    raise ValueError('Digest mismatch for object %s: expected %s but found %s',
+                    raise ValueError('Digest mismatch for object %s: expected %s but found %s' %
                                     (manifest_entry.ref, manifest_entry.digest, md5))
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
@@ -868,6 +868,16 @@ class GCSHandler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "gs"
         self._client = None
+        self._versioning_enabled = None
+
+    def versioning_enabled(self, bucket):
+        if self._versioning_enabled is not None:
+            return self._versioning_enabled
+        self.init_gcs()
+        bucket = self._client.bucket(bucket)
+        bucket.reload()
+        self._versioning_enabled = bucket.versioning_enabled
+        return self._versioning_enabled
 
     @property
     def scheme(self):
@@ -892,16 +902,21 @@ class GCSHandler(StorageHandler):
         version = manifest_entry.extra.get('versionID')
 
         extra_args = {}
-        if version is None:
+        obj = None
+        # First attempt to get the generation specified, this will return None if versioning is not enabled
+        if version is not None:
+            obj = self._client.bucket(bucket).get_blob(key, generation=version)
+
+        if obj is None:
             # Object versioning is disabled on the bucket, so just get
             # the latest version and make sure the MD5 matches.
             obj = self._client.bucket(bucket).get_blob(key)
+            if obj is None:
+                raise ValueError('Unable to download object %s with generation %s' % (manifest_entry.ref, version))
             md5 = obj.md5_hash
             if md5 != manifest_entry.digest:
-                raise ValueError('Digest mismatch for object %s/%s: expected %s but found %s',
-                                 (self._bucket, key, manifest_entry.digest, md5))
-        else:
-            obj = self._client.bucket(bucket).get_blob(key, generation=version)
+                raise ValueError('Digest mismatch for object %s: expected %s but found %s' %
+                    (manifest_entry.ref, manifest_entry.digest, md5))
 
         if not local:
             return manifest_entry.ref
@@ -914,7 +929,7 @@ class GCSHandler(StorageHandler):
         # files.
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        obj.download_to_file(path)
+        obj.download_to_filename(path)
         return path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
