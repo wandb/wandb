@@ -1537,11 +1537,11 @@ class ArtifactSaver(object):
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry: self._manifest.storage_policy.store_file(
+            lambda entry, progress_callback : self._manifest.storage_policy.store_file(
                 artifact_id,
                 entry,
-                step_prepare)
-        )
+                step_prepare,
+                progress_callback=progress_callback))
 
         def on_commit():
             if use_after_commit:

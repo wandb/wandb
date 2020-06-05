@@ -12,7 +12,7 @@ from six.moves.urllib.parse import urlparse
 
 from wandb.compat import tempfile as compat_tempfile
 
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, Progress
 from wandb import artifacts_cache
 from wandb import util
 from wandb.core import termwarn, termlog
@@ -472,7 +472,7 @@ class WandbStoragePolicy(StoragePolicy):
         md5_hex = base64.b64decode(md5).hex()
         return '{}/artifacts/{}/{}'.format(api.settings("base_url"), entity_name, md5_hex)
 
-    def store_file(self, artifact_id, entry, preparer):
+    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
         resp = preparer.prepare(lambda: {
             "artifactID": artifact_id,
             "name": entry.path,
@@ -489,7 +489,7 @@ class WandbStoragePolicy(StoragePolicy):
                                      header.split(":", 1)[0]: header.split(":", 1)[1]
                                      for header in (resp.upload_headers or {})
                                  },
-                                 data=file)
+                                 data=Progress(file, callback=progress_callback))
                 r.raise_for_status()
         return exists
 

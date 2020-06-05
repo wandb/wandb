@@ -61,7 +61,7 @@ class StepChecksum(object):
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(save_fn, entry):
-                            return lambda: save_fn(entry)
+                            return lambda progress_callback: save_fn(entry, progress_callback)
                         self._stats.init_file(entry.local_path, entry.size, is_artifact_file=True)
                         self._output_queue.put(
                             step_upload.RequestUpload(
