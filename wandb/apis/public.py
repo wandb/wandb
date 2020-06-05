@@ -416,17 +416,16 @@ class Api(object):
         return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact(self, type=None, name=None):
+    def artifact(self, name=None, type=None):
         """Returns a single artifact by parsing path in the form entity/project/run_id.
 
         Args:
-            type (str): The type of artifact to fetch.
             name (str): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
                     sequence_name:version
                     sequence_name:alias
                     digest
-
+            type (str): The type of artifact to fetch.
         Returns:
             A :obj:`Artifact` object.
         """
