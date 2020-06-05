@@ -1,5 +1,5 @@
 pytest
 coverage
 coveralls
-tox
+tox==3.7
 pip
