@@ -2109,7 +2109,7 @@ class Artifact(object):
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":"
             if ':' not in self.artifact_name:
-                raise ValueError('Attempted to fetch artifact with alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
+                raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifactType']['artifact']
