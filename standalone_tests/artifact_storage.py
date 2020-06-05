@@ -4,6 +4,7 @@ import sys
 import tempfile
 
 import wandb
+from wandb.compat import tempfile
 
 def artifact_with_various_paths():
     art = wandb.Artifact(type='artsy', name='my-artys')
@@ -23,6 +24,9 @@ def artifact_with_various_paths():
         f.write('2')
     art.add_dir('./dir')
 
+    with open('bla.txt', 'w') as f:
+        f.write('BLAAAAAAAAAAH')
+
     # reference to local file
     art.add_reference('file://bla.txt')
     # # reference to s3 file
@@ -38,6 +42,16 @@ def artifact_with_various_paths():
 
 
 def main(argv):
+    # set global entity and project before chdir'ing
+    from wandb.apis import InternalApi
+    api = InternalApi()
+    os.environ['WANDB_ENTITY'] = api.settings('entity')
+    os.environ['WANDB_PROJECT'] = api.settings('project')
+
+    # Change dir to avoid litering code directory
+    tempdir = tempfile.TemporaryDirectory()
+    os.chdir(tempdir.name)
+
     with wandb.init(reinit=True, job_type='user') as run:
         # Use artifact that doesn't exist
         art2 = artifact_with_various_paths()

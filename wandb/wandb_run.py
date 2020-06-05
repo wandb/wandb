@@ -207,7 +207,7 @@ class Run(object):
         """
         if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact") and not options.get("use_artifact"):
             raise ValueError(
-                "Only configuring save_policy, tensorboard  and log_artifact is supported")
+                "Only configuring save_policy, tensorboard, use_artifact and log_artifact is supported")
         if self.socket:
             # In the user process
             self.socket.send(options)
