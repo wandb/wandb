@@ -414,7 +414,7 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def use_artifact(self, artifact=None, type=None, name=None, aliases=None):
+    def use_artifact(self, artifact=None, name=None, type=None, aliases=None):
         if self.mode == "dryrun":
             wandb.termwarn("Persisting artifacts in dryrun mode is not supported.")
             return artifact

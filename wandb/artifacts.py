@@ -65,7 +65,7 @@ class Artifact(object):
     LocalArtifactManifestEntry = collections.namedtuple('LocalArtifactManifestEntry', (
         'path', 'hash', 'local_path'))
 
-    def __init__(self, type, name, description=None, metadata=None):
+    def __init__(self, name, type, description=None, metadata=None):
         if not re.match('^[a-zA-Z0-9_-]+$', name): 
             raise ValueError('Artifact name may only contain alphanumeric characters, dashes and underscores. Invalid name: "%s"' % name)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
