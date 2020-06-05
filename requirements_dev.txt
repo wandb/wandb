@@ -56,3 +56,4 @@ scikit-learn
 scipy
 eli5
 spacy
+boto3

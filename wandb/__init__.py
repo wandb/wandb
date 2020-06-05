@@ -49,6 +49,7 @@ from wandb import wandb_run
 from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
+from wandb.artifacts import Artifact
 from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video
@@ -72,6 +73,7 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb.compat import windows
+
 
 logger = logging.getLogger(__name__)
 
@@ -484,8 +486,8 @@ def _init_jupyter(run):
     # Monkey patch ipython publish to capture displayed outputs
     if not hasattr(ipython.display_pub, "_orig_publish"):
         ipython.display_pub._orig_publish = ipython.display_pub.publish
-    def publish(data, metadata=None, source=None, transient=None, update=False, **kwargs):
-        ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+    def publish(data, metadata=None, **kwargs):
+        ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
         run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
     ipython.display_pub.publish = publish
 

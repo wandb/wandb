@@ -34,6 +34,7 @@ from wandb.apis import file_stream
 from wandb import __version__
 from wandb import env as wandb_env
 from wandb import Error
+from wandb import artifacts
 from wandb import io_wrap
 from wandb import jsonlfile
 from wandb import file_pusher
@@ -718,8 +719,6 @@ class RunManager(object):
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
-        self._file_pusher.update_file(save_name, file_path)  # track upload progress
-
         if save_name not in self._file_event_handlers:
             if save_name == 'wandb-history.jsonl':
                 self._api.get_file_stream_api().set_file_policy(save_name, file_stream.JsonlFilePolicy())
@@ -1195,6 +1194,31 @@ class RunManager(object):
                 if current and policy["policy"] == "live" and not is_live:
                     del self._file_event_handlers[save_name]
             self._user_file_policies[policy["policy"]].append(policy["glob"])
+    
+    def use_artifact(self, message):
+        type = message['type']
+        name = message['name']
+        server_manifest_entries = message['server_manifest_entries']
+        digest = message['digest']
+        metadata = message['metadata']
+        manifest = message['manifest']
+        aliases = message['aliases']
+        la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher, is_user_created=True)
+        server_artifact = la.save(type, name, metadata=metadata, aliases=aliases, use_after_commit=True)
+
+    def log_artifact(self, message):
+        type = message['type']
+        name = message['name']
+        server_manifest_entries = message['server_manifest_entries']
+        manifest = message['manifest']
+        description = message['description']
+        digest = message['digest']
+        labels = message['labels'] if 'labels' in message else None
+        metadata = message['metadata'] if 'metadata' in message else None
+        aliases = message['aliases'] if 'aliases' in message else None
+
+        la = ArtifactSaver(self._api, digest, server_manifest_entries, manifest, file_pusher=self._file_pusher)
+        la.save(type, name, description=description, metadata=metadata, aliases=aliases, labels=labels)
 
     def start_tensorboard_watcher(self, logdir, save=True):
         try:
@@ -1278,7 +1302,7 @@ class RunManager(object):
                     payload = b''
                 else:
                     try:
-                        res = self._socket.recv(1024)
+                        res = self._socket.recv(64 * 1024)
                     except socket.error as e:
                         # https://stackoverflow.com/questions/16094618/python-socket-recv-and-signals
                         if e.errno == errno.EINTR or isinstance(e, socket.timeout):
@@ -1302,19 +1326,21 @@ class RunManager(object):
                         break
                     elif parsed.get("save_policy"):
                         self.update_user_file_policy(parsed["save_policy"])
-                        payload = b''
-                        parse = False
                     elif parsed.get("tensorboard"):
                         if parsed["tensorboard"].get("logdir"):
                             self.start_tensorboard_watcher(parsed["tensorboard"]["logdir"], parsed["tensorboard"]["save"])
-                        payload = b''
-                        parse = False
+                    elif parsed.get("use_artifact"):
+                        self.use_artifact(parsed["use_artifact"])
+                    elif parsed.get("log_artifact"):
+                        self.log_artifact(parsed["log_artifact"])
                     else:
                         message = "Invalid message received from child process: %s" % str(
                             payload)
                         wandb.termerror(message)
                         util.sentry_exc(message)
                         break
+                    payload = b''
+                    parse = False
                     new_start = term + 1
                     # There's more to parse, add the remaining bytes
                     if len(res) > new_start:
@@ -1323,7 +1349,6 @@ class RunManager(object):
                     exitcode = self.proc.poll()
                     if exitcode is not None:
                         break
-                    time.sleep(1)
         except KeyboardInterrupt:
             logger.info("process received interrupt signal, shutting down")
             exitcode = 255
@@ -1427,19 +1452,12 @@ class RunManager(object):
                 format_str = u'  {:>%s} {}' % max_len
                 wandb.termlog(format_str.format(key, line))
 
-        wandb_files = set([save_name for save_name in self._file_pusher.files() if util.is_wandb_file(save_name)])
-        media_files = set([save_name for save_name in self._file_pusher.files() if save_name.startswith('media')])
-        other_files = set(self._file_pusher.files()) - wandb_files - media_files
-        logger.info("syncing files to cloud storage")
-        if other_files:
-            wandb.termlog('Syncing files in %s:' % os.path.relpath(self._run.dir))
-            for save_name in sorted(other_files):
-                wandb.termlog('  %s' % save_name)
-            wandb.termlog('plus {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
-        else:
-            wandb.termlog('Syncing {} W&B file(s) and {} media file(s)'.format(len(wandb_files), len(media_files)))
+        file_counts = self._file_pusher.file_counts_by_category()
 
-        self._file_pusher.update_all_files()
+        logger.info("syncing files to cloud storage")
+        wandb.termlog('Syncing {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)'.format(
+            file_counts['wandb'], file_counts['media'], file_counts['artifact'], file_counts['other']))
+
         self._file_pusher.print_status()
 
         try:
@@ -1449,3 +1467,93 @@ class RunManager(object):
         except CommError as e:
             wandb.termwarn(e.message)
         sys.exit(exitcode)
+
+
+class ArtifactSaver(object):
+    def __init__(self, api, digest, server_manifest_entries, manifest_json, file_pusher=None, is_user_created=False):
+        # NOTE: manifest_entries are LocalManifestEntry but they get converted to
+        # arrays when we convert to json, so we need to access fields by index instead
+        # of by name
+        self._api = api
+        self._file_pusher = file_pusher
+        self._digest = digest
+        self._server_manifest_entries = server_manifest_entries
+        self._manifest = artifacts.ArtifactManifest.from_manifest_json(None, manifest_json)
+        self._is_user_created = is_user_created
+        self._server_artifact = None
+
+    def save(self, type, name, metadata=None, description=None, aliases=None, labels=None, use_after_commit=False):
+        aliases = aliases or []
+        alias_specs = []
+        for alias in aliases:
+            if ":" in alias:
+                # Users can explicitly alias this artifact to names
+                # other than the primary one passed in by using the
+                # 'secondaryName:alias' notation.
+                idx = alias.index(":")
+                artifact_collection_name = alias[:idx-1]
+                tag = alias[idx+1:]
+            else:
+                artifact_collection_name = name
+                tag = alias
+            alias_specs.append({
+                'artifactCollectionName': artifact_collection_name,
+                'alias': tag,
+            })
+
+        """Returns the server artifact."""
+        self._server_artifact = self._api.create_artifact(
+            type,
+            name,
+            self._digest,
+            metadata=metadata,
+            aliases=alias_specs, labels=labels, description=description,
+            is_user_created=self._is_user_created)
+        # TODO(artifacts):
+        #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
+        #   correct. It may be better to poll until it's committed or failed, and then decided what to
+        #   do
+        artifact_id = self._server_artifact['id']
+        if self._server_artifact['state'] == 'COMMITTED' or self._server_artifact['state'] == 'COMMITTING':
+            # TODO: update aliases, labels, description etc?
+            if use_after_commit:
+                self._api.use_artifact(artifact_id)
+            return self._server_artifact
+        elif self._server_artifact['state'] != 'PENDING':
+            # TODO: what to do in this case?
+            raise Exception('Server artifact not in PENDING state', self._server_artifact)
+
+        # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
+        # the use_prepare_flow, so that the file entry is created in our database before the
+        # upload to cloud storage commences
+        for path, hash, local_path in self._server_manifest_entries:
+            # We need to use the "use_prepare_flow" option
+            self._file_pusher.file_changed(path, local_path, artifact_id, use_prepare_flow=True)
+
+        step_prepare = file_pusher.step_prepare.StepPrepare(self._api, 0.1, 0.01, 1000)  # TODO: params
+        step_prepare.start()
+
+        # Upload Artifact "L1" files, the actual artifact contents
+        self._file_pusher.store_manifest_files(
+            self._manifest,
+            artifact_id,
+            lambda entry, progress_callback : self._manifest.storage_policy.store_file(
+                artifact_id,
+                entry,
+                step_prepare,
+                progress_callback=progress_callback))
+
+        def on_commit():
+            if use_after_commit:
+                self._api.use_artifact(artifact_id)
+            step_prepare.shutdown()
+
+        # This will queue the commit. It will only happen after all the file uploads are done
+        self._file_pusher.commit_artifact(artifact_id, on_commit=on_commit)
+        return self._server_artifact
+
+    def wait(self):
+        if self._server_artifact is None:
+            raise ValueError('Must call save first')
+        while self._server_artifact.state != 'READY':
+            time.sleep(2)

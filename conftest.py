@@ -22,6 +22,7 @@ from wandb import util
 from wandb.wandb_run import Run
 from tests import utils
 from tests.mock_server import create_app
+import socket
 
 
 def pytest_runtest_setup(item):
@@ -293,7 +294,7 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
             try:
                 print("Initializing with", kwargs)
                 run = wandb.init(**kwargs)
-                if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager'):
+                if request.node.get_closest_marker('resume') or request.node.get_closest_marker('mocked_run_manager') or request.node.get_closest_marker('jupyter'):
                     # Reset history
                     run._history = None
                     rm = wandb.run_manager.RunManager(run)
@@ -411,8 +412,8 @@ def dryrun():
 
 # "Error: 'Session' object has no attribute 'request'""
 # @pytest.fixture(autouse=True)
-# def no_requests(monkeypatch):
-#    monkeypatch.delattr("requests.sessions.Session.request")
+# def no_requests(monkeypatch, mock_server):
+#    monkeypatch.setattr("requests.sessions.Session.request", mock_server.request)
 
 
 @pytest.fixture
@@ -456,7 +457,7 @@ def check_environ():
 
 
 @pytest.fixture
-def mock_server(mocker, request_mocker):
+def mock_server(mocker):
     app = create_app()
     mock = utils.RequestsMock(app.test_client(), {})
     mocker.patch("gql.transport.requests.requests", mock)

@@ -45,6 +45,7 @@ jobs:
                       . venv/bin/activate
                       mkdir -p results
                       pytest --cov=wandb --vcr-record=none --junitxml="results/pytest.xml"
+                      echo "Running flake8"
                       flake8 .
             - store_test_results:
                   path: results

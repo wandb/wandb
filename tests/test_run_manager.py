@@ -132,6 +132,7 @@ def test_custom_file_policy_symlink(mocker, run_manager):
     assert mod.called
 
 
+@pytest.mark.skip(reason='batch file archiving removed in favor of more parallelism')
 def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
     "Test that only 3 files are uploaded individually."
 
@@ -157,6 +158,7 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
     assert all('.tgz' not in filename for filename in filenames)
 
 
+@pytest.mark.skip(reason='batch file archiving removed in favor of more parallelism')
 def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
     "Test that 100 files are batched."
     for i in range(10):
