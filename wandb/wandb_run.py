@@ -448,9 +448,7 @@ class Run(object):
                 self.api.use_artifact(artifact.id)
                 return artifact
             else:
-                # TODO: Improve message with instructions, maybe share base class with wandb.Artifact, and the
-                # API artifact?
-                raise ValueError('You must pass an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
+                raise ValueError('You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
     def log_artifact(self, artifact, aliases=['latest']):
         if not isinstance(artifact, artifacts.Artifact):

@@ -608,15 +608,7 @@ class Project(Attrs):
         return "<Project {}>".format("/".join(self.path))
 
     @normalize_exceptions
-    def artifacts(self, per_page=50):
-        """
-        Args:
-            names (list): names of the requested files, if empty returns all files
-            per_page (int): number of results per page
-
-        Returns:
-            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
-        """
+    def artifacts_types(self, per_page=50):
         return ProjectArtifactTypes(self.client, self.entity, self.name)
 
 
@@ -2121,7 +2113,6 @@ class Artifact(object):
     def _load_manifest(self):
         if self._manifest is None:
             index_file_url = self._attrs['currentManifest']['file']['url']
-            print(index_file_url)
             with requests.get(index_file_url) as req:
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
         return self._manifest
@@ -2187,4 +2178,4 @@ class ArtifactFiles(Paginator):
                 for r in self.last_response['project']['artifactType']['artifact']['files']['edges']]
 
     def __repr__(self):
-        return "<Files {} ({})>".format("/".join(self.artifact.path), len(self))
+        return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
