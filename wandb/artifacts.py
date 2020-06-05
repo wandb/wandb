@@ -13,7 +13,7 @@ from six.moves.urllib.parse import urlparse
 
 from wandb.compat import tempfile as compat_tempfile
 
-from wandb.apis import InternalApi, Progress
+from wandb.apis import InternalApi, Progress, CommError
 from wandb import artifacts_cache
 from wandb import util
 from wandb.core import termwarn, termlog
@@ -803,7 +803,7 @@ class S3Handler(StorageHandler):
                 termlog('Generating checksum for up to %i objects with prefix "%s"... ' % (max_objects, key), newline=False)
                 objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
             else:
-                raise
+                raise CommError("Unable to connect to S3 (%s): %s" % (e.response['Error']['Code'], e.response['Error']['Message']))
 
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
