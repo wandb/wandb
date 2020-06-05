@@ -414,24 +414,21 @@ class Run(object):
         self.name = upsert_result.get('displayName')
         return upsert_result
 
-    def use_artifact(self, artifact=None, name=None, type=None, aliases=None):
+    def use_artifact(self, artifact, type=None, aliases=None):
         if self.mode == "dryrun":
-            wandb.termwarn("Persisting artifacts in dryrun mode is not supported.")
+            wandb.termwarn("Using artifacts in dryrun mode is currently unsupported.")
             return artifact
         self.history.ensure_jupyter_started()
-        if artifact is None:
-            if type is None or name is None:
-                raise ValueError('type and name required')
+        if isinstance(artifact, str):
+            if type is None:
+                raise ValueError('type required')
             public_api = PublicApi()
-            artifact = public_api.artifact(type=type, name=name)
+            artifact = public_api.artifact(type=type, name=artifact)
             self.api.use_artifact(artifact.id)
-
             return artifact
         else:
             if type is not None:
-                raise ValueError('cannot specify type when passing artifact')
-            if name is not None:
-                raise ValueError('cannot specify name when passing artifact')
+                raise ValueError('cannot specify type when passing Artifact object')
             if isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
@@ -459,7 +456,7 @@ class Run(object):
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
         if self.mode == "dryrun":
-            wandb.termwarn("Persisting artifacts in dryrun mode is not supported.")
+            wandb.termwarn("Persisting artifacts in dryrun mode is currently unsupported.")
             return artifact
         self.history.ensure_jupyter_started()
         if isinstance(aliases, str):

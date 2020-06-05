@@ -52,7 +52,7 @@ def main(argv):
         # Downloading should probably fail or warn when your artifact contains
         # a path that can't be downloaded.
         print('Downloading art1')
-        art = run.use_artifact(type='artsy', name=art1.digest)
+        art = run.use_artifact(art1.digest, type='artsy')
 
         import pprint
         pprint.pprint(art._load_manifest().to_manifest_json())
@@ -64,7 +64,7 @@ def main(argv):
         print('Art requirements.txt reference', art.get_path('requirements.txt').download())
 
         print('Downloading art2')
-        art = run.use_artifact(type='artsy', name=art2.digest)
+        art = run.use_artifact(art2.digest, type='artsy')
         art_dir = art.download()
         print(os.listdir(art_dir))
 
