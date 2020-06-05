@@ -486,8 +486,8 @@ def _init_jupyter(run):
     # Monkey patch ipython publish to capture displayed outputs
     if not hasattr(ipython.display_pub, "_orig_publish"):
         ipython.display_pub._orig_publish = ipython.display_pub.publish
-    def publish(data, metadata=None, source=None, transient=None, update=False, **kwargs):
-        ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+    def publish(data, metadata=None, **kwargs):
+        ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
         run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
     ipython.display_pub.publish = publish
 
