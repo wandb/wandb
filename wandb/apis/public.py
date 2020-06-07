@@ -224,6 +224,25 @@ class Api(object):
             to get the latest values associated with the run."""
         self._runs = {}
 
+    def _parse_project_path(self, path):
+        """Parses paths in the following formats:
+
+        entity/project
+        project
+
+        entity is optional and will fall back to the current logged in user
+        """
+        parts = path.split("/")
+        entity = self.settings['entity']
+        project = self.settings['project']
+        if len(parts) == 1:
+            project = parts[1]
+        elif len(parts) == 2:
+            entity, project = parts[0], parts[1]
+        else:
+            raise ValueError('Invalid project path: %s' % path)
+        return entity, project
+
     def _parse_path(self, path):
         """Parses paths in the following formats:
 
@@ -231,7 +250,7 @@ class Api(object):
         path: entity/project/run_id
         docker: entity/project:run_id
 
-        entity is optional and will fallback to the current logged in user.
+        entity is optional and will fall back to the current logged in user.
         """
         run = self.settings['run']
         project = self.settings['project']
@@ -363,7 +382,7 @@ class Api(object):
         Returns:
             A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project = self._parse_project_path(path)
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(self.client, entity, project,
