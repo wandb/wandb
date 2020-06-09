@@ -231,7 +231,6 @@ def test_settings(mocker):
         'entity': 'test_entity',
         'project': 'test_model',
         'section': Settings.DEFAULT_SECTION,
-        'run': 'latest',
         'ignore_globs': ["diff.patch", "*.secure"],
         'git_remote': 'origin',
     }
@@ -247,7 +246,6 @@ def test_default_settings():
         'base_url': 'http://localhost',
         'entity': None,
         'section': Settings.DEFAULT_SECTION,
-        'run': 'latest',
         # TODO(adrian): it looks like this test interacts with test_settings. sometimes we get 'ignore_globs': ['*.patch']
         'ignore_globs': [],
         'git_remote': 'origin',
