@@ -854,7 +854,7 @@ class Api(object):
 
         Args:
             project (str): The project to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -896,7 +896,7 @@ class Api(object):
         Args:
             project (str): The project to download
             file_name (str): The name of the file to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
