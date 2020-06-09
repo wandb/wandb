@@ -444,6 +444,8 @@ def _init_jupyter(run):
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
+            # Now that we have an api key, let's load the viewer
+            run._load_viewer()
         else:
             run.mode = "dryrun"
             display(HTML('''
