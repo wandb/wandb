@@ -203,7 +203,7 @@ def test_status(runner, request_mocker, query_project):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        assert "latest" in result.output
+        assert "project" in result.output
 
 
 @pytest.mark.skip(reason='currently we dont parse entity/project')
