@@ -1,3 +1,9 @@
+## 0.9.1 (June 9, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix issue where files were always logged to latest run in a project.
+
 ## 0.9.0 (June 5, 2020)
 
 #### :bug: Bug Fix
