@@ -58,7 +58,6 @@ class Api(object):
         self._environ = environ
         self.default_settings = {
             'section': "default",
-            'run': "latest",
             'git_remote': "origin",
             'ignore_globs': [],
             'base_url': "https://api.wandb.ai"
@@ -315,7 +314,7 @@ class Api(object):
                 raise CommError("No default project configured.")
             run = run or slug or env.get_run(env=self._environ)
             if run is None:
-                run = "latest"
+                raise ValueError('run must be specified')
         return (project, run)
 
     @normalize_exceptions
@@ -833,7 +832,7 @@ class Api(object):
             }
         }
         ''')
-        run_id = run or self.settings('run')
+        run_id = run or self.current_run_id
         entity = entity or self.settings('entity')
         query_result = self.gql(query, variable_values={
             'name': project, 'run': run_id,
@@ -885,7 +884,7 @@ class Api(object):
         }
         ''')
         query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'),
+            'name': project, 'run': run,
             'entity': entity or self.settings('entity')})
         files = self._flatten_edges(query_result['model']['bucket']['files'])
         return {file['name']: file for file in files if file}
@@ -925,7 +924,7 @@ class Api(object):
         }
         ''')
         query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
+            'name': project, 'run': run, 'fileName': file_name,
             'entity': entity or self.settings('entity')})
         if query_result['model']:
             files = self._flatten_edges(query_result['model']['bucket']['files'])
