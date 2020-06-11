@@ -288,6 +288,23 @@ class WandbCallback(keras.callbacks.Callback):
 
     def _implements_predict_batch_hooks(self):
         return self.log_batch_frequency is not None
+    
+    def _custom_wandb_logs(self, logs, when, **kwargs):
+        """ Return the dictionary of custom logs 
+
+        This method is used in WandbCallback extensions (see :class:`WandbClassificationCallback` for example).
+        
+        Args:
+            logs (dict): The default logs given by Keras.
+            when (str): One of 'on_train_batch_end' or 'on_epoch_end'.
+                When the logging is being done.
+        
+        Kwargs:
+            epoch (int): if when=='on_epoch_end', epoch will be given.
+            batch (int): if when=='on_train_batch_end', batch will be given.
+
+        """
+        return {}
 
     def set_params(self, params):
         self.params = params
@@ -313,10 +330,12 @@ class WandbCallback(keras.callbacks.Callback):
                 wandb.termwarn(
                     "No validation_data set, pass a generator to the callback.")
             elif self.validation_data and len(self.validation_data) > 0:
-                wandb.log({"examples": self._log_images(
-                    num_images=self.predictions)}, commit=False)
+                if self.predictions > 0:
+                    wandb.log({"examples": self._log_images(
+                        num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
+        wandb.log(self._custom_wandb_logs(logs, 'on_epoch_end', epoch=epoch), commit=False)
         wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
@@ -349,6 +368,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
+        wandb.log(self._custom_wandb_logs(logs, 'on_train_batch_end', batch=batch), commit=False)
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
@@ -375,18 +395,6 @@ class WandbCallback(keras.callbacks.Callback):
     def on_train_end(self, logs=None):
         if self.log_evaluation:
             wandb.run.summary['results'] = self._log_dataframe()
-        pass
-
-    def on_test_begin(self, logs=None):
-        pass
-
-    def on_test_end(self, logs=None):
-        pass
-
-    def on_test_batch_begin(self, batch, logs=None):
-        pass
-
-    def on_test_batch_end(self, batch, logs=None):
         pass
 
     def on_predict_begin(self, logs=None):
@@ -613,4 +621,169 @@ class WandbCallback(keras.callbacks.Callback):
             self.save_model = False
 
 
-__all__ = ['WandbCallback']
+class WandbClassificationCallback(WandbCallback):
+    """WandbClassificationCallback is an extantion of WandbCallback than automatically integrates keras with wandb.
+
+    Example:
+        ```
+        model.fit(X_train, y_train,  validation_data=(X_test, y_test),
+            callbacks=[WandbClassificationCallback()])
+        ```
+
+    WandbClassificationCallback add features specific to classification tasks.    
+    All parameters from :class:`WandbCallback` are valid in WandbClassificationCallback.
+
+    Args:
+        log_confusion_matrix (bool): If True, the confusion matrix will be logged.
+        confusion_classes (int): The top confusion_classes classes will be logged.
+        confusion_examples (int): The maximum number of confusion examples to log per class.
+    
+    """
+
+    def __init__(self, log_confusion_matrix=False, confusion_examples=0, confusion_classes=1, **kwargs):
+        
+        super().__init__(**kwargs)
+        self._load_modules()
+        self.log_confusion_matrix = log_confusion_matrix
+        self.confusion_examples = confusion_examples
+        self.confusion_classes = confusion_classes
+
+    def _load_modules(self):
+        globals()["plotly"] = wandb.util.get_module("plotly",
+            required="WandbClassificationCallback requires plotly to be installed, install with pip install plotly")
+        globals()["sklearn"] = wandb.util.get_module("sklearn",
+            required="WandbClassificationCallback requires scikit-learn to be installed, install with pip install scikit-learn")
+        from sklearn.metrics import confusion_matrix
+        import plotly.graph_objs as go
+        from plotly.subplots import make_subplots
+
+        self.confusion_matrix = confusion_matrix
+        self.go = go
+        self.make_subplots = make_subplots
+    
+    def _custom_wandb_logs(self, logs, when, **kwargs):
+        custom_logs = {}
+        if when == 'on_epoch_end':
+
+            if self.log_confusion_matrix:
+                if self.validation_data is None:
+                    wandb.termwarn(
+                        "No validation_data set, pass a generator to the callback.")
+                elif self.validation_data and len(self.validation_data) > 0:
+                    custom_logs.update(self._log_confusion_matrix())
+            
+            if self.input_type in ("image", "images", "segmentation_mask"):
+                if self.confusion_examples > 0 and self.confusion_classes > 0:
+                    custom_logs.update(self._log_confusion_examples(self.confusion_classes, self.confusion_examples))
+                    
+        return custom_logs
+    
+    def _log_confusion_matrix(self):
+        x_val = self.validation_data[0]
+        y_val = self.validation_data[1]
+        y_val = np.argmax(y_val, axis=1)
+        y_pred = np.argmax(self.model.predict(x_val), axis=1)
+
+        confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
+        confdiag = np.eye(len(confmatrix)) * confmatrix
+        np.fill_diagonal(confmatrix, 0)
+
+        confmatrix = confmatrix.astype('float')
+        n_confused = np.sum(confmatrix)
+        confmatrix[confmatrix == 0] = np.nan
+        confmatrix = self.go.Heatmap({'coloraxis': 'coloraxis1', 'x': self.labels, 'y': self.labels, 'z': confmatrix,
+                                 'hoverongaps':False, 'hovertemplate': 'Predicted %{y}<br>Instead of %{x}<br>On %{z} examples<extra></extra>'})
+
+        confdiag = confdiag.astype('float')
+        n_right = np.sum(confdiag)
+        confdiag[confdiag == 0] = np.nan
+        confdiag = self.go.Heatmap({'coloraxis': 'coloraxis2', 'x': self.labels, 'y': self.labels, 'z': confdiag,
+                               'hoverongaps':False, 'hovertemplate': 'Predicted %{y} just right<br>On %{z} examples<extra></extra>'})
+
+        fig = self.go.Figure((confdiag, confmatrix))
+        transparent = 'rgba(0, 0, 0, 0)'
+        n_total = n_right + n_confused
+        fig.update_layout({'coloraxis1': {'colorscale': [[0, transparent], [0, 'rgba(180, 0, 0, 0.05)'], [1, f'rgba(180, 0, 0, {max(0.2, (n_confused/n_total) ** 0.5)})']], 'showscale': False}})
+        fig.update_layout({'coloraxis2': {'colorscale': [[0, transparent], [0, f'rgba(0, 180, 0, {min(0.8, (n_right/n_total) ** 2)})'], [1, 'rgba(0, 180, 0, 1)']], 'showscale': False}})
+
+        xaxis = {'title':{'text':'y_true'}, 'showticklabels':False}
+        yaxis = {'title':{'text':'y_pred'}, 'showticklabels':False}
+
+        fig.update_layout(title={'text':'Confusion matrix', 'x':0.5}, paper_bgcolor=transparent, plot_bgcolor=transparent, xaxis=xaxis, yaxis=yaxis)
+        
+        return {'confusion_matrix': wandb.data_types.Plotly(fig)}
+
+    def _log_confusion_examples(self, rescale=255, confusion_classes=5, max_confused_examples=3):
+            x_val = self.validation_data[0]
+            y_val = self.validation_data[1]
+            y_val = np.argmax(y_val, axis=1)
+            y_pred = np.argmax(self.model.predict(x_val), axis=1)
+
+            # Grayscale to rgb
+            if x_val.shape[-1] == 1:
+                x_val = np.concatenate((x_val, x_val, x_val), axis=-1)
+
+            confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
+            np.fill_diagonal(confmatrix, 0)
+
+            def example_image(class_index, x_val=x_val, y_pred=y_pred, y_val=y_val, labels=self.labels, rescale=rescale):
+                image = None
+                title_text = 'No example found'
+                color = 'red'
+
+                right_predicted_images = x_val[np.logical_and(y_pred==class_index, y_val==class_index)]
+                if len(right_predicted_images) > 0:
+                    image = rescale * right_predicted_images[0]
+                    title_text = 'Predicted right'
+                    color = 'rgb(46, 184, 46)'
+                else:
+                    ground_truth_images = x_val[y_val==class_index]
+                    if len(ground_truth_images) > 0:
+                        image = rescale * ground_truth_images[0]
+                        title_text = 'Example'
+                        color = 'rgb(255, 204, 0)'
+
+                return image, title_text, color
+
+            n_cols = max_confused_examples + 2
+            subplot_titles = [""] * n_cols
+            subplot_titles[-2:] = ["y_true", "y_pred"]
+            subplot_titles[max_confused_examples//2] = "confused_predictions"
+            
+            n_rows = min(len(confmatrix[confmatrix > 0]), confusion_classes)
+            fig = self.make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
+            for class_rank in range(1, n_rows+1):
+                indx = np.argmax(confmatrix)
+                indx = np.unravel_index(indx, shape=confmatrix.shape)
+                if confmatrix[indx] == 0:
+                    break
+                confmatrix[indx] = 0
+
+                class_pred, class_true = indx[0], indx[1]
+                mask = np.logical_and(y_pred==class_pred, y_val==class_true)
+                confused_images = x_val[mask]
+
+                # Confused images
+                n_images_confused = min(max_confused_examples, len(confused_images))
+                for j in range(n_images_confused):
+                    fig.add_trace(self.go.Image(z=rescale*confused_images[j],
+                                        name=f'Predicted: {self.labels[class_pred]} | Instead of: {self.labels[class_true]}',
+                                        hoverinfo='name', hoverlabel={'namelength' :-1}),
+                                row=class_rank, col=j+1)
+                    fig.update_xaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
+                    fig.update_yaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
+
+                # Comparaison images
+                for i, class_index in enumerate((class_true, class_pred)):
+                    col = n_images_confused+i+1
+                    image, title_text, color = example_image(class_index)
+                    fig.add_trace(self.go.Image(z=image, name=self.labels[class_index], hoverinfo='name', hoverlabel={'namelength' :-1}), row=class_rank, col=col)    
+                    fig.update_xaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=title_text)
+                    fig.update_yaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=self.labels[class_index])
+
+            fig.update_xaxes(showticklabels=False)
+            fig.update_yaxes(showticklabels=False)
+            
+            return {'confusion_examples': wandb.data_types.Plotly(fig)}
+
+__all__ = ['WandbCallback', 'WandbClassificationCallback']
