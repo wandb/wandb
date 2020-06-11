@@ -9,7 +9,7 @@ from keras.models import Sequential, Model
 from keras import backend as K
 import wandb
 from wandb import wandb_run
-from wandb.keras import WandbCallback
+from wandb.keras import WandbCallback, WandbClassificationCallback
 
 # Tests which rely on row history in memory should set `History.keep_rows = True`
 from wandb.history import History
@@ -76,6 +76,14 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     key = "accuracy" if wandb.run.summary.get("accuracy") else "acc"
     assert wandb.run.summary[key] > 0
     assert len(wandb.run.summary["graph"].nodes) == 3
+
+
+def test_classification_keras(dummy_model, dummy_data, wandb_init_run):
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
+                    callbacks=[WandbClassificationCallback(log_confusion_matrix=True, confusion_examples=1)])
+    wandb.run.summary.load()
+    assert wandb.run.summary["confusion_matrix"] > 0
+    assert wandb.run.summary["confusion_examples"] > 0
 
 
 def test_keras_timeseries(rnn_model, wandb_init_run):
