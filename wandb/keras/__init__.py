@@ -390,18 +390,6 @@ class WandbCallback(keras.callbacks.Callback):
             wandb.run.summary['results'] = self._log_dataframe()
         pass
 
-    def on_test_begin(self, logs=None):
-        pass
-
-    def on_test_end(self, logs=None):
-        pass
-
-    def on_test_batch_begin(self, batch, logs=None):
-        pass
-
-    def on_test_batch_end(self, batch, logs=None):
-        pass
-
     def on_predict_begin(self, logs=None):
         pass
 
