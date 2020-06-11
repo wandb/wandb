@@ -24,10 +24,6 @@ else:
         import keras
         import keras.backend as K
 
-# TODO: Decide what to do with:
-from sklearn.metrics import confusion_matrix
-import plotly.graph_objs as go
-from plotly.subplots import make_subplots
 
 def is_dataset(data):
     dataset_ops = wandb.util.get_module(
@@ -292,6 +288,16 @@ class WandbCallback(keras.callbacks.Callback):
 
     def _implements_predict_batch_hooks(self):
         return self.log_batch_frequency is not None
+    
+    def _custom_wandb_logs(self, when):
+        """ Return the dictionary of custom logs 
+        
+        Args:
+            when (str): One of 'on_train_batch_end' or 'on_epoch_end'.
+                When the logging is being done.
+
+        """
+        return {}
 
     def set_params(self, params):
         self.params = params
@@ -321,6 +327,7 @@ class WandbCallback(keras.callbacks.Callback):
                     num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
+        wandb.log(self._custom_wandb_logs('on_epoch_end'), commit=False)
         wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
@@ -353,6 +360,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
+        wandb.log(self._custom_wandb_logs('on_train_batch_end'), commit=False)
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
@@ -622,55 +630,37 @@ class WandbClassificationCallback(WandbCallback):
     def __init__(self, log_confusion_matrix=False, confusion_examples=0, confusion_classes=5, **kwargs):
         
         super().__init__(**kwargs)
+        self._load_modules()
         self.log_confusion_matrix = log_confusion_matrix
         self.confusion_examples = confusion_examples
         self.confusion_classes = confusion_classes
-               
-    def on_epoch_end(self, epoch, logs={}):
-        if self.generator:
-            self.validation_data = next(self.generator)
 
-        if self.log_weights:
-            wandb.log(self._log_weights(), commit=False)
+    def _load_modules(self):
+        globals()["plotly"] = wandb.util.get_module("plotly",
+            required="WandbClassificationCallback requires plotly to be installed, install with pip install plotly")
+        globals()["sklearn"] = wandb.util.get_module("sklearn",
+            required="WandbClassificationCallback requires scikit-learn to be installed, install with pip install scikit-learn")
+        from sklearn.metrics import confusion_matrix
+        import plotly.graph_objs as go
+        from plotly.subplots import make_subplots
+    
+    def _custom_wandb_logs(self, when):
+        logs = {}
+        if when == 'on_epoch_end':
 
-        if self.log_gradients:
-            wandb.log(self._log_gradients(), commit=False)
-        
-        if self.log_confusion_matrix:
-            if self.validation_data is None:
-                wandb.termwarn(
-                    "No validation_data set, pass a generator to the callback.")
-            elif self.validation_data and len(self.validation_data) > 0:
-                wandb.log(self._log_confusion_matrix(), commit=False)                    
-
-        if self.input_type in ("image", "images", "segmentation_mask") or self.output_type in ("image", "images", "segmentation_mask"):
-            if self.validation_data is None:
-                wandb.termwarn(
-                    "No validation_data set, pass a generator to the callback.")
-            elif self.validation_data and len(self.validation_data) > 0:
+            if self.log_confusion_matrix:
+                if self.validation_data is None:
+                    wandb.termwarn(
+                        "No validation_data set, pass a generator to the callback.")
+                elif self.validation_data and len(self.validation_data) > 0:
+                    logs.update(self._log_confusion_matrix())
+            
+            if self.input_type in ("image", "images", "segmentation_mask"):
                 if self.confusion_examples > 0:
-                    wandb.log({'confusion_examples': self._log_confusion_examples(
-                                                    confusion_classes=self.confusion_classes,
-                                                    max_confused_examples=self.confusion_examples)}, commit=False)
-                if self.predictions > 0:
-                    wandb.log({"examples": self._log_images(
-                        num_images=self.predictions)}, commit=False)
-
-        wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(logs, commit=True)
-
-        self.current = logs.get(self.monitor)
-        if self.current and self.monitor_op(self.current, self.best):
-            if self.log_best_prefix:
-                wandb.run.summary["%s%s" % (self.log_best_prefix, self.monitor)] = self.current
-                wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
-                if self.verbose and not self.save_model:
-                    print('Epoch %05d: %s improved from %0.5f to %0.5f' % (
-                        epoch, self.monitor, self.best, self.current))
-            if self.save_model:
-                self._save_model(epoch)
-            self.best = self.current
-        
+                    logs.update(self._log_confusion_examples(self.confusion_classes, self.confusion_examples))
+                    
+        return logs
+    
     def _log_confusion_matrix(self):
         x_val = self.validation_data[0]
         y_val = self.validation_data[1]
@@ -777,6 +767,6 @@ class WandbClassificationCallback(WandbCallback):
             fig.update_xaxes(showticklabels=False)
             fig.update_yaxes(showticklabels=False)
             
-            return wandb.data_types.Plotly(fig)
+            return {'confusion_examples': wandb.data_types.Plotly(fig)}
 
 __all__ = ['WandbCallback', 'WandbClassificationCallback']
