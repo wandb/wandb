@@ -622,6 +622,7 @@ class WandbCallback(keras.callbacks.Callback):
 
 
 class WandbClassificationCallback(WandbCallback):
+    """WandbClassificationCallback is an extantion of WandbCallback than automatically integrates keras with wandb.
 
     Example:
         ```
