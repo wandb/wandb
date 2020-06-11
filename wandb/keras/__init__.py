@@ -289,12 +289,19 @@ class WandbCallback(keras.callbacks.Callback):
     def _implements_predict_batch_hooks(self):
         return self.log_batch_frequency is not None
     
-    def _custom_wandb_logs(self, when):
+    def _custom_wandb_logs(self, logs, when, **kwargs):
         """ Return the dictionary of custom logs 
+
+        This method is used in WandbCallback extensions (see :class:`WandbClassificationCallback` for example).
         
         Args:
+            logs (dict): The default logs given by Keras.
             when (str): One of 'on_train_batch_end' or 'on_epoch_end'.
                 When the logging is being done.
+        
+        Kwargs:
+            epoch (int): if when=='on_epoch_end', epoch will be given.
+            batch (int): if when=='on_train_batch_end', batch will be given.
 
         """
         return {}
@@ -328,7 +335,7 @@ class WandbCallback(keras.callbacks.Callback):
                         num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
-        wandb.log(self._custom_wandb_logs('on_epoch_end'), commit=False)
+        wandb.log(self._custom_wandb_logs(logs, 'on_epoch_end', epoch=epoch), commit=False)
         wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
@@ -361,7 +368,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
-        wandb.log(self._custom_wandb_logs('on_train_batch_end'), commit=False)
+        wandb.log(self._custom_wandb_logs(logs, 'on_train_batch_end', batch=batch), commit=False)
         if not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
