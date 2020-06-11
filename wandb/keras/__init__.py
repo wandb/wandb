@@ -323,8 +323,9 @@ class WandbCallback(keras.callbacks.Callback):
                 wandb.termwarn(
                     "No validation_data set, pass a generator to the callback.")
             elif self.validation_data and len(self.validation_data) > 0:
-                wandb.log({"examples": self._log_images(
-                    num_images=self.predictions)}, commit=False)
+                if self.predictions > 0:
+                    wandb.log({"examples": self._log_images(
+                        num_images=self.predictions)}, commit=False)
 
         wandb.log({'epoch': epoch}, commit=False)
         wandb.log(self._custom_wandb_logs('on_epoch_end'), commit=False)
