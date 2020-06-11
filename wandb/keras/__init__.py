@@ -619,37 +619,9 @@ class WandbCallback(keras.callbacks.Callback):
 
 class WandbClassificationCallback(WandbCallback):
 
-    def __init__(self, monitor='val_loss', verbose=0, mode='auto',
-                 save_weights_only=False, log_weights=False, log_gradients=False,
-                 save_model=True, training_data=None, validation_data=None,
-                 labels=[], data_type=None, predictions=1, generator=None,
-                 input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None, log_batch_frequency=None,
-                 log_best_prefix="best_", 
-                 log_confusion_matrix=False,
-                 confusion_examples=0, confusion_classes=5):
+    def __init__(self, log_confusion_matrix=False, confusion_examples=0, confusion_classes=5, **kwargs):
         
-        super().__init__(monitor=monitor,
-                        verbose=verbose, 
-                        mode=mode,
-                        save_weights_only=save_weights_only,
-                        log_weights=log_weights,
-                        log_gradients=log_gradients,
-                        save_model=save_model,
-                        training_data=training_data,
-                        validation_data=validation_data,
-                        labels=labels,
-                        data_type=data_type,
-                        predictions=predictions,
-                        generator=generator,
-                        input_type=input_type,
-                        output_type=output_type,
-                        log_evaluation=log_evaluation,
-                        validation_steps=validation_steps,
-                        class_colors=class_colors,
-                        log_batch_frequency=log_batch_frequency,
-                        log_best_prefix=log_best_prefix)
-                        
+        super().__init__(**kwargs)
         self.log_confusion_matrix = log_confusion_matrix
         self.confusion_examples = confusion_examples
         self.confusion_classes = confusion_classes
