@@ -656,9 +656,13 @@ class WandbClassificationCallback(WandbCallback):
         from sklearn.metrics import confusion_matrix
         import plotly.graph_objs as go
         from plotly.subplots import make_subplots
+
+        self.confusion_matrix = confusion_matrix
+        self.go = go
+        self.make_subplots = make_subplots
     
-    def _custom_wandb_logs(self, when):
-        logs = {}
+    def _custom_wandb_logs(self, logs, when, **kwargs):
+        custom_logs = {}
         if when == 'on_epoch_end':
 
             if self.log_confusion_matrix:
@@ -666,13 +670,13 @@ class WandbClassificationCallback(WandbCallback):
                     wandb.termwarn(
                         "No validation_data set, pass a generator to the callback.")
                 elif self.validation_data and len(self.validation_data) > 0:
-                    logs.update(self._log_confusion_matrix())
+                    custom_logs.update(self._log_confusion_matrix())
             
             if self.input_type in ("image", "images", "segmentation_mask"):
-                if self.confusion_examples > 0:
-                    logs.update(self._log_confusion_examples(self.confusion_classes, self.confusion_examples))
+                if self.confusion_examples > 0 and self.confusion_classes > 0:
+                    custom_logs.update(self._log_confusion_examples(self.confusion_classes, self.confusion_examples))
                     
-        return logs
+        return custom_logs
     
     def _log_confusion_matrix(self):
         x_val = self.validation_data[0]
@@ -680,23 +684,23 @@ class WandbClassificationCallback(WandbCallback):
         y_val = np.argmax(y_val, axis=1)
         y_pred = np.argmax(self.model.predict(x_val), axis=1)
 
-        confmatrix = confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
+        confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
         confdiag = np.eye(len(confmatrix)) * confmatrix
         np.fill_diagonal(confmatrix, 0)
 
         confmatrix = confmatrix.astype('float')
         n_confused = np.sum(confmatrix)
         confmatrix[confmatrix == 0] = np.nan
-        confmatrix = go.Heatmap({'coloraxis': 'coloraxis1', 'x': self.labels, 'y': self.labels, 'z': confmatrix,
+        confmatrix = self.go.Heatmap({'coloraxis': 'coloraxis1', 'x': self.labels, 'y': self.labels, 'z': confmatrix,
                                  'hoverongaps':False, 'hovertemplate': 'Predicted %{y}<br>Instead of %{x}<br>On %{z} examples<extra></extra>'})
 
         confdiag = confdiag.astype('float')
         n_right = np.sum(confdiag)
         confdiag[confdiag == 0] = np.nan
-        confdiag = go.Heatmap({'coloraxis': 'coloraxis2', 'x': self.labels, 'y': self.labels, 'z': confdiag,
+        confdiag = self.go.Heatmap({'coloraxis': 'coloraxis2', 'x': self.labels, 'y': self.labels, 'z': confdiag,
                                'hoverongaps':False, 'hovertemplate': 'Predicted %{y} just right<br>On %{z} examples<extra></extra>'})
 
-        fig = go.Figure((confdiag, confmatrix))
+        fig = self.go.Figure((confdiag, confmatrix))
         transparent = 'rgba(0, 0, 0, 0)'
         n_total = n_right + n_confused
         fig.update_layout({'coloraxis1': {'colorscale': [[0, transparent], [0, 'rgba(180, 0, 0, 0.05)'], [1, f'rgba(180, 0, 0, {max(0.2, (n_confused/n_total) ** 0.5)})']], 'showscale': False}})
@@ -719,7 +723,7 @@ class WandbClassificationCallback(WandbCallback):
             if x_val.shape[-1] == 1:
                 x_val = np.concatenate((x_val, x_val, x_val), axis=-1)
 
-            confmatrix = confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
+            confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
             np.fill_diagonal(confmatrix, 0)
 
             def example_image(class_index, x_val=x_val, y_pred=y_pred, y_val=y_val, labels=self.labels, rescale=rescale):
@@ -747,7 +751,7 @@ class WandbClassificationCallback(WandbCallback):
             subplot_titles[max_confused_examples//2] = "confused_predictions"
             
             n_rows = min(len(confmatrix[confmatrix > 0]), confusion_classes)
-            fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
+            fig = self.make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
             for class_rank in range(1, n_rows+1):
                 indx = np.argmax(confmatrix)
                 indx = np.unravel_index(indx, shape=confmatrix.shape)
@@ -762,7 +766,7 @@ class WandbClassificationCallback(WandbCallback):
                 # Confused images
                 n_images_confused = min(max_confused_examples, len(confused_images))
                 for j in range(n_images_confused):
-                    fig.add_trace(go.Image(z=rescale*confused_images[j],
+                    fig.add_trace(self.go.Image(z=rescale*confused_images[j],
                                         name=f'Predicted: {self.labels[class_pred]} | Instead of: {self.labels[class_true]}',
                                         hoverinfo='name', hoverlabel={'namelength' :-1}),
                                 row=class_rank, col=j+1)
@@ -773,7 +777,7 @@ class WandbClassificationCallback(WandbCallback):
                 for i, class_index in enumerate((class_true, class_pred)):
                     col = n_images_confused+i+1
                     image, title_text, color = example_image(class_index)
-                    fig.add_trace(go.Image(z=image, name=self.labels[class_index], hoverinfo='name', hoverlabel={'namelength' :-1}), row=class_rank, col=col)    
+                    fig.add_trace(self.go.Image(z=image, name=self.labels[class_index], hoverinfo='name', hoverlabel={'namelength' :-1}), row=class_rank, col=col)    
                     fig.update_xaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=title_text)
                     fig.update_yaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=self.labels[class_index])
 
