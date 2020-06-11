@@ -616,7 +616,23 @@ class WandbCallback(keras.callbacks.Callback):
 
 class WandbClassificationCallback(WandbCallback):
 
-    def __init__(self, log_confusion_matrix=False, confusion_examples=0, confusion_classes=5, **kwargs):
+    Example:
+        ```
+        model.fit(X_train, y_train,  validation_data=(X_test, y_test),
+            callbacks=[WandbClassificationCallback()])
+        ```
+
+    WandbClassificationCallback add features specific to classification tasks.    
+    All parameters from :class:`WandbCallback` are valid in WandbClassificationCallback.
+
+    Args:
+        log_confusion_matrix (bool): If True, the confusion matrix will be logged.
+        confusion_classes (int): The top confusion_classes classes will be logged.
+        confusion_examples (int): The maximum number of confusion examples to log per class.
+    
+    """
+
+    def __init__(self, log_confusion_matrix=False, confusion_examples=0, confusion_classes=1, **kwargs):
         
         super().__init__(**kwargs)
         self._load_modules()
