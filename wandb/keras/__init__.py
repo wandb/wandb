@@ -664,20 +664,22 @@ class WandbClassificationCallback(WandbCallback):
     def _custom_wandb_logs(self, logs, when, **kwargs):
         custom_logs = {}
         if when == 'on_epoch_end':
-
-            if self.log_confusion_matrix:
-                if self.validation_data is None:
-                    wandb.termwarn(
-                        "No validation_data set, pass a generator to the callback.")
-                elif self.validation_data and len(self.validation_data) > 0:
-                    custom_logs.update(self._log_confusion_matrix())
+            if self.log_confusion_matrix and self._assert_validation_data():
+                custom_logs.update(self._log_confusion_matrix())
             
             if self.input_type in ("image", "images", "segmentation_mask"):
-                if self.confusion_examples > 0 and self.confusion_classes > 0:
+                if self.confusion_examples > 0 and self.confusion_classes > 0 and self._assert_validation_data():
                     custom_logs.update(self._log_confusion_examples(self.confusion_classes, self.confusion_examples))
-                    
+
         return custom_logs
     
+    def _assert_validation_data(self):
+        if self.validation_data is None or len(self.validation_data) == 0:
+            wandb.termwarn(
+                "No validation_data set, pass a generator to the callback.")
+            return False
+        return True
+
     def _log_confusion_matrix(self):
         x_val = self.validation_data[0]
         y_val = self.validation_data[1]
@@ -714,76 +716,76 @@ class WandbClassificationCallback(WandbCallback):
         return {'confusion_matrix': wandb.data_types.Plotly(fig)}
 
     def _log_confusion_examples(self, rescale=255, confusion_classes=5, max_confused_examples=3):
-            x_val = self.validation_data[0]
-            y_val = self.validation_data[1]
-            y_val = np.argmax(y_val, axis=1)
-            y_pred = np.argmax(self.model.predict(x_val), axis=1)
+        x_val = self.validation_data[0]
+        y_val = self.validation_data[1]
+        y_val = np.argmax(y_val, axis=1)
+        y_pred = np.argmax(self.model.predict(x_val), axis=1)
 
-            # Grayscale to rgb
-            if x_val.shape[-1] == 1:
-                x_val = np.concatenate((x_val, x_val, x_val), axis=-1)
+        # Grayscale to rgb
+        if x_val.shape[-1] == 1:
+            x_val = np.concatenate((x_val, x_val, x_val), axis=-1)
 
-            confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
-            np.fill_diagonal(confmatrix, 0)
+        confmatrix = self.confusion_matrix(y_pred, y_val, labels=range(len(self.labels)))
+        np.fill_diagonal(confmatrix, 0)
 
-            def example_image(class_index, x_val=x_val, y_pred=y_pred, y_val=y_val, labels=self.labels, rescale=rescale):
-                image = None
-                title_text = 'No example found'
-                color = 'red'
+        def example_image(class_index, x_val=x_val, y_pred=y_pred, y_val=y_val, labels=self.labels, rescale=rescale):
+            image = None
+            title_text = 'No example found'
+            color = 'red'
 
-                right_predicted_images = x_val[np.logical_and(y_pred==class_index, y_val==class_index)]
-                if len(right_predicted_images) > 0:
-                    image = rescale * right_predicted_images[0]
-                    title_text = 'Predicted right'
-                    color = 'rgb(46, 184, 46)'
-                else:
-                    ground_truth_images = x_val[y_val==class_index]
-                    if len(ground_truth_images) > 0:
-                        image = rescale * ground_truth_images[0]
-                        title_text = 'Example'
-                        color = 'rgb(255, 204, 0)'
+            right_predicted_images = x_val[np.logical_and(y_pred==class_index, y_val==class_index)]
+            if len(right_predicted_images) > 0:
+                image = rescale * right_predicted_images[0]
+                title_text = 'Predicted right'
+                color = 'rgb(46, 184, 46)'
+            else:
+                ground_truth_images = x_val[y_val==class_index]
+                if len(ground_truth_images) > 0:
+                    image = rescale * ground_truth_images[0]
+                    title_text = 'Example'
+                    color = 'rgb(255, 204, 0)'
 
-                return image, title_text, color
+            return image, title_text, color
 
-            n_cols = max_confused_examples + 2
-            subplot_titles = [""] * n_cols
-            subplot_titles[-2:] = ["y_true", "y_pred"]
-            subplot_titles[max_confused_examples//2] = "confused_predictions"
-            
-            n_rows = min(len(confmatrix[confmatrix > 0]), confusion_classes)
-            fig = self.make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
-            for class_rank in range(1, n_rows+1):
-                indx = np.argmax(confmatrix)
-                indx = np.unravel_index(indx, shape=confmatrix.shape)
-                if confmatrix[indx] == 0:
-                    break
-                confmatrix[indx] = 0
+        n_cols = max_confused_examples + 2
+        subplot_titles = [""] * n_cols
+        subplot_titles[-2:] = ["y_true", "y_pred"]
+        subplot_titles[max_confused_examples//2] = "confused_predictions"
 
-                class_pred, class_true = indx[0], indx[1]
-                mask = np.logical_and(y_pred==class_pred, y_val==class_true)
-                confused_images = x_val[mask]
+        n_rows = min(len(confmatrix[confmatrix > 0]), confusion_classes)
+        fig = self.make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
+        for class_rank in range(1, n_rows+1):
+            indx = np.argmax(confmatrix)
+            indx = np.unravel_index(indx, shape=confmatrix.shape)
+            if confmatrix[indx] == 0:
+                break
+            confmatrix[indx] = 0
 
-                # Confused images
-                n_images_confused = min(max_confused_examples, len(confused_images))
-                for j in range(n_images_confused):
-                    fig.add_trace(self.go.Image(z=rescale*confused_images[j],
-                                        name=f'Predicted: {self.labels[class_pred]} | Instead of: {self.labels[class_true]}',
-                                        hoverinfo='name', hoverlabel={'namelength' :-1}),
-                                row=class_rank, col=j+1)
-                    fig.update_xaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
-                    fig.update_yaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
+            class_pred, class_true = indx[0], indx[1]
+            mask = np.logical_and(y_pred==class_pred, y_val==class_true)
+            confused_images = x_val[mask]
 
-                # Comparaison images
-                for i, class_index in enumerate((class_true, class_pred)):
-                    col = n_images_confused+i+1
-                    image, title_text, color = example_image(class_index)
-                    fig.add_trace(self.go.Image(z=image, name=self.labels[class_index], hoverinfo='name', hoverlabel={'namelength' :-1}), row=class_rank, col=col)    
-                    fig.update_xaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=title_text)
-                    fig.update_yaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=self.labels[class_index])
+            # Confused images
+            n_images_confused = min(max_confused_examples, len(confused_images))
+            for j in range(n_images_confused):
+                fig.add_trace(self.go.Image(z=rescale*confused_images[j],
+                                    name=f'Predicted: {self.labels[class_pred]} | Instead of: {self.labels[class_true]}',
+                                    hoverinfo='name', hoverlabel={'namelength' :-1}),
+                            row=class_rank, col=j+1)
+                fig.update_xaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
+                fig.update_yaxes(showline=True, linewidth=5, linecolor='red', row=class_rank, col=j+1, mirror=True)
 
-            fig.update_xaxes(showticklabels=False)
-            fig.update_yaxes(showticklabels=False)
-            
-            return {'confusion_examples': wandb.data_types.Plotly(fig)}
+            # Comparaison images
+            for i, class_index in enumerate((class_true, class_pred)):
+                col = n_images_confused+i+1
+                image, title_text, color = example_image(class_index)
+                fig.add_trace(self.go.Image(z=image, name=self.labels[class_index], hoverinfo='name', hoverlabel={'namelength' :-1}), row=class_rank, col=col)
+                fig.update_xaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=title_text)
+                fig.update_yaxes(showline=True, linewidth=5, linecolor=color, row=class_rank, col=col, mirror=True, title_text=self.labels[class_index])
+
+        fig.update_xaxes(showticklabels=False)
+        fig.update_yaxes(showticklabels=False)
+
+        return {'confusion_examples': wandb.data_types.Plotly(fig)}
 
 __all__ = ['WandbCallback', 'WandbClassificationCallback']

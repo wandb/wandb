@@ -79,9 +79,18 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
 
 
 def test_classification_keras(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
-                    callbacks=[WandbClassificationCallback(log_confusion_matrix=True, confusion_examples=1)])
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36, validation_data=dummy_data,
+                    callbacks=[WandbClassificationCallback(data_type="image", log_confusion_matrix=True, confusion_examples=1)])
     wandb.run.summary.load()
+    print("SUMMARY", wandb.run.summary)
+    assert wandb.run.summary["confusion_matrix"] > 0
+    assert wandb.run.summary["confusion_examples"] > 0
+
+def test_classification_keras_no_validation(dummy_model, dummy_data, wandb_init_run):
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36,
+                    callbacks=[WandbClassificationCallback(data_type="image", log_confusion_matrix=True, confusion_examples=1)])
+    wandb.run.summary.load()
+    print("SUMMARY", wandb.run.summary)
     assert wandb.run.summary["confusion_matrix"] > 0
     assert wandb.run.summary["confusion_examples"] > 0
 
