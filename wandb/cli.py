@@ -277,10 +277,9 @@ def runs(ctx, project, entity):
 
 
 @cli.command(context_settings=CONTEXT, help="List local & remote file status")
-@click.argument("run", envvar=env.RUN_ID)
 @click.option("--settings/--no-settings", help="Show the current settings", default=True)
 @display_error
-def status(run, settings):
+def status(settings=None):
     logged_in = bool(api.api_key)
     if not os.path.isdir(wandb_dir()):
         if logged_in:
