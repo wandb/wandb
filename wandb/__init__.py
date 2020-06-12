@@ -925,7 +925,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         # Reset global state for pytorch watch and tensorboard
         _global_watch_idx = 0
         if len(patched["tensorboard"]) > 0:
-            util.get_module("wandb.tensorboard").reset_state()
+            util.get_module("wandb.tensorboard", required=True).reset_state()
         reset_env(exclude=env.immutable_keys())
         if len(_global_run_stack) > 0:
             if len(_global_run_stack) > 1:
@@ -935,9 +935,9 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     # TODO: deprecate tensorboard
     if tensorboard or sync_tensorboard and len(patched["tensorboard"]) == 0:
-        util.get_module("wandb.tensorboard").patch()
+        util.get_module("wandb.tensorboard", required=True).patch()
     if monitor_gym and len(patched["gym"]) == 0:
-        util.get_module("wandb.gym").monitor()
+        util.get_module("wandb.gym", required=True).monitor()
 
     sagemaker_config = util.parse_sm_config()
     tf_config = util.parse_tfjob_config()
