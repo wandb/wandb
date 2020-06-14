@@ -13,11 +13,18 @@ from wandb import util
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb.apis import InternalApi
+from wandb.sync import SyncManager
 import yaml
+
 
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
+
+
+def cli_unsupported(argument):
+    wandb.termerror("Unsupported argument `{}`".format(argument))
+    sys.exit(1)
 
 
 class ClickWandbException(ClickException):
@@ -94,14 +101,41 @@ def superagent(project=None, entity=None, agent_spec=None):
 @click.option("--entity", "-e", help="The entity to scope to.")
 @click.option("--ignore",
               help="A comma seperated list of globs to ignore syncing with wandb.")
+@click.option('--all', is_flag=True, default=False, help="Sync all runs")
 @display_error
-def sync(ctx, path, id, project, entity, ignore):
-    pass
-    # init settings
-    # backend = backend_connect()
-    # resp = interface_sync_file(fname)
-    # while interface_sync_poll(resp):
-    #     pass
+def sync(ctx, path, id, project, entity, ignore, all):
+    all_args = locals()
+    unsupported = ("id", "project", "entity", "ignore")
+    for item in unsupported:
+        if all_args.get(item):
+            cli_unsupported(item)
+    sm = SyncManager()
+    if not path:
+        # Show listing of possible paths to sync
+        # (if interactive, allow user to pick run to sync)
+        sync_items = sm.list()
+        if not sync_items:
+            wandb.termerror("Nothing to sync")
+            return
+        if not all:
+            wandb.termlog("NOTE: use sync --all to sync all unsynced runs")
+            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            some_runs = 5
+            if some_runs < len(sync_items):
+                wandb.termlog("Showing {} runs".format(some_runs))
+            for item in sync_items[:some_runs]:
+                wandb.termlog("  {}".format(item))
+            return
+        path = sync_items
+    if id and len(path) > 1:
+        wandb.termerror("id can only be set for a single run")
+        sys.exit(1)
+    for p in path:
+        sm.add(p)
+    sm.start()
+    while not sm.is_done():
+        _ = sm.poll()
+        # print(status)
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")  # noqa: C901

@@ -31,13 +31,15 @@ def login(settings=None, relogin=None):
     wl = wandb.setup(settings=settings)
     settings = wl.settings()
 
-    if is_logged_in() and not relogin:
-        entity = wl._get_entity()
+    active_entity = None
+    if is_logged_in():
+        active_entity = wl._get_entity()
+    if active_entity and not relogin:
         login_state_str = "Currently logged in as:"
         login_info_str = "(use `wandb login --relogin` to force relogin)"
         wandb.termlog(
             "{} {} {}".format(
-                login_state_str, click.style(entity, fg="yellow"), login_info_str
+                login_state_str, click.style(active_entity, fg="yellow"), login_info_str
             )
         )
         return
