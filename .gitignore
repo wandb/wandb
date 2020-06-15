@@ -77,6 +77,10 @@ venv/
 wandb-metadata.json
 wandb/run-*
 edgeml_tests/mnist_tiny
+.pytest_cache
+
+# a place to put temporary stuff when developing
+devscripts/
 
 # IntelliJ IDEA
 .idea/

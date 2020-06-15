@@ -114,6 +114,27 @@ def create_app():
                     }
                 }
             })
+        if "mutation PrepareFiles" in body["query"]:
+            nodes = []
+            for i, file_spec in enumerate(body['variables']['fileSpecs']):
+                nodes.append({
+                    "node" : {
+                        "id": str(i),
+                        "name": file_spec['name'],
+                        "displayName": file_spec['name'],
+                        "digest": "null",
+                        "uploadUrl": request.url_root + "/storage?file=%s" % file_spec['name'],
+                        "uploadHeaders": ""
+                    }})
+            return json.dumps({
+                "data": {
+                    "prepareFiles": {
+                        "files": {
+                            "edges": nodes
+                        }
+                    }
+                }
+            })
         if "stopped" in body["query"]:
             return json.dumps({
                 "data": {

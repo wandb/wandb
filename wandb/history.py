@@ -203,7 +203,9 @@ class History(object):
 
     def log_tf_summary(self, summary_pb_bin):
         from wandb.tensorflow import tf_summary_to_dict
-        self.add(tf_summary_to_dict(summary_pb_bin))
+        row_dict = tf_summary_to_dict(summary_pb_bin)
+        if row_dict is not None:
+            self.add(row_dict)
 
     def ensure_jupyter_started(self):
         if self._jupyter_callback:

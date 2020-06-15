@@ -14,6 +14,7 @@ from sentry_sdk import configure_scope
 
 from . import env
 import wandb
+from wandb import artifacts
 from wandb import history
 from wandb import jsonlfile
 from wandb import summary
@@ -23,7 +24,8 @@ from wandb import util
 from wandb.core import termlog
 from wandb import data_types
 from wandb.file_pusher import FilePusher
-from wandb.apis import InternalApi, CommError
+from wandb.apis import InternalApi, PublicApi, CommError
+from wandb.apis.public import Artifact as ApiArtifact
 from wandb.wandb_config import Config, ConfigStatic, is_kaggle
 from wandb.viz import Visualize
 import six
@@ -203,9 +205,9 @@ class Run(object):
         """ Sends a message to the wandb process changing the policy
         of saved files.  This is primarily used internally by wandb.save
         """
-        if not options.get("save_policy") and not options.get("tensorboard"):
+        if not options.get("save_policy") and not options.get("tensorboard") and not options.get("log_artifact") and not options.get("use_artifact"):
             raise ValueError(
-                "Only configuring save_policy and tensorboard is supported")
+                "Only configuring save_policy, tensorboard, use_artifact and log_artifact is supported")
         if self.socket:
             # In the user process
             self.socket.send(options)
@@ -218,6 +220,10 @@ class Run(object):
             elif options.get("tensorboard"):
                 self._jupyter_agent.rm.start_tensorboard_watcher(
                     options["tensorboard"]["logdir"], options["tensorboard"]["save"])
+            elif options.get("use_artifact"):
+                self._jupyter_agent.rm.use_artifact(options["use_artifact"])
+            elif options.get("log_artifact"):
+                self._jupyter_agent.rm.log_artifact(options["log_artifact"])
         elif self._run_manager:
             # Running in the wandb process, used for tfevents saving
             if options.get("save_policy"):
@@ -333,10 +339,13 @@ class Run(object):
             from wandb import tensorflow as wbtf
             wandb.termlog("Found tfevents file, converting...")
             summary = {}
+            step = 0
             for path in tfevents:
                 filename = os.path.basename(path)
                 namespace = path.replace(filename, "").replace(directory, "").strip(os.sep)
-                summary.update(wbtf.stream_tfevents(path, file_api, run, namespace=namespace))
+                last_row = wbtf.stream_tfevents(path, file_api, run, step=step, namespace=namespace)
+                step = last_row["_step"]
+                summary.update(last_row)
             for path in glob.glob(os.path.join(directory, "media/**/*"), recursive=True):
                 if os.path.isfile(path):
                     paths.append(path)
@@ -375,7 +384,6 @@ class Run(object):
         pusher = FilePusher(api)
         for k in paths:
             path = os.path.abspath(os.path.join(directory, k))
-            pusher.update_file(k, path)
             pusher.file_changed(k, path)
         pusher.finish()
         pusher.print_status()
@@ -405,6 +413,67 @@ class Run(object):
         self.storage_id = upsert_result['id']
         self.name = upsert_result.get('displayName')
         return upsert_result
+
+    def use_artifact(self, artifact, type=None, aliases=None):
+        if self.mode == "dryrun":
+            wandb.termwarn("Using artifacts in dryrun mode is currently unsupported.")
+            return artifact
+        self.history.ensure_jupyter_started()
+        if isinstance(artifact, str):
+            if type is None:
+                raise ValueError('type required')
+            public_api = PublicApi()
+            artifact = public_api.artifact(type=type, name=artifact)
+            self.api.use_artifact(artifact.id)
+            return artifact
+        else:
+            if type is not None:
+                raise ValueError('cannot specify type when passing Artifact object')
+            if isinstance(aliases, str):
+                aliases = [aliases]
+            if isinstance(artifact, wandb.Artifact):
+                artifact.finalize()
+                self.send_message({
+                    'use_artifact': {
+                        'type': artifact.type,
+                        'name': artifact.name,
+                        'server_manifest_entries': artifact.server_manifest.entries,
+                        'manifest': artifact.manifest.to_manifest_json(include_local=True),
+                        'digest': artifact.digest,
+                        'metadata': artifact.metadata,
+                        'aliases': aliases
+                    }
+                })
+            elif isinstance(artifact, ApiArtifact):
+                self.api.use_artifact(artifact.id)
+                return artifact
+            else:
+                raise ValueError('You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
+
+    def log_artifact(self, artifact, aliases=['latest']):
+        if not isinstance(artifact, artifacts.Artifact):
+            raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+        if self.mode == "dryrun":
+            wandb.termwarn("Persisting artifacts in dryrun mode is currently unsupported.")
+            return artifact
+        self.history.ensure_jupyter_started()
+        if isinstance(aliases, str):
+            aliases = [aliases]
+
+        artifact.finalize()
+        self.send_message({
+            'log_artifact': {
+                'type': artifact.type,
+                'name': artifact.name,
+                'server_manifest_entries': artifact.server_manifest.entries,
+                'manifest': artifact.manifest.to_manifest_json(include_local=True),
+                'digest': artifact.digest,
+                'description': artifact.description,
+                'metadata': artifact.metadata,
+                'labels': None,
+                'aliases': aliases,
+            }
+        })
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside
@@ -543,7 +612,6 @@ class Run(object):
             run=urllib.parse.quote(self.id),
             query_string=self._generate_query_string(api, params)
         )
-
 
     def upload_debug(self):
         """Uploads the debug log to cloud storage"""
@@ -768,6 +836,7 @@ class Run(object):
         exit_code = 0 if exc_type is None else 1
         wandb.join(exit_code)
         return exc_type is None
+
 
 def run_dir_path(run_id, dry=False):
     if dry:

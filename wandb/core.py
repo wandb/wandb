@@ -68,18 +68,22 @@ PRINTED_MESSAGES = set()
 
 # TODO(adrian): if output has been redirected, make this write to the original STDERR
 # so it doesn't get logged to the backend
-def termlog(string='', newline=True, repeat=True, force=False):
+def termlog(string='', newline=True, repeat=True, prefix=True, force=False):
     """Log to standard error with formatting.
 
     Args:
             string (str, optional): The string to print
             newline (bool, optional): Print a newline at the end of the string
             repeat (bool, optional): If set to False only prints the string once per process
+            prefix (bool, optional): If set to True prepend line with "wandb: "
             force (bool, optional): Print to stdout even if env.SILENT is set
     """
     if string:
-        line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
-                          for s in string.split('\n')])
+        if prefix:
+            line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
+                            for s in string.split('\n')])
+        else:
+            line = string
     else:
         line = ''
     if not repeat and line in PRINTED_MESSAGES:

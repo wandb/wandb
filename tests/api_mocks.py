@@ -432,7 +432,7 @@ def download_url():
 
 
 @pytest.fixture
-def upload_logs():
+def upload_logs(request):
     def wrapper(mocker, run, status_code=200, body_match='', error=None):
         api = InternalApi()
         api.set_setting("project", "new-project")

@@ -10,7 +10,7 @@ from __future__ import print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.8.36'
+__version__ = '0.9.1'
 
 import atexit
 import click
@@ -51,7 +51,8 @@ from wandb import wandb_socket
 from wandb import streaming_log
 from wandb import util
 from wandb import mlflow
-from wandb.run_manager import LaunchError
+from wandb.artifacts import Artifact
+from wandb.run_manager import LaunchError, Process
 from wandb.data_types import Image
 from wandb.data_types import Video
 from wandb.data_types import Audio
@@ -74,6 +75,7 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb.compat import windows
+
 
 logger = logging.getLogger(__name__)
 
@@ -444,6 +446,8 @@ def _init_jupyter(run):
         # Ensure our api client picks up the new key
         if key:
             run.api.reauth()
+            # Now that we have an api key, let's load the viewer
+            run._load_viewer()
         else:
             run.mode = "dryrun"
             display(HTML('''
@@ -486,8 +490,8 @@ def _init_jupyter(run):
     # Monkey patch ipython publish to capture displayed outputs
     if not hasattr(ipython.display_pub, "_orig_publish"):
         ipython.display_pub._orig_publish = ipython.display_pub.publish
-    def publish(data, metadata=None, source=None, transient=None, update=False, **kwargs):
-        ipython.display_pub._orig_publish(data, metadata, source, transient, update, **kwargs)
+    def publish(data, metadata=None, **kwargs):
+        ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
         run._jupyter_agent.save_display(ipython.execution_count , {'data':data, 'metadata':metadata})
     ipython.display_pub.publish = publish
 
@@ -1075,7 +1079,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
 
     try:
         signal.signal(signal.SIGQUIT, _debugger)
-    except (AttributeError, ValueError):
+    except (ValueError, AttributeError):
         pass
 
     try:

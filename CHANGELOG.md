@@ -1,3 +1,23 @@
+## 0.9.1 (June 9, 2020)
+
+#### :bug: Bug Fix
+
+-   Fix issue where files were always logged to latest run in a project.
+-   Fix issue where url was not display url on first call to wandb.init
+
+## 0.9.0 (June 5, 2020)
+
+#### :bug: Bug Fix
+
+-   Handle multiple inits in Jupyter
+-   Handle ValueError's when capturing signals, thanks @jsbroks
+-   wandb agent handles rate limiting properly
+
+#### :nail_care: Enhancement
+
+-   wandb.Artifact is now generally available!
+-   feature_importances now supports CatBoost, thanks @neomatrix369
+
 ## 0.8.36 (May 11, 2020)
 
 #### :bug: Bug Fix

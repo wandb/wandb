@@ -214,6 +214,10 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
         commit = True
 
     log_dict = tf_summary_to_dict(tf_summary_str_or_pb, namespace)
+    if log_dict is None:
+        # not an event, just return
+        return
+
     # Pass timestamp to history for loading historic data
     timestamp = log_dict.get("_timestamp", time.time())
     # Store our initial timestamp
@@ -276,11 +280,11 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
     else:
-        if not hasattr(tf_summary_str_or_pb, "value"):
-            raise ValueError(
-                "Can't log %s, only Event, Summary, or Summary proto buffer strings are accepted")
-        else:
-            summary_pb = tf_summary_str_or_pb
+        summary_pb = tf_summary_str_or_pb
+
+    if not hasattr(summary_pb, "value") or len(summary_pb.value) == 0:
+        # Ignore these, caller is responsible for handling None
+        return None
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")

@@ -35,7 +35,7 @@ soundfile==0.10.2
 moviepy==1.0.0
 imageio==2.5.0
 psutil>=5.2.2
-tensorboardX
+tensorboardX>=1.5
 ipython
 nbformat
 matplotlib
@@ -57,3 +57,4 @@ scikit-learn
 scipy
 eli5
 spacy
+boto3

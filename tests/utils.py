@@ -123,6 +123,14 @@ class RequestsMock(object):
             del kwargs["timeout"]
         if "cookies" in kwargs:
             del kwargs["cookies"]
+        if "params" in kwargs:
+            del kwargs["params"]
+        if "stream" in kwargs:
+            del kwargs["stream"]
+        if "verify" in kwargs:
+            del kwargs["verify"]
+        if "allow_redirects" in kwargs:
+            del kwargs["allow_redirects"]
         return kwargs
 
     def _store_request(self, url, body):
@@ -141,3 +149,13 @@ class RequestsMock(object):
     def get(self, url, **kwargs):
         self._store_request(url, kwargs.get("json"))
         return ResponseMock(self.client.get(url, **self._clean_kwargs(kwargs)))
+
+    def request(self, method, url, **kwargs):
+        if method.lower() == "get":
+            self.get(url, **kwargs)
+        elif method.lower() == "post":
+            self.post(url, **kwargs)
+        elif method.lower() == "put":
+            self.put(url, **kwargs)
+        else:
+            raise requests.RequestException("Request method not implemented: %s" % method)

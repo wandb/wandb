@@ -38,7 +38,9 @@ class Server(object):
 
     def connect(self):
         self.connection, addr = self.socket.accept()
-        self.connection.setblocking(False)
+        # Don't use a non-blocking socket, we need to send large
+        # artifact manifests
+        # self.connection.setblocking(False)
 
     def listen(self, max_seconds=30):
         """Waits to receive up to two bytes for up to max_seconds"""

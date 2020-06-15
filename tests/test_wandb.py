@@ -314,7 +314,6 @@ def test_restore(runner, request_mocker, download_url, wandb_init_run):
 
 
 @pytest.mark.jupyter
-@pytest.mark.mocked_run_manager
 def test_jupyter_init(wandb_init_run):
     assert os.getenv(env.JUPYTER)
     wandb.log({"stat": 1})
@@ -328,10 +327,9 @@ def test_jupyter_init(wandb_init_run):
     # TODO: saw some global state issues here...
     # assert "" == err
 
-
-@pytest.mark.skip
+@pytest.mark.skip("Flaky spec in CI, skipping for now")
 @pytest.mark.jupyter
-def test_jupyter_log_history(wandb_init_run, capsys):
+def test_jupyter_log_history(wandb_init_run):
     # This simulates what the happens in a Jupyter notebook, it's gnarly
     # because it resumes so this depends on the run_resume_status which returns
     # a run that's at step 15 so calling log will update step to 16
@@ -388,5 +386,7 @@ def test_not_logged_in(wandb_init_run, capsys):
 @pytest.mark.unconfigured
 def test_jupyter_manual_configure(wandb_init_run, capsys):
     out, err = capsys.readouterr()
+    print("stdout: ", out)
+    print("stderr: ", err)
     assert "Not authenticated" in err
     assert "Python.core.display.HTML" in out

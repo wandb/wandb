@@ -71,7 +71,7 @@ If necessary, we move or copy the file into the Run's media directory so that it
 
 
 ## BatchableMedia
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L231)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L232)
 ```python
 BatchableMedia(self, caption=None)
 ```
@@ -81,7 +81,7 @@ Apart from images, we just use these batches to help organize files by name in t
 
 
 ## Table
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L243)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L244)
 ```python
 Table(self, columns=['Input', 'Output', 'Expected'], data=None, rows=None)
 ```
@@ -94,7 +94,7 @@ This is a table designed to display small sets of records.
  
 
 ## Audio
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L296)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L297)
 ```python
 Audio(self, data_or_path, sample_rate=None, caption=None)
 ```
@@ -109,7 +109,7 @@ Wandb class for audio clips.
  
 
 ## Object3D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L395)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L396)
 ```python
 Object3D(self, data_or_path, **kwargs)
 ```
@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Molecule
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L517)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L518)
 ```python
 Molecule(self, data_or_path, **kwargs)
 ```
@@ -145,7 +145,7 @@ Wandb class for Molecular data
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L601)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L602)
 ```python
 Html(self, data, inject=True)
 ```
@@ -159,7 +159,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L670)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L671)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -175,7 +175,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L817)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L818)
 ```python
 Image(self,
       data_or_path,
@@ -196,7 +196,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1080)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -205,7 +205,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1113)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1114)
 ```python
 BoundingBoxes2D(self, val, key, **kwargs)
 ```
@@ -214,7 +214,7 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1191)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1192)
 ```python
 ImageMask(self, val, key, **kwargs)
 ```
@@ -223,7 +223,7 @@ Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1260)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1261)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -236,7 +236,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1301)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1302)
 ```python
 Graph(self, format='keras')
 ```
@@ -262,7 +262,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1457)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1458)
 ```python
 Node(self,
      id=None,
@@ -280,7 +280,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1623)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1624)
 ```python
 Edge(self, from_node, to_node)
 ```
