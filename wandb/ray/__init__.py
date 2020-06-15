@@ -25,6 +25,9 @@ class WandbLogger(tune.logger.Logger):
         config = result.get("config")
         if config and self._config is None:
             for k in config.keys():
+                # ignore ray/tune 0.9+ callbacks config key
+                if k == "callbacks":
+                    continue
                 if wandb.config.get(k) is None:
                     wandb.config[k] = config[k]
             self._config = config
