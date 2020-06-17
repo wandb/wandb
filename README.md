@@ -86,4 +86,4 @@ Got questions, feedback or want to join a community of ML engineers working on e
 
 Join our community on <a href="http://bit.ly/wandb-forum"><img src="https://i.imgur.com/xNs5BUR.png" alt="slack" width="50"/></a>
 
-Find us on <a href="https://twitter.com/weights_biases"><img src="https://i.imgur.com/UuoWYhD.png" alt="twitter" width="50"/></a>
+Find us on <a href="https://twitter.com/weights_biases"><img src="https://i.imgur.com/UuoWYhD.png" alt="twitter" width="60"/></a>
