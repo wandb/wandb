@@ -84,6 +84,6 @@ We make it easy to cite W&B in your published paper. [Learn more →](https://ww
 ## Community
 Got questions, feedback or want to join a community of ML engineers working on exciting projects?
 
-<a href="http://bit.ly/wandb-forum"><img src="https://svgshare.com/i/M93.svg" alt="slack" width="55"/></a> Join our slack community.
+<a href="http://bit.ly/wandb-forum"><img src="https://svgshare.com/i/M93.svg" alt="slack" width="55"/></a> Join our [slack](http://bit.ly/wandb-forum) community.
 
-[![Twitter](https://img.shields.io/twitter/follow/weights_biases?style=social)](https://twitter.com/pachyderminc) Follow us on Twitter.
+[![Twitter](https://img.shields.io/twitter/follow/weights_biases?style=social)](https://twitter.com/weights_biases) Follow us on [Twitter](https://twitter.com/weights_biases).
