@@ -70,13 +70,6 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-def _is_kaggle():
-    return (
-        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
-    )
-
-
 class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
@@ -91,30 +84,30 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         #            and logging is ready
         self._early_logger = _EarlyLogger()
         _set_logger(self._early_logger)
+
+        # Have to load viewer before setting up settings.
+        self._load_viewer()
+
         self._settings_setup(settings, self._early_logger)
         self._settings.freeze()
 
         self._check()
         self._setup()
-        self._gitstuff()
-        self._load_viewer()
-
-    def _gitstuff(self):
-        # self.git = GitRepo(remote=self.settings("git_remote"))
-        # self.git = GitRepo()
-        # print("remote", self.git.remote_url)
-        # print("last", self.git.last_commit)
-        pass
 
     def _settings_setup(self, settings=None, early_logger=None):
-        s = wandb_settings.Settings(
+        kwargs = dict(
             _environ=self._environ,
             _files=True,
             _early_logger=early_logger,
             _settings=settings,
         )
-        # if settings:
-        #     s.update(dict(settings))
+
+        # TODO: Do a more formal merge of user settings from the backend.
+        flags = self._get_user_flags()
+        if "code_saving_enabled" in flags:
+            kwargs["save_code"] = flags["code_saving_enabled"]
+
+        s = wandb_settings.Settings(**kwargs)
 
         # setup defaults
         s.setdefaults()
@@ -143,6 +136,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _get_entity(self):
         entity = self._server._viewer.get("entity")
         return entity
+
+    def _get_user_flags(self):
+        return self._server._flags
 
     def _load_viewer(self):
         s = server.Server()

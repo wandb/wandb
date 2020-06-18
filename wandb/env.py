@@ -44,6 +44,7 @@ HTTP_TIMEOUT = 'WANDB_HTTP_TIMEOUT'
 API_KEY = 'WANDB_API_KEY'
 JOB_TYPE = 'WANDB_JOB_TYPE'
 DISABLE_CODE = 'WANDB_DISABLE_CODE'
+SAVE_CODE = 'WANDB_SAVE_CODE'
 TAGS = 'WANDB_TAGS'
 IGNORE = 'WANDB_IGNORE_GLOBS'
 ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
@@ -253,3 +254,10 @@ def set_project(value, env=None):
     if env is None:
         env = os.environ
     env[PROJECT] = value or "uncategorized"
+
+
+def should_save_code():
+    save_code = _env_as_bool(SAVE_CODE, default=False)
+    code_disabled = _env_as_bool(DISABLE_CODE, default=False)
+    # SAVE_CODE takes precedence over DISABLE_CODE
+    return save_code and not code_disabled

@@ -24,10 +24,12 @@ import datetime
 import logging
 import os
 import platform
+import sys
 
 import shortuuid  # type: ignore
 import six
 import wandb
+from wandb import env
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (  # noqa: F401 pylint: disable=unused-import
@@ -68,6 +70,7 @@ defaults = dict(
     _problem=Field(str, ("fatal", "warn", "silent",)),
     console="auto",
     _console=Field(str, ("auto", "redirect", "off", "mock", "file", "iowrap",)),
+    git_remote="origin",
 )
 
 # env mapping?
@@ -108,6 +111,13 @@ def _get_python_type():
             return "jupyter"
     except (NameError, AttributeError):
         return "python"
+
+
+def _is_kaggle():
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules  # noqa: W503
+    )
 
 
 class CantTouchThis(type):
@@ -188,6 +198,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         program=None,
         notebook_name=None,
         disable_code=None,
+        save_code=None,
+        code_program=None,
+        git_remote=None,
         host=None,
         username=None,
         docker=None,
@@ -340,6 +353,15 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             if self.jupyter:
                 console = "off"
             u["console"] = console
+
+        # For code saving, only allow env var override if value from server is true, or
+        # if no preference was specified.
+        if (self.save_code is True or self.save_code is None) and os.getenv(
+            env.SAVE_CODE
+        ) is not None:
+            u["save_code"] = env.should_save_code()
+
+        u["disable_code"] = os.getenv(env.DISABLE_CODE)
         self.update(u)
 
     def setdefaults(self, __d=None):

@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
+import sys
+
 from setuptools import setup
 
 with open('package_readme.md') as readme_file:
@@ -22,12 +24,14 @@ requirements = [
     'subprocess32>=3.5.3',
     'docker-pycreds>=0.4.0',
     'configparser>=3.8.1',
-    'typing',
     'protobuf',
     'prompt_toolkit',
     'PyYAML',
     'numpy',
 ]
+
+if sys.version_info < (3, 5):
+    requirements.append('typing')
 
 setup(
     name='wandb-ng',

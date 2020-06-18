@@ -233,7 +233,7 @@ def wandb_internal(
     system_stats.start()
 
     run_meta = meta.Meta(
-        settings=settings, process_q=process_queue, notify_q=notify_queue
+        settings=settings, process_q=process_queue, notify_q=notify_queue,
     )
     run_meta.probe()
     run_meta.write()

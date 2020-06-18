@@ -5,6 +5,7 @@ exclude = '''
 | wandb/internal/file_pusher.py
 | wandb/internal/file_stream.py
 | wandb/internal/stats.py
+| wandb/internal/git_repo.py
 '''
 include = '''
   wandb/sdk/

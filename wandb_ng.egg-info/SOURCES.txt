@@ -39,6 +39,7 @@ wandb/internal/__init__.py
 wandb/internal/datastore.py
 wandb/internal/file_pusher.py
 wandb/internal/file_stream.py
+wandb/internal/git_repo.py
 wandb/internal/internal.py
 wandb/internal/internal_api.py
 wandb/internal/meta.py

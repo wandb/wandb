@@ -72,7 +72,7 @@ jobs:
                       pip install tox
             - run:
                   name: Run tests
-                  shell: cmd.exe
+                  shell: bash.exe
                   command: |
                       tox -v -e py37
     mac:
