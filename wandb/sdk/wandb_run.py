@@ -71,9 +71,8 @@ class RunManaged(Run):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         config[wandb_key]["cli_version"] = wandb.__version__
-        if settings.save_code and settings.code_program:
-            config[wandb_key]["code_path"] = "code/%s" % settings.code_program
-        self._config.update(config)
+        if config:
+            self._config.update(config)
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
