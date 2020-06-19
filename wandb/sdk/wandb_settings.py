@@ -120,6 +120,23 @@ def _is_kaggle():
     )
 
 
+def _get_program():
+    program = os.getenv(wandb.env.PROGRAM)
+    if program:
+        return program
+
+    try:
+        import __main__  # type: ignore
+
+        program = __main__.__file__
+        if not program:
+            program = "<python with no main file>"
+    except (ImportError, AttributeError):
+        program = None
+
+    return program
+
+
 class CantTouchThis(type):
     def __setattr__(cls, attr, value):
         raise Exception("NO!")
@@ -336,7 +353,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self.__dict__.update({k: v for k, v in d.items() if v is not None})
         self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
 
-    def _probe(self):
+    def infer_settings_from_env(self):
         d = {}
         d["jupyter"] = _get_python_type() != "python"
         d["windows"] = platform.system() == "Windows"
@@ -363,6 +380,11 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
         u["disable_code"] = os.getenv(env.DISABLE_CODE)
         self.update(u)
+
+        # If the settings say to save code, and there's not already a program file,
+        # infer it now.
+        if self.save_code and not self.code_program:
+            self.update(dict(code_program=_get_program()))
 
     def setdefaults(self, __d=None):
         __d = __d or defaults

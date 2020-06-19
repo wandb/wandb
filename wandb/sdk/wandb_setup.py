@@ -111,7 +111,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         # setup defaults
         s.setdefaults()
-        s._probe()
+        s.infer_settings_from_env()
 
         # move freeze to later
         # TODO(jhr): is this ok?

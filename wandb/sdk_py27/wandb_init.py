@@ -112,23 +112,6 @@ def win32_create_pipe():
     return read_fd, write_fd
 
 
-def _get_program():
-    program = os.getenv(wandb.env.PROGRAM)
-    if program:
-        return program
-
-    try:
-        import __main__  # type: ignore
-
-        program = __main__.__file__
-        if not program:
-            program = "<python with no main file>"
-    except (ImportError, AttributeError):
-        program = None
-
-    return program
-
-
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
@@ -216,10 +199,6 @@ class _WandbInit(object):
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
-
-        # TODO: Should this also be moved? Most likely.
-        program = _get_program()
-        settings.update(dict(code_program=program))
 
         self._log_setup(settings)
         wl._early_logger_flush(logger)
