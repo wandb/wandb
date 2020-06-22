@@ -39,7 +39,7 @@ ipython
 nbformat
 matplotlib
 plotly
-Keras
+Keras==2.3.1
 xgboost
 lightgbm
 catboost
