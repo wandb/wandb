@@ -38,30 +38,22 @@ class Meta(object):
         )
 
     def _save_code(self):
-        if "root" not in self.data or "program" not in self.data:
+        if self._settings.code_program is None:
             logger.warn("unable to save code -- program entry not found")
+            return
 
-        program = os.path.join(
-            self.data["root"],
-            os.path.relpath(os.getcwd(), start=self.data["root"]),
-            self.data["program"],
+        root = self._git.root or os.getcwd()
+        program_relative = self._settings.code_program
+        util.mkdir_exists_ok(
+            os.path.join(
+                self._settings.files_dir, "code", os.path.dirname(program_relative)
+            )
         )
-        if os.path.exists(program):
-            relative_path = os.path.relpath(program, start=self.data["root"])
-            # Ignore paths outside of out_dir when using custom dir
-            if "../" in relative_path:
-                relative_path = os.path.basename(relative_path)
-            util.mkdir_exists_ok(
-                os.path.join(
-                    self._settings.files_dir, "code", os.path.dirname(relative_path)
-                )
-            )
-            saved_program = os.path.join(
-                self._settings.files_dir, "code", relative_path
-            )
-            if not os.path.exists(saved_program):
-                copyfile(program, saved_program)
-                self.data["codePath"] = relative_path
+        program_absolute = os.path.join(root, program_relative)
+        saved_program = os.path.join(self._settings.files_dir, "code", program_relative)
+
+        if not os.path.exists(saved_program):
+            copyfile(program_absolute, saved_program)
 
     def _setup_sys(self):
         self.data["os"] = platform.platform(aliased=True)
@@ -80,13 +72,14 @@ class Meta(object):
                 "commit": self._git.last_commit,
             }
             self.data["email"] = self._git.email
-            self.data["root"] = self._git.root or self.data["root"]
+            self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
 
     def probe(self):
         self._setup_sys()
         if not self._settings.disable_code:
             if self._settings.code_program is not None:
-                self.data["program"] = self._settings["code_program"]
+                self.data["codePath"] = self._settings.code_program
+                self.data["program"] = os.path.basename(self._settings.code_program)
             self._setup_git()
         if self._settings.save_code:
             self._save_code()
