@@ -1947,31 +1947,6 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {}>".format(self.name)
 
 
-class ArtifactSentinelFile(object):
-    FILE_NAME = '.wandb-artifact'
-
-    def __init__(self, artifact_dir):
-        self._file_path = os.path.join(artifact_dir, self.FILE_NAME)
-
-    def exists(self):
-        return os.path.exists(self._file_path)
-
-    def read(self):
-        with open(self._file_path) as f:
-            dot_contents = f.read()
-        lines = dot_contents.split('\n')
-        artifact_name = lines[0]
-        final = len(lines) > 1 and lines[1] == 'final'
-        return artifact_name, final
-    
-    def write_download_started(self, artifact_name):
-        with open(self._file_path, 'w') as f:
-            f.write('%s\n' % artifact_name)
-
-    def write_download_complete(self, artifact_name):
-        with open(self._file_path, 'w') as f:
-            f.write('%s\n%s\n' % (artifact_name, 'final'))
-
 
 class Artifact(object):
 
@@ -2075,26 +2050,9 @@ class Artifact(object):
     def download(self, root='./artifacts'):
         """Download the artifact to <root>/<self.name>/
 
-        Returns the path to the downloaded contents. Results are read-only. It's not safe
-        to write into the returned directory.
+        Returns the path to the downloaded contents.
         """
         dirpath = os.path.join(root, self.name)
-        sentinel_file = ArtifactSentinelFile(dirpath)
-        if sentinel_file.exists():
-            artifact_name, final = sentinel_file.read()
-            if self.name != artifact_name:
-                raise ValueError('Cannot download artifact %s to directory containing %s' % (
-                        self.name, artifact_name))
-            if final:
-                # We've already successfully put the artifact in this location
-                return dirpath
-            # Otherwise, we didn't finish writing the artifact previously, allow the download.
-        elif os.path.isdir(dirpath):
-            raise ValueError('Cannot download artifact %s. Directory %s already exists but doesn\'t contain .wandb-artifact' % (
-                self.name, dirpath))
-        else:
-            util.mkdir_exists_ok(dirpath)
-            sentinel_file.write_download_started(self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2118,15 +2076,16 @@ class Artifact(object):
             # copy file into target dir
             cache_path = os.path.join(self.cache_dir, name)
             target_path = os.path.join(dirpath, name)
-            util.mkdir_exists_ok(os.path.dirname(target_path))
-            shutil.copy(cache_path, target_path)
+            need_copy = (not os.path.isfile(target_path)
+                or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+            if need_copy:
+                util.mkdir_exists_ok(os.path.dirname(target_path))
+                shutil.copy2(cache_path, target_path)
         pool.map(download_file, manifest.entries)
         pool.close()
         pool.join()
 
         self._is_downloaded = True
-
-        sentinel_file.write_download_complete(self.name)
 
         if log:
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
