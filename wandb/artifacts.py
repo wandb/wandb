@@ -263,25 +263,6 @@ class ArtifactManifest(object):
     def digest(self):
         raise NotImplementedError()
 
-    def load_path(self, path, local=False, expand_dirs=False):
-        if path in self.entries:
-            return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
-
-        # the path could be a directory, so load all matching prefixes
-        paths = []
-        for (name, entry) in self.entries.items():
-            if name.startswith(path):
-                paths.append(self.storage_policy.load_path(self.artifact, entry, local=local))
-
-        if len(paths) > 0 and local:
-            return os.path.join(self.artifact.cache_dir, path)
-        if len(paths) > 0 and not local:
-            if expand_dirs:
-                return paths
-            raise ValueError('Cannot fetch remote path of directory "%s". '
-                             'Set expand_dirs=True get remote paths for directories.' % path)
-        raise ValueError('Failed to find "%s" in artifact manifest' % path)
-
     def add_entry(self, entry):
         if entry.path in self.entries:
             raise ValueError('Cannot add the same path twice: %s' % entry.path)
@@ -397,11 +378,17 @@ class StoragePolicy(object):
     def config(self):
         pass
 
-    def load_path(self, artifact, manifest_entry, local=False):
-        pass
+    def load_file(self, artifact, name, manifest_entry):
+        raise NotImplementedError
+
+    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+        raise NotImplementedError
 
     def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
-        pass
+        raise NotImplementedError
+
+    def load_reference(self, artifact, name, manifest_entry, local=False):
+        raise NotImplementedError
 
 
 class WandbStoragePolicy(StoragePolicy):
@@ -464,9 +451,6 @@ class WandbStoragePolicy(StoragePolicy):
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
-
-    def load_path(self, artifact, manifest_entry, local=False):
-        return self._handler.load_path(artifact, manifest_entry, local=local)
 
     def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
         return self._handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
