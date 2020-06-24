@@ -1213,7 +1213,7 @@ class ImageMask(Media):
 
         PILImage = util.get_module(
             "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
-        image = PILImage.fromarray(val["mask_data"], mode="L")
+        image = PILImage.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
         image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
@@ -1239,6 +1239,8 @@ class ImageMask(Media):
         return "mask"
 
     def validate(self, mask):
+        np = util.get_module("numpy", required="Semantic Segmentation mask support requires numpy")
+
         # 2D Make this work with all tensor(like) types
         if not "mask_data" in mask:
             raise TypeError("Missing key \"mask_data\": A mask requires mask data(A 2D array representing the predctions)")
@@ -1247,8 +1249,7 @@ class ImageMask(Media):
             shape = mask["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
-            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and \
-                    mask["mask_data"].dtype('int8').kind == "i":
+            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and issubclass(mask.dtype.type, np.integer):
                 raise TypeError("Mask data must be integers between 0 and 255")
 
         # Optional argument

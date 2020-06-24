@@ -7,21 +7,23 @@ import numpy as np
 
 wandb.init(project="test-image-masks")
 
-image = np.random.randint(255, size=(400, 400, 3))
+
+n = 40
+m = 40
+
+image = np.random.randint(255, size=(n, m, 3))
 mask_list = []
-n = 400
-m = 400
 for i in range(n):
     inner_list = []
     for j in range(m):
         v = 0
-        if i < 200:
+        if i < (n/2):
             v = 1
-        if i > 200:
+        if i > (n/2):
             v = 2
-        if j < 200:
+        if j < (m/2):
             v = v + 3
-        if j > 200:
+        if j > (m/2):
             v = v + 6
         inner_list.append(v)
     mask_list.append(inner_list)
