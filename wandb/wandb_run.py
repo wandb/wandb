@@ -432,7 +432,6 @@ class Run(object):
             if isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
-                artifact.finalize()
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
@@ -444,6 +443,7 @@ class Run(object):
                         'aliases': aliases
                     }
                 })
+                return artifact
             elif isinstance(artifact, ApiArtifact):
                 self.api.use_artifact(artifact.id)
                 return artifact
@@ -474,6 +474,7 @@ class Run(object):
                 'aliases': aliases,
             }
         })
+        return artifact
 
     def set_environment(self, environment=None):
         """Set environment variables needed to reconstruct this object inside

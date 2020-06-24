@@ -169,6 +169,22 @@ class Api(object):
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(9)
+    VIEWER_QUERY = gql('''
+    query Viewer{
+        viewer {
+            id
+            flags
+            entity
+            teams {
+                edges {
+                    node {
+                        name
+                    }
+                }
+            }
+        }
+    }
+    ''')
 
     def __init__(self, overrides={}):
         self.settings = InternalApi().settings()
@@ -182,6 +198,7 @@ class Api(object):
         self._runs = {}
         self._sweeps = {}
         self._reports = {}
+        self._default_entity = None
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={'User-Agent': self.user_agent, 'Use-Admin-Privileges': "true"},
@@ -217,6 +234,13 @@ class Api(object):
             key = os.environ["WANDB_API_KEY"]
         return key
 
+    @property
+    def default_entity(self):
+        if self._default_entity is None:
+            res = self._client.execute(self.VIEWER_QUERY)
+            self._default_entity = (res.get('viewer') or {}).get('entity')
+        return self._default_entity
+
     def flush(self):
         """
         The api object keeps a local cache of runs, so if the state of the run may
@@ -233,7 +257,7 @@ class Api(object):
         entity is optional and will fall back to the current logged in user
         """
         parts = path.split("/")
-        entity = self.settings['entity']
+        entity = self.settings['entity'] or self.default_entity
         project = self.settings['project']
         if len(parts) == 1:
             project = parts[1]
@@ -253,7 +277,7 @@ class Api(object):
         entity is optional and will fall back to the current logged in user.
         """
         project = self.settings['project']
-        entity = self.settings['entity']
+        entity = self.settings['entity'] or self.default_entity
         parts = path.replace("/runs/", "/").strip("/ ").split("/")
         if ":" in parts[-1]:
             run = parts[-1].split(":")[-1]
@@ -273,7 +297,7 @@ class Api(object):
     def _parse_artifact_path(self, path):
         """Returns project, entity and artifact name for project specified by path"""
         project = self.settings['project']
-        entity = self.settings['entity']
+        entity = self.settings['entity'] or self.default_entity
         if path is None:
             return entity, project
         parts = path.split('/')
@@ -288,7 +312,7 @@ class Api(object):
     def _parse_project_path(self, path):
         """Returns project and entity for project specified by path"""
         project = self.settings['project']
-        entity = self.settings['entity']
+        entity = self.settings['entity'] or self.default_entity
         if path is None:
             return entity, project
         parts = path.split('/', 1)
@@ -309,7 +333,7 @@ class Api(object):
 
         """
         if entity is None:
-            entity = self.settings['entity']
+            entity = self.settings['entity'] or self.default_entity
             if entity is None:
                 raise ValueError('entity must be passed as a parameter, or set in settings')
         if entity not in self._projects:
@@ -332,7 +356,7 @@ class Api(object):
         """
         entity, project, run = self._parse_path(path)
         if entity is None:
-            entity = self.settings['entity']
+            entity = self.settings['entity'] or self.default_entity
             if entity is None:
                 raise ValueError('entity must be passed as a parameter, or set in settings')
         if name:
@@ -361,19 +385,19 @@ class Api(object):
 
             Find runs in my_project sorted by ascending loss
             ```
-            api.runs(path="my_entity/my_project", {"order": "+summary.loss"})
+            api.runs(path="my_entity/my_project", {"order": "+summary_metrics.loss"})
             ```
 
 
         Args:
             path (str): path to project, should be in the form: "entity/project"
             filters (dict): queries for specific runs using the MongoDB query language.
-                You can filter by run properties such as config.key, summary.key, state, entity, createdAt, etc.
+                You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
                 For example: {"config.experiment_name": "foo"} would find runs with a config entry
                     of experiment name set to "foo"
                 You can compose operations to make more complicated queries,
                     see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
-            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary.*`.
+            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
@@ -898,6 +922,9 @@ class Run(Attrs):
                          description=self.description, notes=self.notes, display_name=self.display_name, config=self.json_config)
         self.summary.update()
 
+    def save(self):
+        self.update()
+
     @property
     def json_config(self):
         config = {}
@@ -1325,7 +1352,7 @@ class File(object):
         seconds=10),
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException))
-    def download(self, replace=False, root="."):
+    def download(self, root=".", replace=False):
         """Downloads a file previously saved by a run from the wandb server.
 
         Args:
@@ -1989,6 +2016,11 @@ class Artifact(object):
     def description(self):
         return self._attrs["description"]
 
+    @description.setter
+    def description(self, desc):
+        self._attrs["description"] = desc
+        return desc
+
     @property
     def type(self):
         return self.artifact_type_name
@@ -1997,6 +2029,11 @@ class Artifact(object):
     def name(self):
         """The name by which the artifact was fetched."""
         return self.artifact_name
+
+    @name.setter
+    def name(self, name):
+        self.artifact_name = name
+        return name
 
     @property
     def cache_dir(self):
@@ -2067,6 +2104,24 @@ class Artifact(object):
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
+    @normalize_exceptions
+    def save(self):
+        """
+        Persists artifact changes to the wandb backend.
+        """
+        mutation = gql('''
+        mutation updateArtifact($id: String!, $description: String, $metadata: JSONString, $aliases: [ArtifactAliasInput!], $labels: JSONString) {
+            updateArtifact(input: {id: $id, description: $description, metadata: $metadata, aliaases: $aliases, labels: $labels}) {
+                artifact {
+                    id
+                }
+            }
+        }
+        ''')
+        res = self._exec(mutation, id=self.id, description=self.description, metadata=self.metadata,
+            config=self.json_config) # TODO: add aliases
+        return True
+
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
         manifest = self._load_manifest()
@@ -2116,11 +2171,11 @@ class Artifact(object):
                 or response['project'].get('artifactType') is None \
                 or response['project']['artifactType'].get('artifact') is None:
             # we check for this after doing the call, since the backend supports raw digest lookups
-            # which don't include ":"
-            if ':' not in self.artifact_name:
+            # which don't include ":" and are 32 characters long
+            if ':' not in self.artifact_name and len(self.artifact_name) != 32:
                 raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
-            raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
-                self.entity, self.project, self.artifact_name))
+            raise ValueError('Project %s/%s does not contain artifact: "%s" of type "%s"' % (
+                self.entity, self.project, self.artifact_name, self.artifact_type_name))
         self._attrs = response['project']['artifactType']['artifact']
         return self._attrs
 

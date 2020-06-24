@@ -46,7 +46,9 @@ import socket
 from .core import termlog
 
 import wandb
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, PublicApi
+from wandb import artifacts
+from wandb.file_pusher import FilePusher
 from wandb.wandb_config import Config
 from wandb.settings import Settings
 from wandb import wandb_agent
@@ -205,7 +207,7 @@ def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
 
 
 api = InternalApi()
-
+public_api = PublicApi()
 
 # Some commands take project/entity etc. as arguments. We provide default
 # values for those arguments from the current project configuration, as
@@ -445,6 +447,90 @@ def sync(ctx, path, id, project, entity, ignore):
         wandb_run.Run.from_directory(
             path, run_id=id, project=project, entity=entity, ignore_globs=globs)
 
+@cli.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@click.argument("path")
+@click.option("--name", "-n", help="The name of the artifact to push: project/artifact_name")
+@click.option("--description", "-d", help="A description of this artifact")
+@click.option("--type", "-t", default="dataset", help="The type of the artifact")
+@click.option("--alias", "-a", default=["latest"], multiple=True, help="An alias to apply to this artifact")
+@display_error
+def upload(path, name, description, type, alias):
+    if name is None:
+        name = os.path.basename(path)
+    entity, project, artifact_name = public_api._parse_artifact_path(name)
+    if project is None:
+        project = click.prompt("Enter the name of the project you want to use")
+    # TODO: settings nightmare...
+    api.set_setting("entity", entity)
+    api.set_setting("project", project)
+    artifact = wandb.Artifact(name=artifact_name, type=type, description=description)
+    artifact_path = "{entity}/{project}/{name}:{alias}".format(entity=entity,
+        project=project, name=artifact_name, alias=alias[0])
+    if os.path.isdir(path):
+        wandb.termlog("Uploading directory {path} to: \"{artifact_path}\" ({type})".format(
+            path=path, type=type, artifact_path=artifact_path))
+        artifact.add_dir(path)
+    elif os.path.isfile(path):
+        wandb.termlog("Uploading file {path} to: \"{artifact_path}\" ({type})".format(
+            path=path, type=type, artifact_path=artifact_path))
+        artifact.add_file(path)
+    else:
+        raise ClickException("Path argument must be a file or directory")
+    existing = None
+    try:
+        existing = public_api.artifact("{entity}/{project}/{digest}".format(
+            entity=entity, project=project, digest=artifact.digest
+        ), type=type)
+        # TODO: update the artifact to belong in this collection
+        wandb.termlog("Artifact already exists, use this artifact by adding:\n", prefix=False)
+    except wandb.apis.CommError:
+        pass
+    if existing is None:
+        run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="wandb_push")
+        run.use_artifact(artifact, aliases=alias)
+        wandb.termlog("Artifact uploaded, use this artifact by adding:\n", prefix=False)
+    # TODO: artifact creation happens in async, we sleep for now :(
+    time.sleep(1)
+
+    existing = public_api.artifact("{entity}/{project}/{digest}".format(
+        entity=entity, project=project, digest=artifact.digest
+    ), type=type)
+    # TODO: get the version from the aliases
+    artifact_path = artifact_path.split(":")[0] + ":" + existing.digest
+
+    wandb.termlog("    artifact = run.use_artifact(\"{path}\", type=\"{type}\")\n".format(
+        path=artifact_path,
+        type=type
+    ), prefix=False)
+
+
+@cli.command(context_settings=CONTEXT, help="Download an artifact from wandb")
+@click.argument("path")
+@click.option("--dir", help="The directory you want to download the artifact to")
+@click.option("--type", default="dataset", help="The type of artifact you are downloading")
+@display_error
+def download(path, dir, type):
+    entity, project, artifact_name = public_api._parse_artifact_path(path)
+    if project is None:
+        project = click.prompt("Enter the name of the project you want to use")
+
+    try:
+        artifact_parts = artifact_name.split(":")
+        if len(artifact_parts) > 1:
+            version = artifact_parts[1]
+            artifact_name = artifact_parts[0]
+        else:
+            version = "latest"
+        full_path = "{entity}/{project}/{artifact}:{version}".format(
+            entity=entity, project=project,
+            artifact=artifact_name, version=version)
+        wandb.termlog("Downloading {type} artifact {full_path}".format(
+            type=type, full_path=full_path))
+        artifact = public_api.artifact(full_path, type=type)
+        path = artifact.download()
+        wandb.termlog("Artifact downloaded to %s" % path)
+    except ValueError:
+        raise ClickException("Unable to download artifact")
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN_ID)
@@ -453,7 +539,6 @@ def sync(ctx, path, id, project, entity, ignore):
 @display_error
 def pull(run, project, entity):
     project, run = api.parse_slug(run, project=project)
-
     urls = api.download_urls(project, run=run, entity=entity)
     if len(urls) == 0:
         raise ClickException("Run has no files")

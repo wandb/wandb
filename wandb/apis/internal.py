@@ -1103,6 +1103,10 @@ class Api(object):
                     id
                     digest
                     state
+                    aliases {
+                        alias
+                        artifactCollectionName
+                    }
                 }
             }
         }
@@ -1126,6 +1130,11 @@ class Api(object):
             'metadata': json.dumps(util.make_safe_for_json(metadata)) if metadata is not None else None,
         })
         av = response['createArtifact']['artifact']
+        # Add version to the response, we should expose this in the graph
+        for alias in av["aliases"]:
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
+                av["version"] = alias["alias"]
+
         return av
 
     def commit_artifact(self, artifact_id):

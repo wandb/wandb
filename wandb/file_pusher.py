@@ -78,7 +78,7 @@ class FilePusher(object):
         self._temp_file_refs = []
 
 
-    def print_status(self):
+    def print_status(self, prefix=True):
         step = 0
         spinner_states = ['-', '\\', '|', '/']
         stop = False
@@ -92,16 +92,16 @@ class FilePusher(object):
                 summary['deduped_bytes'] / 1048576.0)
             line = spinner_states[step % 4] + line
             step += 1
-            wandb.termlog(line, newline=False)
+            wandb.termlog(line, newline=False, prefix=prefix)
             if stop:
                 break
             time.sleep(0.25)
-        dedupe_fraction = summary['deduped_bytes'] / float(summary['total_bytes'])
+        dedupe_fraction = summary['deduped_bytes'] / float(summary['total_bytes']) if summary['total_bytes'] > 0  else 0
         if dedupe_fraction > 0.01:
             wandb.termlog('✨ W&B sync reduced upload amount by %.1f%%             ' %
-                          (dedupe_fraction * 100))
+                          (dedupe_fraction * 100), prefix=prefix)
         # clear progress line.
-        wandb.termlog(' ' * 79)
+        wandb.termlog(' ' * 79, prefix=prefix)
 
     def file_counts_by_category(self):
         return self._stats.file_counts_by_category()
