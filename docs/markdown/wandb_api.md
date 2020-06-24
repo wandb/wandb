@@ -480,7 +480,7 @@ Artifact(self, client, entity, project, artifact_type, name, attrs=None)
 Stable name you can use to fetch this artifact.
 
 ### Artifact.download
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2050)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2046)
 ```python
 Artifact.download(self, root='./artifacts')
 ```
