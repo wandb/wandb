@@ -223,7 +223,7 @@ Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1261)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1262)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -236,7 +236,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1302)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1303)
 ```python
 Graph(self, format='keras')
 ```
@@ -262,7 +262,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1458)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1459)
 ```python
 Node(self,
      id=None,
@@ -280,7 +280,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1624)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1625)
 ```python
 Edge(self, from_node, to_node)
 ```
