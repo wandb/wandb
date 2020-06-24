@@ -2007,10 +2007,6 @@ class Artifact(object):
                 return '%s:%s' % (artifact_collection_name, alias["alias"])
         raise ValueError('Unexpected API result.')
 
-    @property
-    def cache_dir(self):
-        return self._cache.get_artifact_dir(self.type, self.digest)
-
     def new_file(self, name):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
@@ -2035,14 +2031,14 @@ class Artifact(object):
             @staticmethod
             def download():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
+                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=True)
 
-                return storage_policy.load_file(self, name, manifest.entries[name])
+                return storage_policy.load_file(self._cache, name, manifest.entries[name])
 
             @staticmethod
             def ref():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
+                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=False)
                 raise ValueError('Only reference entries support ref().')
 
         return ArtifactEntry()
@@ -2072,9 +2068,8 @@ class Artifact(object):
         pool = multiprocessing.dummy.Pool(32)
         def download_file(name):
             # download file into cache
-            self.get_path(name).download()
+            cache_path = self.get_path(name).download()
             # copy file into target dir
-            cache_path = os.path.join(self.cache_dir, name)
             target_path = os.path.join(dirpath, name)
             need_copy = (not os.path.isfile(target_path)
                 or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
