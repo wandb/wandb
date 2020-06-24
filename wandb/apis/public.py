@@ -1947,6 +1947,34 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {}>".format(self.name)
 
 
+class ArtifactSentinelFile(object):
+    FILE_NAME = '.wandb-artifact'
+
+    def __init__(self, artifact_dir):
+        self._file_path = os.path.join(artifact_dir, self.FILE_NAME)
+
+    def exists(self):
+        return os.path.exists(self._file_path)
+
+    def read(self):
+        with open(self._file_path) as f:
+            dot_contents = f.read()
+        lines = dot_contents.split('\n')
+        artifact_name = lines[0]
+        final = len(lines) > 1 and lines[1] == 'final'
+        return artifact_name, final
+    
+    def write_download_started(self, artifact_name):
+        dirpath = os.path.dirname(self._file_path)
+        util.mkdir_exists_ok(dirpath)
+        with open(self._file_path, 'w') as f:
+            f.write('%s\n' % artifact_name)
+
+    def write_download_complete(self, artifact_name):
+        with open(self._file_path, 'w') as f:
+            f.write('%s\n%s\n' % (artifact_name, 'final'))
+
+
 class Artifact(object):
 
     def __init__(self, client, entity, project, artifact_type, name, attrs=None):
@@ -1995,8 +2023,16 @@ class Artifact(object):
 
     @property
     def name(self):
-        """The name by which the artifact was fetched."""
-        return self.artifact_name
+        """Stable name you can use to fetch this artifact."""
+        # TODO: All this logic should move to the backend.
+        if ":" not in self.artifact_name:
+            # this is a digest lookup
+            return self.artifact_name
+        artifact_collection_name = self.artifact_name.split(':')[0]
+        for alias in self._attrs["aliases"]:
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
+                return '%s:%s' % (artifact_collection_name, alias["alias"])
+        raise ValueError('Unexpected API result.')
 
     @property
     def cache_dir(self):
@@ -2038,8 +2074,28 @@ class Artifact(object):
 
         return ArtifactEntry()
 
-    def download(self):
-        dirpath = self.cache_dir
+    def download(self, root='./artifacts'):
+        """Download the artifact to <root>/<self.name>/
+
+        Returns the path to the downloaded contents. Results are read-only. It's not safe
+        to write into the returned directory.
+        """
+        dirpath = os.path.join(root, self.name)
+        sentinel_file = ArtifactSentinelFile(dirpath)
+        if sentinel_file.exists():
+            artifact_name, final = sentinel_file.read()
+            if self.name != artifact_name:
+                raise ValueError('Cannot download artifact %s to directory containing %s' % (
+                        self.name, artifact_name))
+            if final:
+                # We've already successfully put the artifact in this location
+                return dirpath
+            # Otherwise, we didn't finish writing the artifact previously, allow the download.
+        elif os.path.isdir(dirpath):
+            raise ValueError('Cannot download artifact %s. Directory %s already exists but doesn\'t contain .wandb-artifact' % (
+                self.name, dirpath))
+        else:
+            sentinel_file.write_download_started(self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2055,13 +2111,23 @@ class Artifact(object):
         # Force all the files to download into the same directory.
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
+        import shutil
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(lambda name: self.get_path(name).download(), manifest.entries)
+        def download_file(name):
+            # download file into cache
+            self.get_path(name).download()
+            # copy file into target dir
+            cache_path = os.path.join(self.cache_dir, name)
+            target_path = os.path.join(dirpath, name)
+            util.mkdir_exists_ok(os.path.dirname(target_path))
+            shutil.copy(cache_path, target_path)
+        pool.map(download_file, manifest.entries)
         pool.close()
         pool.join()
 
-        # TODO: make sure we clear any extra files
         self._is_downloaded = True
+
+        sentinel_file.write_download_complete(self.name)
 
         if log:
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
@@ -2099,6 +2165,10 @@ class Artifact(object):
                                 id
                                 url
                             }
+                        }
+                        aliases {
+                            artifactCollectionName
+                            alias
                         }
                     }
                 }
