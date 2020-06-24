@@ -469,27 +469,8 @@ ArtifactType.artifact_collections(self, per_page=50)
 ```
 Artifact collections
 
-## ArtifactSentinelFile
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1950)
-```python
-ArtifactSentinelFile(self, artifact_dir)
-```
-
-
-### ArtifactSentinelFile.FILE_NAME
-str(object='') -> str
-str(bytes_or_buffer[, encoding[, errors]]) -> str
-
-Create a new string object from the given object. If encoding or
-errors is specified, then the object must expose a data buffer
-that will be decoded using the given encoding and error handler.
-Otherwise, returns the result of object.__str__() (if defined)
-or repr(object).
-encoding defaults to sys.getdefaultencoding().
-errors defaults to 'strict'.
-
 ## Artifact
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1976)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1951)
 ```python
 Artifact(self, client, entity, project, artifact_type, name, attrs=None)
 ```
@@ -499,11 +480,11 @@ Artifact(self, client, entity, project, artifact_type, name, attrs=None)
 Stable name you can use to fetch this artifact.
 
 ### Artifact.download
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2075)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2050)
 ```python
 Artifact.download(self, root='./artifacts')
 ```
 Download the artifact to <root>/<self.name>/
 
-Returns the path to the downloaded contents. Results are read-only. It's not safe to write into the returned directory.
+Returns the path to the downloaded contents.
 
