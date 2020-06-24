@@ -408,6 +408,8 @@ class WandbStoragePolicy(StoragePolicy):
             file_handler,
         ], default_handler=TrackingHandler())
 
+        self._cache = artifacts_cache.get_artifacts_cache()
+
         # I believe this makes the first sleep 1s, and then doubles it up to
         # total times, which makes for ~18 hours.
         retry_strategy = requests.packages.urllib3.util.retry.Retry(
@@ -455,6 +457,11 @@ class WandbStoragePolicy(StoragePolicy):
         return '{}/artifacts/{}/{}'.format(api.settings("base_url"), entity_name, md5_hex)
 
     def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+        # write-through cache
+        cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
+        if not hit:
+            shutil.copyfile(entry.local_path, cache_path)
+
         resp = preparer.prepare(lambda: {
             "artifactID": artifact_id,
             "name": entry.path,
