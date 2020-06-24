@@ -1965,8 +1965,6 @@ class ArtifactSentinelFile(object):
         return artifact_name, final
     
     def write_download_started(self, artifact_name):
-        dirpath = os.path.dirname(self._file_path)
-        util.mkdir_exists_ok(dirpath)
         with open(self._file_path, 'w') as f:
             f.write('%s\n' % artifact_name)
 
@@ -2095,6 +2093,7 @@ class Artifact(object):
             raise ValueError('Cannot download artifact %s. Directory %s already exists but doesn\'t contain .wandb-artifact' % (
                 self.name, dirpath))
         else:
+            util.mkdir_exists_ok(dirpath)
             sentinel_file.write_download_started(self.name)
 
         manifest = self._load_manifest()
