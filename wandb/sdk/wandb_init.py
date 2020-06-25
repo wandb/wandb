@@ -21,6 +21,7 @@ from wandb.errors import Error
 from wandb.lib import filesystem, redirect, reporting
 from wandb.lib.globals import set_global
 from wandb.old import io_wrap
+from wandb.util import sentry_exc
 
 from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
@@ -532,7 +533,9 @@ def init(
         wi.setup(kwargs)
         try:
             run = wi.init()
-        except (KeyboardInterrupt, Exception):
+        except (KeyboardInterrupt, Exception) as e:
+            if not isinstance(e, KeyboardInterrupt):
+                sentry_exc(e)
             getcaller()
             assert logger
             logger.exception("we got issues")
@@ -549,6 +552,9 @@ def init(
     except Exception as e:
         assert logger
         logger.error("error", exc_info=e)
+        # Need to build delay into this sentry capture because our exit hooks
+        # mess with sentry's ability to send out errors before the program ends.
+        sentry_exc(e, delay=True)
         raise_from(Exception("problem"), e)
 
     return run

@@ -16,6 +16,7 @@ import shutil
 import click
 import wandb
 from wandb.data_types import _datatypes_set_callback
+from wandb.util import sentry_set_scope
 from wandb.viz import Visualize
 
 from . import wandb_config
@@ -63,6 +64,10 @@ class RunManaged(Run):
 
         # Pull info from settings
         self._init_from_settings(settings)
+
+        # Initial scope setup for sentry. This might get changed when the
+        # actual run comes back.
+        sentry_set_scope("user", self._entity, self._project)
 
         # Returned from backend send_run_sync, set from wandb_init?
         self._run_obj = None
@@ -205,6 +210,8 @@ class RunManaged(Run):
 
     def _set_run_obj(self, run_obj):
         self._run_obj = run_obj
+        # TODO: It feels weird to call this twice..
+        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
 
     def log(self, data, step=None, commit=True):
         if commit:

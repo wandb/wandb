@@ -36,6 +36,7 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
+from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
@@ -60,7 +61,7 @@ else:
     SENTRY_ENV = 'production'
 
 if error_reporting_enabled():
-    sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+    sentry_sdk.init(dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
                     release=wandb.__version__,
                     default_integrations=False,
                     environment=SENTRY_ENV)
@@ -71,12 +72,14 @@ def sentry_message(message):
         capture_message(message)
 
 
-def sentry_exc(exc):
+def sentry_exc(exc, delay=False):
     if error_reporting_enabled():
         if isinstance(exc, six.string_types):
             capture_exception(Exception(exc))
         else:
             capture_exception(exc)
+        if delay:
+            time.sleep(2)
 
 
 def sentry_reraise(exc):
@@ -90,6 +93,15 @@ def sentry_reraise(exc):
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
     six.reraise(type(exc), exc, sys.exc_info()[2])
+
+
+def sentry_set_scope(process_context, entity, project, url=None):
+    with configure_scope() as scope:
+        scope.set_tag("process_context", process_context)
+        scope.set_tag("entity", entity)
+        scope.set_tag("project", project)
+        if url is not None:
+            scope.set_tag("url", url)
 
 
 def vendor_import(name):

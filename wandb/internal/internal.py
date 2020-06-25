@@ -20,6 +20,7 @@ import wandb
 from wandb.interface import constants
 from wandb.internal import datastore
 from wandb.internal import sender
+from wandb.util import sentry_exc
 
 # from wandb.stuff import io_wrap
 
@@ -65,7 +66,8 @@ def wandb_stream_read(fd):
     while True:
         try:
             data = os.read(fd, 200)
-        except OSError:
+        except OSError as e:
+            sentry_exc(e)
             # print("problem", e, file=sys.stderr)
             return
         if len(data) == 0:
