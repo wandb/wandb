@@ -27,7 +27,7 @@ class WandbInternalClient(object):
         self._stub = None
 
     def connect(self):
-        channel = grpc.insecure_channel('localhost:50051')
+        channel = grpc.insecure_channel("localhost:50051")
         stub = wandb_server_pb2_grpc.InternalServiceStub(channel)
         self._channel = channel
         self._stub = stub
@@ -71,6 +71,6 @@ def main():
     wic.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig()
     main()

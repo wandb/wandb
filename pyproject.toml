@@ -13,4 +13,5 @@ include = '''
 | wandb/interface/
 | wandb/internal/
 | wandb/util/
+| wandb/server/
 '''

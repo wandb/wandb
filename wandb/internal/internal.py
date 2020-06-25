@@ -229,16 +229,20 @@ def wandb_internal(
         setup_logging(settings.log_internal, log_level)
 
     pid = os.getpid()
-    system_stats = stats.SystemStats(
-        pid=pid, process_q=process_queue, notify_q=notify_queue
-    )
-    system_stats.start()
 
-    run_meta = meta.Meta(
-        settings=settings, process_q=process_queue, notify_q=notify_queue,
-    )
-    run_meta.probe()
-    run_meta.write()
+    system_stats = None
+    if not settings._disable_stats:
+        system_stats = stats.SystemStats(
+            pid=pid, process_q=process_queue, notify_q=notify_queue
+        )
+        system_stats.start()
+
+    if not settings._disable_meta:
+        run_meta = meta.Meta(
+            settings=settings, process_q=process_queue, notify_q=notify_queue,
+        )
+        run_meta.probe()
+        run_meta.write()
 
     current_version = wandb.__version__
     update.check_available(current_version)
@@ -346,7 +350,8 @@ def wandb_internal(
         if done:
             break
 
-    system_stats.shutdown()
+    if system_stats:
+        system_stats.shutdown()
 
     read_thread.join()
     send_thread.join()

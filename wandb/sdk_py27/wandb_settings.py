@@ -255,6 +255,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _early_logger=None,
         _internal_queue_timeout=2,
         _internal_check_process=8,
+        _disable_meta=None,
+        _disable_stats=None,
     ):
         kwargs = locals()
         object.__setattr__(self, "_masked_keys", set(["self", "_frozen"]))
