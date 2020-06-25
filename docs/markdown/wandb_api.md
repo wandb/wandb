@@ -470,11 +470,21 @@ ArtifactType.artifact_collections(self, per_page=50)
 Artifact collections
 
 ## Artifact
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1950)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1951)
 ```python
 Artifact(self, client, entity, project, artifact_type, name, attrs=None)
 ```
 
 
 ### Artifact.name
-The name by which the artifact was fetched.
+Stable name you can use to fetch this artifact.
+
+### Artifact.download
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2046)
+```python
+Artifact.download(self, root='./artifacts')
+```
+Download the artifact to <root>/<self.name>/
+
+Returns the path to the downloaded contents.
+

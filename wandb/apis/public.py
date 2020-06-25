@@ -1974,6 +1974,7 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {}>".format(self.name)
 
 
+
 class Artifact(object):
 
     def __init__(self, client, entity, project, artifact_type, name, attrs=None):
@@ -1982,7 +1983,9 @@ class Artifact(object):
         self.project = project
         self.artifact_type_name = artifact_type
         self.artifact_name = name
+        self._collection_name = None
         self._attrs = attrs
+        self._metadata = {}
         if self._attrs is None:
             self._load()
         self._cache = artifacts_cache.get_artifacts_cache()
@@ -1995,7 +1998,7 @@ class Artifact(object):
     
     @property
     def metadata(self):
-        return json.loads(self._attrs["metadata"])
+        return self._metadata
 
     # @property
     # def path(self):
@@ -2019,7 +2022,6 @@ class Artifact(object):
     @description.setter
     def description(self, desc):
         self._attrs["description"] = desc
-        return desc
 
     @property
     def type(self):
@@ -2027,17 +2029,34 @@ class Artifact(object):
 
     @property
     def name(self):
-        """The name by which the artifact was fetched."""
-        return self.artifact_name
+        """Stable name you can use to fetch this artifact."""
+        # TODO: All this logic should move to the backend.
+        if ":" not in self.artifact_name:
+            return self.digest
+
+        return "{name}:{version}".format(name=self.collection_name, version=self.version)
 
     @name.setter
     def name(self, name):
         self.artifact_name = name
-        return name
 
     @property
-    def cache_dir(self):
-        return self._cache.get_artifact_dir(self.type, self.digest)
+    def collection_name(self):
+        if ":" in self.artifact_name and self._collection_name is None:
+            self._collection_name = self.artifact_name.split(':')[0]
+        return self._collection_name
+
+    @collection_name.setter
+    def collection_name(self, name):
+        self._collection_name = name
+
+    @property
+    def version(self):
+        """The version of this artifact within a collection"""
+        for alias in self._attrs["aliases"]:
+            if alias["artifactCollectionName"] == self.collection_name and re.match(r"^v\d+$", alias["alias"]):
+                return alias["alias"]
+        return None
 
     def new_file(self, name):
         raise ValueError('Cannot add files to an artifact once it has been saved')
@@ -2063,20 +2082,24 @@ class Artifact(object):
             @staticmethod
             def download():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
+                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=True)
 
-                return storage_policy.load_file(self, name, manifest.entries[name])
+                return storage_policy.load_file(self._cache, name, manifest.entries[name])
 
             @staticmethod
             def ref():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
+                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=False)
                 raise ValueError('Only reference entries support ref().')
 
         return ArtifactEntry()
 
-    def download(self):
-        dirpath = self.cache_dir
+    def download(self, root='./artifacts'):
+        """Download the artifact to <root>/<self.name>/
+
+        Returns the path to the downloaded contents.
+        """
+        dirpath = os.path.join(root, self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2092,12 +2115,22 @@ class Artifact(object):
         # Force all the files to download into the same directory.
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
+        import shutil
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(lambda name: self.get_path(name).download(), manifest.entries)
+        def download_file(name):
+            # download file into cache
+            cache_path = self.get_path(name).download()
+            # copy file into target dir
+            target_path = os.path.join(dirpath, name)
+            need_copy = (not os.path.isfile(target_path)
+                or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+            if need_copy:
+                util.mkdir_exists_ok(os.path.dirname(target_path))
+                shutil.copy2(cache_path, target_path)
+        pool.map(download_file, manifest.entries)
         pool.close()
         pool.join()
 
-        # TODO: make sure we clear any extra files
         self._is_downloaded = True
 
         if log:
@@ -2110,17 +2143,32 @@ class Artifact(object):
         Persists artifact changes to the wandb backend.
         """
         mutation = gql('''
-        mutation updateArtifact($id: String!, $description: String, $metadata: JSONString, $aliases: [ArtifactAliasInput!], $labels: JSONString) {
-            updateArtifact(input: {id: $id, description: $description, metadata: $metadata, aliaases: $aliases, labels: $labels}) {
+        mutation updateArtifact($entity: String!, $type: String!, $project: String!, $digest: String!,
+             $description: String, $metadata: JSONString, $aliases: [ArtifactAliasInput!]) {
+            createArtifact(input: {
+                entityName: $entity, projectName: $project, digest: $digest, artifactTypeName: $type,
+                description: $description, metadata: $metadata, aliases: $aliases}) {
                 artifact {
                     id
                 }
             }
         }
         ''')
-        res = self._exec(mutation, id=self.id, description=self.description, metadata=self.metadata,
-            config=self.json_config) # TODO: add aliases
+        res = self.client.execute(mutation, variable_values={
+            "entity": self.entity,
+            "project": self.project,
+            "digest": self.digest,
+            "description": self.description,
+            "metadata": util.json_dumps_safer(self.metadata),
+            "aliases": self._aliases()
+        })
         return True
+
+    def _aliases(self):
+        if ":" in self.artifact_name:
+            collection, alias = self.artifact_name.split(":")
+            return [{"artifactCollectionName": collection, "alias": alias}]
+        return []
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -2155,6 +2203,10 @@ class Artifact(object):
                                 url
                             }
                         }
+                        aliases {
+                            artifactCollectionName
+                            alias
+                        }
                     }
                 }
             }
@@ -2177,6 +2229,7 @@ class Artifact(object):
             raise ValueError('Project %s/%s does not contain artifact: "%s" of type "%s"' % (
                 self.entity, self.project, self.artifact_name, self.artifact_type_name))
         self._attrs = response['project']['artifactType']['artifact']
+        self._metadata = json.loads(self._attrs["metadata"] or "{}")
         return self._attrs
 
     # The only file should be wandb_manifest.json

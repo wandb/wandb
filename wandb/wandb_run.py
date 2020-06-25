@@ -422,7 +422,10 @@ class Run(object):
         if isinstance(artifact, str):
             if type is None:
                 raise ValueError('type required')
-            public_api = PublicApi()
+            # Ensure we have an entity (_load_entity puts the result into api.settings())
+            # then initialize PublicApi with it.
+            self._load_entity(self.api, True)
+            public_api = PublicApi(self.api.settings())
             artifact = public_api.artifact(type=type, name=artifact)
             self.api.use_artifact(artifact.id)
             return artifact

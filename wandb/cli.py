@@ -476,27 +476,33 @@ def upload(path, name, description, type, alias):
         artifact.add_file(path)
     else:
         raise ClickException("Path argument must be a file or directory")
+
+    # If we've already uploaded this artifact, no need to create a run
     existing = None
     try:
         existing = public_api.artifact("{entity}/{project}/{digest}".format(
             entity=entity, project=project, digest=artifact.digest
         ), type=type)
-        # TODO: update the artifact to belong in this collection
-        wandb.termlog("Artifact already exists, use this artifact by adding:\n", prefix=False)
-    except wandb.apis.CommError:
+        # If this digest exists but isn't in this collection, proceed to run create
+        existing.collection_name = artifact_name
+        if existing.version is None:
+            existing = None
+        else:
+            artifact_path = artifact_path.split(":")[0] + ":" + existing.version
+            wandb.termlog("Artifact already exists, use this artifact by adding:\n", prefix=False)
+    except wandb.apis.CommError as e:
         pass
+
     if existing is None:
         run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="wandb_push")
-        run.use_artifact(artifact, aliases=alias)
-        wandb.termlog("Artifact uploaded, use this artifact by adding:\n", prefix=False)
-    # TODO: artifact creation happens in async, we sleep for now :(
-    time.sleep(1)
-
-    existing = public_api.artifact("{entity}/{project}/{digest}".format(
-        entity=entity, project=project, digest=artifact.digest
-    ), type=type)
-    # TODO: get the version from the aliases
-    artifact_path = artifact_path.split(":")[0] + ":" + existing.digest
+        # We create the artifact manually to get the current version
+        res = api.create_artifact(type, artifact_name, artifact.digest,
+            entity_name=entity, project_name=project, run_name=run.id, description=description,
+            aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias])
+        artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
+        # Re-create the artifact and actually upload any files needed
+        run.log_artifact(artifact, aliases=alias)
+        wandb.termlog("Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
 
     wandb.termlog("    artifact = run.use_artifact(\"{path}\", type=\"{type}\")\n".format(
         path=artifact_path,

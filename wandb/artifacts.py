@@ -42,11 +42,6 @@ def md5_file_hex(path):
     return md5_hash_file(path).hexdigest()
 
 
-def bytes_to_hex(bytestr):
-    # Works in python2 / python3
-    return codecs.getencoder('hex')(bytestr)[0]
-
-
 class ServerManifestV1(object):
     """This implements the same artifact digest algorithm as the server."""
 
@@ -219,20 +214,20 @@ class Artifact(object):
         self.server_manifest = ServerManifestV1(file_entries)
         self._digest = self._manifest.digest()
 
-        # If there are new files, move them into the artifact cache. We do this
-        # so that they'll definitely be available when file_pusher tries to upload
-        # them. Other files don't get written through the cache.
+        # If there are new files, move them into the artifact cache now. Our temp
+        # self._artifact_dir may not be available by the time file pusher syncs
+        # these files.
         if self._added_new:
-            final_artifact_dir = self._cache.get_artifact_dir(self.type, self._digest)
-            shutil.rmtree(final_artifact_dir)
-            os.rename(self._artifact_dir.name, final_artifact_dir)
-
             # Update the file entries for new files to point at their new location.
             def remap_entry(entry):
                 if entry.local_path is None or not entry.local_path.startswith(self._artifact_dir.name):
                     return entry
                 rel_path = os.path.relpath(entry.local_path, start=self._artifact_dir.name)
-                entry.local_path = os.path.join(final_artifact_dir, rel_path)
+                local_path = os.path.join(self._artifact_dir.name, rel_path)
+                cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
+                if not hit:
+                    shutil.copyfile(local_path, cache_path)
+                entry.local_path = cache_path
             for entry in self._manifest.entries.values():
                 remap_entry(entry)
 
@@ -352,25 +347,6 @@ class ArtifactManifest(object):
     def digest(self):
         raise NotImplementedError()
 
-    def load_path(self, path, local=False, expand_dirs=False):
-        if path in self.entries:
-            return self.storage_policy.load_path(self.artifact, self.entries[path], local=local)
-
-        # the path could be a directory, so load all matching prefixes
-        paths = []
-        for (name, entry) in self.entries.items():
-            if name.startswith(path):
-                paths.append(self.storage_policy.load_path(self.artifact, entry, local=local))
-
-        if len(paths) > 0 and local:
-            return os.path.join(self.artifact.cache_dir, path)
-        if len(paths) > 0 and not local:
-            if expand_dirs:
-                return paths
-            raise ValueError('Cannot fetch remote path of directory "%s". '
-                             'Set expand_dirs=True get remote paths for directories.' % path)
-        raise ValueError('Failed to find "%s" in artifact manifest' % path)
-
     def add_entry(self, entry):
         if entry.path in self.entries:
             raise ValueError('Cannot add the same path twice: %s' % entry.path)
@@ -486,11 +462,17 @@ class StoragePolicy(object):
     def config(self):
         pass
 
-    def load_path(self, artifact, manifest_entry, local=False):
-        pass
+    def load_file(self, artifact, name, manifest_entry):
+        raise NotImplementedError
+
+    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+        raise NotImplementedError
 
     def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
-        pass
+        raise NotImplementedError
+
+    def load_reference(self, artifact, name, manifest_entry, local=False):
+        raise NotImplementedError
 
 
 class WandbStoragePolicy(StoragePolicy):
@@ -515,6 +497,8 @@ class WandbStoragePolicy(StoragePolicy):
             file_handler,
         ], default_handler=TrackingHandler())
 
+        self._cache = artifacts_cache.get_artifacts_cache()
+
         # I believe this makes the first sleep 1s, and then doubles it up to
         # total times, which makes for ~18 hours.
         retry_strategy = requests.packages.urllib3.util.retry.Retry(
@@ -532,14 +516,11 @@ class WandbStoragePolicy(StoragePolicy):
     def config(self):
         return None
 
-    def load_file(self, artifact, name, manifest_entry):
-        path = '{}/{}'.format(artifact.cache_dir, name)
-        if os.path.isfile(path):
-            cur_md5 = md5_file_b64(path)
-            if cur_md5 == manifest_entry.digest:
-                return path
+    def load_file(self, artifact_cache, name, manifest_entry):
+        path, hit = artifact_cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return path
 
-        util.mkdir_exists_ok(os.path.dirname(path))
         response = self._session.get(
             self._file_url(
                 self._api,
@@ -554,20 +535,22 @@ class WandbStoragePolicy(StoragePolicy):
                 file.write(data)
         return path
 
-    def load_path(self, artifact, manifest_entry, local=False):
-        return self._handler.load_path(artifact, manifest_entry, local=local)
-
     def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
         return self._handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
 
-    def load_reference(self, artifact, name, manifest_entry, local=False):
-        return self._handler.load_path(artifact, manifest_entry, local)
+    def load_reference(self, artifact_cache, name, manifest_entry, local=False):
+        return self._handler.load_path(artifact_cache, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5):
         md5_hex = base64.b64decode(md5).hex()
         return '{}/artifacts/{}/{}'.format(api.settings("base_url"), entity_name, md5_hex)
 
     def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+        # write-through cache
+        cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
+        if not hit:
+            shutil.copyfile(entry.local_path, cache_path)
+
         resp = preparer.prepare(lambda: {
             "artifactID": artifact_id,
             "name": entry.path,
@@ -673,13 +656,13 @@ class MultiHandler(StorageHandler):
     def scheme(self):
         raise NotImplementedError()
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(self, artifact_cache, manifest_entry, local=False):
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
-                return self._default_handler.load_path(artifact, manifest_entry, local=local)
+                return self._default_handler.load_path(artifact_cache, manifest_entry, local=local)
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
-        return self._handlers[url.scheme].load_path(artifact, manifest_entry, local=local)
+        return self._handlers[url.scheme].load_path(artifact_cache, manifest_entry, local=local)
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         url = urlparse(path)
@@ -707,7 +690,7 @@ class TrackingHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(self, artifact_cache, manifest_entry, local=False):
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -742,18 +725,16 @@ class LocalFileHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(self, artifact_cache, manifest_entry, local=False):
         url = urlparse(manifest_entry.ref)
         local_path = '%s%s' % (url.netloc, url.path)
         if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % local_path)
 
-        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
-        if os.path.isfile(path):
-            md5 = md5_file_b64(path)
-            if md5 == manifest_entry.digest:
-                # Skip download.
-                return path
+        path, hit = artifact_cache.check_md5_obj_path(
+            manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return path
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError('Digest mismatch for path %s: expected %s but found %s' %
@@ -828,7 +809,7 @@ class S3Handler(StorageHandler):
         self._versioning_enabled = res.status == 'Enabled'
         return self._versioning_enabled
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(self, artifact_cache, manifest_entry, local=False):
         self.init_boto()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -838,8 +819,8 @@ class S3Handler(StorageHandler):
             # We don't have version information so just get the latest version
             # and fallback to listing all versions if we don't have a match.
             obj = self._s3.Object(bucket, key)
-            md5 = self._md5_from_obj(obj)
-            if md5 != manifest_entry.digest:
+            etag = self._etag_from_obj(obj)
+            if etag != manifest_entry.digest:
                 if self.versioning_enabled(bucket):
                     # Fallback to listing versions
                     obj = None
@@ -862,14 +843,10 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
+        path, hit = artifact_cache.check_etag_obj_path(manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return path
 
-        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
-        # downloading. Switching to object caching (caching files by their digest instead
-        # of file name), this would work. Or we can store a list of known etags for local
-        # files.
-
-        util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
@@ -924,16 +901,10 @@ class S3Handler(StorageHandler):
             name = os.path.join(name, os.path.basename(obj.key))
             ref = os.path.join(path, name)
         return ArtifactManifestEntry(name, ref,
-            self._md5_from_obj(obj), size=self._size_from_obj(obj), extra=self._extra_from_obj(obj))
+            self._etag_from_obj(obj), size=self._size_from_obj(obj), extra=self._extra_from_obj(obj))
 
     @staticmethod
-    def _md5_from_obj(obj):
-        # If we're lucky, the MD5 is directly in the metadata.
-        if hasattr(obj, "metadata") and 'md5' in obj.metadata:
-            return obj.metadata['md5']
-        # Unfortunately, this is not the true MD5 of the file. Without
-        # streaming the file and computing an MD5 manually, there is no
-        # way to obtain the true MD5.
+    def _etag_from_obj(obj):
         return obj.e_tag[1:-1]  # escape leading and trailing quote
 
     @staticmethod
@@ -1010,18 +981,15 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = '%s/%s' % (artifact.cache_dir, manifest_entry.path)
+        path, hit = artifact_cache.check_md5_obj_path(
+            manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return True
 
-        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
-        # downloading. Switching to object caching (caching files by their digest instead
-        # of file name), this would work. Or we can store a list of known etags for local
-        # files.
-
-        util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_to_filename(path)
         return path
 
-    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+    def store_path(self, artifact_cache, path, name=None, checksum=True, max_objects=None):
         self.init_gcs()
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
