@@ -495,3 +495,17 @@ Download the artifact to dir specified by the <root>
 
  The path to the downloaded contents.
  
+
+### Artifact.verify
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2094)
+```python
+Artifact.verify(self, root=None)
+```
+Verify an artifact by checksumming its downloaded contents.
+
+Raises a ValueError if the verification fails. Does not verify downloaded reference files.
+
+**Arguments**:
+
+- `root` _str, optional_ - directory to download artifact to. If None artifact will be downloaded to './artifacts/<self.name>/'
+ 
