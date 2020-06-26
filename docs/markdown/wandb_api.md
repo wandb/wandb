@@ -149,7 +149,7 @@ Returns a sweep by parsing path in the form entity/project/sweep_id.
 ### Api.artifact
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L436)
 ```python
-Api.artifact(self, name=None, type=None)
+Api.artifact(self, name, type=None)
 ```
 Returns a single artifact by parsing path in the form entity/project/run_id.
 
@@ -472,7 +472,7 @@ Artifact collections
 ## Artifact
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1950)
 ```python
-Artifact(self, client, entity, project, artifact_type, name, attrs=None)
+Artifact(self, client, entity, project, name, attrs=None)
 ```
 
 
