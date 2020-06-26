@@ -454,7 +454,7 @@ def sync(ctx, path, id, project, entity, ignore):
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
 @click.option("--alias", "-a", default=["latest"], multiple=True, help="An alias to apply to this artifact")
 @display_error
-def upload(path, name, description, type, alias):
+def log_artifact(path, name, description, type, alias):
     if name is None:
         name = os.path.basename(path)
     entity, project, artifact_name = public_api._parse_artifact_path(name)
@@ -477,32 +477,15 @@ def upload(path, name, description, type, alias):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    # If we've already uploaded this artifact, no need to create a run
-    existing = None
-    try:
-        existing = public_api.artifact("{entity}/{project}/{digest}".format(
-            entity=entity, project=project, digest=artifact.digest
-        ), type=type)
-        # If this digest exists but isn't in this collection, proceed to run create
-        existing.collection_name = artifact_name
-        if existing.version is None:
-            existing = None
-        else:
-            artifact_path = artifact_path.split(":")[0] + ":" + existing.version
-            wandb.termlog("Artifact already exists, use this artifact by adding:\n", prefix=False)
-    except wandb.apis.CommError as e:
-        pass
-
-    if existing is None:
-        run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="wandb_push")
-        # We create the artifact manually to get the current version
-        res = api.create_artifact(type, artifact_name, artifact.digest,
-            entity_name=entity, project_name=project, run_name=run.id, description=description,
-            aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias])
-        artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
-        # Re-create the artifact and actually upload any files needed
-        run.log_artifact(artifact, aliases=alias)
-        wandb.termlog("Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
+    run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="wandb_cli")
+    # We create the artifact manually to get the current version
+    res = api.create_artifact(type, artifact_name, artifact.digest,
+        entity_name=entity, project_name=project, run_name=run.id, description=description,
+        aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias])
+    artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
+    # Re-create the artifact and actually upload any files needed
+    run.log_artifact(artifact, aliases=alias)
+    wandb.termlog("Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
 
     wandb.termlog("    artifact = run.use_artifact(\"{path}\", type=\"{type}\")\n".format(
         path=artifact_path,
@@ -512,10 +495,10 @@ def upload(path, name, description, type, alias):
 
 @cli.command(context_settings=CONTEXT, help="Download an artifact from wandb")
 @click.argument("path")
-@click.option("--dir", help="The directory you want to download the artifact to")
+@click.option("--root", help="The directory you want to download the artifact to")
 @click.option("--type", default="dataset", help="The type of artifact you are downloading")
 @display_error
-def download(path, dir, type):
+def get_artifact(path, root, type):
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -533,7 +516,7 @@ def download(path, dir, type):
         wandb.termlog("Downloading {type} artifact {full_path}".format(
             type=type, full_path=full_path))
         artifact = public_api.artifact(full_path, type=type)
-        path = artifact.download()
+        path = artifact.download(root=root)
         wandb.termlog("Artifact downloaded to %s" % path)
     except ValueError:
         raise ClickException("Unable to download artifact")
