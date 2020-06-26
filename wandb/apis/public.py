@@ -21,7 +21,6 @@ import wandb
 from wandb.core import termlog
 from wandb import Error, __version__
 from wandb import artifacts
-from wandb import artifacts_cache
 from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary
@@ -1959,7 +1958,6 @@ class Artifact(object):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
-        self._cache = artifacts_cache.get_artifacts_cache()
         self._manifest = None
         self._is_downloaded = False
 
@@ -2031,14 +2029,14 @@ class Artifact(object):
             @staticmethod
             def download():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=True)
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
 
-                return storage_policy.load_file(self._cache, name, manifest.entries[name])
+                return storage_policy.load_file(self, name, manifest.entries[name])
 
             @staticmethod
             def ref():
                 if entry.ref is not None:
-                    return storage_policy.load_reference(self._cache, name, manifest.entries[name], local=False)
+                    return storage_policy.load_reference(self, name, manifest.entries[name], local=False)
                 raise ValueError('Only reference entries support ref().')
 
         return ArtifactEntry()
