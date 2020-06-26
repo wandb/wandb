@@ -631,6 +631,7 @@ class LocalFileHandler(StorageHandler):
         are expanded to create an entry for each file contained within.
         """
         self._scheme = scheme or "file"
+        self._cache = artifacts_cache.get_artifacts_cache()
 
     @property
     def scheme(self):
@@ -642,7 +643,7 @@ class LocalFileHandler(StorageHandler):
         if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % local_path)
 
-        path, hit = artifact.cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size)
         if hit:
             return path

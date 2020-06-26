@@ -80,6 +80,7 @@ def main(argv):
         print('Downloading art2')
         art = run.use_artifact(art2.digest, type='artsy')
         art_dir = art.download()
+        art.verify()
         print(os.listdir(art_dir))
 
         computed = wandb.Artifact('bla', type='dataset')

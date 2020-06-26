@@ -2091,6 +2091,30 @@ class Artifact(object):
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
+    def verify(self, root=None):
+        """Verify an artifact by checksumming its downloaded contents.
+
+        Raises a ValueError if the verification fails. Does not verify downloaded
+        reference files.
+
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+        """
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
+        manifest = self._load_manifest()
+        ref_count = 0
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if artifacts.md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
+                    raise ValueError('Digest mismatch for file: %s' % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print('Warning: skipped verification of %s refs' % ref_count)
+
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
         manifest = self._load_manifest()
