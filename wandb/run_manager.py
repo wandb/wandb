@@ -1519,9 +1519,8 @@ class ArtifactSaver(object):
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
             return self._server_artifact
-        elif self._server_artifact['state'] != 'PENDING':
-            # TODO: what to do in this case?
-            raise Exception('Server artifact not in PENDING state', self._server_artifact)
+        elif self._server_artifact['state'] != 'PENDING' and self._server_artifact['state'] != 'DELETED':
+            raise Exception('Unknown artifact state "{}"'.format(self._server_artifact['state']))
 
         # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
         # the use_prepare_flow, so that the file entry is created in our database before the
