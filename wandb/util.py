@@ -115,6 +115,7 @@ def vendor_import(name):
             if k.startswith("prompt_toolkit"):
                 del sys.modules[k]
 
+    # TODO(jhr): dont add if already there
     sys.path.insert(1, vendor_dir)
     return import_module(name)
 

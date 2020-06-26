@@ -1,11 +1,13 @@
+from __future__ import absolute_import
+
 import collections
-import pynvml  # type: ignore[import]
 import time
 import os
 from numbers import Number
 import threading
 import wandb
 from wandb import util
+from wandb.vendor.pynvml import pynvml  # type: ignore[import]
 
 from wandb.interface import interface
 

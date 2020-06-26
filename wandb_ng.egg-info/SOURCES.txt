@@ -146,6 +146,9 @@ wandb/sweeps/examples/train-dummy.py
 wandb/sweeps/examples/train-tune.py
 wandb/sync/__init__.py
 wandb/sync/sync.py
+wandb/vendor/__init__.py
+wandb/vendor/pynvml/__init__.py
+wandb/vendor/pynvml/pynvml.py
 wandb_ng.egg-info/PKG-INFO
 wandb_ng.egg-info/SOURCES.txt
 wandb_ng.egg-info/dependency_links.txt
