@@ -3,6 +3,7 @@ import codecs
 import os
 import shutil
 
+from wandb import env
 from wandb import util
 
 def bytes_to_hex(bytestr):
@@ -37,5 +38,5 @@ def get_artifacts_cache():
     global _artifacts_cache
     if _artifacts_cache is None:
         # TODO: Load this from settings
-        _artifacts_cache = ArtifactsCache(os.path.expanduser('~/.cache/wandb/artifacts'))
+        _artifacts_cache = ArtifactsCache(env.get_cache_dir())
     return _artifacts_cache
