@@ -634,18 +634,30 @@ def _LoadNvmlLibrary():
         try:
             # ensure the library still isn't loaded
             if (nvmlLib == None):
-                try:
-                    if (sys.platform[:3] == "win"):
-                        # cdecl calling convention
-                        # load nvml.dll from %ProgramFiles%/NVIDIA Corporation/NVSMI/nvml.dll
-                        nvmlLib = CDLL(os.path.join(os.getenv("ProgramFiles", "C:/Program Files"), "NVIDIA Corporation/NVSMI/nvml.dll"))
-                    else:
-                        # assume linux
+                if (sys.platform[:3] == "win"):
+                    # cdecl calling convention
+                    # load nvml.dll from %ProgramFiles%/NVIDIA Corporation/NVSMI/nvml.dll
+                    search_paths = [
+                            os.path.join(os.getenv("ProgramFiles", "C:/Program Files"), "NVIDIA Corporation/NVSMI/nvml.dll"),
+                            os.path.join("C:/Windows", "System32", "nvml.dll"),
+                            ]
+                    nvml_path = os.getenv("NVML_DLL_PATH")
+                    if nvml_path:
+                        search_paths.append(nvml_path)
+                    for dll_path in search_paths:
+                        try:
+                            nvmlLib = CDLL(dll_path)
+                        except OSError as ose:
+                            continue
+                        break
+                else:
+                    # assume linux
+                    try:
                         nvmlLib = CDLL("libnvidia-ml.so.1")
-                except OSError as ose:
-                    _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
-                if (nvmlLib == None):
-                    _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
+                    except OSError as ose:
+                        _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
+            if (nvmlLib == None):
+                _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
         finally:
             # lock is always freed
             libLoadLock.release()
