@@ -2043,12 +2043,19 @@ class Artifact(object):
 
         return ArtifactEntry()
 
-    def download(self, root='./artifacts'):
-        """Download the artifact to <root>/<self.name>/
+    def download(self, root=None):
+        """Download the artifact to dir specified by the <root>
 
-        Returns the path to the downloaded contents.
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+
+        Returns:
+            The path to the downloaded contents.
         """
-        dirpath = os.path.join(root, self.name)
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
