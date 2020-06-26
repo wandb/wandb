@@ -605,7 +605,6 @@ class c_nvmlAccountingStats_t(_PrintableStructure):
 
 ## C function wrappers ##
 def nvmlInit():
-    print("JHRDEBUG: this is a test")
     _LoadNvmlLibrary()
 
     #
