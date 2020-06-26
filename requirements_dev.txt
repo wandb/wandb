@@ -1,4 +1,5 @@
-fastparquet==0.3.3
+llvmlite==0.33.0; python_version >= '3.6'
+fastparquet==0.3.3; python_version >= '3.6'
 pip>=19.0.1
 bumpversion==0.5.3
 wheel==0.31.1
