@@ -835,7 +835,7 @@ class S3Handler(StorageHandler):
                             (self._bucket, key, manifest_entry.extra.get('etag')))
                 else:
                     raise ValueError('Digest mismatch for object %s: expected %s but found %s' %
-                                    (manifest_entry.ref, manifest_entry.digest, md5))
+                                    (manifest_entry.ref, manifest_entry.digest, etag))
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args['VersionId'] = version
@@ -956,7 +956,7 @@ class GCSHandler(StorageHandler):
         key = url.path[1:]
         return bucket, key
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(self, artifact_cache, manifest_entry, local=False):
         self.init_gcs()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -989,7 +989,7 @@ class GCSHandler(StorageHandler):
         obj.download_to_filename(path)
         return path
 
-    def store_path(self, artifact_cache, path, name=None, checksum=True, max_objects=None):
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         self.init_gcs()
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS

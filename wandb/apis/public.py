@@ -2094,12 +2094,19 @@ class Artifact(object):
 
         return ArtifactEntry()
 
-    def download(self, root='./artifacts'):
-        """Download the artifact to <root>/<self.name>/
+    def download(self, root=None):
+        """Download the artifact to dir specified by the <root>
 
-        Returns the path to the downloaded contents.
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+
+        Returns:
+            The path to the downloaded contents.
         """
-        dirpath = os.path.join(root, self.name)
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2239,8 +2246,11 @@ class Artifact(object):
     def _load_manifest(self):
         if self._manifest is None:
             index_file_url = self._attrs['currentManifest']['file']['url']
-            with requests.get(index_file_url) as req:
-                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
+            with requests.get(index_file_url, auth=("api", Api().api_key)) as req:
+                json_resp = json.loads(req.content)
+                if "error" in json_resp:
+                    raise ValueError("Failed to download manifest file: {}".format(json_resp["error"]))
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json_resp)
         return self._manifest
 
 

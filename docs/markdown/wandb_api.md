@@ -482,9 +482,16 @@ Stable name you can use to fetch this artifact.
 ### Artifact.download
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2046)
 ```python
-Artifact.download(self, root='./artifacts')
+Artifact.download(self, root=None)
 ```
-Download the artifact to <root>/<self.name>/
+Download the artifact to dir specified by the <root>
 
-Returns the path to the downloaded contents.
+**Arguments**:
 
+- `root` _str, optional_ - directory to download artifact to. If None artifact will be downloaded to './artifacts/<self.name>/'
+ 
+
+**Returns**:
+
+ The path to the downloaded contents.
+ 

@@ -195,6 +195,7 @@ def test_tensorflow_tensor(summary):
     assert disk_summary(summary)["tensorflow"]["_type"] == "tensorflow.Tensor"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Fastparquet / llvmlite is BORKED in < Python 3.6")
 def test_pandas(summary):
     summary.update({"pandas": pandas.DataFrame(
         data=np.random.rand(1000), columns=['col'])})
