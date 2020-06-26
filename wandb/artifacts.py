@@ -427,8 +427,8 @@ class WandbStoragePolicy(StoragePolicy):
     def config(self):
         return None
 
-    def load_file(self, artifact_cache, name, manifest_entry):
-        path, hit = artifact_cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    def load_file(self, artifact, name, manifest_entry):
+        path, hit = self._cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
         if hit:
             return path
 
@@ -449,8 +449,8 @@ class WandbStoragePolicy(StoragePolicy):
     def store_reference(self, artifact, path, name=None, checksum=True, max_objects=None):
         return self._handler.store_path(artifact, path, name=name, checksum=checksum, max_objects=max_objects)
 
-    def load_reference(self, artifact_cache, name, manifest_entry, local=False):
-        return self._handler.load_path(artifact_cache, manifest_entry, local)
+    def load_reference(self, artifact, name, manifest_entry, local=False):
+        return self._handler.load_path(self._cache, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5):
         md5_hex = base64.b64decode(md5).hex()
@@ -567,13 +567,13 @@ class MultiHandler(StorageHandler):
     def scheme(self):
         raise NotImplementedError()
 
-    def load_path(self, artifact_cache, manifest_entry, local=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
-                return self._default_handler.load_path(artifact_cache, manifest_entry, local=local)
+                return self._default_handler.load_path(artifact, manifest_entry, local=local)
             raise ValueError('No storage handler registered for scheme "%s"' % url.scheme)
-        return self._handlers[url.scheme].load_path(artifact_cache, manifest_entry, local=local)
+        return self._handlers[url.scheme].load_path(artifact, manifest_entry, local=local)
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         url = urlparse(path)
@@ -601,7 +601,7 @@ class TrackingHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
-    def load_path(self, artifact_cache, manifest_entry, local=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -636,13 +636,13 @@ class LocalFileHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
-    def load_path(self, artifact_cache, manifest_entry, local=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         url = urlparse(manifest_entry.ref)
         local_path = '%s%s' % (url.netloc, url.path)
         if not os.path.exists(local_path):
             raise ValueError('Failed to find file at path %s' % local_path)
 
-        path, hit = artifact_cache.check_md5_obj_path(
+        path, hit = artifact.cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size)
         if hit:
             return path
@@ -693,6 +693,7 @@ class S3Handler(StorageHandler):
         self._scheme = scheme or "s3"
         self._s3 = None
         self._versioning_enabled = None
+        self._cache = artifacts_cache.get_artifacts_cache()
 
     @property
     def scheme(self):
@@ -720,7 +721,7 @@ class S3Handler(StorageHandler):
         self._versioning_enabled = res.status == 'Enabled'
         return self._versioning_enabled
 
-    def load_path(self, artifact_cache, manifest_entry, local=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         self.init_boto()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -754,7 +755,7 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit = artifact_cache.check_etag_obj_path(manifest_entry.digest, manifest_entry.size)
+        path, hit = self._cache.check_etag_obj_path(manifest_entry.digest, manifest_entry.size)
         if hit:
             return path
 
@@ -840,6 +841,7 @@ class GCSHandler(StorageHandler):
         self._scheme = scheme or "gs"
         self._client = None
         self._versioning_enabled = None
+        self._cache = artifacts_cache.get_artifacts_cache()
 
     def versioning_enabled(self, bucket):
         if self._versioning_enabled is not None:
@@ -867,7 +869,7 @@ class GCSHandler(StorageHandler):
         key = url.path[1:]
         return bucket, key
 
-    def load_path(self, artifact_cache, manifest_entry, local=False):
+    def load_path(self, artifact, manifest_entry, local=False):
         self.init_gcs()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -892,7 +894,7 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit = artifact_cache.check_md5_obj_path(
+        path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size)
         if hit:
             return True
