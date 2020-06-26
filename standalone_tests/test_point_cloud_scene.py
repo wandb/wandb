@@ -13,8 +13,9 @@ wandb.log(
                 {
                     "type": "lidar/beta",
                     "vectors": np.array([
-                        [[0.4, 1, 1.3], [0.4, 1.3, 2.4]],
                         [[1, 1, 1], [1, 2, 1]],
+                        [[1, 1, 1], [1, 1, 2]],
+                        [[1, 1, 1], [2, 2, 2]]
                     ]),
                     "points": points,
                     "boxes": np.array(
