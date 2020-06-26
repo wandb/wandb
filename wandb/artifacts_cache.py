@@ -37,6 +37,6 @@ _artifacts_cache = None
 def get_artifacts_cache():
     global _artifacts_cache
     if _artifacts_cache is None:
-        # TODO: Load this from settings
-        _artifacts_cache = ArtifactsCache(env.get_cache_dir())
+        cache_dir = os.path.join(env.get_cache_dir(), 'artifacts')
+        _artifacts_cache = ArtifactsCache(cache_dir)
     return _artifacts_cache
