@@ -33,7 +33,7 @@ jobs:
                       pip --version
                       pip install cmake==3.13.3 numpy==1.16.0
                       pip install -r requirements_dev.txt --upgrade
-                      pip install torch==1.5.1+cpu torchvision==0.6.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+                      python install-ml.py
                       pip install -e .[dev]
             - save_cache:
                   paths:
@@ -76,7 +76,7 @@ jobs:
                   command: |
                       . venv/bin/activate
                       pip install -r requirements_edgeml.txt --upgrade
-                      python install-ml.py
+                      python install-ml.py edge
                       pip install -e .[dev]
             - save_cache:
                   paths:
