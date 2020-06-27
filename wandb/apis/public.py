@@ -433,7 +433,7 @@ class Api(object):
         return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact(self, name=None, type=None):
+    def artifact(self, name, type=None):
         """Returns a single artifact by parsing path in the form entity/project/run_id.
 
         Args:
@@ -448,10 +448,10 @@ class Api(object):
         """
         if name is None:
             raise ValueError('You must specify name= to fetch an artifact.')
+        if type is not None:
+            wandb.termwarn("Type argument is deprecated and will be removed in a future release.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        if type is None:
-            raise ValueError('Artifact type required to fetch artifact.')
-        return Artifact(self.client, entity, project, type, artifact_name)
+        return Artifact(self.client, entity, project, artifact_name)
 
 
 class Attrs(object):
@@ -1949,11 +1949,10 @@ class ArtifactCollection(object):
 
 class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_type, name, attrs=None):
+    def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
         self.entity = entity
         self.project = project
-        self.artifact_type_name = artifact_type
         self.artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
@@ -1990,7 +1989,7 @@ class Artifact(object):
 
     @property
     def type(self):
-        return self.artifact_type_name
+        return self._attrs["artifactType"]["name"]
 
     @property
     def name(self):
@@ -2128,25 +2127,26 @@ class Artifact(object):
         query Artifact(
             $entityName: String!,
             $projectName: String!,
-            $artifactTypeName: String!,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifact(name: $name) {
-                        id
-                        digest
-                        description
-                        state
-                        createdAt
-                        labels
-                        metadata
-                        currentManifest {
+                artifact(name: $name) {
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    labels
+                    metadata
+                    artifactType {
+                       id
+                       name
+                    }
+                    currentManifest {
+                       id
+                        file {
                             id
-                            file {
-                                id
-                                url
-                            }
+                            url
                         }
                         aliases {
                             artifactCollectionName
@@ -2160,20 +2160,18 @@ class Artifact(object):
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
-            'artifactTypeName': self.artifact_type_name,
             'name': self.artifact_name,
         })
         if response is None \
             or response.get('project') is None \
-                or response['project'].get('artifactType') is None \
-                or response['project']['artifactType'].get('artifact') is None:
+                or response['project'].get('artifact') is None:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":"
             if ':' not in self.artifact_name:
                 raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
-        self._attrs = response['project']['artifactType']['artifact']
+        self._attrs = response['project']['artifact']
         return self._attrs
 
     # The only file should be wandb_manifest.json
