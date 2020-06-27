@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Molecule
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L518)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L519)
 ```python
 Molecule(self, data_or_path, **kwargs)
 ```
@@ -145,7 +145,7 @@ Wandb class for Molecular data
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L602)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L603)
 ```python
 Html(self, data, inject=True)
 ```
@@ -159,7 +159,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L671)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L672)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -175,7 +175,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L818)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L819)
 ```python
 Image(self,
       data_or_path,
@@ -196,7 +196,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1082)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -205,7 +205,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1114)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1115)
 ```python
 BoundingBoxes2D(self, val, key, **kwargs)
 ```
@@ -214,7 +214,7 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1192)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1193)
 ```python
 ImageMask(self, val, key, **kwargs)
 ```
