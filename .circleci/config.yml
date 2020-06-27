@@ -33,7 +33,7 @@ jobs:
                       pip --version
                       pip install cmake==3.13.3 numpy==1.16.0
                       pip install -r requirements_dev.txt --upgrade
-                      pip install torch==1.4.0+cpu torchvision==0.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+                      pip install torch==1.5.1+cpu torchvision==0.6.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
                       pip install -e .[dev]
             - save_cache:
                   paths:
@@ -69,8 +69,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.4-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
-                      - v3.4-dependencies-edge-ml
+                      - v3.5-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                      - v3.5-dependencies-edge-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -81,7 +81,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.4-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                  key: v3.5-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
             - run:
                   name: Run tests
                   command: |

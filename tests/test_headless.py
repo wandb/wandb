@@ -113,7 +113,7 @@ def test_mock_server_no_internet(runner):
         res = sh.python("train.py", epochs=10, _bg=True, _env=environ)
         stdout, stderr = "", ""
         try:
-            time.sleep(5)  # TODO: this might not always be enough...
+            time.sleep(10)  # TODO: this might not always be enough...
             res.kill()
             res.stdout
         except (sh.ErrorReturnCode, ProcessLookupError):  # noqa: F821
