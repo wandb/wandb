@@ -2142,15 +2142,15 @@ class Artifact(object):
                        id
                        name
                     }
+                    aliases {
+                        artifactCollectionName
+                        alias
+                    }
                     currentManifest {
                        id
                         file {
                             id
                             url
-                        }
-                        aliases {
-                            artifactCollectionName
-                            alias
                         }
                     }
                 }
