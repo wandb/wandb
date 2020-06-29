@@ -418,17 +418,16 @@ class Run(object):
         if self.mode == "dryrun":
             wandb.termwarn("Using artifacts in dryrun mode is currently unsupported.")
             return artifact
-        if type is not None:
-            wandb.termwarn("Type argument is deprecated and will be removed in a future release.")
         self.history.ensure_jupyter_started()
         if isinstance(artifact, str):
-            if type is None:
-                raise ValueError('type required')
             # Ensure we have an entity (_load_entity puts the result into api.settings())
             # then initialize PublicApi with it.
             self._load_entity(self.api, True)
             public_api = PublicApi(self.api.settings())
             artifact = public_api.artifact(name=artifact)
+            if type is not None and type != artifact.type:
+                raise ValueError('Supplied type {} does not match type {} of artifact {}'.format(
+                    type, artifact.type, artifact.name))
             self.api.use_artifact(artifact.id)
             return artifact
         else:
