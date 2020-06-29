@@ -425,10 +425,10 @@ class Run(object):
             self._load_entity(self.api, True)
             public_api = PublicApi(self.api.settings())
             artifact = public_api.artifact(name=artifact)
-            self.api.use_artifact(artifact.id)
             if type is not None and type != artifact.type:
                 raise ValueError('Supplied type {} does not match type {} of artifact {}'.format(
                     type, artifact.type, artifact.name))
+            self.api.use_artifact(artifact.id)
             return artifact
         else:
             if isinstance(aliases, str):
