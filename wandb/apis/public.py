@@ -21,7 +21,6 @@ import wandb
 from wandb.core import termlog
 from wandb import Error, __version__
 from wandb import artifacts
-from wandb import artifacts_cache
 from wandb import util
 from wandb.retry import retriable
 from wandb.summary import HTTPSummary
@@ -1947,6 +1946,7 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {}>".format(self.name)
 
 
+
 class Artifact(object):
 
     def __init__(self, client, entity, project, name, attrs=None):
@@ -1957,7 +1957,6 @@ class Artifact(object):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
-        self._cache = artifacts_cache.get_artifacts_cache()
         self._manifest = None
         self._is_downloaded = False
 
@@ -1994,12 +1993,16 @@ class Artifact(object):
 
     @property
     def name(self):
-        """The name by which the artifact was fetched."""
-        return self.artifact_name
-
-    @property
-    def cache_dir(self):
-        return self._cache.get_artifact_dir(self.type, self.digest)
+        """Stable name you can use to fetch this artifact."""
+        # TODO: All this logic should move to the backend.
+        if ":" not in self.artifact_name:
+            # this is a digest lookup
+            return self.artifact_name
+        artifact_collection_name = self.artifact_name.split(':')[0]
+        for alias in self._attrs["aliases"]:
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
+                return '%s:%s' % (artifact_collection_name, alias["alias"])
+        raise ValueError('Unexpected API result.')
 
     def new_file(self, name):
         raise ValueError('Cannot add files to an artifact once it has been saved')
@@ -2037,8 +2040,19 @@ class Artifact(object):
 
         return ArtifactEntry()
 
-    def download(self):
-        dirpath = self.cache_dir
+    def download(self, root=None):
+        """Download the artifact to dir specified by the <root>
+
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+
+        Returns:
+            The path to the downloaded contents.
+        """
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2054,17 +2068,53 @@ class Artifact(object):
         # Force all the files to download into the same directory.
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
+        import shutil
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(lambda name: self.get_path(name).download(), manifest.entries)
+        def download_file(name):
+            # download file into cache
+            cache_path = self.get_path(name).download()
+            # copy file into target dir
+            target_path = os.path.join(dirpath, name)
+            need_copy = (not os.path.isfile(target_path)
+                or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+            if need_copy:
+                util.mkdir_exists_ok(os.path.dirname(target_path))
+                # We use copy2, which preserves file metadata including modified
+                # time (which we use above to check whether we should do the copy).
+                shutil.copy2(cache_path, target_path)
+        pool.map(download_file, manifest.entries)
         pool.close()
         pool.join()
 
-        # TODO: make sure we clear any extra files
         self._is_downloaded = True
 
         if log:
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
+
+    def verify(self, root=None):
+        """Verify an artifact by checksumming its downloaded contents.
+
+        Raises a ValueError if the verification fails. Does not verify downloaded
+        reference files.
+
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+        """
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
+        manifest = self._load_manifest()
+        ref_count = 0
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if artifacts.md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
+                    raise ValueError('Digest mismatch for file: %s' % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print('Warning: skipped verification of %s refs' % ref_count)
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -2093,6 +2143,10 @@ class Artifact(object):
                     artifactType {
                        id
                        name
+                    }
+                    aliases {
+                        artifactCollectionName
+                        alias
                     }
                     currentManifest {
                        id

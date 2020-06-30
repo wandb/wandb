@@ -113,7 +113,7 @@ def test_mock_server_no_internet(runner):
         res = sh.python("train.py", epochs=10, _bg=True, _env=environ)
         stdout, stderr = "", ""
         try:
-            time.sleep(5)  # TODO: this might not always be enough...
+            time.sleep(10)  # TODO: this might not always be enough...
             res.kill()
             res.stdout
         except (sh.ErrorReturnCode, ProcessLookupError):  # noqa: F821
@@ -122,6 +122,7 @@ def test_mock_server_no_internet(runner):
         stderr = res.stderr.decode("utf8")
         print(stdout)
         print(stderr)
+        print("-----")
         if os.path.exists("wandb/debug.log"):
             print(open("wandb/debug.log").read())
         assert "Finished" in stdout

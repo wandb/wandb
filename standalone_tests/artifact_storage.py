@@ -80,7 +80,21 @@ def main(argv):
         print('Downloading art2')
         art = run.use_artifact(art2.digest, type='artsy')
         art_dir = art.download()
+        art.verify()
         print(os.listdir(art_dir))
+
+        computed = wandb.Artifact('bla', type='dataset')
+        computed.add_dir(art_dir)
+
+        # These won't match, because we stored an s3 reference which uses the
+        # etag, so the manifest's sadly aren't directly comparable
+        print('Not expected to match because of s3 ref:')
+        print('downloaded dig', art.digest)
+        print('computed dig', computed.digest)
+
+        import json
+        print('downloaded manifest', art._load_manifest().to_manifest_json())
+        print('computed manifest', computed.manifest.to_manifest_json())
 
     
 

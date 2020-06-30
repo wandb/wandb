@@ -210,7 +210,7 @@ def test_login_no_key(local_netrc, mocker):
     wandb.login()
     assert wandb.api.api_key == "C" * 40
 
-
+@pytest.mark.skipif(sys.version_info < (3,6), reason="Was timing out in python 2 / 3.5 skipping")
 def test_run_context_multi_run(live_mock_server, git_repo):
     os.environ[env.BASE_URL] = "http://localhost:%i" % 8765
     os.environ["WANDB_API_KEY"] = "B" * 40
