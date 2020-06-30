@@ -197,7 +197,6 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
         # Classifier Metrics
         if sklearn.base.is_classifier(model):
             y_pred = model.predict(X_test)
-            y_probas = model.predict_proba(X_test)
 
             metric_name.append("accuracy_score")
             metric_value.append(round_2(sklearn.metrics.accuracy_score(y_test, y_pred)))
