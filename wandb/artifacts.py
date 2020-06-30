@@ -641,7 +641,7 @@ class LocalFileHandler(StorageHandler):
         url = urlparse(manifest_entry.ref)
         local_path = '%s%s' % (url.netloc, url.path)
         if not os.path.exists(local_path):
-            raise ValueError('Failed to find file at path %s' % local_path)
+            raise ValueError('Local file reference: Failed to find file at path %s.' % local_path)
 
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size)
@@ -649,7 +649,7 @@ class LocalFileHandler(StorageHandler):
             return path
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
-            raise ValueError('Digest mismatch for path %s: expected %s but found %s' %
+            raise ValueError('Local file reference: Digest mismatch for path %s. expected %s but found %s' %
                              (local_path, manifest_entry.digest, md5))
 
         util.mkdir_exists_ok(os.path.dirname(path))
