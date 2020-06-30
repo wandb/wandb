@@ -497,7 +497,7 @@ Download the artifact to dir specified by the <root>
  
 
 ### Artifact.verify
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2093)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2095)
 ```python
 Artifact.verify(self, root=None)
 ```
