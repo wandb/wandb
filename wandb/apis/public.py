@@ -2079,6 +2079,8 @@ class Artifact(object):
                 or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
             if need_copy:
                 util.mkdir_exists_ok(os.path.dirname(target_path))
+                # We use copy2, which preserves file metadata including modified
+                # time (which we use above to check whether we should do the copy).
                 shutil.copy2(cache_path, target_path)
         pool.map(download_file, manifest.entries)
         pool.close()
