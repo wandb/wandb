@@ -11,6 +11,19 @@ from wandb.util import get_module
 stats = get_module('scipy.stats')
 
 
+def _workaround_issue1129(config):
+    # Mutates `config` in place to try and parse float-point values.
+    # WARNING: This greedily converts to `float`, and thus may intercept str or
+    # int values pending a better solution.
+    for k, v in config.items():
+        if isinstance(v, str):
+            try:
+                config[k] = float(v)
+            except ValueError:
+                pass
+    return config
+
+
 class HyperParameter():
     CONSTANT = 0
     CATEGORICAL = 1
@@ -40,7 +53,7 @@ class HyperParameter():
     def __init__(self, param_name, param_config):
 
         self.name = param_name
-        self.config = param_config.copy()
+        self.config = _workaround_issue1129(param_config.copy())
 
         allowed_config_keys = set(['distribution', 'value', 'values', 'min', 'max', 'q',
                                    'mu', 'sigma', 'desc'])
