@@ -457,7 +457,7 @@ class Api(object):
         return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact(self, name=None, type=None):
+    def artifact(self, name, type=None):
         """Returns a single artifact by parsing path in the form entity/project/run_id.
 
         Args:
@@ -472,10 +472,10 @@ class Api(object):
         """
         if name is None:
             raise ValueError('You must specify name= to fetch an artifact.')
+        if type is not None:
+            wandb.termwarn("Type argument is deprecated and will be removed in a future release.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        if type is None:
-            raise ValueError('Artifact type required to fetch artifact.')
-        return Artifact(self.client, entity, project, type, artifact_name)
+        return Artifact(self.client, entity, project, artifact_name)
 
 
 class Attrs(object):
@@ -1976,11 +1976,10 @@ class ArtifactCollection(object):
 
 class Artifact(object):
 
-    def __init__(self, client, entity, project, artifact_type, name, attrs=None):
+    def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
         self.entity = entity
         self.project = project
-        self.artifact_type_name = artifact_type
         self.artifact_name = name
         self._collection_name = None
         self._attrs = attrs
@@ -2023,38 +2022,21 @@ class Artifact(object):
 
     @property
     def type(self):
-        return self.artifact_type_name
+        return self._attrs["artifactType"]["name"]
 
     @property
     def name(self):
         """Stable name you can use to fetch this artifact."""
         # TODO: All this logic should move to the backend.
         if ":" not in self.artifact_name:
-            return self.digest
-
-        return "{name}:{version}".format(name=self.collection_name, version=self.version)
-
-    @name.setter
-    def name(self, name):
-        self.artifact_name = name
-
-    @property
-    def collection_name(self):
-        if ":" in self.artifact_name and self._collection_name is None:
-            self._collection_name = self.artifact_name.split(':')[0]
-        return self._collection_name
-
-    @collection_name.setter
-    def collection_name(self, name):
-        self._collection_name = name
-
-    @property
-    def version(self):
-        """The version of this artifact within a collection"""
+            # this is a digest lookup
+            return self.artifact_name
+        artifact_collection_name = self.artifact_name.split(':')[0]
         for alias in self._attrs["aliases"]:
-            if alias["artifactCollectionName"] == self.collection_name and re.match(r"^v\d+$", alias["alias"]):
-                return alias["alias"]
-        return None
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
+                return '%s:%s' % (artifact_collection_name, alias["alias"])
+        
+        raise ValueError('Unexpected API result.')
 
     def new_file(self, name):
         raise ValueError('Cannot add files to an artifact once it has been saved')
@@ -2131,6 +2113,11 @@ class Artifact(object):
                 or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
             if need_copy:
                 util.mkdir_exists_ok(os.path.dirname(target_path))
+<<<<<<< HEAD
+=======
+                # We use copy2, which preserves file metadata including modified
+                # time (which we use above to check whether we should do the copy).
+>>>>>>> master
                 shutil.copy2(cache_path, target_path)
         pool.map(download_file, manifest.entries)
         pool.close()
@@ -2142,6 +2129,7 @@ class Artifact(object):
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
+<<<<<<< HEAD
     @normalize_exceptions
     def save(self):
         """
@@ -2174,6 +2162,31 @@ class Artifact(object):
             collection, alias = self.artifact_name.split(":")
             return [{"artifactCollectionName": collection, "alias": alias}]
         return []
+=======
+    def verify(self, root=None):
+        """Verify an artifact by checksumming its downloaded contents.
+
+        Raises a ValueError if the verification fails. Does not verify downloaded
+        reference files.
+
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+        """
+        dirpath = root
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
+        manifest = self._load_manifest()
+        ref_count = 0
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if artifacts.md5_file_b64(os.path.join(dirpath, entry.path)) != entry.digest:
+                    raise ValueError('Digest mismatch for file: %s' % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print('Warning: skipped verification of %s refs' % ref_count)
+>>>>>>> master
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -2188,25 +2201,30 @@ class Artifact(object):
         query Artifact(
             $entityName: String!,
             $projectName: String!,
-            $artifactTypeName: String!,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifact(name: $name) {
-                        id
-                        digest
-                        description
-                        state
-                        createdAt
-                        labels
-                        metadata
-                        currentManifest {
+                artifact(name: $name) {
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    labels
+                    metadata
+                    artifactType {
+                       id
+                       name
+                    }
+                    aliases {
+                        artifactCollectionName
+                        alias
+                    }
+                    currentManifest {
+                       id
+                        file {
                             id
-                            file {
-                                id
-                                url
-                            }
+                            url
                         }
                         aliases {
                             artifactCollectionName
@@ -2220,21 +2238,25 @@ class Artifact(object):
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
-            'artifactTypeName': self.artifact_type_name,
             'name': self.artifact_name,
         })
         if response is None \
             or response.get('project') is None \
-                or response['project'].get('artifactType') is None \
-                or response['project']['artifactType'].get('artifact') is None:
+                or response['project'].get('artifact') is None:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
             if ':' not in self.artifact_name and len(self.artifact_name) != 32:
                 raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
+<<<<<<< HEAD
             raise ValueError('Project %s/%s does not contain artifact: "%s" of type "%s"' % (
                 self.entity, self.project, self.artifact_name, self.artifact_type_name))
         self._attrs = response['project']['artifactType']['artifact']
         self._metadata = json.loads(self._attrs["metadata"] or "{}")
+=======
+            raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
+                self.entity, self.project, self.artifact_name))
+        self._attrs = response['project']['artifact']
+>>>>>>> master
         return self._attrs
 
     # The only file should be wandb_manifest.json

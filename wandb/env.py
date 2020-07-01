@@ -251,7 +251,7 @@ def get_magic(default=None, env=None):
     return val
 
 def get_cache_dir(env=None):
-    DEFAULT_DIR = os.path.expanduser(os.path.join('~', '.cache', 'wandb', 'artifacts'))
+    DEFAULT_DIR = os.path.expanduser(os.path.join('~', '.cache', 'wandb'))
     if env is None:
         env = os.environ
     val = env.get(WANDB_CACHE_DIR, DEFAULT_DIR)

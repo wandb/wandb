@@ -420,18 +420,17 @@ class Run(object):
             return artifact
         self.history.ensure_jupyter_started()
         if isinstance(artifact, str):
-            if type is None:
-                raise ValueError('type required')
             # Ensure we have an entity (_load_entity puts the result into api.settings())
             # then initialize PublicApi with it.
             self._load_entity(self.api, True)
             public_api = PublicApi(self.api.settings())
-            artifact = public_api.artifact(type=type, name=artifact)
+            artifact = public_api.artifact(name=artifact)
+            if type is not None and type != artifact.type:
+                raise ValueError('Supplied type {} does not match type {} of artifact {}'.format(
+                    type, artifact.type, artifact.name))
             self.api.use_artifact(artifact.id)
             return artifact
         else:
-            if type is not None:
-                raise ValueError('cannot specify type when passing Artifact object')
             if isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):

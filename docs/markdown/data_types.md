@@ -132,7 +132,7 @@ Wandb class for 3D point clouds.
  
 
 ## Molecule
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L518)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L519)
 ```python
 Molecule(self, data_or_path, **kwargs)
 ```
@@ -145,7 +145,7 @@ Wandb class for Molecular data
  
 
 ## Html
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L602)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L603)
 ```python
 Html(self, data, inject=True)
 ```
@@ -159,7 +159,7 @@ Wandb class for arbitrary html
  
 
 ## Video
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L671)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L672)
 ```python
 Video(self, data_or_path, caption=None, fps=4, format=None)
 ```
@@ -175,7 +175,7 @@ Wandb representation of video.
  
 
 ## Image
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L818)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L819)
 ```python
 Image(self,
       data_or_path,
@@ -196,7 +196,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1081)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1082)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -205,7 +205,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1114)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1115)
 ```python
 BoundingBoxes2D(self, val, key, **kwargs)
 ```
@@ -214,7 +214,7 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1192)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1193)
 ```python
 ImageMask(self, val, key, **kwargs)
 ```
@@ -223,7 +223,7 @@ Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1261)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1263)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -236,7 +236,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1302)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1304)
 ```python
 Graph(self, format='keras')
 ```
@@ -262,7 +262,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1458)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1460)
 ```python
 Node(self,
      id=None,
@@ -280,7 +280,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1624)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1626)
 ```python
 Edge(self, from_node, to_node)
 ```

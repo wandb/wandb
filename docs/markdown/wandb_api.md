@@ -149,7 +149,7 @@ Returns a sweep by parsing path in the form entity/project/sweep_id.
 ### Api.artifact
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L435)
 ```python
-Api.artifact(self, name=None, type=None)
+Api.artifact(self, name, type=None)
 ```
 Returns a single artifact by parsing path in the form entity/project/run_id.
 
@@ -472,7 +472,7 @@ Artifact collections
 ## Artifact
 [source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L1950)
 ```python
-Artifact(self, client, entity, project, artifact_type, name, attrs=None)
+Artifact(self, client, entity, project, name, attrs=None)
 ```
 
 
@@ -480,7 +480,7 @@ Artifact(self, client, entity, project, artifact_type, name, attrs=None)
 Stable name you can use to fetch this artifact.
 
 ### Artifact.download
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2044)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2043)
 ```python
 Artifact.download(self, root=None)
 ```
@@ -494,4 +494,18 @@ Download the artifact to dir specified by the <root>
 **Returns**:
 
  The path to the downloaded contents.
+ 
+
+### Artifact.verify
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2095)
+```python
+Artifact.verify(self, root=None)
+```
+Verify an artifact by checksumming its downloaded contents.
+
+Raises a ValueError if the verification fails. Does not verify downloaded reference files.
+
+**Arguments**:
+
+- `root` _str, optional_ - directory to download artifact to. If None artifact will be downloaded to './artifacts/<self.name>/'
  

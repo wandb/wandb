@@ -1,3 +1,21 @@
+## 0.9.2 (June 29, 2020)
+
+#### :nail_care: Enhancement
+
+-   Major overhaul of artifact caching
+-   Configurable cache directory for artifacts
+-   Configurable download directory for artifacts
+-   New Artifact.verify method to ensure the integrity of local artifacts
+-   use_artifact no longer requires `type`
+-   Deleted artifacts can now be be recommitted
+-   Lidar scenes now support vectors
+
+#### :bug: Bug Fix
+
+-   Fix issue with artifact downloads returning errors.
+-   Segmentation masks now handle non-unint8 data
+-   Fixed path parsing logic in `api.runs()`
+
 ## 0.9.1 (June 9, 2020)
 
 #### :bug: Bug Fix

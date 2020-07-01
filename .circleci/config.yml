@@ -33,7 +33,7 @@ jobs:
                       pip --version
                       pip install cmake==3.13.3 numpy==1.16.0
                       pip install -r requirements_dev.txt --upgrade
-                      pip install torch==1.4.0+cpu torchvision==0.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+                      python install-ml.py
                       pip install -e .[dev]
             - save_cache:
                   paths:
@@ -69,19 +69,19 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.4-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
-                      - v3.4-dependencies-edge-ml
+                      - v3.6-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                      - v3.6-dependencies-edge-ml
             - run:
                   name: Install dependencies
                   command: |
                       . venv/bin/activate
                       pip install -r requirements_edgeml.txt --upgrade
-                      python install-ml.py
+                      python install-ml.py edge
                       pip install -e .[dev]
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.4-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
+                  key: v3.6-dependencies-edge-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_edgeml.txt" }}
             - run:
                   name: Run tests
                   command: |
@@ -103,8 +103,8 @@ jobs:
                   command: python -m venv venv || virtualenv venv
             - restore_cache:
                   keys:
-                      - v3.2-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
-                      - v3.2-dependencies-no-ml
+                      - v3.3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                      - v3.3-dependencies-no-ml
             - run:
                   name: Install dependencies
                   command: |
@@ -114,7 +114,7 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v3.2-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
+                  key: v3.3-dependencies-no-ml-{{ checksum "setup.py" }}-{{ checksum "requirements_noml.txt" }}
             - run:
                   name: Run tests
                   command: |
