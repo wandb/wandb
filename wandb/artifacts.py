@@ -723,6 +723,10 @@ class S3Handler(StorageHandler):
         return self._versioning_enabled
 
     def load_path(self, artifact, manifest_entry, local=False):
+        path, hit = self._cache.check_etag_obj_path(manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return path
+
         self.init_boto()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -755,10 +759,6 @@ class S3Handler(StorageHandler):
 
         if not local:
             return manifest_entry.ref
-
-        path, hit = self._cache.check_etag_obj_path(manifest_entry.digest, manifest_entry.size)
-        if hit:
-            return path
 
         obj.download_file(path, ExtraArgs=extra_args)
         return path
@@ -871,6 +871,11 @@ class GCSHandler(StorageHandler):
         return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
+        path, hit = self._cache.check_md5_obj_path(
+            manifest_entry.digest, manifest_entry.size)
+        if hit:
+            return True
+
         self.init_gcs()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get('versionID')
@@ -894,11 +899,6 @@ class GCSHandler(StorageHandler):
 
         if not local:
             return manifest_entry.ref
-
-        path, hit = self._cache.check_md5_obj_path(
-            manifest_entry.digest, manifest_entry.size)
-        if hit:
-            return True
 
         obj.download_to_filename(path)
         return path
