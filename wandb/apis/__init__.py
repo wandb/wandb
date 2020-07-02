@@ -71,7 +71,12 @@ def normalize_exceptions(func):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
-            raise CommError(err.response, err)
+            try:
+                message = err.response.json().get(
+                    'errors', [{'message': message}])[0]['message']
+            except ValueError:
+                message = err.response.text
+            raise CommError(message, err)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:
                 try:

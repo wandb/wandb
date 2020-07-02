@@ -447,14 +447,18 @@ def sync(ctx, path, id, project, entity, ignore):
         wandb_run.Run.from_directory(
             path, run_id=id, project=project, entity=entity, ignore_globs=globs)
 
-@cli.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@cli.group(help="Commands for interacting with artifacts")
+def artifact():
+    pass
+
+@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
 @click.argument("path")
 @click.option("--name", "-n", help="The name of the artifact to push: project/artifact_name")
 @click.option("--description", "-d", help="A description of this artifact")
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
 @click.option("--alias", "-a", default=["latest"], multiple=True, help="An alias to apply to this artifact")
 @display_error
-def log_artifact(path, name, description, type, alias):
+def log(path, name, description, type, alias):
     if name is None:
         name = os.path.basename(path)
     entity, project, artifact_name = public_api._parse_artifact_path(name)
@@ -474,6 +478,10 @@ def log_artifact(path, name, description, type, alias):
         wandb.termlog("Uploading file {path} to: \"{artifact_path}\" ({type})".format(
             path=path, type=type, artifact_path=artifact_path))
         artifact.add_file(path)
+    elif "://" in path:
+        wandb.termlog("Logging reference artifact from {path} to: \"{artifact_path}\" ({type})".format(
+            path=path, type=type, artifact_path=artifact_path))
+        artifact.add_reference(path)
     else:
         raise ClickException("Path argument must be a file or directory")
 
@@ -487,18 +495,18 @@ def log_artifact(path, name, description, type, alias):
     run.log_artifact(artifact, aliases=alias)
     wandb.termlog("Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
 
-    wandb.termlog("    artifact = run.use_artifact(\"{path}\", type=\"{type}\")\n".format(
+    wandb.termlog("    artifact = run.use_artifact(\"{path}\")\n".format(
         path=artifact_path,
         type=type
     ), prefix=False)
 
 
-@cli.command(context_settings=CONTEXT, help="Download an artifact from wandb")
+@artifact.command(context_settings=CONTEXT, help="Download an artifact from wandb")
 @click.argument("path")
 @click.option("--root", help="The directory you want to download the artifact to")
-@click.option("--type", default="dataset", help="The type of artifact you are downloading")
+@click.option("--type", help="The type of artifact you are downloading")
 @display_error
-def get_artifact(path, root, type):
+def get(path, root, type):
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -514,12 +522,31 @@ def get_artifact(path, root, type):
             entity=entity, project=project,
             artifact=artifact_name, version=version)
         wandb.termlog("Downloading {type} artifact {full_path}".format(
-            type=type, full_path=full_path))
+            type=type or "dataset", full_path=full_path))
         artifact = public_api.artifact(full_path, type=type)
         path = artifact.download(root=root)
         wandb.termlog("Artifact downloaded to %s" % path)
     except ValueError:
         raise ClickException("Unable to download artifact")
+
+@artifact.command(context_settings=CONTEXT, help="List all artifacts in a wandb project")
+@click.argument("path")
+@click.option("--type", "-t", help="The type of artifacts to list")
+@display_error
+def ls(path, type):
+    if type is not None:
+        types = [public_api.artifact_type(type, path)]
+    else:
+        types = public_api.artifact_types(path)
+
+    def human_size(bytes, units=['','KB','MB','GB','TB', 'PB', 'EB']):
+        return str(bytes) + units[0] if bytes < 1024 else human_size(bytes>>10, units[1:])
+
+    for kind in types:
+        for collection in kind.collections():
+            versions = public_api.artifact_versions(kind.type, "/".join([kind.entity, kind.project, collection.name]), per_page=1)
+            latest = next(versions)
+            print("{:<15s}{:<15s}{:>15s} {:<20s}".format(kind.type, latest.updated_at, human_size(latest.size), latest.name))
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN_ID)

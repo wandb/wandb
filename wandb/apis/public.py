@@ -13,6 +13,8 @@ from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
+from functools import partial
+import shutil
 import hashlib
 import base64
 import requests
@@ -103,15 +105,20 @@ fragment ArtifactTypesFragment on ArtifactTypeConnection {
 '''
 
 ARTIFACT_FRAGMENT = '''
-fragment ArtifactFragment on Artifact{
+fragment ArtifactFragment on Artifact {
     id
     digest
     description
     state
+    size
     createdAt
-    aliases
+    updatedAt
     labels
     metadata
+    aliases {
+        artifactCollectionName
+        alias
+    }
 }
 '''
 
@@ -457,6 +464,12 @@ class Api(object):
         return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
+    def artifact_versions(self, type_name, name, per_page=50):
+        entity, project, collection_name = self._parse_artifact_path(name)
+        artifact_type = ArtifactType(self.client, entity, project, type_name)
+        return artifact_type.collection(collection_name).versions(per_page=per_page)
+
+    @normalize_exceptions
     def artifact(self, name, type=None):
         """Returns a single artifact by parsing path in the form entity/project/run_id.
 
@@ -466,16 +479,18 @@ class Api(object):
                     sequence_name:version
                     sequence_name:alias
                     digest
-            type (str): The type of artifact to fetch.
+            type (str, optional): The type of artifact to fetch.
         Returns:
             A :obj:`Artifact` object.
         """
         if name is None:
             raise ValueError('You must specify name= to fetch an artifact.')
-        if type is not None:
-            wandb.termwarn("Type argument is deprecated and will be removed in a future release.")
+
         entity, project, artifact_name = self._parse_artifact_path(name)
-        return Artifact(self.client, entity, project, artifact_name)
+        artifact = Artifact(self.client, entity, project, artifact_name)
+        if type is not None and artifact.type != type:
+            raise ValueError("type %s specified but this artifact is of type %s")
+        return artifact
 
 
 class Attrs(object):
@@ -546,7 +561,6 @@ class Paginator(object):
     def _load_page(self):
         if not self.more:
             return False
-
         self.update_variables()
         self.last_response = self.client.execute(
             self.QUERY, variable_values=self.variables)
@@ -1057,7 +1071,11 @@ class Run(Attrs):
 
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
-        return RunArtifacts(self.client, self, per_page)
+        return RunArtifacts(self.client, self, mode="logged", per_page=per_page)
+
+    @normalize_exceptions
+    def used_artifacts(self, per_page=100):
+        return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @property
     def summary(self):
@@ -1785,6 +1803,7 @@ class ProjectArtifactCollections(Paginator):
                             endCursor
                             hasNextPage
                         }
+                        totalCount
                         edges {
                             node {
                                 id
@@ -1802,6 +1821,7 @@ class ProjectArtifactCollections(Paginator):
     def __init__(self, client, entity, project, type_name, per_page=50):
         self.entity = entity
         self.project = project
+        self.type_name = type_name
 
         variable_values = {
             'entityName': entity,
@@ -1813,8 +1833,10 @@ class ProjectArtifactCollections(Paginator):
 
     @property
     def length(self):
-        # TODO
-        return None
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactSequences']['totalCount']
+        else:
+            return None
 
     @property
     def more(self):
@@ -1834,30 +1856,28 @@ class ProjectArtifactCollections(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [ArtifactCollection(self.client, self.entity, self.project, r["node"]["name"], r["node"])
+        return [ArtifactCollection(self.client, self.entity, self.project, r["node"]["name"], self.type_name, r["node"])
                 for r in self.last_response['project']['artifactType']['artifactSequences']['edges']]
 
 
 class RunArtifacts(Paginator):
-    QUERY = gql('''
+    OUTPUT_QUERY = gql('''
         query RunArtifacts(
-            $entity: String!,
-            $project: String!,
-            $runName: String!,
-            $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
                     outputArtifacts(after: $cursor) {
+                        totalCount
                         edges {
                             node {
                                 ...ArtifactFragment
-                                cursor
                             }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
                         }
                     }
                 }
@@ -1866,11 +1886,44 @@ class RunArtifacts(Paginator):
         %s
     ''' % ARTIFACT_FRAGMENT)
 
-    def __init__(self, client, run, per_page=50):
+    INPUT_QUERY = gql('''
+        query RunArtifacts(
+            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+        ) {
+            project(name: $project, entityName: $entity) {
+                run(name: $runName) {
+                    inputArtifacts(after: $cursor) {
+                        totalCount
+                        edges {
+                            node {
+                                ...ArtifactFragment
+                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                }
+            }
+        }
+        %s
+    ''' % ARTIFACT_FRAGMENT)
+
+    def __init__(self, client, run, mode="logged", per_page=50):
         self.run = run
+        if mode == "logged":
+            self.run_key = "outputArtifacts"
+            self.QUERY = self.OUTPUT_QUERY
+        elif mode == "used":
+            self.run_key = "inputArtifacts"
+            self.QUERY = self.INPUT_QUERY
+        else:
+            raise ValueError("mode must be logged or used")
 
         variable_values = {
-            'entity': run.username,
+            'entity': run.entity,
             'project': run.project,
             'runName': run.id,
         }
@@ -1879,20 +1932,22 @@ class RunArtifacts(Paginator):
 
     @property
     def length(self):
-        # TODO
-        return None
+        if self.last_response:
+            return self.last_response['project']['run'][self.run_key]['totalCount']
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return self.last_response['project']['run']['artifactsPublished']['pageInfo']['hasNextPage']
+            return self.last_response['project']['run'][self.run_key]['pageInfo']['hasNextPage']
         else:
             return True
 
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response['project']['run']['artifactsPublished']['edges'][-1]['cursor']
+            return self.last_response['project']['run'][self.run_key]['edges']['cursor']
         else:
             return None
 
@@ -1900,8 +1955,8 @@ class RunArtifacts(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
-        return [Artifact(self.client, r["node"])
-                for r in self.last_response['project']['run']['artifactsPublished']['edges']]
+        return [Artifact(self.client, self.run.entity, self.run.project, r["node"]["digest"], r["node"])
+                for r in self.last_response['project']['run'][self.run_key]['edges']]
 
 
 class ArtifactType(object):
@@ -1949,29 +2004,37 @@ class ArtifactType(object):
         return self._attrs["id"]
 
     @normalize_exceptions
-    def artifact_collections(self, per_page=50):
+    def collections(self, per_page=50):
         """Artifact collections"""
         return ProjectArtifactCollections(self.client, self.entity, self.project, self.type)
+
+    def collection(self, name):
+        return ArtifactCollection(self.client, self.entity, self.project, name, self.type)
 
     def __repr__(self):
         return "<ArtifactType {}>".format(self.type)
 
 
 class ArtifactCollection(object):
-    def __init__(self, client, entity, project, name, attrs=None):
+    def __init__(self, client, entity, project, name, type, attrs=None):
         self.client = client
         self.entity = entity
         self.project = project
         self.name = name
+        self.type = type
         self._attrs = attrs
 
     @property
     def id(self):
         return self._attrs["id"]
 
-    def __repr__(self):
-        return "<ArtifactCollection {}>".format(self.name)
+    @normalize_exceptions
+    def versions(self, per_page=50):
+        """Artifact versions"""
+        return ArtifactVersions(self.client, self.entity, self.project, self.name, self.type, per_page=per_page)
 
+    def __repr__(self):
+        return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
 class Artifact(object):
@@ -2011,6 +2074,18 @@ class Artifact(object):
     @property
     def state(self):
         return self._attrs["state"]
+
+    @property
+    def size(self):
+        return self._attrs["size"]
+
+    @property
+    def created_at(self):
+        return self._attrs["createdAt"]
+
+    @property
+    def updated_at(self):
+        return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
     def description(self):
@@ -2102,24 +2177,8 @@ class Artifact(object):
         # Force all the files to download into the same directory.
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
-        import shutil
         pool = multiprocessing.dummy.Pool(32)
-        def download_file(name):
-            # download file into cache
-            cache_path = self.get_path(name).download()
-            # copy file into target dir
-            target_path = os.path.join(dirpath, name)
-            need_copy = (not os.path.isfile(target_path)
-                or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
-            if need_copy:
-                util.mkdir_exists_ok(os.path.dirname(target_path))
-<<<<<<< HEAD
-=======
-                # We use copy2, which preserves file metadata including modified
-                # time (which we use above to check whether we should do the copy).
->>>>>>> master
-                shutil.copy2(cache_path, target_path)
-        pool.map(download_file, manifest.entries)
+        pool.map(partial(self._download_file, dirpath=dirpath), manifest.entries)
         pool.close()
         pool.join()
 
@@ -2129,7 +2188,47 @@ class Artifact(object):
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
-<<<<<<< HEAD
+    def file(self, root=None, name=None):
+        """Download a single file artifact to dir specified by the <root>
+
+        Args:
+            root (str, optional): directory to download artifact to. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+            name (str, optional): the name of a specific file in an artifact to download
+
+        Returns:
+            The full path of the downloaded file
+        """
+
+        if dirpath is None:
+            dirpath = os.path.join('.', 'artifacts', self.name)
+
+        manifest = self._load_manifest()
+        nfiles = len(manifest.entries)
+        if nfiles > 1 and name is None:
+            raise ValueError("This artifact contains more than one file, call `.download` to get all files or pass `name` to `.file`.")
+
+        try:
+            path = next(n for n in manifest.entries if name is None or name == n)
+        except StopIteration:
+            raise ValueError("This artifact does not contain a file named %s" % name)
+
+        return self._download_file(path, dirpath)
+
+    def _download_file(self, name, dirpath):
+        # download file into cache
+        cache_path = self.get_path(name).download()
+        # copy file into target dir
+        target_path = os.path.join(dirpath, name)
+        need_copy = (not os.path.isfile(target_path)
+            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+        if need_copy:
+            util.mkdir_exists_ok(os.path.dirname(target_path))
+            # We use copy2, which preserves file metadata including modified
+            # time (which we use above to check whether we should do the copy).
+            shutil.copy2(cache_path, target_path)
+        return target_path
+
     @normalize_exceptions
     def save(self):
         """
@@ -2162,7 +2261,7 @@ class Artifact(object):
             collection, alias = self.artifact_name.split(":")
             return [{"artifactCollectionName": collection, "alias": alias}]
         return []
-=======
+
     def verify(self, root=None):
         """Verify an artifact by checksumming its downloaded contents.
 
@@ -2186,7 +2285,6 @@ class Artifact(object):
                 ref_count += 1
         if ref_count > 0:
             print('Warning: skipped verification of %s refs' % ref_count)
->>>>>>> master
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -2205,36 +2303,22 @@ class Artifact(object):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifact(name: $name) {
-                    id
-                    digest
-                    description
-                    state
-                    createdAt
-                    labels
-                    metadata
+                    %s
                     artifactType {
                        id
                        name
                     }
-                    aliases {
-                        artifactCollectionName
-                        alias
-                    }
                     currentManifest {
-                       id
+                        id
                         file {
                             id
                             url
-                        }
-                        aliases {
-                            artifactCollectionName
-                            alias
                         }
                     }
                 }
             }
         }
-        ''')
+        ''' % ARTIFACT_FRAGMENT)
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,
             'projectName': self.project,
@@ -2247,16 +2331,9 @@ class Artifact(object):
             # which don't include ":" and are 32 characters long
             if ':' not in self.artifact_name and len(self.artifact_name) != 32:
                 raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
-<<<<<<< HEAD
-            raise ValueError('Project %s/%s does not contain artifact: "%s" of type "%s"' % (
-                self.entity, self.project, self.artifact_name, self.artifact_type_name))
-        self._attrs = response['project']['artifactType']['artifact']
-        self._metadata = json.loads(self._attrs["metadata"] or "{}")
-=======
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
->>>>>>> master
         return self._attrs
 
     # The only file should be wandb_manifest.json
@@ -2273,6 +2350,77 @@ class Artifact(object):
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json_resp)
         return self._manifest
 
+class ArtifactVersions(Paginator):
+    """An iterable collection of artifact versions associated with a project and optional filter.
+    This is generally used indirectly via the :obj:`Api`.artifact_versions method
+    """
+
+    QUERY = gql('''
+        query Artifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+            project(name: $project, entityName: $entity) {
+                artifactType(name: $type) {
+                    artifactSequence(name: $collection) {
+                        name
+                        artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+                            totalCount
+                            edges {
+                                node {
+                                    ...ArtifactFragment
+                                }
+                                version
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        %s
+        ''' % ARTIFACT_FRAGMENT)
+
+    def __init__(self, client, entity, project, collection_name, type, filters={}, order=None, per_page=50):
+        self.entity = entity
+        self.collection_name = collection_name
+        self.type = type
+        self.project = project
+        self.filters = filters
+        self.order = order
+        variables = {
+            'project': self.project, 'entity': self.entity, 'order': self.order,
+            'type': self.type, 'collection': self.collection_name, 'filters': json.dumps(self.filters)
+        }
+        super(ArtifactVersions, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactSequence']['artifacts']['totalCount']
+        else:
+            return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactSequence']['artifacts']['pageInfo']['hasNextPage']
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response['project']['artifactType']['artifactSequence']['artifacts']['edges'][-1]['cursor']
+        else:
+            return None
+
+    def convert_objects(self):
+        if self.last_response['project']['artifactType']['artifactSequence'] is None:
+            return []
+        return [Artifact(self.client, self.entity, self.project, self.collection_name + ":" + a["version"], a["node"])
+                for a in self.last_response['project']['artifactType']['artifactSequence']['artifacts']['edges']]
 
 class ArtifactFiles(Paginator):
     QUERY = gql('''

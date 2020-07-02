@@ -415,11 +415,26 @@ class Run(object):
         return upsert_result
 
     def use_artifact(self, artifact, type=None, aliases=None):
+        """ Declare an artifact as an input to a run, call `download` or `file` on \
+        the returned object to get the contents locally.
+
+        Args:
+            artifact_or_name (str or Artifact): An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    sequence_name:version
+                    sequence_name:alias
+                    digest
+                You can also pass an Artifact object created by calling `wandb.Artifact`
+            type (str, optional): The type of artifact to use.
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A :obj:`Artifact` object.
+        """
         if self.mode == "dryrun":
             wandb.termwarn("Using artifacts in dryrun mode is currently unsupported.")
             return artifact
         self.history.ensure_jupyter_started()
-        if isinstance(artifact, str):
+        if isinstance(artifact, six.string_types):
             # Ensure we have an entity (_load_entity puts the result into api.settings())
             # then initialize PublicApi with it.
             self._load_entity(self.api, True)
@@ -431,7 +446,7 @@ class Run(object):
             self.api.use_artifact(artifact.id)
             return artifact
         else:
-            if isinstance(aliases, str):
+            if isinstance(aliases, six.string_types):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
                 self.send_message({
@@ -452,7 +467,40 @@ class Run(object):
             else:
                 raise ValueError('You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact, aliases=['latest']):
+    def log_artifact(self, artifact_or_path, name=None, type="dataset", aliases=['latest']):
+        """ Declare an artifact as output of a run.
+
+        Args:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                    /local/directory
+                    /local/directory/file.txt
+                    s3://bucket/path
+                You can also pass an Artifact object created by calling `wandb.Artifact`
+            name (str, optional): An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    sequence_name:version
+                    sequence_name:alias
+                    digest
+                this will default to the basename of the path if not specified
+            type (str, optional): The type of artifact to log, defaults to "dataset"
+            aliases (list, optional): Aliases to apply to this artifact, defaults to ["latest"]
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        if isinstance(artifact_or_path, six.string_types):
+            name = name or os.path.basename(artifact_or_path)
+            artifact = wandb.Artifact(name, type)
+            if os.path.isfile(artifact_or_path):
+                artifact.add_file(artifact_or_path)
+            elif os.path.isdir(artifact_or_path):
+                artifact.add_dir(artifact_or_path)
+            elif "://" in artifact_or_path:
+                artifact.add_reference(artifact_or_path)
+            else:
+                raise ValueError("path must be a file, directory or external reference like s3://bucket/path")
+        else:
+            artifact = artifact_or_path
         if not isinstance(artifact, artifacts.Artifact):
             raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
         if self.mode == "dryrun":

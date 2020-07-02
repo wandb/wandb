@@ -575,6 +575,54 @@ def join(exit_code=None):
     if len(_global_run_stack) > 0:
         _global_run_stack.pop()
 
+def use_artifact(self, artifact_or_name, type=None, aliases=None):
+    """ Declare an artifact as an input to a run, call `download` or `file` on \
+        the returned object to get the contents locally.
+
+        Args:
+            artifact_or_name (str or Artifact): An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    sequence_name:version
+                    sequence_name:alias
+                    digest
+                You can also pass an Artifact object created by calling `wandb.Artifact`
+            type (str, optional): The type of artifact to use.
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A :obj:`Artifact` object.
+    """
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling use_artifact")
+    return run.use_artifact(artifact_or_name, type, aliases)
+
+
+def log_artifact(self, artifact_or_path, name=None, type="dataset", aliases=['latest']):
+    """ Declare an artifact as output of a run.
+
+        Args:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                    /local/directory
+                    /local/directory/file.txt
+                    s3://bucket/path
+                You can also pass an Artifact object created by calling `wandb.Artifact`
+            name (str, optional): An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    sequence_name:version
+                    sequence_name:alias
+                    digest
+                this will default to the basename of the path if not specified
+            type (str, optional): The type of artifact to log, defaults to "dataset"
+            aliases (list, optional): Aliases to apply to this artifact, defaults to ["latest"]
+        Returns:
+            A :obj:`Artifact` object.
+    """
+    if run is None:
+        raise ValueError(
+            "You must call `wandb.init` before calling log_artifact")
+    return run.log_artifact(artifact_or_path, name, type, aliases)
+
 
 def save(glob_str, base_path=None, policy="live"):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
