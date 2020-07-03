@@ -2188,13 +2188,12 @@ class Artifact(object):
             termlog('Done. %.1fs' % (time.time() - start_time), prefix=False)
         return dirpath
 
-    def file(self, root=None, name=None):
+    def file(self, root=None):
         """Download a single file artifact to dir specified by the <root>
 
         Args:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
-            name (str, optional): the name of a specific file in an artifact to download
 
         Returns:
             The full path of the downloaded file
@@ -2206,14 +2205,9 @@ class Artifact(object):
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         if nfiles > 1 and name is None:
-            raise ValueError("This artifact contains more than one file, call `.download` to get all files or pass `name` to `.file`.")
+            raise ValueError("This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
 
-        try:
-            path = next(n for n in manifest.entries if name is None or name == n)
-        except StopIteration:
-            raise ValueError("This artifact does not contain a file named %s" % name)
-
-        return self._download_file(path, dirpath)
+        return self._download_file(manifest.entires[0], dirpath)
 
     def _download_file(self, name, dirpath):
         # download file into cache
