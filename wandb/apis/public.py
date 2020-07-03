@@ -2303,7 +2303,7 @@ class Artifact(object):
         ) {
             project(name: $projectName, entityName: $entityName) {
                 artifact(name: $name) {
-                    %s
+                    ...ArtifactFragment
                     artifactType {
                        id
                        name
@@ -2318,6 +2318,7 @@ class Artifact(object):
                 }
             }
         }
+        %s
         ''' % ARTIFACT_FRAGMENT)
         response = self.client.execute(query, variable_values={
             'entityName': self.entity,

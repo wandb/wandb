@@ -449,6 +449,7 @@ class Run(object):
             if isinstance(aliases, six.string_types):
                 aliases = [aliases]
             if isinstance(artifact, wandb.Artifact):
+                artifact.finalize()
                 self.send_message({
                     'use_artifact': {
                         'type': artifact.type,
