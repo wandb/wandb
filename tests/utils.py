@@ -97,13 +97,13 @@ class ResponseMock(object):
 
 
 class RequestsMock(object):
-    def __init__(self, app, requests):
+    def __init__(self, app, ctx):
         self.app = app
         self.client = app.test_client()
-        self.requests = requests
+        self.ctx = ctx
 
     def set_context(self, key, value):
-        self.app.context[key] = value
+        self.ctx[key] = value
 
     def Session(self):
         return self
@@ -147,8 +147,8 @@ class RequestsMock(object):
 
     def _store_request(self, url, body):
         key = url.split("/")[-1]
-        self.requests[key] = self.requests.get(key, [])
-        self.requests[key].append(body)
+        self.ctx[key] = self.ctx.get(key, [])
+        self.ctx[key].append(body)
 
     def post(self, url, **kwargs):
         self._store_request(url, kwargs.get("json"))

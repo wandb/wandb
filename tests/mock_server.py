@@ -35,7 +35,7 @@ def run():
 
 def paginated(node, ctx):
     next_page = False
-    print("returned ", ctx["page_count"])
+    print("Paginating ", ctx["page_count"], ctx["page_times"])
     ctx["page_count"] += 1
     if ctx["page_count"] < ctx["page_times"]:
         next_page = True
@@ -51,19 +51,14 @@ def paginated(node, ctx):
     }
 
 
-def create_app():
+def create_app(ctx):
     app = Flask(__name__)
-    app.context = {
-        "fail_count": 0,
-        "page_count": 0,
-        "page_times": 2
-    }
 
     @app.route("/graphql", methods=["POST"])
     def graphql():
-        if "fail_times" in app.context:
-            if app.context["fail_count"] < app.context["fail_times"]:
-                app.context["fail_count"] += 1
+        if "fail_times" in ctx:
+            if ctx["fail_count"] < ctx["fail_times"]:
+                ctx["fail_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
         body = request.get_json()
         if body["variables"].get("files"):
@@ -105,7 +100,7 @@ def create_app():
                     "project": {
                         "runCount": 4,
                         "readOnly": False,
-                        "runs": paginated(run(), app.context)
+                        "runs": paginated(run(), ctx)
                     }
                 }
             })
@@ -126,7 +121,7 @@ def create_app():
                         "entityName": body["variables"]["entity"],
                         "createdAt": "now",
                         "isBenchmark": False,
-                    }, app.context)
+                    }, ctx)
                 }
             })
         if "query Viewer" in body["query"]:

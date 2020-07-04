@@ -434,7 +434,6 @@ class Api(object):
             A :obj:`Run` object.
         """
         entity, project, run = self._parse_path(path)
-        print("FUCK", entity, project, run)
         if not self._runs.get(path):
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]

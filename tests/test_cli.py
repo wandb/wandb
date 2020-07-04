@@ -698,8 +698,8 @@ def test_sync_tensorboard_single(runner, git_repo, mock_server):
     assert "Found tfevents file, converting..." in str(result.output)
     assert "WARNING Not logging key \"histo\"" in str(result.output)
     assert result.exit_code == 0
-    print(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"])
-    assert len(json.loads(mock_server.requests["file_stream"][0]["files"]["wandb-history.jsonl"]["content"][0]).keys()) == 5
+    print(mock_server.ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"])
+    assert len(json.loads(mock_server.ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"][0]).keys()) == 5
 
 
 def test_sync_runs(runner, git_repo, mock_server):
@@ -755,7 +755,7 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     #assert "Verifying uploaded files... verified!" in result.output
     assert result.exit_code == 0
     assert "Syncing run lovely-dawn-32" in result.output
-    assert 'storage?file=diff.patch' not in mock_server.requests.keys()
+    assert 'storage?file=diff.patch' not in mock_server.ctx.keys()
     wandb.reset_env()
 
 @pytest.mark.skipif(os.getenv("NO_ML") == "true" or platform.system() == "@indows", reason="No PIL in NO_ML, this was failing in windows for some reason")

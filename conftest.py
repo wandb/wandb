@@ -456,11 +456,18 @@ def check_environ():
         for key in wandb_keys:
             wandb.termwarn('    {} = {}'.format(key, repr(os.environ[key])))
 
+def default_ctx():
+    return {
+        "fail_count": 0,
+        "page_count": 0,
+        "page_times": 2
+    }
 
 @pytest.fixture
 def mock_server(mocker):
-    app = create_app()
-    mock = utils.RequestsMock(app, {})
+    ctx = default_ctx()
+    app = create_app(ctx)
+    mock = utils.RequestsMock(app, ctx)
     mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.apis.file_stream.requests", mock)
     mocker.patch("wandb.apis.internal.requests", mock)
@@ -475,7 +482,7 @@ def live_mock_server(request):
         port = request.node.get_closest_marker('port').args[0]
     else:
         port = 8765
-    app = create_app()
+    app = create_app(default_ctx())
     server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
     server.start()
     for i in range(5):

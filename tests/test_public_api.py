@@ -105,12 +105,12 @@ def test_run_history_system(mock_server):
 def test_run_summary(mock_server):
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
-    assert mock_server.requests["graphql"][-1]["variables"]["summaryMetrics"] == '{"acc": 100, "loss": 0, "cool": 1000}'
+    assert mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"] == '{"acc": 100, "loss": 0, "cool": 1000}'
 
 
 def test_run_create(mock_server):
     run = api.create_run(project="test")
-    assert mock_server.requests["graphql"][-1]["variables"] == {'entity': 'vanpelt', 'name': run.id, 'project': 'test'}
+    assert mock_server.ctx["graphql"][-1]["variables"] == {'entity': 'vanpelt', 'name': run.id, 'project': 'test'}
 
 
 def test_run_update(mock_server):
@@ -118,8 +118,8 @@ def test_run_update(mock_server):
     run.tags.append("test")
     run.config["foo"] = "bar"
     run.update()
-    assert mock_server.requests["graphql"][-1]["variables"] == {'id': 'test', 'summaryMetrics': '{"acc": 100, "loss": 0}'}
-    assert mock_server.requests["graphql"][-2]["variables"]["entity"] == "test"
+    assert mock_server.ctx["graphql"][-1]["variables"] == {'id': 'test', 'summaryMetrics': '{"acc": 100, "loss": 0}'}
+    assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 
 def test_run_files(runner, mock_server):
