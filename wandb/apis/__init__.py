@@ -74,8 +74,8 @@ def normalize_exceptions(func):
             try:
                 message = err.response.json().get(
                     'errors', [{'message': message}])[0]['message']
-            except ValueError:
-                message = err.response.text
+            except Exception:
+                message = err.response.data
             raise CommError(message, err)
         except RetryError as err:
             if "response" in dir(err.last_exception) and err.last_exception.response is not None:

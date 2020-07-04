@@ -417,13 +417,14 @@ def dryrun():
 
 
 @pytest.fixture
-def request_mocker(request):
+def request_mocker(request, query_viewer):
     """
     :param request: pytest request object for cleaning up.
     :return: Returns instance of requests mocker used to mock HTTP calls.
     """
     m = requests_mock.Mocker()
     m.start()
+    query_viewer(m)
     request.addfinalizer(m.stop)
     return m
 
@@ -459,10 +460,12 @@ def check_environ():
 @pytest.fixture
 def mock_server(mocker):
     app = create_app()
-    mock = utils.RequestsMock(app.test_client(), {})
+    mock = utils.RequestsMock(app, {})
     mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.apis.file_stream.requests", mock)
     mocker.patch("wandb.apis.internal.requests", mock)
+    mocker.patch("wandb.apis.public.requests", mock)
+    mocker.patch("wandb.util.requests", mock)
     return mock
 
 

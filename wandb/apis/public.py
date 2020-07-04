@@ -1,5 +1,4 @@
 import logging
-import requests
 import time
 import sys
 import os
@@ -219,6 +218,8 @@ class Api(object):
         self._client = RetryingClient(self._base_client)
 
     def create_run(self, **kwargs):
+        if kwargs.get("entity") is None:
+            kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
 
     @property
@@ -295,6 +296,8 @@ class Api(object):
             if entity and run == project:
                 project = parts[0]
             else:
+                entity = parts[0]
+            if len(parts) == 3:
                 entity = parts[0]
         else:
             project = parts[0]
@@ -431,6 +434,7 @@ class Api(object):
             A :obj:`Run` object.
         """
         entity, project, run = self._parse_path(path)
+        print("FUCK", entity, project, run)
         if not self._runs.get(path):
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
@@ -840,7 +844,7 @@ class Run(Attrs):
         run_id = run_id or util.generate_id()
         project = project or api.settings.get("project")
         mutation = gql('''
-        mutation upsertRun($project: String, $entity: String, $name: String!) {
+        mutation UpsertBucket($project: String, $entity: String, $name: String!) {
             upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
                 bucket {
                     project {
@@ -922,7 +926,7 @@ class Run(Attrs):
         Persists changes to the run object to the wandb backend.
         """
         mutation = gql('''
-        mutation upsertRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
             upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
                 bucket {
                     ...RunFragment
@@ -1380,10 +1384,6 @@ class File(object):
         Raises:
             `ValueError` if file already exists and replace=False
         """
-
-        response = requests.get(self.url, auth=(
-            "api", Api().api_key), stream=True, timeout=5)
-        response.raise_for_status()
         path = os.path.join(root, self.name)
         if os.path.exists(path) and not replace:
             raise ValueError(

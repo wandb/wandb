@@ -1,14 +1,70 @@
-"""Mock Server for simple tasks the cli does"""
+"""Mock Server for simple calls the cli and public api makes"""
 
 from flask import Flask, request
 import json
 
+def run():
+    return {
+        'id': 'test',
+        'name': 'wild-test',
+        'displayName': 'beast-bug-33',
+        'state': "running",
+        'config': '{"epochs": {"value": 10}}',
+        'description': "",
+        'systemMetrics': '{"cpu": 100}',
+        'summaryMetrics': '{"acc": 100, "loss": 0}',
+        'fileCount': 1,
+        'history': [
+            '{"acc": 10, "loss": 90}',
+            '{"acc": 20, "loss": 80}',
+            '{"acc": 30, "loss": 70}'
+        ],
+        'events': [
+            '{"cpu": 10}',
+            '{"cpu": 20}',
+            '{"cpu": 30}'
+        ],
+        "files": {
+            # Special weights url meant to be used with api_mocks#download_url
+            "edges": [{"node": {"name": "weights.h5", "sizeBytes": 20, "url": request.url_root + "/storage?file=weights.h5"}}]
+        },
+        'tags': [],
+        'notes': None,
+        'sweepName': None,
+    }
+
+def paginated(node, ctx):
+    next_page = False
+    print("returned ", ctx["page_count"])
+    ctx["page_count"] += 1
+    if ctx["page_count"] < ctx["page_times"]:
+        next_page = True
+    return {
+        "edges": [{
+            "node": node,
+            "cursor": "abc123"
+        }],
+        "pageInfo": {
+            "endCursor": "abc123",
+            "hasNextPage": next_page
+        }
+    }
+
 
 def create_app():
     app = Flask(__name__)
+    app.context = {
+        "fail_count": 0,
+        "page_count": 0,
+        "page_times": 2
+    }
 
     @app.route("/graphql", methods=["POST"])
     def graphql():
+        if "fail_times" in app.context:
+            if app.context["fail_count"] < app.context["fail_times"]:
+                app.context["fail_count"] += 1
+                return json.dumps({"errors": ["Server down"]}), 500
         body = request.get_json()
         if body["variables"].get("files"):
             file = body["variables"]["files"][0]
@@ -43,39 +99,34 @@ def create_app():
                     }
                 }
             })
+        if "query Runs" in body["query"]:
+            return json.dumps({
+                "data": {
+                    "project": {
+                        "runCount": 4,
+                        "readOnly": False,
+                        "runs": paginated(run(), app.context)
+                    }
+                }
+            })
         if "query Run" in body["query"]:
             return json.dumps({
                 'data': {
                     'project': {
-                        'run': {
-                            'id': 'test',
-                            'name': 'wild-test',
-                            'displayName': 'beast-bug-33',
-                            'state': "running",
-                            'config': '{"epochs": {"value": 10}}',
-                            'description': "",
-                            'systemMetrics': '{"cpu": 100}',
-                            'summaryMetrics': '{"acc": 100, "loss": 0}',
-                            'fileCount': 1,
-                            'history': [
-                                '{"acc": 10, "loss": 90}',
-                                '{"acc": 20, "loss": 80}',
-                                '{"acc": 30, "loss": 70}'
-                            ],
-                            'events': [
-                                '{"cpu": 10}',
-                                '{"cpu": 20}',
-                                '{"cpu": 30}'
-                            ],
-                            "files": {
-                                # Special weights url meant to be used with api_mocks#download_url
-                                "edges": [{"node": {"name": "weights.h5", "sizeBytes": 20, "url": "https://weights.url"}}]
-                            },
-                            'tags': [],
-                            'notes': None,
-                            'sweepName': None,
-                        }
+                        'run': run()
                     }
+                }
+            })
+        if "query Projects" in body["query"]:
+            return json.dumps({
+                "data": {
+                    "models": paginated({
+                        "id": "1",
+                        "name": "test-project",
+                        "entityName": body["variables"]["entity"],
+                        "createdAt": "now",
+                        "isBenchmark": False,
+                    }, app.context)
                 }
             })
         if "query Viewer" in body["query"]:
@@ -93,6 +144,7 @@ def create_app():
                     "upsertBucket": {
                         "bucket": {
                             "id": "storageid",
+                            "name": body["variables"].get("name", "abc123"),
                             "displayName": "lovely-dawn-32",
                             "project": {
                                 "name": "test",
@@ -147,7 +199,7 @@ def create_app():
                     }
                 }
             })
-        return json.dumps({"error": "Not implemented in tests/mock_server.py", "body": body})
+        return json.dumps({"errors": [{"message": "Not implemented in tests/mock_server.py", "body": body}]})
 
     @app.route("/storage", methods=["PUT", "GET"])
     def storage():
