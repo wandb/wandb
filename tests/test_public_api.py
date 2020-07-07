@@ -47,7 +47,7 @@ def test_parse_path_docker():
     assert r == "run"
 
 
-def test_parse_path_docker_proj():
+def test_parse_path_docker_proj(mock_server):
     u, p, r = api._parse_path("proj:run")
     assert u == "vanpelt"
     assert p == "proj"
@@ -61,14 +61,14 @@ def test_parse_path_url():
     assert r == "run"
 
 
-def test_parse_path_user_proj():
+def test_parse_path_user_proj(mock_server):
     u, p, r = api._parse_path("proj/run")
     assert u == "vanpelt"
     assert p == "proj"
     assert r == "run"
 
 
-def test_parse_path_proj():
+def test_parse_path_proj(mock_server):
     u, p, r = api._parse_path("proj")
     assert u == "vanpelt"
     assert p == "proj"
@@ -76,33 +76,39 @@ def test_parse_path_proj():
 
 
 def test_run_from_path(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
 
 
 def test_run_retry(mock_server):
+    api.flush()
     mock_server.set_context("fail_times", 2)
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
 
 
 def test_run_history(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     assert run.history(pandas=False)[0] == {'acc': 10, 'loss': 90}
 
 
 def test_run_config(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     assert run.config == {'epochs': 10}
 
 
 def test_run_history_system(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     assert run.history(stream="system", pandas=False) == [
         {'cpu': 10}, {'cpu': 20}, {'cpu': 30}]
 
 
 def test_run_summary(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
     assert mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"] == '{"acc": 100, "loss": 0, "cool": 1000}'
@@ -114,6 +120,7 @@ def test_run_create(mock_server):
 
 
 def test_run_update(mock_server):
+    api.flush()
     run = api.run("test/test/test")
     run.tags.append("test")
     run.config["foo"] = "bar"
@@ -124,6 +131,7 @@ def test_run_update(mock_server):
 
 def test_run_files(runner, mock_server):
     with runner.isolated_filesystem():
+        api.flush()
         run = api.run("test/test/test")
         file = run.files()[0]
         file.download()
@@ -138,6 +146,7 @@ def test_run_files(runner, mock_server):
 
 def test_run_file(runner, mock_server):
     with runner.isolated_filesystem():
+        api.flush()
         run = api.run("test/test/test")
         file = run.file("weights.h5")
         assert not os.path.exists("weights.h5")
@@ -147,6 +156,7 @@ def test_run_file(runner, mock_server):
 
 
 def test_runs_from_path(mock_server):
+    api.flush()
     runs = api.runs("test/test")
     assert len(runs) == 4
     list(runs)
@@ -155,6 +165,7 @@ def test_runs_from_path(mock_server):
 
 
 def test_runs_from_path_index(mock_server):
+    api.flush()
     mock_server.set_context("page_times", 4)
     runs = api.runs("test/test")
     assert len(runs) == 4

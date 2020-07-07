@@ -35,7 +35,6 @@ def run():
 
 def paginated(node, ctx):
     next_page = False
-    print("Paginating ", ctx["page_count"], ctx["page_times"])
     ctx["page_count"] += 1
     if ctx["page_count"] < ctx["page_times"]:
         next_page = True
@@ -56,6 +55,7 @@ def create_app(ctx):
 
     @app.route("/graphql", methods=["POST"])
     def graphql():
+        print("CTX: ", ctx)
         if "fail_times" in ctx:
             if ctx["fail_count"] < ctx["fail_times"]:
                 ctx["fail_count"] += 1

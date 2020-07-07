@@ -458,7 +458,7 @@ def artifact():
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
 @click.option("--alias", "-a", default=["latest"], multiple=True, help="An alias to apply to this artifact")
 @display_error
-def log(path, name, description, type, alias):
+def put(path, name, description, type, alias):
     if name is None:
         name = os.path.basename(path)
     entity, project, artifact_name = public_api._parse_artifact_path(name)
@@ -485,7 +485,7 @@ def log(path, name, description, type, alias):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="wandb_cli")
+    run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="cli_put")
     # We create the artifact manually to get the current version
     res = api.create_artifact(type, artifact_name, artifact.digest,
         entity_name=entity, project_name=project, run_name=run.id, description=description,

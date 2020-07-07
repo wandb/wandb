@@ -468,7 +468,7 @@ class Run(object):
             else:
                 raise ValueError('You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact')
 
-    def log_artifact(self, artifact_or_path, name=None, type="dataset", aliases=['latest']):
+    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=['latest']):
         """ Declare an artifact as output of a run.
 
         Args:
@@ -484,7 +484,7 @@ class Run(object):
                     sequence_name:alias
                     digest
                 this will default to the basename of the path if not specified
-            type (str, optional): The type of artifact to log, defaults to "dataset"
+            type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact, defaults to ["latest"]
         Returns:
             A :obj:`Artifact` object.
