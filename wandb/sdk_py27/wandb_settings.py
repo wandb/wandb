@@ -80,6 +80,7 @@ env_settings = dict(
     entity=None,
     project=None,
     base_url=None,
+    api_key=None,
     sweep_id=None,
     mode=None,
     run_group=None,
@@ -237,6 +238,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _start_time=None,
         _start_datetime=None,
         console=None,
+        disabled=None,  # alias for mode=dryrun, not supported yet
         # compute environment
         jupyter=None,
         windows=None,
