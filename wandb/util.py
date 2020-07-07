@@ -471,6 +471,18 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
         if converted:
             return obj
         return json.JSONEncoder.default(self, obj)
+    
+
+class JSONEncoderUncompressed(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types.
+    This encoder turns numpy like objects with a size > 32 into histograms"""
+
+    def default(self, obj):
+        if is_numpy_array(obj):
+            return obj.tolist()
+        elif np and isinstance(obj, np.generic):
+            obj = obj.item()
+        return json.JSONEncoder.default(self, obj)
 
 def json_dump_safer(obj, fp, **kwargs):
     """Convert obj to json, with some extra encodable types."""
@@ -480,6 +492,10 @@ def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
+# This is used for dumping raw json into files
+def json_dump_uncompressed(obj, fp, **kwargs):
+    """Convert obj to json, with some extra encodable types."""
+    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
