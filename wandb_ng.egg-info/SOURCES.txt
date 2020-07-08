@@ -12,6 +12,7 @@ wandb/util.py
 wandb/viz.py
 wandb/wandb_agent.py
 wandb/wandb_controller.py
+wandb/wandb_run.py
 wandb/wandb_torch.py
 wandb/apis/__init__.py
 wandb/apis/internal.py

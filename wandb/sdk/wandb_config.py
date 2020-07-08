@@ -102,7 +102,8 @@ class Config(object):
     def __getattr__(self, key):
         return self.__getitem__(key)
 
-    def update(self, d):
+    def update(self, d, allow_val_change=False):
+        # TODO(cling): implement allow_val_change.
         self._items.update(_get_dict(d))
 
     def setdefaults(self, d):
