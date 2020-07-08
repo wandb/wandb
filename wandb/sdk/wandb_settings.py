@@ -273,6 +273,18 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         object.__setattr__(self, "_configured_by", dict)
         self._setup(kwargs)
 
+        if _files:
+            # TODO(jhr): permit setting of config in system and workspace
+            settings_system = self._path_convert(
+                self.__dict__.get("settings_system_spec")
+            )
+            self.update(self._load(settings_system), _setter="system")
+            settings_workspace = self._path_convert(
+                self.__dict__.get("settings_workspace_spec")
+            )
+            self.update(self._load(settings_workspace), _setter="workspace")
+        if _settings:
+            self.update(_settings)
         if _environ:
             _logger = _early_logger or logger
             inv_map = _build_inverse_map(env_prefix, env_settings)
@@ -291,18 +303,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
             _logger.info("setting env: {}".format(env_dict))
             self.update(env_dict, _setter="env")
-        if _files:
-            # TODO(jhr): permit setting of config in system and workspace
-            settings_system = self._path_convert(
-                self.__dict__.get("settings_system_spec")
-            )
-            self.update(self._load(settings_system), _setter="system")
-            settings_workspace = self._path_convert(
-                self.__dict__.get("settings_workspace_spec")
-            )
-            self.update(self._load(settings_workspace), _setter="workspace")
-        if _settings:
-            self.update(_settings)
 
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
