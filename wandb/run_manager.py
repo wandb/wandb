@@ -790,6 +790,7 @@ class RunManager(object):
         # Python 2 tests were failing...
         if hasattr(sys.stdout, "orig_write"):
             sys.stdout.write = sys.stdout.orig_write
+        if hasattr(sys.stderr, "orig_write"):
             sys.stderr.write = sys.stderr.orig_write
 
     def _get_stdout_stderr_streams(self):

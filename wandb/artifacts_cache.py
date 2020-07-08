@@ -6,10 +6,6 @@ import shutil
 from wandb import env
 from wandb import util
 
-def bytes_to_hex(bytestr):
-    # Works in python2 / python3
-    return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
-
 class ArtifactsCache(object):
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
@@ -18,7 +14,7 @@ class ArtifactsCache(object):
         self._etag_obj_dir = os.path.join(self._cache_dir, 'obj', 'etag')
 
     def check_md5_obj_path(self, b64_md5, size):
-        hex_md5 = bytes_to_hex(base64.b64decode(b64_md5))
+        hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
         path = os.path.join(self._cache_dir, 'obj', 'md5', hex_md5[:2], hex_md5[2:])
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True

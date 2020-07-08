@@ -544,7 +544,7 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(self._cache, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5):
-        md5_hex = base64.b64decode(md5).hex()
+        md5_hex = util.bytes_to_hex(base64.b64decode(md5))
         return '{}/artifacts/{}/{}'.format(api.settings("base_url"), entity_name, md5_hex)
 
     def store_file(self, artifact_id, entry, preparer, progress_callback=None):

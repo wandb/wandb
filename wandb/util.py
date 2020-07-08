@@ -1043,3 +1043,7 @@ def to_forward_slash_path(path):
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return path
+
+def bytes_to_hex(bytestr):
+    # Works in python2 / python3
+    return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
