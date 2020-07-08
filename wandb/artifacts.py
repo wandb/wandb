@@ -874,7 +874,7 @@ class GCSHandler(StorageHandler):
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size)
         if hit:
-            return True
+            return path
 
         self.init_gcs()
         bucket, key = self._parse_uri(manifest_entry.ref)
