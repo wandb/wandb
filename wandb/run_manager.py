@@ -787,11 +787,12 @@ class RunManager(object):
             fs_api, util.OUTPUT_FNAME, prepend_timestamp=True, line_prepend='ERROR'))
 
     def unmirror_stdout_stderr(self):
-        # Python 2 tests were failing...
-        if hasattr(sys.stdout, "orig_write"):
+        try:
             sys.stdout.write = sys.stdout.orig_write
-        if hasattr(sys.stderr, "orig_write"):
             sys.stderr.write = sys.stderr.orig_write
+        # Python 2 tests sometimes failed?...
+        except AssertionError:
+            pass
 
     def _get_stdout_stderr_streams(self):
         """Sets up STDOUT and STDERR streams. Only call this once."""

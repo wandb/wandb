@@ -575,7 +575,7 @@ def join(exit_code=None):
     if len(_global_run_stack) > 0:
         _global_run_stack.pop()
 
-def use_artifact(self, artifact_or_name, type=None, aliases=None):
+def use_artifact(artifact_or_name, type=None, aliases=None):
     """ Declare an artifact as an input to a run, call `download` or `file` on \
         the returned object to get the contents locally.
 
@@ -597,7 +597,7 @@ def use_artifact(self, artifact_or_name, type=None, aliases=None):
     return run.use_artifact(artifact_or_name, type, aliases)
 
 
-def log_artifact(self, artifact_or_path, name=None, type=None, aliases=['latest']):
+def log_artifact(artifact_or_path, name=None, type=None, aliases=['latest']):
     """ Declare an artifact as output of a run.
 
         Args:

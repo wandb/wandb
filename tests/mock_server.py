@@ -210,6 +210,14 @@ def create_app(ctx):
                     }
                 }
             }
+        if "mutation UseArtifact" in body["query"]:
+            return {
+                "data": {
+                    "useArtifact": {
+                        "artifact": artifact(ctx)
+                    }
+                }
+            }
         if "query ProjectArtifactType" in body["query"]:
             return {
                 "data": {

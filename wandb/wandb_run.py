@@ -490,7 +490,8 @@ class Run(object):
             A :obj:`Artifact` object.
         """
         if isinstance(artifact_or_path, six.string_types):
-            name = name or os.path.basename(artifact_or_path)
+            if name is None:
+                name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
             artifact = wandb.Artifact(name, type)
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
