@@ -251,7 +251,32 @@ class FileStreamApi(object):
     def stream_file(self, path):
         name = path.split("/")[-1]
         with open(path) as f:
-            self._send([Chunk(name, line) for line in f])
+            done = False
+            first_line = next(f)
+            if len(first_line) > 500000:
+                lines_per_request = 2
+            elif len(first_line) > 100000:
+                lines_per_request = 10
+            elif len(first_line) > 10000:
+                lines_per_request = 100
+            elif len(first_line) > 1000:
+                lines_per_request = 1000
+            else:
+                lines_per_request = 10000
+            chunks = [Chunk(name, first_line)]
+            while True:
+                for i in range(lines_per_request - len(chunks)):
+                    try:
+                        line = next(f)
+                        chunks.append(Chunk(name, line))
+                    except StopIteration:
+                        done = True
+                        break
+                if len(chunks) > 0:
+                    self._send(chunks)
+                chunks = []
+                if done:
+                    break
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.

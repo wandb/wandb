@@ -111,7 +111,7 @@ def test_run_summary(mock_server):
     api.flush()
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
-    assert mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"] == '{"acc": 100, "loss": 0, "cool": 1000}'
+    assert json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"]) == {"acc": 100, "loss": 0, "cool": 1000}
 
 
 def test_run_create(mock_server):
@@ -125,7 +125,7 @@ def test_run_update(mock_server):
     run.tags.append("test")
     run.config["foo"] = "bar"
     run.update()
-    assert mock_server.ctx["graphql"][-1]["variables"] == {'id': 'test', 'summaryMetrics': '{"acc": 100, "loss": 0}'}
+    assert json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"]) == {"acc": 100, "loss": 0}
     assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 

@@ -97,7 +97,7 @@ class ResponseMock(object):
 
     @property
     def content(self):
-        return self.response.data
+        return self.response.data.decode('utf-8')
 
     def iter_content(self, chunk_size=1024):
         yield self.response.data
