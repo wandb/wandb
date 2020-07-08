@@ -213,7 +213,8 @@ class RunManaged(Run):
         # TODO: It feels weird to call this twice..
         sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
 
-    def log(self, data, step=None, commit=True):
+    def log(self, data, step=None, commit=True, sync=None):
+        # TODO(cling): sync is a noop for now
         if commit:
             self.history._row_add(data)
         else:
