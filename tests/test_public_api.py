@@ -306,3 +306,49 @@ def test_read_advanced_summary(runner, request_mocker, upsert_run, query_downloa
         run.summary.open_h5()
         assert list(sorted(run.summary._h5["summary"].keys())) == [
             "nested.deep", "special"]
+
+def test_artifact_versions(runner, mock_server):
+    versions = api.artifact_versions("dataset", "mnist")
+    assert len(versions) == 2
+    assert versions[0].name == "mnist:v0"
+    assert versions[1].name == "mnist:v1"
+
+def test_artifact_type(runner, mock_server):
+    atype = api.artifact_type("dataset")
+    assert atype.name == "dataset"
+    col = atype.collection("mnist")
+    assert col.name == "mnist"
+    cols = atype.collections()
+    assert cols[0].name == "mnist"
+
+def test_artifact_types(runner, mock_server):
+    atypes = api.artifact_types("dataset")
+
+    raised = False
+    try:
+        assert len(atypes) == 2
+    except ValueError:
+        raised = True
+    assert raised
+    assert atypes[0].name == "dataset"
+
+def test_artifact_get_path(runner, mock_server):
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    assert art.type == "dataset"
+    assert art.name == "mnist:v0"
+    with runner.isolated_filesystem():
+        path = art.get_path("digits.h5")
+        res = path.download()
+        assert res == os.path.expanduser("~")+ "/.cache/wandb/artifacts/obj/md5/4d/e489e31c57834a21b8be7111dab613"
+
+def test_artifact_file(runner, mock_server):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.file()
+        assert path == "./artifacts/mnist:v0/digits.h5"
+
+def test_artifact_download(runner, mock_server):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.download()
+        assert path == "./artifacts/mnist:v0"

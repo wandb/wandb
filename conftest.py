@@ -470,6 +470,7 @@ def mock_server(mocker):
     mocker.patch("wandb.apis.internal.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
+    mocker.patch("wandb.artifacts.requests", mock)
     return mock
 
 

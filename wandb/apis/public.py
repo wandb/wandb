@@ -2002,6 +2002,10 @@ class ArtifactType(object):
     def id(self):
         return self._attrs["id"]
 
+    @property
+    def name(self):
+        return self._attrs["name"]
+
     @normalize_exceptions
     def collections(self, per_page=50):
         """Artifact collections"""
@@ -2198,15 +2202,15 @@ class Artifact(object):
             The full path of the downloaded file
         """
 
-        if dirpath is None:
-            dirpath = os.path.join('.', 'artifacts', self.name)
+        if root is None:
+            root = os.path.join('.', 'artifacts', self.name)
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
-        if nfiles > 1 and name is None:
+        if nfiles > 1:
             raise ValueError("This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
 
-        return self._download_file(manifest.entires[0], dirpath)
+        return self._download_file(list(manifest.entries)[0], root)
 
     def _download_file(self, name, dirpath):
         # download file into cache

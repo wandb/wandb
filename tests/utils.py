@@ -85,9 +85,19 @@ class ResponseMock(object):
     def __init__(self, response):
         self.response = response
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
     def raise_for_status(self):
         if self.response.status_code >= 400:
             raise requests.exceptions.HTTPError("Bad Request", response=self.response)
+
+    @property
+    def content(self):
+        return self.response.data
 
     def iter_content(self, chunk_size=1024):
         yield self.response.data
@@ -127,6 +137,17 @@ class RequestsMock(object):
     @property
     def exceptions(self):
         return requests.exceptions
+
+    @property
+    def packages(self):
+        return requests.packages
+
+    @property
+    def adapters(self):
+        return requests.adapters
+
+    def mount(self, *args):
+        pass
 
     def _clean_kwargs(self, kwargs):
         if "auth" in kwargs:

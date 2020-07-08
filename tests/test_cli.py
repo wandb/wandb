@@ -850,3 +850,33 @@ def test_resume_must(runner, request_mocker, query_no_run_resume_status, query_v
     assert result.exit_code == 1
 
 # TODO: test actual resume
+
+def test_artifact_download(runner, git_repo, mock_server):
+    result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Downloading dataset artifact" in result.output
+    assert "Artifact downloaded to ./artifacts/mnist:v0" in result.output
+    assert os.path.exists("./artifacts/mnist:v0")
+
+def test_artifact_upload(runner, git_repo, mock_server):
+    with open("artifact.txt", "w") as f:
+        f.write("My Artifact")
+    result = runner.invoke(cli.artifact, ["put", "artifact.txt", "-n", "test/simple"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Uploading file artifact.txt to:" in result.output
+    assert 'artifact = run.use_artifact("vanpelt/test/simple:v0")' in result.output
+
+def test_artifact_ls(runner, git_repo, mock_server):
+    result = runner.invoke(cli.artifact, ["ls", "test"])
+    print(result.output)
+    print(result.exception)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "9KB" in result.output
+    assert "mnist:v2" in result.output

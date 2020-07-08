@@ -2,6 +2,7 @@
 
 from flask import Flask, request
 import os
+from datetime import datetime
 import json
 
 def run():
@@ -34,16 +35,35 @@ def run():
         'sweepName': None,
     }
 
-def paginated(node, ctx):
+def artifact(ctx, collection_name="mnist"):
+    return {
+        "id": ctx["page_count"],
+        "digest": "abc123",
+        "description": "",
+        "state": "COMMITTED",
+        "size": 10000,
+        "createdAt": datetime.now().isoformat(),
+        "updatedAt": datetime.now().isoformat(),
+        "labels": [],
+        "metadata": "{}",
+        "aliases": [{
+            "artifactCollectionName": collection_name,
+            "alias": "v%i" % ctx["page_count"]
+        }]
+    }
+
+def paginated(node, ctx, extra={}):
     next_page = False
     ctx["page_count"] += 1
     if ctx["page_count"] < ctx["page_times"]:
         next_page = True
+    edge = {
+        "node": node,
+        "cursor": "abc123"
+    }
+    edge.update(extra)
     return {
-        "edges": [{
-            "node": node,
-            "cursor": "abc123"
-        }],
+        "edges": [edge],
         "pageInfo": {
             "endCursor": "abc123",
             "hasNextPage": next_page
@@ -182,6 +202,90 @@ def create_app(ctx):
                     }
                 }
             })
+        if "mutation CreateArtifact" in body["query"]:
+            return {
+                "data": {
+                    "createArtifact": {
+                        "artifact": artifact(ctx, body["variables"]["artifactCollectionNames"][0])
+                    }
+                }
+            }
+        if "query ProjectArtifactType" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "id": "1",
+                            "name": "dataset",
+                            "description": "",
+                            "createdAt": datetime.now().isoformat()
+                        }
+                    }
+                }
+            }
+        if "query ProjectArtifacts" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "artifactTypes": paginated({
+                            "id": "1",
+                            "name": "dataset",
+                            "description": "",
+                            "createdAt": datetime.now().isoformat()
+                        }, ctx)
+                    }
+                }
+            }
+        if "query ProjectArtifactCollections" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifactSequences": paginated({
+                                "id": "1",
+                                "name": "mnist",
+                                "description": "",
+                                "createdAt": datetime.now().isoformat()
+                            }, ctx)
+                        }
+                    }
+                }
+            }
+        if "query Artifacts" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx, {"version": "v%i" % ctx["page_count"]})
+            artifacts["totalCount"] = ctx["page_times"]
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifactSequence": {
+                                "name": "mnist",
+                                "artifacts": artifacts
+                            }
+                        }
+                    }
+                }
+            }
+        if "query Artifact(" in body["query"]:
+            art = artifact(ctx)
+            art["artifactType"] = {
+                "id": 1,
+                "name": "dataset"
+            }
+            art["currentManifest"] = {
+                "id": 1,
+                "file": {
+                    "id": 1,
+                    "url": request.url_root + "/storage?file=wandb_manifest.json"
+                }
+            }
+            return {
+                "data": {
+                    "project": {
+                        "artifact": art
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps({
                 "data": {
@@ -194,14 +298,31 @@ def create_app(ctx):
                     }
                 }
             })
+        print("MISSING QUERY", body["query"])
         return json.dumps({"errors": [{"message": "Not implemented in tests/mock_server.py", "body": body}]})
 
     @app.route("/storage", methods=["PUT", "GET"])
     def storage():
+        file = request.args.get('file')
         size = ctx["files"].get(request.args.get('file'))
         if request.method == "GET" and size:
             return os.urandom(size), 200
+        if file == "wandb_manifest.json":
+            return json.dumps({
+                "version": 1,
+                "storagePolicy": "wandb-storage-policy-v1",
+                "storagePolicyConfig": {},
+                "contents": {
+                    "digits.h5": {
+                        "digest": "TeSJ4xxXg0ohuL5xEdq2Ew==",
+                        "size": 81299
+                    }
+                }})
         return "", 200
+
+    @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
+    def artifact_file(entity, digest):
+        return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
