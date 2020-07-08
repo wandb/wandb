@@ -306,9 +306,9 @@ def test_save_policy_jupyter(wandb_init_run, query_upload_h5, request_mocker):
         'end': [], 'live': ['test.rad']}
 
 
-def test_restore(runner, request_mocker, download_url, wandb_init_run):
+def test_restore(runner, mock_server, wandb_init_run):
     with runner.isolated_filesystem():
-        download_url(request_mocker, size=10000)
+        mock_server.set_context("files", {"weights.h5": 10000})
         res = wandb.restore("weights.h5")
         assert os.path.getsize(res.name) == 10000
 

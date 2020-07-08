@@ -1,6 +1,7 @@
 """Mock Server for simple calls the cli and public api makes"""
 
 from flask import Flask, request
+import os
 import json
 
 def run():
@@ -55,7 +56,6 @@ def create_app(ctx):
 
     @app.route("/graphql", methods=["POST"])
     def graphql():
-        print("CTX: ", ctx)
         if "fail_times" in ctx:
             if ctx["fail_count"] < ctx["fail_times"]:
                 ctx["fail_count"] += 1
@@ -198,15 +198,25 @@ def create_app(ctx):
 
     @app.route("/storage", methods=["PUT", "GET"])
     def storage():
+        size = ctx["files"].get(request.args.get('file'))
+        if request.method == "GET" and size:
+            return os.urandom(size), 200
         return "", 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
         return json.dumps({"exitcode": None, "limits": {}})
 
+    @app.route("/api/v1/namespaces/default/pods/test")
+    def k8s_pod():
+        if ctx.get("k8s"):
+            return b'{"status":{"containerStatuses":[{"imageID":"docker-pullable://test@sha256:1234"}]}}', 200
+        else:
+            return b'', 500
+
     @app.errorhandler(404)
     def page_not_found(e):
-        print("Got request to: %s" % request.url)
+        print("Got request to: %s (%s)" % (request.url, request.method))
         return "Not Found", 404
 
     return app

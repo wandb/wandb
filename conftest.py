@@ -242,11 +242,7 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
                     os.environ["KUBERNETES_PORT_443_TCP_PORT"] = "123"
                     os.environ["HOSTNAME"] = "test"
                     if kwargs["k8s"]:
-                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
-                                                    content=b'{"status":{"containerStatuses":[{"imageID":"docker-pullable://test@sha256:1234"}]}}')
-                    else:
-                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
-                                                    content=b'{}', status_code=500)
+                        mock_server.ctx["k8s"] = True
                     del kwargs["k8s"]
                 if kwargs.get('sagemaker'):
                     del kwargs['sagemaker']
@@ -460,7 +456,8 @@ def default_ctx():
     return {
         "fail_count": 0,
         "page_count": 0,
-        "page_times": 2
+        "page_times": 2,
+        "files": {},
     }
 
 @pytest.fixture
