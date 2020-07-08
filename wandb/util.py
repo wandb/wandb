@@ -4,6 +4,7 @@ from __future__ import division
 
 import base64
 import colorsys
+import codecs
 import errno
 import hashlib
 import json

@@ -1,6 +1,5 @@
 import collections
 import json
-import codecs
 import base64
 import hashlib
 import re

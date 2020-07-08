@@ -1,5 +1,4 @@
 import base64
-import codecs
 import os
 import shutil
 
