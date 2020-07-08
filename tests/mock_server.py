@@ -308,7 +308,7 @@ def create_app(ctx):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         if file == "wandb_manifest.json":
-            return json.dumps({
+            return {
                 "version": 1,
                 "storagePolicy": "wandb-storage-policy-v1",
                 "storagePolicyConfig": {},
@@ -317,7 +317,7 @@ def create_app(ctx):
                         "digest": "TeSJ4xxXg0ohuL5xEdq2Ew==",
                         "size": 81299
                     }
-                }})
+                }}
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
