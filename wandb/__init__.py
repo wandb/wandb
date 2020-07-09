@@ -1077,7 +1077,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
         os.environ[env.TAGS] = ",".join(tags)
     if id:
         os.environ[env.RUN_ID] = id
-        if name is None and resume is not "must":
+        if name is None and resume != "must":
             # We do this because of https://github.com/wandb/core/issues/2170
             # to ensure that the run's name is explicitly set to match its
             # id. If we don't do this and the id is eight characters long, the
