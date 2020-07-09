@@ -338,6 +338,9 @@ def test_table_custom():
         "data": [["So", "Cool"], ["&", "Rad"]],
         "columns": ["Foo", "Bar"]
     }
+    df = pd.DataFrame(columns=["Foo", "Bar"], data=[["So", "Cool"], ["&", "Rad"]])
+    table_df = wandb.Table(dataframe=df)
+    assert table._to_table_json() == table_df._to_table_json()
 
 
 point_cloud_1 = np.array([[0, 0, 0, 1],

@@ -248,15 +248,23 @@ class Table(Media):
         columns ([str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
+            When set, the other arguments are ignored.
     """
     MAX_ROWS = 10000
 
-    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None, dataframe=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
         self.columns = columns
         self.data = list(rows or data or [])
+        if dataframe is not None:
+            assert util.is_pandas_data_frame(dataframe), 'dataframe argument expects a `Dataframe` object'
+            self.columns = dataframe.columns.to_list()
+            self.data = []
+            for row in range(len(dataframe)):
+                self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -1724,7 +1732,7 @@ def val_to_json(run, key, val, step='summary'):
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        assert step == 'summary', "We don't yet support DataFrames in History."
+        assert step == 'summary', "We don't yet support DataFrames in History. Use `wandb.Table(dataframe=my_dataframe)`"
         return data_frame_to_json(val, run, key, step)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
