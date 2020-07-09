@@ -1730,7 +1730,7 @@ def val_to_json(run, key, val, step='summary'):
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        assert step == 'summary', "We don't yet support DataFrames in History. Use `wandb.Table(df=my_dataframe)`"
+        assert step == 'summary', "We don't yet support DataFrames in History. Use `wandb.Table(dataframe=my_dataframe)`"
         return data_frame_to_json(val, run, key, step)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
