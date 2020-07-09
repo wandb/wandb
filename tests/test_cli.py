@@ -858,8 +858,11 @@ def test_artifact_download(runner, git_repo, mock_server):
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Downloading dataset artifact" in result.output
-    assert "Artifact downloaded to ./artifacts/mnist:v0" in result.output
-    assert os.path.exists("./artifacts/mnist:v0")
+    path = os.path.join(".", "artifacts", "mnist:v0")
+    if platform.system() == "Windows":
+        path = path.replace(":", "-")
+    assert "Artifact downloaded to %s" % path in result.output
+    assert os.path.exists(path)
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="The run fails to init in windows, skipping until Cling is rocking")
 def test_artifact_upload(runner, git_repo, mock_server):

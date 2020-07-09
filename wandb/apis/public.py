@@ -2166,6 +2166,8 @@ class Artifact(object):
         dirpath = root
         if dirpath is None:
             dirpath = os.path.join('.', 'artifacts', self.name)
+            if platform.system() == "Windows":
+                dirpath = dirpath.replace(":", "-")
 
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
