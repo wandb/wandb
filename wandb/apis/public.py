@@ -2220,7 +2220,7 @@ class Artifact(object):
         target_path = os.path.join(dirpath, name)
         # can't have colons in Windows
         if platform.system() == "Windows":
-            target_path = targate_path.replace(":", "-")
+            target_path = target_path.replace(":", "-")
 
         need_copy = (not os.path.isfile(target_path)
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
