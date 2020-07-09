@@ -114,7 +114,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "query Runs" in body["query"]:
+        if "query Runs(" in body["query"]:
             return json.dumps({
                 "data": {
                     "project": {
@@ -124,7 +124,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "query Run" in body["query"]:
+        if "query Run(" in body["query"]:
             return json.dumps({
                 'data': {
                     'project': {
@@ -132,7 +132,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "query Projects" in body["query"]:
+        if "query Projects(" in body["query"]:
             return json.dumps({
                 "data": {
                     "models": paginated({
@@ -144,7 +144,7 @@ def create_app(ctx):
                     }, ctx)
                 }
             })
-        if "query Viewer" in body["query"]:
+        if "query Viewer " in body["query"]:
             return json.dumps({
                 "data": {
                     "viewer": {
@@ -153,7 +153,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "mutation UpsertBucket" in body["query"]:
+        if "mutation UpsertBucket(" in body["query"]:
             return json.dumps({
                 "data": {
                     "upsertBucket": {
@@ -171,7 +171,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "mutation CreateAnonymousApiKey" in body["query"]:
+        if "mutation CreateAnonymousApiKey(" in body["query"]:
             return json.dumps({
                 "data": {
                     "createAnonymousEntity": {
@@ -181,7 +181,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "mutation PrepareFiles" in body["query"]:
+        if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body['variables']['fileSpecs']):
                 nodes.append({
@@ -202,7 +202,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "mutation CreateArtifact" in body["query"]:
+        if "mutation CreateArtifact(" in body["query"]:
             return {
                 "data": {
                     "createArtifact": {
@@ -210,7 +210,7 @@ def create_app(ctx):
                     }
                 }
             }
-        if "mutation UseArtifact" in body["query"]:
+        if "mutation UseArtifact(" in body["query"]:
             return {
                 "data": {
                     "useArtifact": {
@@ -218,7 +218,7 @@ def create_app(ctx):
                     }
                 }
             }
-        if "query ProjectArtifactType" in body["query"]:
+        if "query ProjectArtifactType(" in body["query"]:
             return {
                 "data": {
                     "project": {
@@ -231,7 +231,7 @@ def create_app(ctx):
                     }
                 }
             }
-        if "query ProjectArtifacts" in body["query"]:
+        if "query ProjectArtifacts(" in body["query"]:
             return {
                 "data": {
                     "project": {
@@ -244,7 +244,7 @@ def create_app(ctx):
                     }
                 }
             }
-        if "query ProjectArtifactCollections" in body["query"]:
+        if "query ProjectArtifactCollections(" in body["query"]:
             return {
                 "data": {
                     "project": {
@@ -259,7 +259,20 @@ def create_app(ctx):
                     }
                 }
             }
-        if "query Artifacts" in body["query"]:
+        if "query RunArtifacts(" in body["query"]:
+            key = "inputArtifacts" if "inputArtifacts" in body["query"] else "outputArtifacts"
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {
+                "data": {
+                    "project": {
+                        "run": {
+                            key: artifacts
+                        }
+                    }
+                }
+            }
+        if "query Artifacts(" in body["query"]:
             artifacts = paginated(artifact(ctx), ctx, {"version": "v%i" % ctx["page_count"]})
             artifacts["totalCount"] = ctx["page_times"]
             return {

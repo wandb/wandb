@@ -352,3 +352,17 @@ def test_artifact_download(runner, mock_server):
         art = api.artifact("entity/project/mnist:v0", type="dataset")
         path = art.download()
         assert path == "./artifacts/mnist:v0"
+
+def test_artifact_run_used(runner, mock_server):
+    api.flush()
+    run = api.run("test/test/test")
+    arts = run.used_artifacts()
+    assert len(arts) == 2
+    assert arts[0].name == "abc123"
+
+def test_artifact_run_logged(runner, mock_server):
+    api.flush()
+    run = api.run("test/test/test")
+    arts = run.logged_artifacts()
+    assert len(arts) == 2
+    assert arts[0].name == "abc123"

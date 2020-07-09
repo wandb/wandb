@@ -73,7 +73,7 @@ class SimpleTee(object):
             source_io.orig_write = self.source_write
             source_io.write = self.write
         # Python 2 tests sometimes failed...
-        except AssertionError:
+        except AttributeError:
             pass
 
     def write(self, data):

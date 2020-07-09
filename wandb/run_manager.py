@@ -790,8 +790,8 @@ class RunManager(object):
         try:
             sys.stdout.write = sys.stdout.orig_write
             sys.stderr.write = sys.stderr.orig_write
-        # Python 2 tests sometimes failed?...
-        except AssertionError:
+        # Python 2 tests sometimes failed...
+        except AttributeError:
             pass
 
     def _get_stdout_stderr_streams(self):
