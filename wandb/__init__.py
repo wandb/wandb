@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
 
+"""
+Wandb is a library to help track machine learning experiments.
+
+For more information on wandb see https://docs.wandb.com.
+
+The most commonly used functions/objects are:
+- wandb.init — initialize a new run at the top of your training script
+- wandb.config — track hyperparameters
+- wandb.log — log metrics over time within your training loop
+- wandb.save — save files in association with your run, like model weights
+- wandb.restore — restore the state of your code when you ran a given run
+
+For examples usage, see https://docs.wandb.com/library/example-projects
+"""
+
 # Three possible modes:
 #     'cli': running from "wandb" command
 #     'run': we're a script launched by "wandb run"
@@ -115,15 +130,20 @@ _global_watch_idx = 0
 
 def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
     """
-    Hooks into the torch model to collect gradients and the topology.  Should be extended
+    Hooks into a pytorch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
 
-    :param (torch.Module) models: The model to hook, can be a tuple
-    :param (torch.F) criterion: An optional loss value being optimized
-    :param (str) log: One of "gradients", "parameters", "all", or None
-    :param (int) log_freq: log gradients and parameters every N batches
-    :param (int) idx: an index to be used when calling wandb.watch on multiple models
-    :return: (wandb.Graph) The graph object that will populate after the first backward pass
+    Args:
+        models (torch.Module): The model to hook, can be a tuple
+        criterion (torch.F, optional): An optional loss value being optimized
+        log (str, optional): One of "gradients", "parameters", "all", or None
+            if "gradients" watch will only log gradients
+            if "parameters" watch will only log parameters
+        log_freq (int, optional): log gradients and parameters every N batches
+        idx (int, optional): an index to be used when calling wandb.watch on multiple models
+
+    Returns:
+        :obj:`wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
 
@@ -579,10 +599,11 @@ def join(exit_code=None):
 def save(glob_str, base_path=None, policy="live"):
     """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
-    base_path: the base path to run the glob relative to
-    policy:
-        live: upload the file as it changes, overwriting the previous version
-        end: only upload file when the run ends
+    Args:
+        base_path (string): the base path to run the glob relative to
+        policy (string): on of "live" or "end"
+            live: upload the file as it changes, overwriting the previous version
+            end: only upload file when the run ends
     """
     global _saved_files
     if run is None:
@@ -631,15 +652,20 @@ def restore(name, run_path=None, replace=False, root=None):
     """ Downloads the specified file from cloud storage into the current run directory
     if it doesn exist.
 
-    name: the name of the file
-    run_path: optional path to a different run to pull files from
-    replace: whether to download the file even if it already exists locally
-    root: the directory to download the file to.  Defaults to the current
-        directory or the run directory if wandb.init was called.
+    Args:
+        name: the name of the file
+        run_path: optional path to a different run to pull files from
+        replace: whether to download the file even if it already exists locally
+        root: the directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
 
-    returns None if it can't find the file, otherwise a file object open for reading
-    raises wandb.CommError if it can't find the run
+    Returns:
+        None if it can't find the file, otherwise a file object open for reading
+
+    Raises:
+        wandb.CommError if it can't find the run
     """
+
     if run_path is None and run is None:
         raise ValueError(
             "You must call `wandb.init` before calling restore or specify a run_path")
@@ -839,6 +865,9 @@ def log(row=None, commit=None, step=None, sync=True, *args, **kwargs):
         ```
 
         For more examples, see https://docs.wandb.com/library/log
+
+    Raises:
+        ValueError - if called before wandb.init
 
     """
 

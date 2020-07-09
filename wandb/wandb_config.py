@@ -48,7 +48,28 @@ def huggingface_version():
     return None
 
 class Config(object):
-    """Creates a W&B config object."""
+    """
+    Config is a dict like object that corresponds to the hyperparameters for a training run.
+
+    Config values for a run will be saved to app.wandb.ai or the local wandb server and
+    displayed in the runs table along with summary values.
+
+    Config values should only be set once.
+
+    Config values can be set like a dictionary config['a'] = 1 or set with config.a = 1.
+
+    Nested config values are supported.
+
+    Example:
+        ```
+        wandb.init()
+        config = wandb.config
+        config.learning_rate = 0.5
+        config.batch_size = 100
+
+        train_model(config)
+        ```
+    """
 
     def __init__(self, config_paths=[], wandb_dir=None, run_dir=None):
         object.__setattr__(self, '_wandb_dir', wandb_dir)

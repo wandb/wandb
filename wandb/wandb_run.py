@@ -46,6 +46,17 @@ DESCRIPTION_FNAME = 'description.md'
 
 
 class Run(object):
+    """
+    Run is a wandb run which corresponds to a machine learning experiment on one machine.
+
+    Example:
+        ```
+        wandb.init(project="runs-from-for-loop", reinit=True)
+        for y in range (100):
+            run.log({"metric": y})
+        ```
+    """
+
     def __init__(self, run_id=None, mode=None, dir=None, group=None, job_type=None,
                  config=None, sweep_id=None, storage_id=None, description=None, resume=None,
                  program=None, args=None, wandb_dir=None, tags=None, name=None, notes=None,
@@ -709,6 +720,11 @@ class Run(object):
 
     @property
     def summary(self):
+        """
+        The runs summary or output metrics from the run.
+
+        Calling wandb.log will set the corresponding summary metric if run.summary has not been set directly.
+        """
         if self._summary is None:
             self._summary = summary.FileSummary(self)
         return self._summary
@@ -721,6 +737,20 @@ class Run(object):
         self.summary.update(row, overwrite=False)
 
     def log(self, row=None, commit=None, step=None, sync=True, *args, **kwargs):
+        """
+        Logs a dict to the run's history.
+
+        For more details see wandb.log()
+
+        Args:
+            row (dict, optional): A dict of serializable python objects i.e str: ints, floats, Tensors, dicts, or wandb.data_types
+            commit (boolean, optional): Save the metrics dict to the wandb server and increment the step.
+                If false wandb.log just updates the current metrics dict with the row argument and metrics won't
+                be saved until wandb.log is called with commit=True.
+            step (integer, optional): The global step in processing. This persists any non-committed earlier steps but defaults
+                to not committing the specified step.
+            sync (boolean, True): If set to False, process calls to log in a seperate thread.
+        """
         if sync == False:
             wandb._ensure_async_log_thread_started()
             return wandb._async_log_queue.put({"row": row, "commit": commit, "step": step})
