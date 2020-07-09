@@ -85,17 +85,35 @@ class ResponseMock(object):
     def __init__(self, response):
         self.response = response
 
-    def raise_for_status(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
         pass
+
+    def raise_for_status(self):
+        if self.response.status_code >= 400:
+            raise requests.exceptions.HTTPError("Bad Request", response=self.response)
+
+    @property
+    def content(self):
+        return self.response.data.decode('utf-8')
+
+    def iter_content(self, chunk_size=1024):
+        yield self.response.data
 
     def json(self):
         return json.loads(self.response.data.decode('utf-8'))
 
 
 class RequestsMock(object):
-    def __init__(self, client, requests):
-        self.client = client
-        self.requests = requests
+    def __init__(self, app, ctx):
+        self.app = app
+        self.client = app.test_client()
+        self.ctx = ctx
+
+    def set_context(self, key, value):
+        self.ctx[key] = value
 
     def Session(self):
         return self
@@ -103,6 +121,10 @@ class RequestsMock(object):
     @property
     def RequestException(self):
         return requests.RequestException
+
+    @property
+    def HTTPError(self):
+        return requests.HTTPError
 
     @property
     def headers(self):
@@ -115,6 +137,17 @@ class RequestsMock(object):
     @property
     def exceptions(self):
         return requests.exceptions
+
+    @property
+    def packages(self):
+        return requests.packages
+
+    @property
+    def adapters(self):
+        return requests.adapters
+
+    def mount(self, *args):
+        pass
 
     def _clean_kwargs(self, kwargs):
         if "auth" in kwargs:
@@ -135,8 +168,8 @@ class RequestsMock(object):
 
     def _store_request(self, url, body):
         key = url.split("/")[-1]
-        self.requests[key] = self.requests.get(key, [])
-        self.requests[key].append(body)
+        self.ctx[key] = self.ctx.get(key, [])
+        self.ctx[key].append(body)
 
     def post(self, url, **kwargs):
         self._store_request(url, kwargs.get("json"))

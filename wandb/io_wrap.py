@@ -69,8 +69,12 @@ class SimpleTee(object):
     def __init__(self, source_io, destination_io):
         self.source_write = source_io.write
         self.destination = destination_io
-        source_io.orig_write = self.source_write
-        source_io.write = self.write
+        try:
+            source_io.orig_write = self.source_write
+            source_io.write = self.write
+        # Python 2 tests sometimes failed...
+        except AttributeError:
+            pass
 
     def write(self, data):
         self.source_write(data)

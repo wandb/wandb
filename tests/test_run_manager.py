@@ -90,7 +90,7 @@ def test_pip_freeze(mocker, run_manager):
 def test_spell_sync(mocker, loggedin, run_manager, mock_server, local_netrc):
     run_manager._block_file_observer()
     run_manager.init_run(env={"SPELL_RUN_URL": "https://spell.run/test"})
-    assert mock_server.requests['wandb_url'][0]["url"]
+    assert mock_server.ctx['wandb_url'][0]["url"]
 
 
 def test_custom_file_policy(mocker, run_manager):
@@ -151,7 +151,7 @@ def test_file_pusher_doesnt_archive_if_few(mocker, run_manager, mock_server):
 
     filenames = [
         r['variables']['files'][0]
-        for r in mock_server.requests['graphql']
+        for r in mock_server.ctx['graphql']
         if 'files' in r['variables']]
 
     # assert there is no batching
@@ -168,7 +168,7 @@ def test_file_pusher_archives_multiple(mocker, run_manager, mock_server):
             wandb.save(fname)
     run_manager.test_shutdown()
 
-    req = [r for r in mock_server.requests['graphql']
+    req = [r for r in mock_server.ctx['graphql']
            if 'files' in r['variables']][0]
 
     assert 'query Model' in req['query']

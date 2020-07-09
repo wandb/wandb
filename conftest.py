@@ -242,11 +242,7 @@ def wandb_init_run(request, tmpdir, request_mocker, mock_server, monkeypatch, mo
                     os.environ["KUBERNETES_PORT_443_TCP_PORT"] = "123"
                     os.environ["HOSTNAME"] = "test"
                     if kwargs["k8s"]:
-                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
-                                                    content=b'{"status":{"containerStatuses":[{"imageID":"docker-pullable://test@sha256:1234"}]}}')
-                    else:
-                        request_mocker.register_uri("GET", "https://k8s:123/api/v1/namespaces/default/pods/test",
-                                                    content=b'{}', status_code=500)
+                        mock_server.ctx["k8s"] = True
                     del kwargs["k8s"]
                 if kwargs.get('sagemaker'):
                     del kwargs['sagemaker']
@@ -417,13 +413,14 @@ def dryrun():
 
 
 @pytest.fixture
-def request_mocker(request):
+def request_mocker(request, query_viewer):
     """
     :param request: pytest request object for cleaning up.
     :return: Returns instance of requests mocker used to mock HTTP calls.
     """
     m = requests_mock.Mocker()
     m.start()
+    query_viewer(m)
     request.addfinalizer(m.stop)
     return m
 
@@ -455,14 +452,25 @@ def check_environ():
         for key in wandb_keys:
             wandb.termwarn('    {} = {}'.format(key, repr(os.environ[key])))
 
+def default_ctx():
+    return {
+        "fail_count": 0,
+        "page_count": 0,
+        "page_times": 2,
+        "files": {},
+    }
 
 @pytest.fixture
 def mock_server(mocker):
-    app = create_app()
-    mock = utils.RequestsMock(app.test_client(), {})
+    ctx = default_ctx()
+    app = create_app(ctx)
+    mock = utils.RequestsMock(app, ctx)
     mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.apis.file_stream.requests", mock)
     mocker.patch("wandb.apis.internal.requests", mock)
+    mocker.patch("wandb.apis.public.requests", mock)
+    mocker.patch("wandb.util.requests", mock)
+    mocker.patch("wandb.artifacts.requests", mock)
     return mock
 
 
@@ -472,7 +480,7 @@ def live_mock_server(request):
         port = request.node.get_closest_marker('port').args[0]
     else:
         port = 8765
-    app = create_app()
+    app = create_app(default_ctx())
     server = Process(target=app.run, kwargs={"port": port, "debug": True, "use_reloader": False})
     server.start()
     for i in range(5):
