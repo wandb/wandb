@@ -17,6 +17,7 @@ import shutil
 import hashlib
 import base64
 import requests
+import platform
 
 import wandb
 from wandb.core import termlog
@@ -2217,6 +2218,10 @@ class Artifact(object):
         cache_path = self.get_path(name).download()
         # copy file into target dir
         target_path = os.path.join(dirpath, name)
+        # can't have colons in Windows
+        if platform.system() == "Windows":
+            target_path = targate_path.replace(":", "-")
+
         need_copy = (not os.path.isfile(target_path)
             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
         if need_copy:

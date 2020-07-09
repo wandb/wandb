@@ -315,12 +315,6 @@ class ArtifactSaver(object):
         self._file_pusher.commit_artifact(artifact_id, on_commit=on_commit)
         return self._server_artifact
 
-    def wait(self):
-        if self._server_artifact is None:
-            raise ValueError('Must call save first')
-        while self._server_artifact.state != 'READY':
-            time.sleep(2)
-
 class ArtifactManifest(object):
 
     @classmethod
