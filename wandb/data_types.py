@@ -248,6 +248,8 @@ class Table(Media):
         columns ([str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
+            When set, the other arguments are ignored.
     """
     MAX_ROWS = 10000
 
