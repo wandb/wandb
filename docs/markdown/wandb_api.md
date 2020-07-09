@@ -155,7 +155,7 @@ Returns a single artifact by parsing path in the form entity/project/run_id.
 
 **Arguments**:
 
-- `name` _str_ - An artifact name. May be prefixed with entity/project. Valid names can be in the following forms: sequence_name:version sequence_name:alias digest
+- `name` _str_ - An artifact name. May be prefixed with entity/project. Valid names can be in the following forms: name:version name:alias digest
 - `type` _str, optional_ - The type of artifact to fetch.
 
 **Returns**:
