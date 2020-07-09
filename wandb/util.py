@@ -468,6 +468,8 @@ class JSONEncoderUncompressed(json.JSONEncoder):
     def default(self, obj):
         if is_numpy_array(obj):
             return obj.tolist()
+        elif np and isinstance(obj, np.generic):
+            obj = obj.item()
         return json.JSONEncoder.default(self, obj)
 
 def json_dump_safer(obj, fp, **kwargs):
