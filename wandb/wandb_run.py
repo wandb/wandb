@@ -421,8 +421,8 @@ class Run(object):
         Args:
             artifact_or_name (str or Artifact): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    sequence_name:version
-                    sequence_name:alias
+                    name:version
+                    name:alias
                     digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type (str, optional): The type of artifact to use.
@@ -480,10 +480,10 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             name (str, optional): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    sequence_name:version
-                    sequence_name:alias
+                    name:version
+                    name:alias
                     digest
-                this will default to the basename of the path if not specified
+                this will default to the basename of the path prepended with the current run id  if not specified
             type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact, defaults to ["latest"]
         Returns:
@@ -504,7 +504,7 @@ class Run(object):
         else:
             artifact = artifact_or_path
         if not isinstance(artifact, artifacts.Artifact):
-            raise ValueError('You must pass an instance of wandb.Artifact to log_artifact')
+            raise ValueError('You must pass an instance of wandb.Artifact or a valid file path to log_artifact')
         if self.mode == "dryrun":
             wandb.termwarn("Persisting artifacts in dryrun mode is currently unsupported.")
             return artifact

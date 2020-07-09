@@ -480,8 +480,8 @@ class Api(object):
         Args:
             name (str): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    sequence_name:version
-                    sequence_name:alias
+                    name:version
+                    name:alias
                     digest
             type (str, optional): The type of artifact to fetch.
         Returns:

@@ -582,8 +582,8 @@ def use_artifact(artifact_or_name, type=None, aliases=None):
         Args:
             artifact_or_name (str or Artifact): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    sequence_name:version
-                    sequence_name:alias
+                    name:version
+                    name:alias
                     digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type (str, optional): The type of artifact to use.
@@ -609,10 +609,10 @@ def log_artifact(artifact_or_path, name=None, type=None, aliases=['latest']):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             name (str, optional): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    sequence_name:version
-                    sequence_name:alias
+                    name:version
+                    name:alias
                     digest
-                this will default to the basename of the path if not specified
+                this will default to the basename of the path prepended with the current run id if not specified
             type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact, defaults to ["latest"]
         Returns:
