@@ -171,7 +171,7 @@ def create_app(ctx):
                     }
                 }
             })
-        if "mutation CreateAnonymousApiKey(" in body["query"]:
+        if "mutation CreateAnonymousApiKey " in body["query"]:
             return json.dumps({
                 "data": {
                     "createAnonymousEntity": {
