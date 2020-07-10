@@ -7,6 +7,7 @@ import os
 import matplotlib
 import six
 import sys
+import pandas as pd
 
 from wandb.data_types import ImageMask, BoundingBoxes2D
 
