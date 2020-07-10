@@ -16,7 +16,7 @@ import shutil
 import click
 import wandb
 from wandb.data_types import _datatypes_set_callback
-from wandb.util import sentry_set_scope
+from wandb.util import sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
 from . import wandb_config
@@ -77,7 +77,9 @@ class RunManaged(Run):
         config.setdefault(wandb_key, dict())
         config[wandb_key]["cli_version"] = wandb.__version__
         if settings.save_code and settings.code_program:
-            config[wandb_key]["code_path"] = "code/%s" % settings.code_program
+            config[wandb_key]["code_path"] = to_forward_slash_path(
+                os.path.join("code", settings.code_program)
+            )
         self._config.update(config)
 
     def _init_from_settings(self, settings):

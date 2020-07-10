@@ -29,7 +29,9 @@ wandb/compat/weakref.py
 wandb/errors/__init__.py
 wandb/errors/error.py
 wandb/errors/term.py
+wandb/fastai/__init__.py
 wandb/framework/__init__.py
+wandb/framework/fastai/__init__.py
 wandb/framework/keras/__init__.py
 wandb/framework/keras/keras.py
 wandb/framework/torch/__init__.py
