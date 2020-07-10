@@ -3,9 +3,11 @@
 #### :nail_care: Enhancement
 
 -   New artifact cli commands!
-> wandb artifact put path_file_or_ref
-> wandb artifact get artifact:version
-> wandb artifact ls project_name
+```shell
+wandb artifact put path_file_or_ref
+wandb artifact get artifact:version
+wandb artifact ls project_name
+```
 -   New artifact api commands!
 ```python
 wandb.log_artifact()
