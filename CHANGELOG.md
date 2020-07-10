@@ -1,3 +1,35 @@
+## 0.9.3 (July 10, 2020)
+
+#### :nail_care: Enhancement
+
+-   New artifact cli commands!
+> wandb artifact put path_file_or_ref
+> wandb artifact get artifact:version
+> wandb artifact ls project_name
+-   New artifact api commands!
+```python
+wandb.log_artifact()
+wandb.use_artifact()
+wandb.Api().artifact_versions()
+wandb.Api().run.used_artifacts()
+wandb.Api().run.logged_artifacts()
+wandb.Api().Artifact().file()
+```
+-   Improved syncing of large wandb-history.jsonl files for wandb sync
+-   New Artifact.verify method to ensure the integrity of local artifacts
+-   Better testing harness for api commands
+-   Run directory now store local time instead of utc time in the name, thanks @aiyolo!
+-   Improvements to our doc strings across the board.
+-   wandb.Table now supports a `dataframe` argument for logging dataframes as tables!
+
+#### :bug: Bug Fix
+
+-   Artifacts work in python2
+-   Artifacts default download locations work in Windows
+-   GCS references now properly cache / download, thanks @yoks!
+-   Fix encoding of numpy arrays to JSON
+-   Fix string comparison error message
+
 ## 0.9.2 (June 29, 2020)
 
 #### :nail_care: Enhancement
