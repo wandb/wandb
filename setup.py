@@ -35,7 +35,7 @@ if sys.version_info < (3, 5):
 
 setup(
     name='wandb-ng',
-    version='0.0.28',
+    version='0.0.29',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
