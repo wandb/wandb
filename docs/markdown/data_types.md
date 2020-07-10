@@ -201,7 +201,7 @@ Wandb class for images.
  
 
 ## JSONMetadata
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1090)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1093)
 ```python
 JSONMetadata(self, val, **kwargs)
 ```
@@ -210,7 +210,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 
 
 ## BoundingBoxes2D
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1123)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1126)
 ```python
 BoundingBoxes2D(self, val, key, **kwargs)
 ```
@@ -219,7 +219,7 @@ Wandb class for 2D bounding Boxes
 
 
 ## ImageMask
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1201)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1204)
 ```python
 ImageMask(self, val, key, **kwargs)
 ```
@@ -228,7 +228,7 @@ Wandb class for image masks, useful for segmentation tasks
 
 
 ## Plotly
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1271)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1274)
 ```python
 Plotly(self, val, **kwargs)
 ```
@@ -241,7 +241,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1312)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1315)
 ```python
 Graph(self, format='keras')
 ```
@@ -267,7 +267,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1468)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1471)
 ```python
 Node(self,
      id=None,
@@ -285,7 +285,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1634)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1637)
 ```python
 Edge(self, from_node, to_node)
 ```
