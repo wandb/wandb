@@ -39,9 +39,10 @@ def _config_dict_from_proto_list(obj_list):
 
 
 class SendManager(object):
-    def __init__(self, settings, resp_q):
+    def __init__(self, settings, resp_q, run_meta):
         self._settings = settings
         self._resp_q = resp_q
+        self._run_meta = run_meta
 
         self._fs = None
         self._pusher = None
@@ -153,6 +154,8 @@ class SendManager(object):
         self._fs.start()
         self._pusher = FilePusher(self._api)
         self._run_id = run.run_id
+        if self._run_meta:
+            self._run_meta.write()
         sentry_set_scope("internal", run.entity, run.project)
         logger.info("run started: %s", self._run_id)
 

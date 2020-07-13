@@ -80,7 +80,7 @@ class RunManaged(Run):
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.code_program)
             )
-        self._config.update(config)
+        self._config._update(config)
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:

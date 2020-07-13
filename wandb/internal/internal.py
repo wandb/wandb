@@ -102,9 +102,9 @@ def wandb_read(settings, q, data_q, stopped):
     # ds.close()
 
 
-def wandb_send(settings, q, resp_q, read_q, data_q, stopped):
+def wandb_send(settings, q, resp_q, read_q, data_q, stopped, run_meta):
 
-    sh = sender.SendManager(settings, resp_q)
+    sh = sender.SendManager(settings, resp_q, run_meta)
 
     while not stopped.isSet():
         try:
@@ -237,12 +237,15 @@ def wandb_internal(
         )
         system_stats.start()
 
+    run_meta = None
     if not settings._disable_meta:
+        # We'll gather the meta now, but wait until we have a run to persist by wiring
+        # this through to the sender.
+        # If we try to persist now, there may not be a run yet, and we'll error out.
         run_meta = meta.Meta(
             settings=settings, process_q=process_queue, notify_q=notify_queue,
         )
         run_meta.probe()
-        run_meta.write()
 
     current_version = wandb.__version__
     update.check_available(current_version)
@@ -294,7 +297,15 @@ def wandb_internal(
     send_thread = threading.Thread(
         name="wandb_send",
         target=wandb_send,
-        args=(settings, send_queue, resp_queue, read_queue, data_queue, stopped),
+        args=(
+            settings,
+            send_queue,
+            resp_queue,
+            read_queue,
+            data_queue,
+            stopped,
+            run_meta,
+        ),
     )
     write_thread = threading.Thread(
         name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped)

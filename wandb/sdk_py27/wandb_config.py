@@ -3,8 +3,10 @@
 config.
 """
 
+import inspect
 import logging
 import os
+import types
 
 import six
 import wandb
@@ -15,11 +17,39 @@ import yaml
 logger = logging.getLogger("wandb")
 
 
-def _get_dict(d):
-    if isinstance(d, dict):
-        return d
+def parse_config(params):
+    if isinstance(params, dict):
+        return params
+
+    # Handle some cases where params is not a dictionary
+    # by trying to convert it into a dictionary
+    meta = inspect.getmodule(params)
+    if meta:
+        is_tf_flags_module = (
+            isinstance(params, types.ModuleType)
+            and meta.__name__ == "tensorflow.python.platform.flags"  # noqa: W503
+        )
+        if is_tf_flags_module or meta.__name__ == "absl.flags":
+            params = params.FLAGS
+            meta = inspect.getmodule(params)
+
+    # newer tensorflow flags (post 1.4) uses absl.flags
+    if meta and meta.__name__ == "absl.flags._flagvalues":
+        params = {name: params[name].value for name in dir(params)}
+    elif "__flags" in vars(params):
+        # for older tensorflow flags (pre 1.4)
+        if not "__parsed" not in vars(params):
+            params._parse_flags()
+        params = vars(params)["__flags"]
+    elif not hasattr(params, "__dict__"):
+        raise TypeError("config must be a dict or have a __dict__ attribute.")
+    else:
+        # params is a Namespace object (argparse)
+        # or something else
+        params = vars(params)
+
     # assume argparse Namespace
-    return vars(d)
+    return params
 
 
 class ConfigError(wandb.Error):  # type: ignore
@@ -102,12 +132,17 @@ class Config(object):
     def __getattr__(self, key):
         return self.__getitem__(key)
 
+    def _update(self, d, allow_val_change=False):
+        self._items.update(parse_config(d))
+
     def update(self, d, allow_val_change=False):
         # TODO(cling): implement allow_val_change.
-        self._items.update(_get_dict(d))
+        self._update(d, allow_val_change)
+        if self._callback:
+            self._callback(data=self._as_dict())
 
     def setdefaults(self, d):
-        d = _get_dict(d)
+        d = parse_config(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
 

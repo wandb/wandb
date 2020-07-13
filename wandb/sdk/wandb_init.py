@@ -23,6 +23,7 @@ from wandb.lib.globals import set_global
 from wandb.old import io_wrap
 from wandb.util import sentry_exc
 
+from .wandb_config import parse_config
 from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
 
@@ -158,6 +159,8 @@ class _WandbInit(object):
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
+        if not isinstance(init_config, dict):
+            init_config = parse_config(init_config)
 
         # merge config with sweep (or config file)
         self.config = wl._config or dict()
