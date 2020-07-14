@@ -461,7 +461,9 @@ class _WandbInit(object):
 
         self.run = run
         self.backend = backend
-        set_global(run=run, config=run.config, log=run.log, join=run.join)
+        set_global(
+            run=run, config=run.config, log=run.log, join=run.join, summary=run.summary
+        )
         self._reporter.set_context(run=run)
         run.on_start()
 

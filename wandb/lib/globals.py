@@ -1,7 +1,7 @@
 import wandb
 
 
-def set_global(run=None, config=None, log=None, join=None):
+def set_global(run=None, config=None, log=None, join=None, summary=None):
     if run:
         wandb.run = run
     if config:
@@ -10,3 +10,5 @@ def set_global(run=None, config=None, log=None, join=None):
         wandb.log = log
     if join:
         wandb.join = join
+    if summary:
+        wandb.summary = summary
