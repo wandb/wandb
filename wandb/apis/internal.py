@@ -3,7 +3,6 @@ from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
 import datetime
 import os
-import requests
 import ast
 import os
 import json
@@ -842,7 +841,7 @@ class Api(object):
             'name': project, 'run': run_id,
             'entity': entity,
             'description': description,
-            'files': [file for file in files]
+            'files': [file for file in files],
         })
 
         run = query_result['model']['bucket']
@@ -985,7 +984,6 @@ class Api(object):
         Returns:
             The requests library response object
         """
-        extra_headers = extra_headers.copy()
         response = None
         progress = Progress(file, callback=callback)
         if progress.len == 0:
@@ -1284,6 +1282,7 @@ class Api(object):
             except IOError:
                 print("%s does not exist" % file_name)
                 continue
+
             if progress:
                 if hasattr(progress, '__call__'):
                     responses.append(self.upload_file_retry(
@@ -1298,6 +1297,47 @@ class Api(object):
                 responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
             open_file.close()
         return responses
+
+    def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
+        query = gql('''
+        mutation UseArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $artifactID: ID!
+        ) {
+            useArtifact(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                artifactID: $artifactID
+            }) {
+                artifact {
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    labels
+                    metadata
+                }
+            }
+        }
+        ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        run_name = run_name or self.current_run_id
+
+        response = self.gql(query, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactID': artifact_id,
+        })
+
+        if response['useArtifact']['artifact']:
+            return response['useArtifact']['artifact']
+        return None
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

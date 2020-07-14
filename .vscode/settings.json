@@ -19,5 +19,5 @@
   "python.formatting.provider": "black",
   "python.formatting.autopep8Args": ["--max-line-length", "120"],
   "python.testing.pytestArgs": ["."],
-  "python.linting.pylintEnabled": false,
+  "python.linting.pylintEnabled": false
 }

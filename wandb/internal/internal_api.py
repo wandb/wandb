@@ -222,6 +222,8 @@ class Api(object):
 
     @property
     def current_run_id(self):
+        if not self._current_run_id:
+            self._current_run_id = self.settings('run_id')
         return self._current_run_id
 
     @property
@@ -1319,6 +1321,234 @@ class Api(object):
                     'Must have a current run to use file stream API.')
             self._file_stream_api = FileStreamApi(self, self._current_run_id)
         return self._file_stream_api
+
+    def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
+        query = gql('''
+        mutation UseArtifact(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $artifactID: ID!
+        ) {
+            useArtifact(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                artifactID: $artifactID
+            }) {
+                artifact {
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    labels
+                    metadata
+                }
+            }
+        }
+        ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        run_name = run_name or self.current_run_id
+
+        response = self.gql(query, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactID': artifact_id,
+        })
+
+        if response['useArtifact']['artifact']:
+            return response['useArtifact']['artifact']
+        return None
+
+    def create_artifact_type(self, artifact_type_name, entity_name=None, project_name=None, description=None):
+        mutation = gql('''
+        mutation CreateArtifactType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!,
+            $description: String
+        ) {
+            createArtifactType(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                name: $artifactTypeName,
+                description: $description
+            }) {
+                artifactType {
+                    id
+                }
+            }
+        }
+        ''')
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'artifactTypeName': artifact_type_name,
+            'description': description,
+        })
+        return response['createArtifactType']['artifactType']['id']
+
+    def create_artifact(self, artifact_type_name, artifact_collection_name, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None, is_user_created=False):
+        mutation = gql('''
+        mutation CreateArtifact(
+            $artifactTypeName: String!,
+            $artifactCollectionNames: [String!],
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String,
+            $description: String
+            $digest: String!,
+            $labels: JSONString
+            $aliases: [ArtifactAliasInput!]
+            $metadata: JSONString
+        ) {
+            createArtifact(input: {
+                artifactTypeName: $artifactTypeName,
+                artifactCollectionNames: $artifactCollectionNames,
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                description: $description,
+                digest: $digest,
+                digestAlgorithm: MANIFEST_MD5,
+                labels: $labels
+                aliases: $aliases
+                metadata: $metadata
+            }) {
+                artifact {
+                    id
+                    digest
+                    state
+                }
+            }
+        }
+        ''')
+
+        entity_name = entity_name or self.settings('entity')
+        project_name = project_name or self.settings('project')
+        if not is_user_created:
+            run_name = run_name or self.current_run_id
+
+        response = self.gql(mutation, variable_values={
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactTypeName': artifact_type_name,
+            'artifactCollectionNames': [artifact_collection_name],
+            'digest': digest,
+            'description': description,
+            'aliases': [alias for alias in aliases],
+            'labels': json.dumps(util.make_safe_for_json(labels)) if labels else None,
+            'metadata': json.dumps(util.make_safe_for_json(metadata)) if metadata else None,
+        })
+        av = response['createArtifact']['artifact']
+        return av
+
+    def commit_artifact(self, artifact_id):
+        mutation = gql('''
+        mutation CommitArtifact(
+            $artifactID: ID!,
+        ) {
+            commitArtifact(input: {
+                artifactID: $artifactID,
+            }) {
+                artifact {
+                    id
+                    digest
+                }
+            }
+        }
+        ''')
+        response = self.gql(mutation, variable_values={
+            'artifactID': artifact_id
+        })
+        return response
+
+    def create_artifact_manifest(self, name, digest, artifact_id, entity=None, project=None, run=None):
+        mutation = gql('''
+        mutation CreateArtifactManifest(
+            $name: String!,
+            $digest: String!,
+            $artifactID: ID!,
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!
+        ) {
+            createArtifactManifest(input: {
+                name: $name,
+                digest: $digest,
+                artifactID: $artifactID,
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName
+            }) {
+                artifactManifest {
+                    id
+                    file {
+                        id
+                        name
+                        displayName
+                        uploadUrl
+                        uploadHeaders
+                    }
+                }
+            }
+        }
+        ''')
+
+        entity_name = entity or self.settings('entity')
+        project_name = project or self.settings('project')
+        run_name = run or self.current_run_id
+
+        response = self.gql(mutation, variable_values={
+            'name': name,
+            'digest': digest,
+            'artifactID': artifact_id,
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+        })
+
+        return response['createArtifactManifest']['artifactManifest']['file']
+
+    @normalize_exceptions
+    def create_artifact_files(self, artifact_files):
+        mutation = gql('''
+        mutation CreateArtifactFiles(
+            $artifactFiles: [CreateArtifactFileSpecInput!]!
+        ) {
+            createArtifactFiles(input: {
+                artifactFiles: $artifactFiles
+            }) {
+                files {
+                    edges {
+                        node {
+                            id
+                            name
+                            displayName
+                            uploadUrl
+                            uploadHeaders
+                        }
+                    }
+                }
+            }
+        }
+        ''')
+
+        response = self.gql(mutation, variable_values={
+            'artifactFiles': [af for af in artifact_files]
+        })
+
+        result = {}
+        for edge in response['createArtifactFiles']['files']['edges']:
+            node = edge['node']
+            result[node['displayName']] = node
+        return result
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

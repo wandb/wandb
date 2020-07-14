@@ -27,6 +27,7 @@ setup = wandb_sdk.setup
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 login = wandb_sdk.login
+Artifact = wandb_sdk.Artifact
 Settings = wandb_sdk.Settings
 
 from wandb.apis import InternalApi, PublicApi
@@ -57,6 +58,7 @@ from wandb import superagent
 #from wandb.core import *
 from wandb.viz import visualize
 from wandb import plots
+
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False

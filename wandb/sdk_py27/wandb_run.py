@@ -15,6 +15,7 @@ import shutil
 
 import click
 import wandb
+from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.util import sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
@@ -360,3 +361,111 @@ class RunManaged(Run):
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):
         logger.info("Watching")
         # wandb.run.watch(watch)
+
+    def use_artifact(self, artifact_or_name, type=None, aliases=None):
+        """ Declare an artifact as an input to a run, call `download` or `file` on \
+        the returned object to get the contents locally.
+
+        Args:
+            artifact_or_name (str or Artifact): An artifact name.
+            May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    name:version
+                    name:alias
+                    digest
+                You can also pass an Artifact object created by calling `wandb.Artifact`
+            type (str, optional): The type of artifact to use.
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        r = self._run_obj
+        api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
+        api.set_current_run_id(self.id)
+
+        if isinstance(artifact_or_name, str):
+            name = artifact_or_name
+            if type is None:
+                raise ValueError("type required")
+            public_api = public.Api()
+            artifact = public_api.artifact(type=type, name=name)
+            if type is not None and type != artifact.type:
+                raise ValueError(
+                    "Supplied type {} does not match type {} of artifact {}".format(
+                        type, artifact.type, artifact.name
+                    )
+                )
+            api.use_artifact(artifact.id)
+            return artifact
+        else:
+            artifact = artifact_or_name
+            if type is not None:
+                raise ValueError("cannot specify type when passing Artifact object")
+            if isinstance(aliases, str):
+                aliases = [aliases]
+            if isinstance(artifact_or_name, wandb.Artifact):
+                artifact.finalize()
+                self._backend.interface.send_artifact(
+                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                )
+                return artifact
+            elif isinstance(artifact, public.Artifact):
+                api.use_artifact(artifact.id)
+                return artifact
+            else:
+                raise ValueError(
+                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
+                )
+
+    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+        """ Declare an artifact as output of a run.
+
+        Args:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                    /local/directory
+                    /local/directory/file.txt
+                    s3://bucket/path
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                    name:version
+                    name:alias
+                    digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include "dataset", "model"
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to ["latest"]
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        aliases = aliases or ["latest"]
+        if isinstance(artifact_or_path, str):
+            if name is None:
+                name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
+            artifact = wandb.Artifact(name, type)
+            if os.path.isfile(artifact_or_path):
+                artifact.add_file(artifact_or_path)
+            elif os.path.isdir(artifact_or_path):
+                artifact.add_dir(artifact_or_path)
+            elif "://" in artifact_or_path:
+                artifact.add_reference(artifact_or_path)
+            else:
+                raise ValueError(
+                    "path must be a file, directory or external"
+                    "reference like s3://bucket/path"
+                )
+        else:
+            artifact = artifact_or_path
+        if not isinstance(artifact, wandb.Artifact):
+            raise ValueError(
+                "You must pass an instance of wandb.Artifact or a "
+                "valid file path to log_artifact"
+            )
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        artifact.finalize()
+        self._backend.interface.send_artifact(self, artifact, aliases)
+        return artifact

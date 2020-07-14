@@ -4,6 +4,7 @@ from __future__ import division
 
 import base64
 import colorsys
+import codecs
 import errno
 import hashlib
 import json
@@ -31,7 +32,7 @@ import six
 from six.moves import queue
 import textwrap
 from sys import getsizeof
-from collections import namedtuple
+from collections import namedtuple, Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
@@ -508,6 +509,24 @@ def make_json_if_not_number(v):
         return v
     return json_dumps_safer(v)
 
+def make_safe_for_json(obj):
+    """Replace invalid json floats with strings. Also converts to lists and dicts."""
+    if isinstance(obj, Mapping):
+        return {k: make_safe_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, str):
+        # str's are Sequence, so we need to short-circuit
+        return obj
+    elif isinstance(obj, Sequence):
+        return [make_safe_for_json(v) for v in obj]
+    elif isinstance(obj, float):
+        # W&B backend and UI handle these strings
+        if obj != obj:  # standard way to check for NaN
+            return 'NaN'
+        elif obj == float('+inf'):
+            return 'Infinity'
+        elif obj == float('-inf'):
+            return '-Infinity'
+    return obj
 
 def mkdir_exists_ok(path):
     try:
@@ -856,6 +875,18 @@ def guess_data_type(shape, risky=False):
     return None
 
 
+def download_file_from_url(dest_path, source_url, api_key=None):
+    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response.raise_for_status()
+
+    if "/" in dest_path:
+        dir = "/".join(dest_path.split("/")[0:-1])
+        mkdir_exists_ok(dir)
+    with open(dest_path, "wb") as file:
+        for data in response.iter_content(chunk_size=1024):
+            file.write(data)
+
+
 def set_api_key(api, key, anonymous=False):
     if not key:
         return
@@ -954,6 +985,17 @@ def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=F
         return key
 
 
+def sizeof_fmt(num, suffix='B'):
+    """Pretty print file size
+        https://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size
+    """
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
+
+
 def auto_project_name(program, api):
     # if we're in git, set project name to git repo name + relative path within repo
     root_dir = api.git.root_dir
@@ -1008,3 +1050,7 @@ def to_forward_slash_path(path):
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return path
+
+def bytes_to_hex(bytestr):
+    # Works in python2 / python3
+    return codecs.getencoder('hex')(bytestr)[0].decode('ascii')

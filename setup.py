@@ -32,6 +32,15 @@ requirements = [
 
 if sys.version_info < (3, 5):
     requirements.append('typing')
+test_requirements = [
+    'mock>=2.0.0',
+    'tox-pyenv>=1.0.3'
+]
+
+gcp_requirements = ['google-cloud-storage']
+aws_requirements = ['boto3']
+
+kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb-ng',
@@ -81,4 +90,11 @@ setup(
         'Topic :: System :: Logging',
         'Topic :: System :: Monitoring'
     ],
+    test_suite='tests',
+    tests_require=test_requirements,
+    extras_require={
+        'kubeflow': kubeflow_requirements,
+        'gcp': gcp_requirements,
+        'aws': aws_requirements
+    }
 )

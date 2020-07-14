@@ -10,14 +10,15 @@ import "google/protobuf/timestamp.proto";
 message Record {
   int64         num = 1;
   oneof data {
-    HistoryData history = 2;
-    SummaryData summary = 3;
-    OutputData  output = 4;
-    ConfigData  config = 5;
-    FilesData   files = 6;
-    StatsData   stats = 7;
-    RunData     run = 17;
-    ExitData    exit = 18;
+    HistoryData     history = 2;
+    SummaryData     summary = 3;
+    OutputData      output = 4;
+    ConfigData      config = 5;
+    FilesData       files = 6;
+    StatsData       stats = 7;
+    ArtifactData    artifact = 8;
+    RunData         run = 17;
+    ExitData        exit = 18;
   }
   Control       control = 16;
 }
@@ -143,6 +144,48 @@ message StatsData {
 message StatsItem {
   string          key = 1;
   string          value_json = 16;
+}
+
+message ArtifactData {
+  string                        run_id = 1;
+  string                        project = 2;
+  string                        entity = 3;
+  string                        type = 4;
+  string                        name = 5;
+  string                        digest = 6;
+  string                        description = 7;
+  string                        metadata = 8;
+  bool                          user_created = 9;
+  bool                          use_after_commit = 10;
+  repeated string               aliases = 11;
+  ArtifactManifest              manifest = 12;
+}
+
+message ArtifactManifest {
+  int32                             version = 1;
+  string                            storage_policy = 2;
+  repeated StoragePolicyConfigItem  storage_policy_config = 3;
+  repeated ArtifactManifestEntry    contents = 4;
+}
+
+message ArtifactManifestEntry {
+  string                path = 1;
+  string                digest = 2;
+  string                ref = 3;
+  int64                 size = 4;
+  string                mimetype = 5;
+  string                local_path = 6;
+  repeated ExtraItem    extra = 16;
+}
+
+message ExtraItem {
+  string        key = 1;
+  string        value_json = 2;
+}
+
+message StoragePolicyConfigItem {
+  string            key = 1;
+  string            value_json = 2;
 }
 
 /*

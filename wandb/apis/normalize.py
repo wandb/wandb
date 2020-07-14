@@ -15,7 +15,6 @@ from wandb import env
 from wandb.errors.error import Error, CommError
 
 
-
 def normalize_exceptions(func):
     """Function decorator for catching common errors and re-raising as wandb.Error"""
     @wraps(func)

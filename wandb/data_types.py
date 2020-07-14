@@ -151,7 +151,8 @@ class Media(WBValue):
         if extension is not None and not path.endswith(extension):
             raise ValueError('Media file extension "{}" must occur at the end of path "{}".'.format(extension, path))
 
-        self._sha256 = hashlib.sha256(open(self._path, 'rb').read()).hexdigest()
+        with open(self._path, 'rb') as f:
+            self._sha256 = hashlib.sha256(f.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
     @classmethod

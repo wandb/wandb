@@ -3,6 +3,7 @@
 module sdk
 """
 
+from .wandb_artifacts import Artifact  # noqa: F401
 from .wandb_config import Config  # noqa: F401
 from .wandb_history import History  # noqa: F401
 from .wandb_init import init  # noqa: F401

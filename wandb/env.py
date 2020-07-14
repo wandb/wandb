@@ -58,6 +58,7 @@ HOST = 'WANDB_HOST'
 ANONYMOUS = 'WANDB_ANONYMOUS'
 JUPYTER = 'WANDB_JUPYTER'
 CONFIG_DIR = 'WANDB_CONFIG_DIR'
+CACHE_DIR = 'WANDB_CACHE_DIR'
 
 
 def immutable_keys():
@@ -66,7 +67,7 @@ def immutable_keys():
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
             ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            HOST]
+            HOST, CACHE_DIR]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -241,6 +242,14 @@ def get_magic(default=None, env=None):
     if env is None:
         env = os.environ
     val = env.get(MAGIC, default)
+    return val
+
+
+def get_cache_dir(env=None):
+    default_dir = os.path.expanduser(os.path.join('~', '.cache', 'wandb'))
+    if env is None:
+        env = os.environ
+    val = env.get(CACHE_DIR, default_dir)
     return val
 
 

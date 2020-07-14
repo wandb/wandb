@@ -16,3 +16,15 @@ protobuf
 prompt_toolkit
 PyYAML
 numpy
+
+[aws]
+boto3
+
+[gcp]
+google-cloud-storage
+
+[kubeflow]
+kubernetes
+minio
+google-cloud-storage
+sh
