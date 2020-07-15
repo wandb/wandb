@@ -302,7 +302,6 @@ def ensure_matplotlib_figure(obj):
             "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
     return obj
 
-
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
@@ -451,6 +450,20 @@ def parse_sm_config():
 
 
 class WandBJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, obj):
+        if hasattr(obj, "json_encode"):
+            return obj.json_encode()
+        # if hasattr(obj, 'to_json'):
+        #     return obj.to_json()
+        tmp_obj, converted = json_friendly(obj)
+        if converted:
+            return tmp_obj
+        return json.JSONEncoder.default(self, obj)
+
+
+class WandBJSONEncoderOld(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):

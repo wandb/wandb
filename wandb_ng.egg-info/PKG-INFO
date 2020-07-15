@@ -115,6 +115,6 @@ Classifier: Topic :: System :: Logging
 Classifier: Topic :: System :: Monitoring
 Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*
 Description-Content-Type: text/markdown
+Provides-Extra: aws
 Provides-Extra: kubeflow
 Provides-Extra: gcp
-Provides-Extra: aws

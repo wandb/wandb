@@ -12,7 +12,15 @@ import six
 import wandb
 from wandb.lib import filesystem
 from wandb.lib.term import terminfo
+from wandb.util import json_friendly
 import yaml
+
+try:
+    # Since python 3
+    from collections.abc import Sequence
+except ImportError:
+    # Won't work after python 3.8
+    from collections import Sequence
 
 logger = logging.getLogger("wandb")
 
@@ -85,8 +93,7 @@ class Config(object):
         with open(config_filename, "w") as conf_file:
             conf_file.write(data)
 
-    @staticmethod
-    def _dict_from_config_file(config_filename):
+    def _dict_from_config_file(self, config_filename):
         try:
             conf_file = open(config_filename)
         except OSError:
@@ -99,7 +106,8 @@ class Config(object):
         if config_version != 1:
             raise ConfigError("Unknown config version")
         data = dict()
-        for k, v in loaded.items():
+        for k, v in six.iteritems(loaded):
+            k, v = self._sanitize(k, v)
             data[k] = v["value"]
         return data
 
@@ -119,6 +127,7 @@ class Config(object):
         return self._items[key]
 
     def __setitem__(self, key, val):
+        key, val = self._sanitize(key, val)
         if key in self._locked:
             terminfo("Config item '%s' was locked." % key)
             return
@@ -133,7 +142,9 @@ class Config(object):
         return self.__getitem__(key)
 
     def _update(self, d, allow_val_change=False):
-        self._items.update(parse_config(d))
+        parsed_dict = parse_config(d)
+        sanitized = self._sanitize_dict(parsed_dict)
+        self._items.update(sanitized)
 
     def update(self, d, allow_val_change=False):
         # TODO(cling): implement allow_val_change.
@@ -143,6 +154,7 @@ class Config(object):
 
     def setdefaults(self, d):
         d = parse_config(d)
+        d = self._sanitize_dict(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
         if self._callback:
@@ -158,5 +170,53 @@ class Config(object):
         num = self._users[user]
 
         for k, v in six.iteritems(d):
+            k, v = self._sanitize(k, v)
             self._locked[k] = num
             self._items[k] = v
+
+    def _sanitize_dict(self, config_dict, allow_val_change=False):
+        sanitized = {}
+        for k, v in six.iteritems(config_dict):
+            k, v = self._sanitize(k, v)
+            sanitized[k] = v
+
+        return sanitized
+
+    def _sanitize(self, key, val, allow_val_change=False):
+        # We always normalize keys by stripping '-'
+        key = key.strip("-")
+        val = self._sanitize_val(val)
+        if not allow_val_change:
+            if key in self._items and val != self._items[key]:
+                raise ConfigError(
+                    (
+                        'Attempted to change value of key "{}" '
+                        "from {} to {}\n"
+                        "If you really want to do this, pass"
+                        " allow_val_change=True to config.update()"
+                    ).format(key, self._items[key], val)
+                )
+        return key, val
+
+    def _sanitize_val(self, val):
+        """Turn all non-builtin values into something safe for YAML"""
+        if isinstance(val, dict):
+            converted = {}
+            for key, value in six.iteritems(val):
+                converted[key] = self._sanitize_val(value)
+            return converted
+        if isinstance(val, slice):
+            converted = dict(
+                slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+            )
+            return converted
+        val, _ = json_friendly(val)
+        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+            converted = []
+            for value in val:
+                converted.append(self._sanitize_val(value))
+            return converted
+        else:
+            if val.__class__.__module__ not in ("builtins", "__builtin__"):
+                val = str(val)
+            return val
