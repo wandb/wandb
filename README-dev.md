@@ -34,6 +34,26 @@ wandb/framework/pytorch  - pytorch integration
  - Type check: `tox -e flake8,mypy`
  - Misc: `tox`
 
+## Testing
+
+tests can be found in `tests/`.  We use tox to run tests, you can run all tests with:
+
+```shell
+tox
+```
+
+to run specific tests in a specific environment:
+
+```shell
+tox -e py37 -- tests/test_public_api.py
+```
+
+If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
+
+```shell
+tox -e py37 --recreate
+```
+
 ## Library Objectives
 
 ### Supported user interface

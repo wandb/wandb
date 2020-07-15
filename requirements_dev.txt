@@ -3,3 +3,5 @@ coverage
 coveralls
 tox==3.7
 pip
+pytest-flask
+pytest-mock
