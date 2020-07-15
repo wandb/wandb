@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: wandb-ng
-Version: 0.0.29
+Version: 0.0.30
 Summary: A CLI and library for interacting with the Weights and Biases API.
 Home-page: https://github.com/wandb/client
 Author: Weights & Biases
@@ -115,6 +115,6 @@ Classifier: Topic :: System :: Logging
 Classifier: Topic :: System :: Monitoring
 Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*
 Description-Content-Type: text/markdown
-Provides-Extra: aws
 Provides-Extra: kubeflow
 Provides-Extra: gcp
+Provides-Extra: aws
