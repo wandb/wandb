@@ -41,6 +41,7 @@ wandb/framework/fastai/__init__.py
 wandb/framework/keras/__init__.py
 wandb/framework/keras/keras.py
 wandb/framework/torch/__init__.py
+wandb/framework/xgboost/__init__.py
 wandb/interface/__init__.py
 wandb/interface/artifacts.py
 wandb/interface/constants.py
@@ -162,6 +163,7 @@ wandb/sync/sync.py
 wandb/vendor/__init__.py
 wandb/vendor/pynvml/__init__.py
 wandb/vendor/pynvml/pynvml.py
+wandb/xgboost/__init__.py
 wandb_ng.egg-info/PKG-INFO
 wandb_ng.egg-info/SOURCES.txt
 wandb_ng.egg-info/dependency_links.txt

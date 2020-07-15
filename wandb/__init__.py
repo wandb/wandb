@@ -89,6 +89,7 @@ join = _preinit.PreInitCallable("wandb.join")
 
 keras = _lazyloader.LazyLoader('wandb.keras', globals(), 'wandb.framework.keras')
 sklearn = _lazyloader.LazyLoader('wandb.sklearn', globals(), 'wandb.sklearn')
+xgboost = _lazyloader.LazyLoader('wandb.xgboost', globals(), 'wandb.framework.xgboost')
 
 __all__ = [
     "__version__",
