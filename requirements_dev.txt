@@ -3,5 +3,7 @@ coverage
 coveralls
 tox==3.7
 pip
+Pillow
 pytest-flask
 pytest-mock
+tensorflow==1.15
