@@ -23,7 +23,7 @@ def runner(monkeypatch, mocker):
     #                    'project_name': 'test_model', 'files': ['weights.h5'],
     #                    'attach': False, 'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
-    if sys.version_info < (3, 5):
+    if sys.version_info < (3, 6):
         sdk = "sdk_py27"
     else:
         sdk = "sdk"
@@ -60,7 +60,7 @@ def mock_server(mocker):
     ctx = default_ctx()
     app = create_app(ctx)
     mock = utils.RequestsMock(app, ctx)
-    if sys.version_info < (3, 5):
+    if sys.version_info < (3, 6):
         sdk = "sdk_py27"
     else:
         sdk = "sdk"
