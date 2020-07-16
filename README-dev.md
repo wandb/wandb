@@ -28,6 +28,13 @@ wandb/framework/keras    - keras integration
 wandb/framework/pytorch  - pytorch integration
 ```
 
+## Setup development environment
+
+In order to run unittests please install pyenv then run:
+```
+./tools/setup_dev_environment.sh
+```
+
 ## Code checks
 
  - Reformat: `tox -e format`
