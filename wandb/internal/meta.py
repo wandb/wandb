@@ -6,14 +6,15 @@ meta.
 from datetime import datetime
 import json
 import logging
+import multiprocessing
 import os
-import platform
 from shutil import copyfile
 import sys
 
 from wandb import util
 from wandb.interface import interface
 from wandb.internal import git_repo
+from wandb.vendor.pynvml import pynvml
 
 
 METADATA_FNAME = "wandb-metadata.json"
@@ -56,14 +57,31 @@ class Meta(object):
             copyfile(program_absolute, saved_program)
 
     def _setup_sys(self):
-        self.data["os"] = platform.platform(aliased=True)
-        self.data["python"] = platform.python_version()
-        self.data["args"] = sys.argv[1:]
-        self.data["state"] = "running"
+        self.data["os"] = self._settings._os
+        self.data["python"] = self._settings._python
         self.data["heartbeatAt"] = datetime.utcnow().isoformat()
         self.data["startedAt"] = datetime.utcfromtimestamp(
             self._settings._start_time
         ).isoformat()
+
+        self.data["docker"] = self._settings.docker
+
+        try:
+            pynvml.nvmlInit()
+            self.data["gpu"] = pynvml.nvmlDeviceGetName(
+                pynvml.nvmlDeviceGetHandleByIndex(0)
+            ).decode("utf8")
+            self.data["gpu_count"] = pynvml.nvmlDeviceGetCount()
+        except pynvml.NVMLError:
+            pass
+        try:
+            self.data["cpu_count"] = multiprocessing.cpu_count()
+        except NotImplementedError:
+            pass
+
+        self.data["cuda"] = self._settings._cuda
+        self.data["args"] = self._settings._args
+        self.data["state"] = "running"
 
     def _setup_git(self):
         if self._git.enabled:
@@ -80,7 +98,34 @@ class Meta(object):
             if self._settings.code_program is not None:
                 self.data["codePath"] = self._settings.code_program
                 self.data["program"] = os.path.basename(self._settings.code_program)
+            else:
+                self.data["program"] = "<python with no main file>"
+                if self._settings.jupyter:
+                    if self._settings.notebook_name:
+                        self.data["program"] = self._settings.notebook_name
+                    else:
+                        if self._settings._jupyter_path:
+                            if "fileId=" in self._settings._jupyter_path:
+                                self.data["colab"] = (
+                                    "https://colab.research.google.com/drive/"
+                                    + self._settings._jupyter_path.split(  # noqa
+                                        "fileId="
+                                    )[1]
+                                )
+                                self.data["program"] = self._settings._jupyter_name
+                            else:
+                                self.data["program"] = self._settings._jupyter_path
+                                self.data["root"] = self._settings._jupyter_root
             self._setup_git()
+
+        if self._settings.anonymous != "true":
+            self.data["host"] = self._settings.host
+            self.data["username"] = self._settings.username
+            self.data["executable"] = sys.executable
+        else:
+            self.data.pop("email", None)
+            self.data.pop("root", None)
+
         if self._settings.save_code:
             self._save_code()
 
