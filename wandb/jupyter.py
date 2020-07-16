@@ -143,11 +143,12 @@ class JupyterAgent(object):
             self.rm.shutdown()
             self.paused = True
 
-    def save_display(self, exc_count, data):
+    def save_display(self, exc_count, dataWithMetadata):
         self.outputs[exc_count] = self.outputs.get(exc_count, [])
 
         # byte values such as images need to be encoded in base64
         # otherwise nbformat.v4.new_output will throw a NotebookValidationError
+        data = dataWithMetadata["data"]
         b64encodedData = {}
         for key in data:
             val = data[key]
@@ -156,7 +157,7 @@ class JupyterAgent(object):
             else:
                 b64encodedData[key] = val
 
-        self.outputs[exc_count].append(b64encodedData)
+        self.outputs[exc_count].append({"data": b64encodedData, "metadata": dataWithMetadata["metadata"]})
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
