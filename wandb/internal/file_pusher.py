@@ -106,6 +106,7 @@ class FilePusher(object):
         if os.path.getsize(path) == 0:
             return
 
+        save_name = wandb.util.to_forward_slash_path(save_name)
         event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest)
         self._incoming_queue.put(event)
 
