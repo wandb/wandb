@@ -3,9 +3,26 @@
 import pprint
 
 import six
+import tensorflow as tf
 import wandb
 from wandb import tensorflow as wandb_tensorflow
 from wandb import wandb_sdk
+
+
+if hasattr(tf.summary, "merge_all"):
+    tf_summary = tf.summary
+else:
+    tf_summary = tf.compat.v1.summary
+
+if hasattr(tf.train, "MonitoredTrainingSession"):
+    MonitoredTrainingSession = tf.train.MonitoredTrainingSession
+else:
+    MonitoredTrainingSession = tf.compat.v1.train.MonitoredTrainingSession
+
+if hasattr(tf.train, "get_or_create_global_step"):
+    get_or_create_global_step = tf.train.get_or_create_global_step
+else:
+    get_or_create_global_step = tf.compat.v1.train.get_or_create_global_step
 
 
 def test_tf_log():
@@ -66,6 +83,31 @@ def test_tf_log():
         "layer2/weights/summaries/min": -0.22206202149391174,
         "layer2/weights/summaries/stddev_1": 0.08973880857229233,
     }
+
+
+def test_hook():
+    history = wandb_sdk.History()
+    summaries_logged = []
+
+    def spy_cb(row):
+        summaries_logged.append(row)
+
+    history._set_callback(spy_cb)
+
+    g1 = tf.Graph()
+    with g1.as_default():
+        get_or_create_global_step()
+        c1 = tf.constant(42)
+        tf_summary.scalar("c1", c1)
+        summary_op = tf_summary.merge_all()
+
+        hook = wandb_tensorflow.WandbHook(summary_op, history=history, steps_per_log=1)
+        with MonitoredTrainingSession(hooks=[hook]) as sess:
+            summary, acc = sess.run([summary_op, c1])
+        history.add({})  # Flush the previous row.
+
+    assert wandb_tensorflow.tf_summary_to_dict(summary) == {"c1": 42.0}
+    assert summaries_logged[0]["c1"] == 42.0
 
 
 SUMMARY_PB = six.b(

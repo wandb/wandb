@@ -161,6 +161,8 @@ wandb/sweeps/examples/train-tune.py
 wandb/sync/__init__.py
 wandb/sync/sync.py
 wandb/tensorflow/__init__.py
+wandb/tensorflow/estimator_hook.py
+wandb/tensorflow/log.py
 wandb/vendor/__init__.py
 wandb/vendor/pynvml/__init__.py
 wandb/vendor/pynvml/pynvml.py
