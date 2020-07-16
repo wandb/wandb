@@ -231,7 +231,7 @@ class Media(WBValue):
             raise RuntimeError(
                 'Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.'.format(type(self).__name__))
 
-        assert self._run is run, "For now we don't support referring to media files across runs."
+        assert self._run is run, "We don't support referring to media files across runs."
 
         return {
             '_type': 'file',  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -263,15 +263,23 @@ class Table(Media):
         columns ([str]): Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
         data (array): 2D Array of values that will be displayed as strings.
+        dataframe (pandas.DataFrame): DataFrame object used to create the table.
+            When set, the other arguments are ignored.
     """
     MAX_ROWS = 10000
 
-    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None):
+    def __init__(self, columns=["Input", "Output", "Expected"], data=None, rows=None, dataframe=None):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
         self.columns = columns
         self.data = list(rows or data or [])
+        if dataframe is not None:
+            assert util.is_pandas_data_frame(dataframe), 'dataframe argument expects a `Dataframe` object'
+            self.columns = dataframe.columns.to_list()
+            self.data = []
+            for row in range(len(dataframe)):
+                self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -468,7 +476,7 @@ class Object3D(BatchableMedia):
 
             self._set_file(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
-        elif 'type' in data_or_path:
+        elif isinstance(data_or_path, dict) and 'type' in data_or_path:
             if data_or_path['type'] == 'lidar/beta':
                 data = {
                     'type': data_or_path['type'],
@@ -498,7 +506,7 @@ class Object3D(BatchableMedia):
                       separators=(',', ':'), sort_keys=True, indent=4)
             self._set_file(tmp_path, is_tmp=True, extension='.pts.json')
         else:
-            raise ValueError("data must be a numpy or a file object")
+            raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
     def get_media_subdir(self):
@@ -519,9 +527,10 @@ class Object3D(BatchableMedia):
         jsons = [obj.to_json(run) for obj in threeD_list]
 
         for obj in jsons:
-            if not obj['path'].startswith(cls.get_media_subdir()):
+            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            if not obj['path'].startswith(expected):
                 raise ValueError('Files in an array of Object3D\'s must be in the {} directory, not {}'.format(
-                    cls.get_media_subdir(), obj['path']))
+                    expected, obj['path']))
 
         return {
             "_type": "object3D",

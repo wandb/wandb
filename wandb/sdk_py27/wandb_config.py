@@ -152,6 +152,11 @@ class Config(object):
         if self._callback:
             self._callback(data=self._as_dict())
 
+    def persist(self):
+        """Calls the callback if it's set"""
+        if self._callback:
+            self._callback(data=self._as_dict())
+
     def setdefaults(self, d):
         d = parse_config(d)
         d = self._sanitize_dict(d)

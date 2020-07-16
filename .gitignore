@@ -6,3 +6,4 @@ htmlcov/
 .pytest_cache/
 *.pyc
 .python-version
+wandb_ng.egg-info

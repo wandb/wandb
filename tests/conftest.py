@@ -1,16 +1,40 @@
 import pytest
 import time
+import datetime
 import os
 import sys
 import requests
 from tests import utils
 from multiprocessing import Process
-# from wandb import util
 import click
 from click.testing import CliRunner
 import webbrowser
+import wandb
+try:
+    from unittest.mock import MagicMock
+except ImportError: # TODO: this is only for python2
+    from mock import MagicMock
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
+
+
+@pytest.fixture
+def test_settings():
+    """ Settings object for tests"""
+    settings = wandb.Settings(_start_time=time.time(),
+                              run_id=wandb.util.generate_id(),
+                              _start_datetime=datetime.datetime.now())
+    settings.files_dir = settings._path_convert(settings.files_dir_spec)
+    return settings
+
+
+@pytest.fixture
+def mocked_run(runner, test_settings):
+    """ A managed run object for tests with a mock backend """
+    with runner.isolated_filesystem():
+        run = wandb.wandb_sdk.wandb_run.RunManaged(settings=test_settings)
+        run._set_backend(MagicMock())
+        yield run
 
 
 @pytest.fixture
@@ -23,11 +47,7 @@ def runner(monkeypatch, mocker):
     #                    'project_name': 'test_model', 'files': ['weights.h5'],
     #                    'attach': False, 'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
-    if sys.version_info < (3, 6):
-        sdk = "sdk_py27"
-    else:
-        sdk = "sdk"
-    mocker.patch('wandb.%s.wandb_login.prompt' % sdk,
+    mocker.patch('wandb.wandb_sdk.wandb_login.prompt',
                  lambda *args, **kwargs: DUMMY_API_KEY)
     return CliRunner()
 

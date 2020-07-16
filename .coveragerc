@@ -2,3 +2,5 @@
 source =
     wandb/
     tests/
+omit =
+    wandb/vendor/*
