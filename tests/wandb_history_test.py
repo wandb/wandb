@@ -11,7 +11,7 @@ class MockCallback(object):
     def __init__(self):
         self.row = None
 
-    def callback(self, row=None):
+    def callback(self, row=None, step=None):
         self.row = row
 
 

@@ -320,8 +320,10 @@ class Summary(SummarySubDict):
             return json_value
         else:
             path = ".".join(path_from_root)
-            friendly_value, converted = util.json_friendly(data_types.val_to_json(self._run, path, value))
-            json_value, compressed = util.maybe_compress_summary(friendly_value, util.get_h5_typename(value))
+            friendly_value, converted = util.json_friendly(
+                data_types.val_to_json(self._run, path, value, namespace="summary"))
+            json_value, compressed = util.maybe_compress_summary(
+                friendly_value, util.get_h5_typename(value))
             if compressed:
                 self.write_h5(path_from_root, friendly_value)
 

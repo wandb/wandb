@@ -139,12 +139,12 @@ def test_cant_serialize_to_other_run(mocked_run, test_settings):
 
 def test_image_seq_to_json(mocked_run):
     wb_image = wandb.Image(image)
-    meta = wandb.Image.seq_to_json([wb_image], mocked_run, "test", 'summary')
+    meta = wandb.Image.seq_to_json([wb_image], mocked_run, "test", 0)
     assert os.path.exists(os.path.join(mocked_run.dir, 'media', 'images',
-                          'test_summary.png'))
+                          'test_0_0.png'))
 
     meta_expected = {
-        '_type': 'images',
+        '_type': 'images/separated',
         'count': 1,
         'height': 28,
         'width': 28,
@@ -152,16 +152,13 @@ def test_image_seq_to_json(mocked_run):
     assert utils.subdict(meta, meta_expected) == meta_expected
 
 
-def test_transform_caps_at_65500(caplog, mocked_run):
-    large_image = np.random.randint(255, size=(10, 1000))
-    large_list = [wandb.Image(large_image)] * 100
+def test_max_images(caplog, mocked_run):
+    large_image = np.random.randint(255, size=(10, 10))
+    large_list = [wandb.Image(large_image)] * 200
     meta = wandb.Image.seq_to_json(large_list, mocked_run, "test2", 0)
-    expected = {'_type': 'images', 'count': 65, 'height': 10, 'width': 1000}
+    expected = {'_type': 'images/separated', 'count': data_types.Image.MAX_THUMBNAILS, 'height': 10, 'width': 10}
     assert utils.subdict(meta, expected) == expected
-    assert os.path.exists(os.path.join(mocked_run.dir, "media/images/test2_0.png"))
-    assert ('Only 65 images will be uploaded. The maximum total width for a '
-            'set of thumbnails is 65,500px, or 65 images, each with a width of '
-            '1000 pixels.') in caplog.text
+    assert os.path.exists(os.path.join(mocked_run.dir, "media/images/test2_0_0.png"))
 
 
 def test_audio_sample_rates():
@@ -414,15 +411,8 @@ def test_object3d_seq_to_json(mocked_run):
         wandb.Object3D(point_cloud_1)
     ], mocked_run, "pc", 1)
 
-    print(obj)
-    print(glob.glob(os.path.join(mocked_run.dir, "media", "**/*")))
-
-    if platform.system() == "Windows":
-        box = "Box_7447085b.gltf"  # this is different because paths are different
-        cube = "cube_74abc928.obj"
-    else:
-        box = "Box_be115756.gltf"
-        cube = "cube_afff12bc.obj"
+    box = obj["filenames"][0]
+    cube = obj["filenames"][1]
     assert os.path.exists(os.path.join(mocked_run.dir,
                           "media", "object3D", box))
     assert os.path.exists(os.path.join(mocked_run.dir,

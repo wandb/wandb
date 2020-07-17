@@ -189,7 +189,7 @@ class RunManaged(Run):
         files = dict(files=[(fname,)])
         self._backend.interface.send_files(files)
 
-    def _history_callback(self, row=None):
+    def _history_callback(self, row=None, step=None):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
@@ -206,8 +206,8 @@ class RunManaged(Run):
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
+        self._backend.interface.send_history(row, step)
         self.summary.update(row)
-        self._backend.interface.send_history(row)
 
     def _set_backend(self, backend):
         self._backend = backend

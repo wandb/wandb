@@ -199,26 +199,23 @@ class Media(WBValue):
                 extension = self._extension
                 rootname = os.path.basename(self._path)[:-len(extension)]
 
+            if id_ is None:
+                id_ = self._sha256[:8]
+
+            file_path = '{}_{}_{}{}'.format(key, step, id_, extension)
+            media_path = os.path.join(self.get_media_subdir(), file_path)
+            new_path = os.path.join(base_path, file_path)
+            util.mkdir_exists_ok(os.path.dirname(new_path))
+
             if self._is_tmp:
-                if id_ is None:
-                    id_ = self._sha256[:8]
-                # cling below
-                file_path = '{}_{}_{}{}'.format(key, step, id_, extension)
-                media_path = os.path.join(self.get_media_subdir(), file_path)
-                new_path = os.path.join(base_path, file_path)
-                # cling above
-                util.mkdir_exists_ok(os.path.dirname(new_path))
-
                 shutil.move(self._path, new_path)
-
                 self._path = new_path
                 self._is_tmp = False
                 _datatypes_callback(media_path)
             else:
-                new_path = os.path.join(base_path, '{}_{}{}'.format(rootname, self._sha256[:8], extension))
-                util.mkdir_exists_ok(os.path.dirname(new_path))
                 shutil.copy(self._path, new_path)
                 self._path = new_path
+                _datatypes_callback(media_path)
 
     def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
@@ -612,7 +609,8 @@ class Molecule(BatchableMedia):
         jsons = [obj.to_json(run) for obj in molecule_list]
 
         for obj in jsons:
-            if not obj['path'].startswith(cls.get_media_subdir()):
+            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            if not obj['path'].startswith(expected):
                 raise ValueError('Files in an array of Molecule\'s must be in the {} directory, not {}'.format(
                     cls.get_media_subdir(), obj['path']))
 
@@ -868,11 +866,12 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
-        
-        self._boxes = None 
-        if boxes: 
+
+        self._boxes = None
+        if boxes:
             if not isinstance(boxes, dict):
-                raise ValueError("Images \"boxes\" argument must be a dictionary")
+                raise ValueError(
+                    "Images \"boxes\" argument must be a dictionary")
             boxes_final = {}
             for key in boxes:
                 boxes_final[key] = BoundingBoxes2D(boxes[key], key)
@@ -887,13 +886,15 @@ class Image(BatchableMedia):
                 masks_final[key] = ImageMask(masks[key], key)
             self._masks = masks_final
 
+        PILImage = util.get_module(
+            "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
+
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
+            self._image = PILImage.open(data_or_path)
         else:
             data = data_or_path
 
-            PILImage = util.get_module(
-                "PIL.Image", required='wandb.Image needs the PIL package. To get it, run "pip install pillow".')
             if util.is_matplotlib_typename(util.get_full_typename(data)):
                 buf = six.BytesIO()
                 util.ensure_matplotlib_figure(data).savefig(buf)
@@ -916,11 +917,12 @@ class Image(BatchableMedia):
                 self._image = PILImage.fromarray(
                     self.to_uint8(data), mode=mode or self.guess_mode(data))
 
-            self._width, self._height = self._image.size
-
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.png')
+            tmp_path = os.path.join(
+                MEDIA_TMP.name, util.generate_id() + '.png')
             self._image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True)
+
+        self._width, self._height = self._image.size
 
     @classmethod
     def get_media_subdir(cls):
@@ -998,11 +1000,9 @@ class Image(BatchableMedia):
     @classmethod
     def seq_to_json(cls, images, run, key, step):
         """
-        Combines a list of images into a single sprite returning meta information
+        Combines a list of images into a meta dictionary object describing the child images.
         """
-        from PIL import Image as PILImage
-        base = os.path.join(run.dir, cls.get_media_subdir())
-        width, height = images[0]._image.size
+
         num_images_to_log = len(images)
 
         if num_images_to_log > Image.MAX_THUMBNAILS:
@@ -1011,30 +1011,29 @@ class Image(BatchableMedia):
             num_images_to_log = Image.MAX_THUMBNAILS
             images = images[:num_images_to_log]
 
-        if width * num_images_to_log > Image.MAX_DIMENSION:
-            max_images_by_dimension = Image.MAX_DIMENSION // width
-            logging.warning('Only {} images will be uploaded. The maximum total width for a set of thumbnails is 65,500px, or {} images, each with a width of {} pixels.'.format(
-                max_images_by_dimension, max_images_by_dimension, width))
-            num_images_to_log = max_images_by_dimension
+        for i, obj in enumerate(images):
+            if not obj.is_bound():
+                obj.bind_to_run(run, key, step, id_=i)
 
-        total_width = width * num_images_to_log
-        sprite = PILImage.new(
-            mode='RGB',
-            size=(total_width, height),
-            color=(0, 0, 0))
-        for i, image in enumerate(images[:num_images_to_log]):
-            location = width * i
-            sprite.paste(image._image, (location, 0))
-        fname = '{}_{}.png'.format(key, step)
-        # fname may contain a slash so we create the directory
-        util.mkdir_exists_ok(os.path.dirname(os.path.join(base, fname)))
-        sprite.save(os.path.join(base, fname), transparency=None)
-        meta = {"width": width, "height": height, "format": "png",
-                "count": num_images_to_log, "_type": "images"}
-        # TODO: hacky way to enable image grouping for now
-        grouping = images[0]._grouping
-        if grouping:
-            meta["grouping"] = grouping
+        jsons = [obj.to_json(run) for obj in images]
+
+        for obj in jsons:
+            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            if not obj['path'].startswith(expected):
+                raise ValueError('Files in an array of Image\'s must be in the {} directory, not {}'.format(
+                    cls.get_media_subdir(), obj['path']))
+
+        num_images_to_log = len(images)
+        width, height = images[0]._image.size
+        format = jsons[0]["format"]
+
+        meta = {
+            "_type": "images/separated",
+            "width": width,
+            "height": height,
+            "format": format,
+            "count": num_images_to_log,
+        }
 
         captions = Image.all_captions(images)
 
@@ -1086,11 +1085,11 @@ class Image(BatchableMedia):
                 all_box_groups.append(None)
         if all_box_groups and not all(x is None for x in all_box_groups):
             return all_box_groups
-        else: 
+        else:
             return False
 
     @classmethod
-    def all_captions(cls, images ):
+    def all_captions(cls, images):
         if images[0]._caption != None:
             return [i._caption for i in images]
         else:
@@ -1719,7 +1718,7 @@ def history_dict_to_json(run, payload, step=None):
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(run, val, step=step)
         else:
-            payload[key] = val_to_json(run, key, val, step=step)
+            payload[key] = val_to_json(run, key, val, namespace=step)
 
     return payload
 
@@ -1740,21 +1739,24 @@ def numpy_arrays_to_lists(payload):
     return payload
 
 
-def val_to_json(run, key, val, step='summary'):
+def val_to_json(run, key, val, namespace=None):
     # Converts a wandb datatype to its JSON representation.
+    if namespace == None:
+        raise ValueError(
+            "val_to_json must be called with a namespace(a step number, or 'summary') argument")
 
     converted = val
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        assert step == 'summary', "We don't yet support DataFrames in History."
-        return data_frame_to_json(val, run, key, step)
+        assert namespace == 'summary', "We don't yet support DataFrames in History."
+        return data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
-            return val[0].seq_to_json(val, run, key, step)
+            return val[0].seq_to_json(val, run, key, namespace)
         else:
             # TODO(adrian): Good idea to pass on the same key here? Maybe include
             # the array index?
@@ -1763,11 +1765,11 @@ def val_to_json(run, key, val, step='summary'):
             # This used to happen. The frontend doesn't handle heterogenous arrays
             #raise ValueError(
             #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, step=step) for v in val]
+            return [val_to_json(run, key, v, namespace=namespace) for v in val]
 
     if isinstance(val, WBValue):
         if isinstance(val, Media) and not val.is_bound():
-            val.bind_to_run(run, key, step)
+            val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
     return converted
@@ -1830,7 +1832,8 @@ def data_frame_to_json(df, run, key, step):
     for col_name, series in df.items():
         for i, val in enumerate(series):
             if isinstance(val, WBValue):
-                series.iat[i] = six.text_type(json.dumps(val_to_json(run, key, val, step)))
+                series.iat[i] = six.text_type(
+                    json.dumps(val_to_json(run, key, val, namespace=step)))
 
     # We have to call this wandb_run_id because that name is treated specially by
     # our filtering code

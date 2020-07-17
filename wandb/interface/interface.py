@@ -65,9 +65,9 @@ class BackendSender(object):
         rec.output.CopyFrom(o)
         self._queue_process(rec)
 
-    def send_history(self, data):
+    def send_history(self, data, step):
         rec = wandb_internal_pb2.Record()
-        data = data_types.history_dict_to_json(self._run, data)
+        data = data_types.history_dict_to_json(self._run, data, step)
         history = rec.history
         for k, v in six.iteritems(data):
             item = history.item.add()
@@ -168,7 +168,7 @@ class BackendSender(object):
         else:
             path = ".".join(path_from_root)
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(self._run, path, value)
+                data_types.val_to_json(self._run, path, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
