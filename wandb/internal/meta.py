@@ -37,6 +37,8 @@ class Meta(object):
             if "git_remote" in self._settings.keys()
             else "origin"
         )
+        # location under "code" directory in files where program was saved
+        self._saved_program = None
 
     def _save_code(self):
         if self._settings.code_program is None:
@@ -52,6 +54,7 @@ class Meta(object):
         )
         program_absolute = os.path.join(root, program_relative)
         saved_program = os.path.join(self._settings.files_dir, "code", program_relative)
+        self._saved_program = program_relative
 
         if not os.path.exists(saved_program):
             copyfile(program_absolute, saved_program)
@@ -137,8 +140,8 @@ class Meta(object):
         base_name = os.path.basename(self.fname)
         files = dict(files=[(base_name,)])
 
-        if "codePath" in self.data:
-            code_bname = os.path.basename(self.data["codePath"])
-            files["files"].append((code_bname,))
+        if self._saved_program:
+            saved_program = os.path.join("code", self._saved_program)
+            files["files"].append((saved_program,))
 
         self._interface.send_files(files)
