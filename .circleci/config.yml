@@ -9,7 +9,7 @@ workflows:
       - test:
          name: "Linters"
          image: "python:3.6"
-         toxenv: "mypy,black,flake8"
+         toxenv: "codemodcheck,mypy,black,flake8"
       - test:
          name: "Python 2.7"
          image: "python:2.7"
