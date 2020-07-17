@@ -93,7 +93,8 @@ class Config(object):
         with open(config_filename, "w") as conf_file:
             conf_file.write(data)
 
-    def _dict_from_config_file(self, config_filename):
+    @staticmethod
+    def _dict_from_config_file(config_filename):
         try:
             conf_file = open(config_filename)
         except OSError:
@@ -107,7 +108,6 @@ class Config(object):
             raise ConfigError("Unknown config version")
         data = dict()
         for k, v in six.iteritems(loaded):
-            k, v = self._sanitize(k, v)
             data[k] = v["value"]
         return data
 

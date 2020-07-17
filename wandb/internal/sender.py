@@ -122,6 +122,7 @@ class SendManager(object):
             tags=run_tags or None,
             config=config_dict or None,
             sweep_name=run.sweep_id or None,
+            host=self._settings.host or None,
         )
 
         if data.control.req_resp:
