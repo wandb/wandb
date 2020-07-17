@@ -194,6 +194,8 @@ class SendManager(object):
         # TODO(jhr): check fs.push results?
 
     def handle_output(self, data):
+        if not self._fs:
+            return
         out = data.output
         prepend = ""
         stream = "stdout"

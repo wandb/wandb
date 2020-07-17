@@ -200,7 +200,7 @@ def _check_process(settings, pid):
         os._exit(-1)
 
 
-def wandb_internal(
+def wandb_internal(  # noqa: C901
     settings,
     notify_queue,
     process_queue,

@@ -3,7 +3,6 @@ from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import os
-import requests
 import ast
 import os
 import json
@@ -1424,6 +1423,10 @@ class Api(object):
                     id
                     digest
                     state
+                    aliases {
+                        artifactCollectionName
+                        alias
+                    }
                 }
             }
         }
@@ -1447,6 +1450,11 @@ class Api(object):
             'metadata': json.dumps(util.make_safe_for_json(metadata)) if metadata else None,
         })
         av = response['createArtifact']['artifact']
+        # TODO: make this a part of the graph 
+        av['version'] = "latest"
+        for alias in av["aliases"]:
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
+                av['version'] = alias["alias"]
         return av
 
     def commit_artifact(self, artifact_id):

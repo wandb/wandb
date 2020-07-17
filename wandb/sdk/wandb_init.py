@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 
-from six import raise_from
+from six import raise_from, reraise
 import wandb
 from wandb.backend.backend import Backend
 from wandb.errors import Error
@@ -312,6 +312,9 @@ class _WandbInit(object):
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
     def _atexit_cleanup(self):
+        if self.backend is None:
+            logger.warning("process exited without backend configured")
+            return False
         if self._atexit_cleanup_called:
             return
         self._atexit_cleanup_called = True
@@ -349,11 +352,14 @@ class _WandbInit(object):
             err_redir = redirect.Redirect(
                 src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
-            out_redir.install()
-            err_redir.install()
-            self._out_redir = out_redir
-            self._err_redir = err_redir
-            logger.info("redirect2")
+            try:
+                out_redir.install()
+                err_redir.install()
+                self._out_redir = out_redir
+                self._err_redir = err_redir
+                logger.info("redirect2")
+            except (OSError, AttributeError) as e:
+                logger.error("failed to redirect", exc_info=e)
             return
 
         return
@@ -560,6 +566,7 @@ def init(
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
         sentry_exc(e, delay=True)
-        raise_from(Exception("problem"), e)
+        reraise(*sys.exc_info())
+        #  raise_from(Exception("problem"), e)
 
     return run

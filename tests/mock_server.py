@@ -4,6 +4,7 @@ from flask import Flask, request
 import os
 from datetime import datetime
 import json
+import wandb
 
 
 def run():
@@ -29,7 +30,7 @@ def run():
         ],
         "files": {
             # Special weights url meant to be used with api_mocks#download_url
-            "edges": [{"node": {"name": "weights.h5", "sizeBytes": 20, 
+            "edges": [{"node": {"name": "weights.h5", "sizeBytes": 20, 'md5': "XXX",
                                 "url": request.url_root + "/storage?file=weights.h5"}}]
         },
         'tags': [],
@@ -137,6 +138,14 @@ def create_app(ctx):
                     }
                 }
             })
+        if "query Model(" in body["query"]:
+            return json.dumps({
+                'data': {
+                    'model': {
+                        'bucket': run()
+                    }
+                }
+            })
         if "query Projects(" in body["query"]:
             return json.dumps({
                 "data": {
@@ -154,7 +163,10 @@ def create_app(ctx):
                 "data": {
                     "viewer": {
                         "entity": "vanpelt",
-                        "flags": '{"code_saving_enabled": true}'
+                        "flags": '{"code_saving_enabled": true}',
+                        "teams": {
+                            "edges": []  # TODO make configurable for cli_test
+                        }
                     }
                 }
             })
@@ -370,6 +382,10 @@ def create_app(ctx):
         else:
             return b'', 500
 
+    @app.route("/pypi/<library>/json")
+    def pypi(library):
+        return b'{ "info": { "version": "%s" } }' % wandb.__version__
+
     @app.errorhandler(404)
     def page_not_found(e):
         print("Got request to: %s (%s)" % (request.url, request.method))
@@ -379,4 +395,4 @@ def create_app(ctx):
 
 
 if __name__ == '__main__':
-    app = create_app()
+    app = create_app({})

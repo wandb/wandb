@@ -144,6 +144,10 @@ class RunManaged(Run):
     def id(self):
         return self._run_id
 
+    @property
+    def path(self):
+        return "/".join([self._entity, self._project, self._run_id])
+
     def project_name(self, api=None):
         # TODO(jhr): this is probably not right needed by dataframes?
         # api = api or self.api

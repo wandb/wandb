@@ -7,29 +7,12 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
-from click.testing import CliRunner
-import git
-import os
 import platform
 import pytest
-
 from wandb.internal.git_repo import GitRepo
 
 
-@pytest.fixture
-def git_repo():
-    with CliRunner().isolated_filesystem():
-        r = git.Repo.init(".")
-        os.mkdir("wandb")
-        # Because the forked process doesn't use my monkey patch above
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject: test")
-        open("README", "wb").close()
-        r.index.add(["README"])
-        r.index.commit("Initial commit")
-        yield GitRepo(lazy=False)
-
-
+#  TODO: make this work in CI for windows
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="GitRepo lib doesn't work in circleci windows",

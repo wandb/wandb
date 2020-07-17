@@ -1,7 +1,11 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from functools import wraps
 import logging
 import os
 import sys
+import textwrap
 import traceback
 
 import click
@@ -13,6 +17,7 @@ from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb.apis import InternalApi, PublicApi
+from wandb.old.settings import Settings
 from wandb.sync import SyncManager
 import yaml
 
@@ -77,10 +82,25 @@ def cli(ctx):
 
 
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@click.argument("key", nargs=-1)
+@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
+@click.option("--host", default=None, help="Login to a specific instance of W&B")
 @click.option("--relogin", default=None, is_flag=True, help="Force relogin if already logged in.")
 @display_error
-def login(relogin):
-    wandb.login(relogin=relogin)
+def login(key, host, cloud, relogin):
+    api = InternalApi()
+    if host == "https://api.wandb.ai" or (host is None and cloud):
+        api.clear_setting("base_url", globally=True, persist=True)
+        # To avoid writing an empty local settings file, we only clear if it exists
+        if os.path.exists(Settings._local_path()):
+            api.clear_setting("base_url", persist=True)
+    elif host:
+        if not host.startswith("http"):
+            raise ClickException("host must start with http(s)://")
+        api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
+    key = key[0] if len(key) > 0 else None
+
+    wandb.login(relogin=relogin, key=key)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
@@ -90,6 +110,82 @@ def login(relogin):
 @display_error
 def superagent(project=None, entity=None, agent_spec=None):
     wandb.superagent.run_agent(agent_spec)
+
+
+@cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
+@click.pass_context
+@display_error
+def init(ctx):
+    from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
+    if __stage_dir__ is None:
+        _set_stage_dir('wandb')
+    if os.path.isdir(wandb_dir()) and os.path.exists(os.path.join(wandb_dir(), "settings")):
+        click.confirm(click.style(
+            "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)
+    else:
+        click.echo(click.style(
+            "Let's setup this directory for W&B!", fg="green", bold=True))
+    api = InternalApi()
+    if api.api_key is None:
+        ctx.invoke(login)
+
+    viewer = api.viewer()
+
+    # Viewer can be `None` in case your API information became invalid, or
+    # in testing if you switch hosts.
+    if not viewer:
+        click.echo(click.style(
+            "Your login information seems to be invalid: can you log in again please?", fg="red", bold=True))
+        ctx.invoke(login)
+
+    # This shouldn't happen.
+    viewer = api.viewer()
+    if not viewer:
+        click.echo(click.style(
+            "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.", fg="red", bold=True))
+        sys.exit(1)
+
+    # At this point we should be logged in successfully.
+    if len(viewer["teams"]["edges"]) > 1:
+        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
+        question = {
+            'type': 'list',
+            'name': 'team_name',
+            'message': "Which team should we use?",
+            'choices': team_names + ["Manual Entry"]
+        }
+        result = click.prompt(question["message"])
+        # result can be empty on click
+        if result:
+            entity = result['team_name']
+        else:
+            entity = "Manual Entry"
+        if entity == "Manual Entry":
+            entity = click.prompt("Enter the name of the team you want to use")
+    else:
+        entity = viewer.get('entity') or click.prompt("What username or team should we use?")
+
+    project = click.prompt("Enter the name of the project you want to use")  # prompt_for_project(ctx, entity)
+
+    api.set_setting('entity', entity, persist=True)
+    api.set_setting('project', project, persist=True)
+    api.set_setting('base_url', api.settings().get('base_url'), persist=True)
+
+    util.mkdir_exists_ok(wandb_dir())
+    with open(os.path.join(wandb_dir(), '.gitignore'), "w") as file:
+        file.write("*\n!settings")
+
+    click.echo(click.style("This directory is configured!  Next, track a run:\n",
+               fg="green") + textwrap.dedent("""\
+        * In your training script:
+            {code1}
+            {code2}
+        * then `{run}`.
+        """).format(
+        code1=click.style("import wandb", bold=True),
+        code2=click.style("wandb.init(project=\"%s\")" % project, bold=True),
+        run=click.style("python <train.py>", bold=True),
+    ))
 
 
 @cli.command(context_settings=CONTEXT,

@@ -99,19 +99,19 @@ class WindowSizeChangeHandler(object):
         try:
             old_handler = signal.signal(signal.SIGWINCH, self._handler)
         except ValueError:  # windows
-            logger.warn('Setting SIGWINCH handler failed')
+            logger.warning('Setting SIGWINCH handler failed')
         else:
             if old_handler is not None:
-                logger.warn('SIGWINCH handler was not None: %r', old_handler)
+                logger.warning('SIGWINCH handler was not None: %r', old_handler)
 
     def unregister(self):
         try:
             old_handler = signal.signal(signal.SIGWINCH, None)
         except ValueError:  # windows
-            logger.warn('Setting SIGWINCH handler failed')
+            logger.warning('Setting SIGWINCH handler failed')
         else:
             if old_handler is not self._handler:
-                logger.warn(
+                logger.warning(
                     'SIGWINCH handler was not from W&B: %r', old_handler)
 
     def add_fd(self, fd):

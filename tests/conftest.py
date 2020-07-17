@@ -2,7 +2,6 @@ import pytest
 import time
 import datetime
 import os
-import sys
 import requests
 from tests import utils
 from multiprocessing import Process
@@ -10,12 +9,29 @@ import click
 from click.testing import CliRunner
 import webbrowser
 import wandb
+import git
+from wandb.internal.git_repo import GitRepo
+
 try:
     from unittest.mock import MagicMock
-except ImportError: # TODO: this is only for python2
+except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
+
+
+@pytest.fixture
+def git_repo(runner):
+    with runner.isolated_filesystem():
+        r = git.Repo.init(".")
+        os.mkdir("wandb")
+        # Because the forked process doesn't use my monkey patch above
+        with open("wandb/settings", "w") as f:
+            f.write("[default]\nproject: test")
+        open("README", "wb").close()
+        r.index.add(["README"])
+        r.index.commit("Initial commit")
+        yield GitRepo(lazy=False)
 
 
 @pytest.fixture
@@ -65,34 +81,9 @@ def local_netrc(monkeypatch):
         yield
 
 
-def default_ctx():
-    return {
-        "fail_count": 0,
-        "page_count": 0,
-        "page_times": 2,
-        "files": {},
-    }
-
-
 @pytest.fixture
-def mock_server(mocker):
-    from tests.mock_server import create_app
-    ctx = default_ctx()
-    app = create_app(ctx)
-    mock = utils.RequestsMock(app, ctx)
-    if sys.version_info < (3, 6):
-        sdk = "sdk_py27"
-    else:
-        sdk = "sdk"
-    mocker.patch("gql.transport.requests.requests", mock)
-    mocker.patch("wandb.internal.file_stream.requests", mock)
-    mocker.patch("wandb.internal.internal_api.requests", mock)
-    mocker.patch("wandb.internal.update.requests", mock)
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock)
-    mocker.patch("wandb.apis.public.requests", mock)
-    mocker.patch("wandb.util.requests", mock)
-    mocker.patch("wandb.%s.wandb_artifacts.requests" % sdk, mock)
-    return mock
+def mock_server():
+    return utils.mock_server()
 
 
 @pytest.fixture
@@ -102,7 +93,7 @@ def live_mock_server(request):
         port = request.node.get_closest_marker('port').args[0]
     else:
         port = 8765
-    app = create_app(default_ctx())
+    app = create_app(utils.default_ctx())
     server = Process(target=app.run, kwargs={"port": port, "debug": True,
                                              "use_reloader": False})
     server.start()

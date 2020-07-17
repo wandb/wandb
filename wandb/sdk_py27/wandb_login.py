@@ -27,7 +27,7 @@ def _get_python_type():
         return "python"
 
 
-def login(settings=None, relogin=None):
+def login(settings=None, relogin=None, key=None):
     wl = wandb.setup(settings=settings)
     settings = wl.settings()
 
@@ -49,14 +49,26 @@ def login(settings=None, relogin=None):
     in_jupyter = _get_python_type() != "python"
     authorize_str = "Go to this URL in a browser"
     authorize_link_str = "{}/authorize".format(app_url)
-    if in_jupyter:
-        print("{}: {}\n".format(authorize_str, authorize_link_str))
-        key = getpass.getpass("Enter your authorization code:\n")
-    else:
-        wandb.termlog(
-            "{}: {}".format(authorize_str, click.style(authorize_link_str, fg="blue"))
+    if key is None:
+        if in_jupyter:
+            print("{}: {}\n".format(authorize_str, authorize_link_str))
+            key = getpass.getpass("Enter your authorization code:\n")
+        else:
+            wandb.termlog(
+                "{}: {}".format(
+                    authorize_str, click.style(authorize_link_str, fg="blue")
+                )
+            )
+            key = prompt(u"Enter api key: ", is_password=True)
+    elif in_jupyter:
+        wandb.termwarn(
+            (
+                "If you're specifying your api key in code, ensure this "
+                "code is not shared publically.\nConsider setting the "
+                "WANDB_API_KEY environment variable, or running "
+                "`wandb login` from the command line."
+            )
         )
-        key = prompt(u"Enter api key: ", is_password=True)
 
     apikey.write_key(settings, key)
     return
