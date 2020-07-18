@@ -28,7 +28,7 @@ from six import b
 from six import BytesIO
 import wandb
 from wandb import __version__
-from wandb.old.core import wandb_dir, Error
+from wandb.old.core import Error
 from wandb import env
 #from wandb.git_repo import GitRepo
 from wandb.old.settings import Settings
@@ -970,7 +970,7 @@ class Api(object):
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
         """
         fileName = metadata['name']
-        path = os.path.join(out_dir or wandb_dir(), fileName)
+        path = os.path.join(out_dir or self.settings('wandb_dir'), fileName)
         if self.file_current(fileName, metadata['md5']):
             return path, None
 

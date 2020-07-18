@@ -975,7 +975,7 @@ class Api(object):
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
         """
         fileName = metadata['name']
-        path = os.path.join(out_dir or wandb_dir(), fileName)
+        path = os.path.join(out_dir or self.settings('wandb_dir'), fileName)
         if self.file_current(fileName, metadata['md5']):
             return path, None
 

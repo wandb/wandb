@@ -95,6 +95,7 @@ env_settings = dict(
     host=None,
     username=None,
     disable_code=None,
+    wandb_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
@@ -500,7 +501,11 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     def apply_init(self, args):
         # strip out items where value is None
         param_map = dict(
-            name="run_name", id="run_id", tags="run_tags", group="run_group",
+            name="run_name",
+            id="run_id",
+            tags="run_tags",
+            group="run_group",
+            dir="wandb_dir",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self.update(args)

@@ -174,7 +174,6 @@ class _WandbInit(object):
             "config_include_keys",
             "reinit",
             "anonymous",
-            "dir",
             "allow_val_change",
             "resume",
             "force",
