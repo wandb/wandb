@@ -328,6 +328,7 @@ class Api(object):
             viewer {
                 id
                 entity
+                flags
                 teams {
                     edges {
                         node {
