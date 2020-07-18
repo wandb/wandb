@@ -1,8 +1,8 @@
 """
-Compatibility fastai module.
+Compatibility xgboost module.
 
 In the future use:
-    from wandb.framework.fastai import WandbCallback
+    from wandb.framework.xgboost import wandb_callback
 """
 
 from wandb.framework.xgboost import wandb_callback
