@@ -34,6 +34,9 @@ class Api(object):
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 
+    def clear_setting(self, *args, **kwargs):
+        return self.api.clear_setting(*args, **kwargs)
+
     def set_setting(self, *args, **kwargs):
         return self.api.set_setting(*args, **kwargs)
 
@@ -42,6 +45,9 @@ class Api(object):
 
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
+
+    def create_anonymous_api_key(self):
+        return self.api.create_anonymous_api_key()
 
     def sweep(self, *args, **kwargs):
         return self.api.sweep(*args, **kwargs)

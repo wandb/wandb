@@ -99,6 +99,7 @@ env_settings = dict(
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
+    anonymous="WANDB_ANONYMOUS",
 )
 
 env_convert = dict(run_tags=lambda s: s.split(","),)

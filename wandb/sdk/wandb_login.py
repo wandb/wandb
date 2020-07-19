@@ -5,13 +5,12 @@ login.
 
 from __future__ import print_function
 
-import getpass
 import logging
 
 import click
-from prompt_toolkit import prompt  # type: ignore
 import requests
 import wandb
+from wandb.apis import InternalApi
 from wandb.lib import apikey
 
 logger = logging.getLogger("wandb")
@@ -27,7 +26,40 @@ def _get_python_type():
         return "python"
 
 
-def login(settings=None, relogin=None, key=None):
+def _validate_anonymous_setting(anon_str):
+    return anon_str in ["must", "allow", "never"]
+
+
+def login(settings=None, api=None, relogin=None, key=None, anonymous=None):
+    """Log in to W&B.
+
+    Args:
+        settings (dict, optional): Override settings.
+        relogin (bool, optional): If true, will re-prompt for API key.
+        anonymous (string, optional): Can be "must", "allow", or "never".
+            If set to "must" we'll always login anonymously, if set to
+            "allow" we'll only create an anonymous user if the user
+            isn't already logged in.
+    Returns:
+        None
+    """
+    if wandb.run is not None:
+        wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
+        return
+
+    settings = settings or {}
+    api = api or InternalApi()
+
+    if anonymous is not None:
+        # TODO: Move this check into wandb_settings probably.
+        if not _validate_anonymous_setting(anonymous):
+            wandb.termwarn(
+                "Invalid value passed for argument `anonymous` to "
+                "wandb.login(). Can be 'must', 'allow', or 'never'."
+            )
+            return
+        settings.update({"anonymous": anonymous})
+
     wl = wandb.setup(settings=settings)
     settings = wl.settings()
 
@@ -44,33 +76,20 @@ def login(settings=None, relogin=None, key=None):
         )
         return
 
-    app_url = settings.base_url.replace("//api.", "//app.")
-    # TODO(jhr): use settings object
-    in_jupyter = _get_python_type() != "python"
-    authorize_str = "Go to this URL in a browser"
-    authorize_link_str = "{}/authorize".format(app_url)
-    if key is None:
-        if in_jupyter:
-            print("{}: {}\n".format(authorize_str, authorize_link_str))
-            key = getpass.getpass("Enter your authorization code:\n")
-        else:
-            wandb.termlog(
-                "{}: {}".format(
-                    authorize_str, click.style(authorize_link_str, fg="blue")
+    jupyter = settings.jupyter or False
+    if key:
+        if jupyter:
+            wandb.termwarn(
+                (
+                    "If you're specifying your api key in code, ensure this "
+                    "code is not shared publically.\nConsider setting the "
+                    "WANDB_API_KEY environment variable, or running "
+                    "`wandb login` from the command line."
                 )
             )
-            key = prompt(u"Enter api key: ", is_password=True)
-    elif in_jupyter:
-        wandb.termwarn(
-            (
-                "If you're specifying your api key in code, ensure this "
-                "code is not shared publically.\nConsider setting the "
-                "WANDB_API_KEY environment variable, or running "
-                "`wandb login` from the command line."
-            )
-        )
-
-    apikey.write_key(settings, key)
+        apikey.write_key(settings, key)
+    else:
+        apikey.prompt_api_key(settings, api=api)
     return
 
 

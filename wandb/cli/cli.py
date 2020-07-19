@@ -86,8 +86,9 @@ def cli(ctx):
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 @click.option("--relogin", default=None, is_flag=True, help="Force relogin if already logged in.")
+@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, host, cloud, relogin):
+def login(key, host, cloud, relogin, anonymously):
     api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
         api.clear_setting("base_url", globally=True, persist=True)
@@ -100,7 +101,8 @@ def login(key, host, cloud, relogin):
         api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
 
-    wandb.login(relogin=relogin, key=key)
+    anon_mode = "must" if anonymously else "never"
+    wandb.login(relogin=relogin, key=key, anonymous=anon_mode)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
