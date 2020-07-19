@@ -79,6 +79,7 @@ class BackendSender(object):
         proto_run = wandb_internal_pb2.RunData()
         run._make_proto_run(proto_run)
         proto_run.start_time.GetCurrentTime()
+        proto_run.host = run._settings.host
         if run._config is not None:
             config_dict = run._config._as_dict()
             self._make_config(config_dict, obj=proto_run.config)

@@ -46,6 +46,7 @@ message RunData {
   repeated string tags = 10;
   SettingsData settings = 11;
   string sweep_id = 12;
+  string host = 13;
 
   string storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
