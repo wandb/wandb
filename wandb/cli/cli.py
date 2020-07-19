@@ -89,6 +89,8 @@ def cli(ctx):
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @display_error
 def login(key, host, cloud, relogin, anonymously):
+    wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
+
     api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
         api.clear_setting("base_url", globally=True, persist=True)

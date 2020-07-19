@@ -111,7 +111,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         # setup defaults
         s.setdefaults()
-        s.infer_settings_from_env()
+        s._infer_settings_from_env()
+        if not s._cli_only_mode:
+            s._infer_run_settings_from_env()
 
         # move freeze to later
         # TODO(jhr): is this ok?

@@ -95,11 +95,11 @@ env_settings = dict(
     host=None,
     username=None,
     disable_code=None,
+    anonymous=None,
     wandb_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
-    anonymous="WANDB_ANONYMOUS",
 )
 
 env_convert = dict(run_tags=lambda s: s.split(","),)
@@ -248,6 +248,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         docker=None,
         _start_time=None,
         _start_datetime=None,
+        _cli_only_mode=None,  # avoid running any code specific for runs
         console=None,
         disabled=None,  # alias for mode=dryrun, not supported yet
         # compute environment
@@ -300,7 +301,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             )
             self.update(self._load(settings_workspace), _setter="workspace")
         if _settings:
-            self.update(_settings)
+            self.update(dict(_settings))
         if _environ:
             _logger = _early_logger or logger
             inv_map = _build_inverse_map(env_prefix, env_settings)
@@ -389,7 +390,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self.__dict__.update({k: v for k, v in d.items() if v is not None})
         self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
 
-    def infer_settings_from_env(self):
+    def _infer_settings_from_env(self):
+        """Modify settings based on environment (for runs and cli)."""
         d = {}
         d["jupyter"] = _get_python_type() != "python"
         d["windows"] = platform.system() == "Windows"
@@ -447,6 +449,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
         self.update(u)
 
+    def _infer_run_settings_from_env(self):
+        """Modify settings based on environment (for runs only)."""
         # If the settings say to save code, and there's not already a program file,
         # infer it now.
         if self.save_code and not self.code_program:
