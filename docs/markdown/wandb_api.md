@@ -551,7 +551,7 @@ Raises a ValueError if the verification fails. Does not verify downloaded refere
  
 
 ## ArtifactVersions
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2358)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2360)
 ```python
 ArtifactVersions(self,
                  client,
