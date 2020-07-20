@@ -7,7 +7,6 @@ import numpy as np
 import scipy as sp
 from wandb.sklearn.utils import *
 from sklearn.base import clone
-from joblib import Parallel, delayed
 from sklearn import model_selection
 from sklearn import datasets
 from sklearn import metrics
@@ -562,6 +561,11 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
         return
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
+        try:
+            from joblib import Parallel, delayed
+        except ImportError:
+            wandb.termerror("plot_elbow_curve requires python 3x")
+            return
         if cluster_ranges is None:
             cluster_ranges = range(1, 10, 2)
         else:

@@ -333,6 +333,7 @@ class _WandbInit(object):
             os._exit(1)
 
         self._restore()
+        #  TODO: close the logging file handler
 
         self.backend.cleanup()
         # TODO(jhr): no warning allowed
@@ -573,5 +574,4 @@ def init(
         sentry_exc(e, delay=True)
         reraise(*sys.exc_info())
         #  raise_from(Exception("problem"), e)
-
     return run

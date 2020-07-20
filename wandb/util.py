@@ -310,7 +310,10 @@ def json_friendly(obj):
     if is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
     elif is_tf_tensor_typename(typename):
-        obj = obj.eval()
+        try:
+            obj = obj.eval()
+        except RuntimeError:
+            obj = obj.numpy()
     elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
@@ -572,25 +575,33 @@ def no_retry_auth(e):
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+
 def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
-    key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
+    key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
-        wandb.termlog('API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
+        wandb.termlog(
+            "API-key must be exactly 40 characters long: {} ({} chars)".format(
+                key_suffix, len(key_suffix)
+            )
+        )
         return None
     try:
         normalized_host = host.split("/")[-1].split(":")[0]
-        wandb.termlog("Appending key for {} to your netrc file: {}".format(
-            normalized_host, os.path.expanduser('~/.netrc')))
-        machine_line = 'machine %s' % normalized_host
-        path = os.path.expanduser('~/.netrc')
+        wandb.termlog(
+            "Appending key for {} to your netrc file: {}".format(
+                normalized_host, os.path.expanduser("~/.netrc")
+            )
+        )
+        machine_line = "machine %s" % normalized_host
+        path = os.path.expanduser("~/.netrc")
         orig_lines = None
         try:
             with open(path) as f:
-                orig_lines = f.read().strip().split('\n')
-        except (IOError, OSError) as e:
+                orig_lines = f.read().strip().split("\n")
+        except IOError:
             pass
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             if orig_lines:
                 # delete this machine from the file if it's already there.
                 skip = 0
@@ -600,16 +611,19 @@ def write_netrc(host, entity, key):
                     elif skip:
                         skip -= 1
                     else:
-                        f.write('%s\n' % line)
-            f.write(textwrap.dedent("""\
+                        f.write("%s\n" % line)
+            f.write(
+                textwrap.dedent(
+                    """\
             machine {host}
               login {entity}
               password {key}
-            """).format(host=normalized_host, entity=entity, key=key))
-        os.chmod(os.path.expanduser('~/.netrc'),
-                 stat.S_IRUSR | stat.S_IWUSR)
+            """
+                ).format(host=normalized_host, entity=entity, key=key)
+            )
+        os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
         return True
-    except IOError as e:
+    except IOError:
         wandb.termerror("Unable to read ~/.netrc")
         return None
 

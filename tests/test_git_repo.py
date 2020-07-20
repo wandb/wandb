@@ -12,11 +12,6 @@ import pytest
 from wandb.internal.git_repo import GitRepo
 
 
-#  TODO: make this work in CI for windows
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="GitRepo lib doesn't work in circleci windows",
-)
 class TestGitRepo:
     def test_last_commit(self, git_repo):
         assert len(git_repo.last_commit) == 40

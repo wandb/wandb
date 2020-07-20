@@ -10,8 +10,14 @@ matplotlib
 soundfile
 boto3
 google-cloud-storage
-moviepy; python_version >= '3.6'
-imageio; python_version >= '3.6'
-pytest-flask
-pytest-mock
-tensorflow==1.15
+moviepy; python_version >= '3.5'
+imageio; python_version >= '3.5'
+ipython
+ipykernel
+nbclient; python_version >= '3.5'
+sklearn
+tensorflow>=1.15.2
+torch; python_version >= '3.5' and sys_platform == 'darwin'
+torchvision; python_version >= '3.5' and sys_platform == 'darwin'
+torch==1.5.1+cpu; python_version >= '3.5' and sys_platform != 'darwin'
+torchvision==0.6.1+cpu; python_version >= '3.5' and sys_platform != 'darwin'

@@ -1,48 +1,5 @@
-import requests
 import json
-import os
-from tests.mock_server import create_app
-from _pytest.config import get_config  # type: ignore
-from pytest_mock import _get_mock_module  # type: ignore
-
-
-def subdict(d, expected_dict):
-    """Return a new dict with only the items from `d` whose keys occur in `expected_dict`.
-    """
-    return {k: v for k, v in d.items() if k in expected_dict}
-
-
-def fixture_open(path):
-    """Returns an opened fixture file"""
-    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "fixtures", path))
-
-
-def default_ctx():
-    return {
-        "fail_count": 0,
-        "page_count": 0,
-        "page_times": 2,
-        "files": {},
-    }
-
-
-def mock_server():
-    ctx = default_ctx()
-    app = create_app(ctx)
-    mock = RequestsMock(app, ctx)
-    mocker = _get_mock_module(get_config())
-    # We mock out all requests libraries, couldn't find a way to mock the core lib
-    mocker.patch("gql.transport.requests.requests", mock).start()
-    mocker.patch("wandb.internal.file_stream.requests", mock).start()
-    mocker.patch("wandb.internal.internal_api.requests", mock).start()
-    mocker.patch("wandb.internal.update.requests", mock).start()
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock).start()
-    mocker.patch("wandb.apis.public.requests", mock).start()
-    mocker.patch("wandb.util.requests", mock).start()
-    mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock).start()
-    print("Patched requests everywhere", os.getpid())
-    return mock
+import requests
 
 
 class ResponseMock(object):

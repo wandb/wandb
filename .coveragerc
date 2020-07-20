@@ -1,6 +1,2 @@
 [run]
-source =
-    wandb/
-    tests/
-omit =
-    wandb/vendor/*
+omit = wandb/vendor/*

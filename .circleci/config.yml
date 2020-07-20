@@ -22,6 +22,10 @@ workflows:
          name: "Python 3.7"
          image: "python:3.7"
          toxenv: "py37"
+      - test:
+         name: "Python 3.8"
+         image: "python:3.8"
+         toxenv: "py38"
       - win:
          name: "Windows (Python 3.7)"
       - mac:
@@ -62,6 +66,7 @@ jobs:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
+                  no_output_timeout: 5m
     win:
         executor: win/default
         steps:
@@ -75,6 +80,7 @@ jobs:
                   shell: bash.exe
                   command: |
                       tox -v -e py37
+                  no_output_timeout: 5m
     mac:
         macos:
             xcode: 11.4.1
@@ -86,8 +92,11 @@ jobs:
                       pip3 install tox
             - run:
                   name: Run tests
+                  # Tests failed with Too many open files, so added ulimit
                   command: |
+                      ulimit -n 1024
                       python3 -m tox -v -e py37
+                  no_output_timeout: 5m
     final:
         docker:
             - image: python:3.7

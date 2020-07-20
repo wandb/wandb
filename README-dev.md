@@ -30,8 +30,18 @@ wandb/framework/pytorch  - pytorch integration
 
 ## Setup development environment
 
-In order to run unittests please install pyenv then run:
+In order to run unittests please install pyenv:
+
+```shell
+curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
+# put the output in your ~/.bashrc
 ```
+```
+
+then run:
+
+
+```shell
 ./tools/setup_dev_environment.sh
 ```
 
@@ -43,22 +53,59 @@ In order to run unittests please install pyenv then run:
 
 ## Testing
 
-tests can be found in `tests/`.  We use tox to run tests, you can run all tests with:
+Tests can be found in `tests/`.  We use tox to run tests, you can run all tests with:
 
 ```shell
 tox
 ```
 
-to run specific tests in a specific environment:
+You should run this before you make a commit.  To run specific tests in a specific environment:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py
+tox -e py37 -- tests/test_public_api.py -k substring_of_test
 ```
 
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
 tox -e py37 --recreate
+```
+
+To debug issues with leaving files open, you can pass `--open-files` to pytest to have tests fail that leave open files:
+https://github.com/astropy/pytest-openfile
+
+```shell
+tox -e py37 -- --open-files
+```
+
+### Pytest Fixtures
+
+`tests/conftest.py` contains a number of helpful fixtures automatically exposed to all tests as arguments for testing the app:
+
+- `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
+- `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`.  This also mocks out calls for login returning a dummy api key.
+- `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
+- `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling wandb.init).  No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`.  See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
+- `mock_server` - mocks all calls to the `requests` module with sane defaults.  You can customize `tests/utils/mock_server.py` to use context or add api calls.
+- `live_mock_server` - actually starts a background process to serve up mock_server requests
+- `git_repo` — places the test context into an isolated git repository
+- `notebook` — gives you a context manager for reading a notebook providing `execute_cell`.  See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`.  This uses `live_mock_server` to enable actual api calls in a notebook context.
+
+## Live development
+
+You can enter any of the tox environments and install a live dev build with:
+
+```shell
+source .tox/py37/bin/activate
+pip install -e .
+```
+
+There's also a tox dev environment using Python 3, more info here: https://tox.readthedocs.io/en/latest/example/devenv.html
+
+TODO: There are lots of cool things we could do with this, currently it just puts us in iPython.
+
+```shell
+tox -e dev
 ```
 
 ## Library Objectives

@@ -250,7 +250,7 @@ def sync(ctx, path, id, project, entity, ignore, all):
 @click.option('--update', default=None, help="Update pending sweep")
 @click.argument('config_yaml')
 @display_error
-def sweep(ctx, project, entity, controller, verbose, name, program, settings, update, config_yaml):
+def sweep(ctx, project, entity, controller, verbose, name, program, settings, update, config_yaml):  # noqa: C901
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}

@@ -1,10 +1,43 @@
-"""Mock Server for simple calls the cli and public api makes"""
+"""Mock Server for simple calls the cli and public api make"""
 
 from flask import Flask, request
 import os
+import sys
 from datetime import datetime
 import json
 import wandb
+from tests.utils.mock_requests import RequestsMock
+# TODO: remove once python2 ripped out
+if sys.version_info < (3, 5):
+    from mock import patch
+else:
+    from unittest.mock import patch
+
+
+def default_ctx():
+    return {
+        "fail_count": 0,
+        "page_count": 0,
+        "page_times": 2,
+        "files": {},
+    }
+
+
+def mock_server():
+    ctx = default_ctx()
+    app = create_app(ctx)
+    mock = RequestsMock(app, ctx)
+    # We mock out all requests libraries, couldn't find a way to mock the core lib
+    patch("gql.transport.requests.requests", mock).start()
+    patch("wandb.internal.file_stream.requests", mock).start()
+    patch("wandb.internal.internal_api.requests", mock).start()
+    patch("wandb.internal.update.requests", mock).start()
+    patch("wandb.apis.internal_runqueue.requests", mock).start()
+    patch("wandb.apis.public.requests", mock).start()
+    patch("wandb.util.requests", mock).start()
+    patch("wandb.wandb_sdk.wandb_artifacts.requests", mock).start()
+    print("Patched requests everywhere", os.getpid())
+    return mock
 
 
 def run():
@@ -166,6 +199,20 @@ def create_app(ctx):
                         "flags": '{"code_saving_enabled": true}',
                         "teams": {
                             "edges": []  # TODO make configurable for cli_test
+                        }
+                    }
+                }
+            })
+        if "query Sweep(" in body["query"]:
+            return json.dumps({
+                "data": {
+                    "project": {
+                        "sweep": {
+                            "id": "1234",
+                            "name": "fun-sweep-10",
+                            "bestLoss": 0.33,
+                            "config": "",
+                            "runs": paginated(run(), ctx)
                         }
                     }
                 }
@@ -395,4 +442,5 @@ def create_app(ctx):
 
 
 if __name__ == '__main__':
-    app = create_app({})
+    app = create_app(default_ctx())
+    app.run(debug=True, port=int(os.environ.get("PORT", 8547)))

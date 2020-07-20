@@ -16,8 +16,8 @@ class Server(object):
     def __init__(self, api=None):
         self._api = api or InternalApi()
         self._error_network = None
-        self._viewer = None
-        self._flags = None
+        self._viewer = {}
+        self._flags = {}
 
     def query_with_timeout(self, timeout=None):
         timeout = timeout or 5

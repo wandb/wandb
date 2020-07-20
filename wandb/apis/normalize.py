@@ -6,13 +6,14 @@ normalize.
 import requests
 import six
 import sys
+import ast
 
 from gql.client import RetryError
 from functools import wraps
 
 from wandb import env
 
-from wandb.errors.error import Error, CommError
+from wandb.errors.error import CommError
 
 
 def normalize_exceptions(func):

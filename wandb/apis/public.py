@@ -254,23 +254,15 @@ class Api(object):
         self._runs = {}
 
     def _parse_project_path(self, path):
-        """Parses paths in the following formats:
-
-        entity/project
-        project
-
-        entity is optional and will fall back to the current logged in user
-        """
-        parts = path.split("/")
-        entity = self.settings['entity'] or self.default_entity
+        """Returns project and entity for project specified by path"""
         project = self.settings['project']
+        entity = self.settings['entity'] or self.default_entity
+        if path is None:
+            return entity, project
+        parts = path.split('/', 1)
         if len(parts) == 1:
-            project = parts[1]
-        elif len(parts) == 2:
-            entity, project = parts[0], parts[1]
-        else:
-            raise ValueError('Invalid project path: %s' % path)
-        return entity, project
+            return entity, path
+        return parts
 
     def _parse_path(self, path):
         """Parses paths in the following formats:
@@ -315,17 +307,6 @@ class Api(object):
             return entity, project, path
         elif len(parts) == 2:
             return entity, parts[0], parts[1]
-        return parts
-
-    def _parse_project_path(self, path):
-        """Returns project and entity for project specified by path"""
-        project = self.settings['project']
-        entity = self.settings['entity'] or self.default_entity
-        if path is None:
-            return entity, project
-        parts = path.split('/', 1)
-        if len(parts) == 1:
-            return entity, path
         return parts
 
     def projects(self, entity=None, per_page=200):

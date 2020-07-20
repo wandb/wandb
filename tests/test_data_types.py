@@ -271,12 +271,23 @@ def test_video_path(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
-def test_video_path_invalid():
-    with CliRunner().isolated_filesystem():
+def test_video_path_invalid(runner):
+    with runner.isolated_filesystem():
         with open("video.avi", "w") as f:
             f.write("00000")
         with pytest.raises(ValueError):
             wandb.Video("video.avi")
+
+
+def test_molecule(runner, mocked_run):
+    with runner.isolated_filesystem():
+        with open("test.pdb", "w") as f:
+            f.write("00000")
+        mol = wandb.Molecule("test.pdb")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+        print(glob.glob(os.path.join(mocked_run.dir, "media/**/*")))
+        assert os.path.exists(os.path.join(mocked_run.dir,
+                                           "media/molecule/rad_summary_0.pdb"))
 
 
 def test_html_str(mocked_run):

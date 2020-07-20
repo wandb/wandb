@@ -19,6 +19,18 @@ def api(runner):
     return Api()
 
 
+def test_parse_project_path(api):
+    e, p = api._parse_project_path("user/proj")
+    assert e == "user"
+    assert p == "proj"
+
+
+def test_parse_project_path_proj(api):
+    e, p = api._parse_project_path("proj")
+    assert e == "vanpelt"
+    assert p == "proj"
+
+
 def test_parse_path_simple(api):
     u, p, r = api._parse_path("user/proj/run")
     assert u == "user"
@@ -137,7 +149,6 @@ def test_run_file(runner, mock_server, api):
         run = api.run("test/test/test")
         file = run.file("weights.h5")
         assert not os.path.exists("weights.h5")
-        print("YO", file.url)
         file.download()
         assert os.path.exists("weights.h5")
 
@@ -243,3 +254,18 @@ def test_artifact_run_logged(runner, mock_server, api):
     arts = run.logged_artifacts()
     assert len(arts) == 2
     assert arts[0].name == "abc123"
+
+
+@pytest.mark.skipif(platform.system() == "Windows",
+                    reason="Verify is broken on Windows")
+def test_artifact_verify(runner, mock_server, api):
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    art.download()
+    with pytest.raises(ValueError):
+        art.verify()
+
+
+def test_sweep(runner, mock_server, api):
+    sweep = api.sweep("test/test/test")
+    assert sweep.entity == "test"
+    assert sweep.best_run().name == "beast-bug-33"

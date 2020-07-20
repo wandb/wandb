@@ -3,14 +3,22 @@ import time
 import datetime
 import os
 import requests
+from contextlib import contextmanager
 from tests import utils
-from multiprocessing import Process
+# from multiprocessing import Process
+import subprocess
 import click
 from click.testing import CliRunner
 import webbrowser
 import wandb
 import git
+import psutil
+import atexit
 from wandb.internal.git_repo import GitRepo
+try:
+    import nbformat
+except ImportError:  # TODO: no fancy notebook fun in python2
+    pass
 
 try:
     from unittest.mock import MagicMock
@@ -18,6 +26,15 @@ except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
+
+
+def debug(*args, **kwargs):
+    print("Open files during tests: ")
+    proc = psutil.Process()
+    print(proc.open_files())
+
+
+atexit.register(debug)
 
 
 @pytest.fixture
@@ -88,19 +105,24 @@ def mock_server():
 
 @pytest.fixture
 def live_mock_server(request):
-    from tests.mock_server import create_app
-    if request.node.get_closest_marker('port'):
-        port = request.node.get_closest_marker('port').args[0]
-    else:
-        port = 8765
-    app = create_app(utils.default_ctx())
-    server = Process(target=app.run, kwargs={"port": port, "debug": True,
-                                             "use_reloader": False})
-    server.start()
+    port = utils.free_port()
+    #  TODO: Windows can't pickle
+    #  app = utils.create_app(utils.default_ctx())
+    #  def worker(app, port):
+    #    app.run(host="localhost", port=port, use_reloader=False, threaded=True)
+    #  server = Process(target=worker, args=(app, port))
+    #  server.start()
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    path = os.path.join(root, "tests", "utils", "mock_server.py")
+    command = ["python", path]
+    env = os.environ
+    env["PORT"] = str(port)
+    env["PYTHONPATH"] = root
+    server = subprocess.Popen(command, env=env)
+    server.base_url = "http://localhost:%s" % port
     for i in range(5):
         try:
-            time.sleep(1)
-            res = requests.get("http://localhost:%s/storage" % port, timeout=1)
+            res = requests.get("%s/storage" % server.base_url, timeout=1)
             if res.status_code == 200:
                 break
             print("Attempting to connect but got: %s", res)
@@ -108,4 +130,45 @@ def live_mock_server(request):
             print("timed out")
     yield server
     server.terminate()
-    server.join()
+    try:
+        server.join()
+    except AttributeError:  # Popen mode
+        server.wait()
+
+
+@pytest.fixture
+def notebook(live_mock_server):
+    """This launches a live server, configures a notebook to use it, and enables
+    devs to execute arbitrary cells.  See tests/test_notebooks.py
+
+    TODO: we should launch a single server on boot and namespace requests by host"""
+    @contextmanager
+    def notebook_loader(nb_path, kernel_name="wandb_python", **kwargs):
+        with open(utils.notebook_path("setup.ipynb")) as f:
+            setupnb = nbformat.read(f, as_version=4)
+            setupcell = setupnb['cells'][0]
+            # Ensure the notebooks talks to our mock server
+            new_source = setupcell['source'].replace("__WANDB_BASE_URL__",
+                                                     live_mock_server.base_url)
+            setupcell['source'] = new_source
+
+        with open(utils.notebook_path(nb_path)) as f:
+            nb = nbformat.read(f, as_version=4)
+        nb['cells'].insert(0, setupcell)
+
+        client = utils.WandbNotebookClient(nb)
+        with client.setup_kernel(**kwargs):
+            # Run setup commands for mocks
+            client.execute_cell(0, store_history=False)
+            yield client
+
+    return notebook_loader
+
+
+@pytest.fixture
+def wandb_init_run(runner, mocker, mock_server, capsys):
+    wandb._IS_INTERNAL_PROCESS = False
+    mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
+    run = wandb.init(settings=wandb.Settings(console="off", mode="offline"))
+    yield run
+    wandb.join()
