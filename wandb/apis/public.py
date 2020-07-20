@@ -2320,6 +2320,8 @@ class Artifact(object):
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
+        if 'metadata' in response['project']['artifact']:
+            self._metadata = json.loads(response['project']['artifact']['metadata'])
         return self._attrs
 
     # The only file should be wandb_manifest.json
