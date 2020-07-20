@@ -575,59 +575,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-
-def write_netrc(host, entity, key):
-    """Add our host and key to .netrc"""
-    key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
-    if len(key_suffix) != 40:
-        wandb.termlog(
-            "API-key must be exactly 40 characters long: {} ({} chars)".format(
-                key_suffix, len(key_suffix)
-            )
-        )
-        return None
-    try:
-        normalized_host = host.split("/")[-1].split(":")[0]
-        wandb.termlog(
-            "Appending key for {} to your netrc file: {}".format(
-                normalized_host, os.path.expanduser("~/.netrc")
-            )
-        )
-        machine_line = "machine %s" % normalized_host
-        path = os.path.expanduser("~/.netrc")
-        orig_lines = None
-        try:
-            with open(path) as f:
-                orig_lines = f.read().strip().split("\n")
-        except IOError:
-            pass
-        with open(path, "w") as f:
-            if orig_lines:
-                # delete this machine from the file if it's already there.
-                skip = 0
-                for line in orig_lines:
-                    if machine_line in line:
-                        skip = 2
-                    elif skip:
-                        skip -= 1
-                    else:
-                        f.write("%s\n" % line)
-            f.write(
-                textwrap.dedent(
-                    """\
-            machine {host}
-              login {entity}
-              password {key}
-            """
-                ).format(host=normalized_host, entity=entity, key=key)
-            )
-        os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
-        return True
-    except IOError:
-        wandb.termerror("Unable to read ~/.netrc")
-        return None
-
-
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponential backoff.
 

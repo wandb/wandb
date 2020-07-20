@@ -208,15 +208,6 @@ def test_safe_for_json():
                    'str': 'str'}
 
 
-def test_write_netrc():
-    api_key = "X" * 40
-    util.write_netrc("http://localhost", "vanpelt", api_key)
-    with open(os.path.expanduser("~/.netrc")) as f:
-        assert f.read() == ("machine localhost\n"
-                            "  login vanpelt\n"
-                            "  password %s\n" % api_key)
-
-
 @pytest.mark.skipif(platform.system() == "Windows",
                     reason="find_runner is broken on Windows")
 def test_find_runner():

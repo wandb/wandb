@@ -165,8 +165,24 @@ def notebook(live_mock_server):
     return notebook_loader
 
 
+def default_wandb_args():
+    return {
+        "error": None,
+        "k8s": False,
+        "sagemaker": False,
+        "tensorboard": False,
+        "resume": False,
+        "env": {},
+    }
+
+
 @pytest.fixture
-def wandb_init_run(runner, mocker, mock_server, capsys):
+def wandb_init_run(request, runner, mocker, mock_server, capsys):
+    marker = request.node.get_closest_marker('wandb_args')
+    args = default_wandb_args()
+    if marker:
+        args.update(marker.kwargs)
+    #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
     mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
     run = wandb.init(settings=wandb.Settings(console="off", mode="offline"))
