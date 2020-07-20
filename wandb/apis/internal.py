@@ -53,7 +53,7 @@ class Api(object):
         return self.api.sweep(*args, **kwargs)
 
     def upsert_sweep(self, *args, **kwargs):
-        return self.api_upsert_sweep(*args, **kwargs)
+        return self.api.upsert_sweep(*args, **kwargs)
 
     def register_agent(self, *args, **kwargs):
         return self.api.register_agent(*args, **kwargs)
