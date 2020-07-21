@@ -6,6 +6,8 @@ from tests.utils.utils import (
     free_port,
     fixture_open,
     notebook_path,
+    mock_sagemaker,
+    mock_k8s,
     assert_deep_lists_equal,
 )
 
@@ -18,6 +20,8 @@ __all__ = [
     "create_app",
     "free_port",
     "notebook_path",
+    "mock_sagemaker",
+    "mock_k8s",
     "assert_deep_lists_equal",
     "subdict",
 ]

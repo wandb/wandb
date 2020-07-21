@@ -7,6 +7,7 @@ Manage wandb run.
 
 from __future__ import print_function
 
+import collections
 import json
 import logging
 import os
@@ -246,8 +247,28 @@ class RunManaged(Run):
             self.config["_wandb"][type][key] = value_extra
             self.config.persist()
 
-    def log(self, data, step=None, commit=True, sync=None):
+    def log(self, data, step=None, commit=None, sync=None):
         # TODO(cling): sync is a noop for now
+        if not isinstance(data, collections.Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if step is not None:
+            if self.history._step > step:
+                wandb.termwarn(
+                    (
+                        "Step must only increase in log calls.  "
+                        "Step {} < {}; dropping {}.".format(
+                            step, self.history._step, data
+                        )
+                    )
+                )
+                return
+            elif step > self.history._step:
+                self.history._flush()
+                self.history._step = step
+        elif commit is None:
+            commit = True
+        #  TODO: ensure history is pushed on exit for non-added rows
         if commit:
             self.history._row_add(data)
         else:

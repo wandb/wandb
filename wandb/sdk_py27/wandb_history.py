@@ -26,12 +26,16 @@ class History(object):
         self._data.update(row)
 
     def _row_add(self, row):
-        self._data["_step"] = self._step
         self._data.update(row)
-        if self._callback:
-            self._callback(row=self._data, step=self._step)
-        self._data = dict()
+        self._flush()
         self._step += 1
+
+    def _flush(self):
+        if len(self._data) > 0:
+            self._data["_step"] = self._step
+            if self._callback:
+                self._callback(row=self._data, step=self._step)
+            self._data = dict()
 
     def add(self, d):
         self._row_add(d)

@@ -13,6 +13,7 @@ from wandb.sklearn import (
     roc,
     confusion_matrix,
     precision_recall,
+    plot_classifier,
     plot_feature_importances,
 )
 
@@ -107,6 +108,36 @@ def test_precision_recall(dummy_classifier):
     pr = precision_recall(y_test, y_probas)
 
     assert pr.value.data[0] == [0, 1.0, 1.0]
+
+
+def test_plot_classifier(dummy_classifier, wandb_init_run):
+    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    plot_classifier(
+        nb,
+        x_train,
+        x_test,
+        y_train,
+        y_test,
+        y_pred,
+        y_probas,
+        ["cat", "dog"],
+        False,
+        "RandomForest",
+        ["fur", "sound"],
+    )
+
+    logged_keys = [
+        [k for k in r.keys() if k != "_step"][0] for r in wandb.run._backend.history
+    ]
+    assert logged_keys == [
+        "feature_importances",
+        "learning_curve",
+        "confusion_matrix",
+        "summary_metrics",
+        "class_proportions",
+        "roc",
+        "precision_recall",
+    ]
 
 
 def test_feature_importance_attribute_does_not_exists(

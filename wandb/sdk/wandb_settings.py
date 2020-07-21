@@ -437,7 +437,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
         u["_executable"] = sys.executable
 
-        u["docker"] = wandb.env.get_docker()
+        u["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
 
         # TODO: we should use the cuda library to collect this
         if os.path.exists("/usr/local/cuda/version.txt"):

@@ -1,4 +1,5 @@
 import os
+import six
 import socket
 
 
@@ -50,3 +51,55 @@ def assert_deep_lists_equal(a, b, indices=None):
             finally:
                 if top and indices:
                     print('Diff at index: %s' % list(reversed(indices)))
+
+
+def mock_sagemaker(mocker):
+    env = {}
+    config_path = "/opt/ml/input/config/hyperparameters.json"
+    resource_path = "/opt/ml/input/config/resourceconfig.json"
+    secrets_path = "secrets.env"
+    env['TRAINING_JOB_NAME'] = 'sage'
+    env['CURRENT_HOST'] = 'maker'
+
+    orig_exist = os.path.exists
+
+    def exists(path):
+        if path in (config_path, secrets_path, resource_path):
+            return True
+        else:
+            orig_exist(path)
+    mocker.patch('wandb.util.os.path.exists', exists)
+
+    def magic(path, *args, **kwargs):
+        if path == config_path:
+            return six.StringIO('{"fuckin": "A"}')
+        elif path == resource_path:
+            return six.StringIO('{"hosts":["a", "b"]}')
+        elif path == secrets_path:
+            return six.StringIO('WANDB_TEST_SECRET=TRUE')
+        else:
+            return six.StringIO()
+
+    mocker.patch('wandb.open', magic, create=True)
+    mocker.patch('wandb.util.open', magic, create=True)
+    return env
+
+
+def mock_k8s(mocker):
+    env = {}
+    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    #  crt_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    orig_exist = os.path.exists
+
+    def exists(path):
+        return True if path in token_path else orig_exist(path)
+
+    def magic(path, *args, **kwargs):
+        if path == token_path:
+            return six.StringIO('token')
+    mocker.patch('wandb.util.open', magic, create=True)
+    mocker.patch('wandb.util.os.path.exists', exists)
+    env["KUBERNETES_SERVICE_HOST"] = "k8s"
+    env["KUBERNETES_PORT_443_TCP_PORT"] = "123"
+    env["HOSTNAME"] = "test"
+    return env

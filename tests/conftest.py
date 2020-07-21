@@ -14,6 +14,7 @@ import wandb
 import git
 import psutil
 import atexit
+from wandb.lib.globals import unset_globals
 from wandb.internal.git_repo import GitRepo
 try:
     import nbformat
@@ -166,25 +167,52 @@ def notebook(live_mock_server):
 
 
 def default_wandb_args():
+    """This allows us to parameterize the wandb_init_run fixture
+    The most general arg is "env", you can call:
+
+    @pytest.mark.wandb_args(env={"WANDB_API_KEY": "XXX"})
+
+    To set env vars and have them unset when the test completes.
+    """
     return {
         "error": None,
-        "k8s": False,
+        "k8s": None,
         "sagemaker": False,
         "tensorboard": False,
         "resume": False,
         "env": {},
+        "wandb_init": {},
     }
 
 
+def mocks_from_args(mocker, args, mock_server):
+    if args["k8s"] is not None:
+        mock_server.ctx["k8s"] = args["k8s"]
+        args["env"].update(utils.mock_k8s(mocker))
+    if args["sagemaker"]:
+        args["env"].update(utils.mock_sagemaker(mocker))
+
+
 @pytest.fixture
-def wandb_init_run(request, runner, mocker, mock_server, capsys):
+def wandb_init_run(request, runner, mocker, mock_server):
     marker = request.node.get_closest_marker('wandb_args')
     args = default_wandb_args()
     if marker:
         args.update(marker.kwargs)
-    #  TODO: likely not the right thing to do, we shouldn't be setting this
-    wandb._IS_INTERNAL_PROCESS = False
-    mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
-    run = wandb.init(settings=wandb.Settings(console="off", mode="offline"))
-    yield run
-    wandb.join()
+    try:
+        mocks_from_args(mocker, args, mock_server)
+        for k, v in args["env"].items():
+            os.environ[k] = v
+        #  TODO: likely not the right thing to do, we shouldn't be setting this
+        wandb._IS_INTERNAL_PROCESS = False
+        #  We want to run setup every time in tests
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+        mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
+        run = wandb.init(settings=wandb.Settings(console="off", mode="offline"),
+                         **args["wandb_init"])
+        yield run
+        wandb.join()
+    finally:
+        unset_globals()
+        for k, v in args["env"].items():
+            del os.environ[k]
