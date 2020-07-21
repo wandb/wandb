@@ -121,6 +121,9 @@ def create_app(ctx):
 
     @app.route("/graphql", methods=["POST"])
     def graphql():
+        #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
+        test_name = request.headers.get("X-WANDB-USERNAME")
+        app.logger.info("Test request from: %s", test_name)
         if "fail_times" in ctx:
             if ctx["fail_count"] < ctx["fail_times"]:
                 ctx["fail_count"] += 1

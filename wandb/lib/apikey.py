@@ -49,6 +49,11 @@ def prompt_api_key(
     if jupyter or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
 
+    if jupyter and 'google.colab' in sys.modules:
+        key = wandb.jupyter.attempt_colab_login(api.app_url)
+        write_key(settings, key)
+        return key
+
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.

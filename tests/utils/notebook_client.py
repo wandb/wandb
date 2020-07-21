@@ -28,6 +28,9 @@ class WandbNotebookClient(NotebookClient):
                     if output["output_type"] == "stream":
                         print(output["text"])
                 raise e
+            for output in ecell["outputs"]:
+                if output["output_type"] == "error":
+                    raise ValueError(output["evalue"])
             executed_cells.append(ecell)
 
         return executed_cells

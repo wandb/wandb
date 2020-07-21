@@ -1,8 +1,8 @@
 import pytest
 import time
 import datetime
-import os
 import requests
+import os
 from contextlib import contextmanager
 from tests import utils
 # from multiprocessing import Process
@@ -16,6 +16,7 @@ import psutil
 import atexit
 from wandb.lib.globals import unset_globals
 from wandb.internal.git_repo import GitRepo
+from six.moves import urllib
 try:
     import nbformat
 except ImportError:  # TODO: no fancy notebook fun in python2
@@ -27,15 +28,43 @@ except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
 DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
+server = None
 
 
-def debug(*args, **kwargs):
+def test_cleanup(*args, **kwargs):
+    global server
+    server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
     print(proc.open_files())
 
 
-atexit.register(debug)
+def start_mock_server():
+    """We start a server on boot for use by tests"""
+    global server
+    port = utils.free_port()
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    path = os.path.join(root, "tests", "utils", "mock_server.py")
+    command = ["python", path]
+    env = os.environ
+    env["PORT"] = str(port)
+    env["PYTHONPATH"] = root
+    server = subprocess.Popen(command, env=env)
+    server._port = port
+    server.base_url = "http://localhost:%i" % server._port
+    for i in range(5):
+        try:
+            res = requests.get("%s/storage" % server.base_url, timeout=1)
+            if res.status_code == 200:
+                break
+            print("Attempting to connect but got: %s", res)
+        except requests.exceptions.RequestException:
+            print("timed out")
+    return server
+
+
+atexit.register(test_cleanup)
+start_mock_server()
 
 
 @pytest.fixture
@@ -106,35 +135,12 @@ def mock_server():
 
 @pytest.fixture
 def live_mock_server(request):
-    port = utils.free_port()
-    #  TODO: Windows can't pickle
-    #  app = utils.create_app(utils.default_ctx())
-    #  def worker(app, port):
-    #    app.run(host="localhost", port=port, use_reloader=False, threaded=True)
-    #  server = Process(target=worker, args=(app, port))
-    #  server.start()
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    path = os.path.join(root, "tests", "utils", "mock_server.py")
-    command = ["python", path]
-    env = os.environ
-    env["PORT"] = str(port)
-    env["PYTHONPATH"] = root
-    server = subprocess.Popen(command, env=env)
-    server.base_url = "http://localhost:%s" % port
-    for i in range(5):
-        try:
-            res = requests.get("%s/storage" % server.base_url, timeout=1)
-            if res.status_code == 200:
-                break
-            print("Attempting to connect but got: %s", res)
-        except requests.exceptions.RequestException:
-            print("timed out")
+    global server
+    name = urllib.parse.quote(request.node.name)
+    # We set the username so the mock backend can namespace state
+    os.environ["WANDB_USERNAME"] = name
     yield server
-    server.terminate()
-    try:
-        server.join()
-    except AttributeError:  # Popen mode
-        server.wait()
+    del os.environ["WANDB_USERNAME"]
 
 
 @pytest.fixture
@@ -162,6 +168,7 @@ def notebook(live_mock_server):
             # Run setup commands for mocks
             client.execute_cell(0, store_history=False)
             yield client
+    notebook_loader.base_url = live_mock_server.base_url
 
     return notebook_loader
 

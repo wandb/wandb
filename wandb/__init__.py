@@ -13,6 +13,8 @@ __version__ = '0.0.34'
 import sys
 
 from wandb.errors import Error
+# This needs to be early as other modules call it.
+from wandb.errors.term import termlog, termerror, termwarn
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
@@ -35,7 +37,6 @@ from wandb.errors.error import CommError
 
 from wandb.lib import preinit as _preinit
 from wandb.lib import lazyloader as _lazyloader
-from wandb.errors.term import termlog, termerror, termwarn
 from wandb import wandb_torch
 from wandb import util
 
@@ -100,6 +101,7 @@ tensorflow = _lazyloader.LazyLoader('wandb.tensorflow', globals(), 'wandb.tensor
 xgboost = _lazyloader.LazyLoader('wandb.xgboost', globals(), 'wandb.framework.xgboost')
 lightgbm = _lazyloader.LazyLoader('wandb.lightgbm', globals(), 'wandb.framework.lightgbm')
 docker = _lazyloader.LazyLoader('wandb.docker', globals(), 'wandb.docker')
+jupyter = _lazyloader.LazyLoader('wandb.jupyter', globals(), 'wandb.jupyter')
 
 def ensure_configured():
     global api
