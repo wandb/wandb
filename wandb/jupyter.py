@@ -15,6 +15,7 @@ import requests
 from requests.compat import urljoin
 import re
 import sys
+from base64 import b64encode
 from pkg_resources import resource_filename
 from importlib import import_module
 
@@ -142,9 +143,21 @@ class JupyterAgent(object):
             self.rm.shutdown()
             self.paused = True
 
-    def save_display(self, exc_count, data):
+    def save_display(self, exc_count, dataWithMetadata):
         self.outputs[exc_count] = self.outputs.get(exc_count, [])
-        self.outputs[exc_count].append(data)
+
+        # byte values such as images need to be encoded in base64
+        # otherwise nbformat.v4.new_output will throw a NotebookValidationError
+        data = dataWithMetadata["data"]
+        b64encodedData = {}
+        for key in data:
+            val = data[key]
+            if isinstance(val, bytes):
+                b64encodedData[key] = b64encode(val).decode("utf-8")
+            else:
+                b64encodedData[key] = val
+
+        self.outputs[exc_count].append({"data": b64encodedData, "metadata": dataWithMetadata["metadata"]})
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
