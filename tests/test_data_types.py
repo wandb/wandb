@@ -139,6 +139,7 @@ def test_cant_serialize_to_other_run(mocked_run, test_settings):
 
 def test_image_seq_to_json(mocked_run):
     wb_image = wandb.Image(image)
+    wb_image.bind_to_run(mocked_run,"test", 0, 0)
     meta = wandb.Image.seq_to_json([wb_image], mocked_run, "test", 0)
     assert os.path.exists(os.path.join(mocked_run.dir, 'media', 'images',
                           'test_0_0.png'))
@@ -155,8 +156,10 @@ def test_image_seq_to_json(mocked_run):
 def test_max_images(caplog, mocked_run):
     large_image = np.random.randint(255, size=(10, 10))
     large_list = [wandb.Image(large_image)] * 200
-    meta = wandb.Image.seq_to_json(large_list, mocked_run, "test2", 0)
-    expected = {'_type': 'images/separated', 'count': data_types.Image.MAX_THUMBNAILS, 'height': 10, 'width': 10}
+    large_list[0].bind_to_run(mocked_run,"test2", 0, 0)
+    meta = wandb.Image.seq_to_json(data_types.prune_max_seq(large_list), mocked_run, "test2", 0)
+    expected = {'_type': 'images/separated', 'count': data_types.Image.MAX_ITEMS, 'height': 10, 'width': 10}
+    path = os.path.join(mocked_run.dir, "media/images/test2_0_0.png")
     assert utils.subdict(meta, expected) == expected
     assert os.path.exists(os.path.join(mocked_run.dir, "media/images/test2_0_0.png"))
 
@@ -201,8 +204,10 @@ def test_audio_captions():
 
 def test_audio_to_json(mocked_run):
     audio = np.zeros(44100)
+    audioObj = wandb.Audio(audio, sample_rate=44100)
+    audioObj.bind_to_run(mocked_run, "test", 0)
     meta = wandb.Audio.seq_to_json(
-        [wandb.Audio(audio, sample_rate=44100)], mocked_run, "test", 0)
+        [audioObj], mocked_run, "test", 0)
     assert os.path.exists(os.path.join(mocked_run.dir, meta['audio'][0]['path']))
 
     meta_expected = {
@@ -284,16 +289,17 @@ def test_molecule(runner, mocked_run):
         with open("test.pdb", "w") as f:
             f.write("00000")
         mol = wandb.Molecule("test.pdb")
+        mol.bind_to_run(mocked_run,"rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
-        print(glob.glob(os.path.join(mocked_run.dir, "media/**/*")))
-        assert os.path.exists(os.path.join(mocked_run.dir,
-                                           "media/molecule/rad_summary_0.pdb"))
+
+        assert os.path.exists(mol._path)
 
 
 def test_html_str(mocked_run):
     html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+    html.bind_to_run(mocked_run,"rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
-    assert os.path.exists(os.path.join(mocked_run.dir, "media/html/rad_summary_0.html"))
+    assert os.path.exists(html._path)
 
 
 def test_html_styles():
@@ -317,9 +323,10 @@ def test_html_file(mocked_run):
     with open("test.html", "w") as f:
         f.write("<html><body><h1>Hello</h1></body></html>")
     html = wandb.Html(open("test.html"))
+    html.bind_to_run(mocked_run,"rad", "summary")
     wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
-    assert os.path.exists(os.path.join(mocked_run.dir, "media/html/rad_summary_0.html"))
-    assert os.path.exists(os.path.join(mocked_run.dir, "media/html/rad_summary_0.html"))
+
+    assert os.path.exists(html._path)
 
 
 def test_table_default():
@@ -416,26 +423,32 @@ def test_object3d_unsupported_numpy():
 
 
 def test_object3d_seq_to_json(mocked_run):
-    obj = wandb.Object3D.seq_to_json([
+    objs = [
         wandb.Object3D(utils.fixture_open("Box.gltf")),
         wandb.Object3D(utils.fixture_open("cube.obj")),
         wandb.Object3D(point_cloud_1)
-    ], mocked_run, "pc", 1)
+    ]
+    for o in objs:
+        o.bind_to_run(mocked_run, "pc", 1)
+
+    obj = wandb.Object3D.seq_to_json(objs, mocked_run, "pc", 1)
 
     box = obj["filenames"][0]
     cube = obj["filenames"][1]
+    pts = obj["filenames"][2]
+
     assert os.path.exists(os.path.join(mocked_run.dir,
                           "media", "object3D", box))
     assert os.path.exists(os.path.join(mocked_run.dir,
                           "media", "object3D", cube))
     assert os.path.exists(os.path.join(mocked_run.dir,
-                          "media", "object3D", "pc_1_2.pts.json"))
+                          "media", "object3D", pts))
 
     assert obj["_type"] == "object3D"
     assert obj["filenames"] == [
         box,
         cube,
-        "pc_1_2.pts.json",
+        pts,
     ]
 
 

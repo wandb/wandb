@@ -365,9 +365,6 @@ class Audio(BatchableMedia):
     @classmethod
     def seq_to_json(cls, seq, run, key, step):
         audio_list = list(seq)
-        for audio in audio_list:
-            if not audio.is_bound():
-                audio.bind_to_run(run, key, step)
 
         sf = util.get_module(
             "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
@@ -517,9 +514,6 @@ class Object3D(BatchableMedia):
     @classmethod
     def seq_to_json(cls, threeD_list, run, key, step):
         threeD_list = list(threeD_list)
-        for i, obj in enumerate(threeD_list):
-            if not obj.is_bound():
-                obj.bind_to_run(run, key, step, id_=i)
 
         jsons = [obj.to_json(run) for obj in threeD_list]
 
@@ -602,9 +596,6 @@ class Molecule(BatchableMedia):
     @classmethod
     def seq_to_json(cls, molecule_list, run, key, step):
         molecule_list = list(molecule_list)
-        for i, obj in enumerate(molecule_list):
-            if not obj.is_bound():
-                obj.bind_to_run(run, key, step, id_=i)
 
         jsons = [obj.to_json(run) for obj in molecule_list]
 
@@ -680,9 +671,7 @@ class Html(BatchableMedia):
     def seq_to_json(cls, html_list, run, key, step):
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         util.mkdir_exists_ok(base_path)
-        for i, h in enumerate(html_list):
-            if not h.is_bound():
-                h.bind_to_run(run, key, step, id_=i)
+
         meta = {
             "_type": "html",
             "count": len(html_list),
@@ -819,9 +808,7 @@ class Video(BatchableMedia):
     def seq_to_json(cls, videos, run, key, step):
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         util.mkdir_exists_ok(base_path)
-        for i, v in enumerate(videos):
-            if not v.is_bound():
-                v.bind_to_run(run, key, step, id_=i)
+
         meta = {
             "_type": "videos",
             "count": len(videos),
@@ -851,7 +838,7 @@ class Image(BatchableMedia):
             caption (string): Label for display of image.
     """
 
-    MAX_THUMBNAILS = 108
+    MAX_ITEMS = 108
 
     # PIL limit
     MAX_DIMENSION = 65500
@@ -997,23 +984,12 @@ class Image(BatchableMedia):
         #assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
         return data.clip(0, 255).astype(np.uint8)
 
+
     @classmethod
     def seq_to_json(cls, images, run, key, step):
         """
         Combines a list of images into a meta dictionary object describing the child images.
         """
-
-        num_images_to_log = len(images)
-
-        if num_images_to_log > Image.MAX_THUMBNAILS:
-            logging.warning(
-                "Only %i images will be uploaded." % Image.MAX_THUMBNAILS)
-            num_images_to_log = Image.MAX_THUMBNAILS
-            images = images[:num_images_to_log]
-
-        for i, obj in enumerate(images):
-            if not obj.is_bound():
-                obj.bind_to_run(run, key, step, id_=i)
 
         jsons = [obj.to_json(run) for obj in images]
 
@@ -1060,7 +1036,6 @@ class Image(BatchableMedia):
                 mask_group = {}
                 for k in image._masks:
                     mask = image._masks[k]
-                    mask.bind_to_run(run, run_key, step)
                     mask_group[k] = mask.to_json(run)
                 all_mask_groups.append(mask_group)
             else:
@@ -1078,7 +1053,6 @@ class Image(BatchableMedia):
                 box_group = {}
                 for k in image._boxes:
                     box = image._boxes[k]
-                    box.bind_to_run(run, run_key, step)
                     box_group[k] = box.to_json(run)
                 all_box_groups.append(box_group)
             else:
@@ -1739,6 +1713,16 @@ def numpy_arrays_to_lists(payload):
     return payload
 
 
+
+def prune_max_seq(seq):
+    # If media type has a max respect it
+    items = seq
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
+        logging.warning( "Only %i %s will be uploaded." % (seq[0].MAX_ITEMS, seq[0].__class__.__name__))
+        items = seq[:seq[0].MAX_ITEMS]
+    return items
+
+
 def val_to_json(run, key, val, namespace=None):
     # Converts a wandb datatype to its JSON representation.
     if namespace == None:
@@ -1756,7 +1740,13 @@ def val_to_json(run, key, val, namespace=None):
     elif isinstance(val, collections.Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if len(val) and isinstance(val[0], BatchableMedia) and all(isinstance(v, type(val[0])) for v in val):
-            return val[0].seq_to_json(val, run, key, namespace)
+            items = prune_max_seq(val)
+
+            for i, item in enumerate(items):
+                if not item.is_bound():
+                    item.bind_to_run(run, key, namespace, i)
+
+            return items[0].seq_to_json(items, run, key, namespace)
         else:
             # TODO(adrian): Good idea to pass on the same key here? Maybe include
             # the array index?
