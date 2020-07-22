@@ -33,10 +33,10 @@ class AgentError(Exception):
 class AgentProcess(object):
     """Launch and manage a process."""
 
-    def __init__(self, env=None, command=None, function=None, run_id=None, in_jupyter=None):
+    def __init__(self, env=None, command=None, function=None, run_id=None, in_jupyter=None, ctx=None):
         self._popen = None
         self._proc = None
-        self._finished_q = multiprocessing.Queue()
+        self._finished_q = ctx.Queue()
         self._proc_killed = False
 
         if command:
@@ -47,13 +47,16 @@ class AgentProcess(object):
             self._popen = subprocess.Popen(command,
                 env=env, **kwargs)
         elif function:
-            self._proc = multiprocessing.Process(target=self._start,
+            print("DEBUG: trystart")
+            self._proc = ctx.Process(target=self._start,
                     args=(self._finished_q, env, function, run_id, in_jupyter))
             self._proc.start()
+            print("DEBUG: start")
         else:
             raise AgentError("Agent Process requires command or function")
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
+        print("DEBUG: instart")
         if env:
             for k, v in env.items():
                 os.environ[k] = v
@@ -132,8 +135,9 @@ class Agent(object):
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
 
-    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
+    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None, ctx=None):
         self._api = api
+        self._ctx = ctx
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
@@ -307,8 +311,10 @@ class Agent(object):
                  for name, config in command['args'].items()]
 
         if self._function:
+            print("DEBUG: starting func")
             proc = AgentProcess(function=self._function, env=env,
-                    run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
+                    run_id=command.get('run_id'), in_jupyter=self._in_jupyter, ctx=self._ctx)
+            print("DEBUG: done start")
         else:
             sweep_vars = dict(interpreter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
             if platform.system() == "Windows":
@@ -323,7 +329,7 @@ class Agent(object):
                 else:
                     command_list += [c]
             logger.info('About to run command: {}'.format(' '.join(command_list)))
-            proc = AgentProcess(command=command_list, env=env)
+            proc = AgentProcess(command=command_list, env=env, ctx=self._ctx)
         self._run_processes[run.id] = proc
 
         # we keep track of when we sent the sigterm to give processes a chance
@@ -364,11 +370,13 @@ class Agent(object):
 
 class AgentApi(object):
     def __init__(self, queue):
+        print("NOT SUPPORTED")
         self._queue = queue
         self._command_id = 0
         self._multiproc_manager = multiprocessing.Manager()
 
     def command(self, command):
+        print("NOT SUPPORTED")
         command['origin'] = 'local'
         command['id'] = 'local-%s' % self._command_id
         self._command_id += 1
@@ -385,6 +393,10 @@ class AgentApi(object):
         return result
 
 def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
+    print("DEBUG: all=", multiprocessing.get_all_start_methods())
+    print("DEBUG: act=", multiprocessing.get_start_method(allow_none=True))
+    ctx = multiprocessing.get_context('fork')
+    print("DEBUG: ctx=", ctx.get_start_method(allow_none=True))
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = util.parse_sweep_id(parts)
     if err:
@@ -411,8 +423,8 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
         logger.addHandler(ch)
 
         api = InternalApi()
-        queue = multiprocessing.Queue()
-        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count)
+        queue = ctx.Queue()
+        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count, ctx=ctx)
         agent.run()
     finally:
         # make sure we remove the logging handler (important for jupyter notebooks)
