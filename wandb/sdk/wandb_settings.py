@@ -27,6 +27,7 @@ import os
 import platform
 import socket
 import sys
+import tempfile
 
 import shortuuid  # type: ignore
 import six
@@ -96,7 +97,7 @@ env_settings = dict(
     username=None,
     disable_code=None,
     anonymous=None,
-    wandb_dir="WANDB_DIR",
+    root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
@@ -152,6 +153,24 @@ def _get_program():
     return None
 
 
+# the setting exposed to users as `dir=` or `WANDB_DIR` is actually
+# the `root_dir`. We add the `__stage_dir__` to it to get the full
+# `wandb_dir`
+def get_wandb_dir(root_dir: str):
+    # We use the hidden version if it already exists, otherwise non-hidden.
+    if os.path.exists(os.path.join(root_dir, ".wandb")):
+        __stage_dir__ = ".wandb" + os.sep
+    else:
+        __stage_dir__ = "wandb" + os.sep
+
+    path = os.path.join(root_dir, __stage_dir__)
+    if not os.access(root_dir, os.W_OK):
+        wandb.termwarn("Path %s wasn't writable, using system temp directory" % path)
+        path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
+
+    return path
+
+
 class CantTouchThis(type):
     def __setattr__(cls, attr, value):
         raise Exception("NO!")
@@ -199,7 +218,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         config_paths=None,
         _config_dict=None,
         # directories and files
-        wandb_dir="wandb",
+        root_dir=None,
+        wandb_dir=None,  # computed
         settings_system_spec="~/.config/wandb/settings",
         settings_workspace_spec="{wandb_dir}/settings",
         settings_system=None,  # computed
@@ -500,8 +520,10 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             id="run_id",
             tags="run_tags",
             group="run_group",
-            dir="wandb_dir",
+            dir="root_dir",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
+
         self.update(args)
         self.run_id = self.run_id or _generate_id()
+        self.wandb_dir = get_wandb_dir(self.root_dir or "")

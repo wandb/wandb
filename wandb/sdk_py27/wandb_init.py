@@ -178,7 +178,6 @@ class _WandbInit(object):
             "config_exclude_keys",
             "config_include_keys",
             "reinit",
-            "dir",
             "anonymous",
             "allow_val_change",
             "resume",
@@ -202,7 +201,6 @@ class _WandbInit(object):
                 val = kwargs.pop(key, None)
                 if val:
                     print("Ignored wandb.init() arg %s when running a sweep" % key)
-
         settings.apply_init(kwargs)
 
         # TODO(jhr): should this be moved? probably.
