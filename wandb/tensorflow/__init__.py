@@ -12,6 +12,10 @@ try:
 except ImportError:
     from tensorflow.compat.v1.train import summary_iterator
 
+try:
+    from tensorflow.summary import merge_all
+except ImportError:
+    from tensorflow.compat.v1.summary import merge_all
 
 if hasattr(tf.estimator, 'SessionRunHook'):
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.
@@ -31,7 +35,7 @@ class WandbHook(SessionRunHook):
 
     def begin(self):
         if self._summary_op is None:
-            self._summary_op = tf.summary.merge_all()
+            self._summary_op = merge_all()
         self._step = -1
 
     def before_run(self, run_context):
