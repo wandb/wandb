@@ -119,6 +119,17 @@ fragment ArtifactFragment on Artifact {
         artifactCollectionName
         alias
     }
+    artifactType {
+        id
+        name
+    }
+    currentManifest {
+        id
+        file {
+            id
+            url
+        }
+    }
 }
 '''
 
@@ -2308,17 +2319,6 @@ class Artifact(object):
             project(name: $projectName, entityName: $entityName) {
                 artifact(name: $name) {
                     ...ArtifactFragment
-                    artifactType {
-                       id
-                       name
-                    }
-                    currentManifest {
-                        id
-                        file {
-                            id
-                            url
-                        }
-                    }
                 }
             }
         }
@@ -2340,7 +2340,9 @@ class Artifact(object):
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
         if 'metadata' in response['project']['artifact']:
-            self._metadata = json.loads(response['project']['artifact']['metadata'])
+            metadata = response['project']['artifact']['metadata']
+            if metadata is not None:
+                self._metadata = json.loads(metadata)
         return self._attrs
 
     # The only file should be wandb_manifest.json
