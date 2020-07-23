@@ -111,6 +111,8 @@ class SendManager(object):
         config_dict = None
         if run.HasField("config"):
             config_dict = _config_dict_from_proto_list(run.config.update)
+            config_path = os.path.join(self._settings.files_dir, "config.yaml")
+            save_config_file_from_dict(config_path, config_dict)
 
         ups = self._api.upsert_run(
             name=run.run_id,
@@ -230,8 +232,8 @@ class SendManager(object):
         self._api.upsert_run(
             name=self._run_id, config=config_dict, **self._api_settings
         )
-        config_path = os.path.join(self._settings.files_dir, "config")
-        save_config_file_from_dict(config_path, self._run_id, config_dict)
+        config_path = os.path.join(self._settings.files_dir, "config.yaml")
+        save_config_file_from_dict(config_path, config_dict)
         # TODO(jhr): check result of upsert_run?
 
     def _save_file(self, fname):

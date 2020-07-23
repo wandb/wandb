@@ -12,7 +12,7 @@ class ConfigError(Error):  # type: ignore
 
 
 # TODO(jhr): these functions should go away once we merge jobspec PR
-def save_config_file_from_dict(config_filename, run_id, config_dict):
+def save_config_file_from_dict(config_filename, config_dict):
     s = b"wandb_version: 1"
     if config_dict:  # adding an empty dictionary here causes a parse error
         s += b"\n\n" + yaml.dump(
