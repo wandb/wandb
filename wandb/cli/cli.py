@@ -114,7 +114,11 @@ def login(key, host, cloud, relogin, anonymously):
 @cli.command(context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True)
 @display_error
 def grpc_server(project=None, entity=None):
-    from wandb.server.wandb_internal_server import main as grpc_server
+    _ = util.get_module(
+        "grpc",
+        required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
+    )
+    from wandb.server.grpc_server import main as grpc_server
     grpc_server()
 
 
