@@ -65,15 +65,18 @@ class BackendSender(object):
         rec.output.CopyFrom(o)
         self._queue_process(rec)
 
+    def _send_history(self, history):
+        rec = self._make_record(history=history)
+        self._queue_process(rec)
+
     def send_history(self, data, step):
-        rec = wandb_internal_pb2.Record()
         data = data_types.history_dict_to_json(self._run, data, step)
-        history = rec.history
+        history = wandb_internal_pb2.HistoryData()
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
-        self._queue_process(rec)
+        self._send_history(history)
 
     def _make_run(self, run):
         proto_run = wandb_internal_pb2.RunData()
@@ -203,6 +206,7 @@ class BackendSender(object):
         config=None,
         files=None,
         summary=None,
+        history=None,
         stats=None,
         exit=None,
         artifact=None,
@@ -214,6 +218,8 @@ class BackendSender(object):
             rec.config.CopyFrom(config)
         if summary:
             rec.summary.CopyFrom(summary)
+        if history:
+            rec.history.CopyFrom(history)
         if files:
             rec.files.CopyFrom(files)
         if stats:
@@ -269,12 +275,24 @@ class BackendSender(object):
         rec = self._make_record(summary=summary)
         self._queue_process(rec)
 
-    def send_run_sync(self, run_dict, timeout=None):
-        run = self._make_run(run_dict)
-        req = self._make_record(run=run)
+    def _send_run_sync(self, run, timeout=None):
+        """Send synchronous run object waiting for a response.
 
+        Args:
+            run: RunData object
+            timeout: number of seconds to wait
+
+        Returns:
+            RunData object
+        """
+
+        req = self._make_record(run=run)
         resp = self._request_response(req, timeout=timeout)
         return resp
+
+    def send_run_sync(self, run_dict, timeout=None):
+        run = self._make_run(run_dict)
+        return self._send_run_sync(run, timeout=timeout)
 
     def send_stats(self, stats_dict):
         stats = self._make_stats(stats_dict)
@@ -304,9 +322,12 @@ class BackendSender(object):
     def send_exit(self, exit_code):
         pass
 
-    def send_exit_sync(self, exit_code, timeout=None):
-        exit = self._make_exit(exit_code)
-        req = self._make_record(exit=exit)
+    def _send_exit_sync(self, exit_data, timeout=None):
+        req = self._make_record(exit=exit_data)
 
         resp = self._request_response(req, timeout=timeout)
         return resp
+
+    def send_exit_sync(self, exit_code, timeout=None):
+        exit_data = self._make_exit(exit_code)
+        return self._send_exit_sync(exit_data, timeout=timeout)

@@ -40,6 +40,7 @@ test_requirements = [
 gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
 
+grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
@@ -95,6 +96,7 @@ setup(
     extras_require={
         'kubeflow': kubeflow_requirements,
         'gcp': gcp_requirements,
-        'aws': aws_requirements
+        'aws': aws_requirements,
+        'grpc': grpc_requirements,
     }
 )

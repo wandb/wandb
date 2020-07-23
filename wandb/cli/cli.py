@@ -111,6 +111,13 @@ def login(key, host, cloud, relogin, anonymously):
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode)
 
 
+@cli.command(context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True)
+@display_error
+def grpc_server(project=None, entity=None):
+    from wandb.server.wandb_internal_server import main as grpc_server
+    grpc_server()
+
+
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
 @click.option("--project", "-p", default=None, help="The project use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")

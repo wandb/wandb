@@ -29,11 +29,11 @@ import socket
 import sys
 import tempfile
 
-import shortuuid  # type: ignore
 import six
 import wandb
 from wandb.internal import git_repo
 from wandb.lib.ipython import _get_python_type
+from wandb.lib.runid import generate_id
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (  # noqa: F401 pylint: disable=unused-import
@@ -58,12 +58,6 @@ source = (
 )
 
 Field = collections.namedtuple("TypedField", ["type", "choices"])
-
-
-def _generate_id():
-    # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
 
 
 defaults = dict(
@@ -525,5 +519,5 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
 
         self.update(args)
-        self.run_id = self.run_id or _generate_id()
+        self.run_id = self.run_id or generate_id()
         self.wandb_dir = get_wandb_dir(self.root_dir or ".")

@@ -19,31 +19,24 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\")\n\tLogResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x17\n\x15ServerShutdownRequest\"4\n\x14ServerShutdownResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\x15\n\x13ServerStatusRequest\"2\n\x12ServerStatusResult\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t2\x8e\x02\n\x0fInternalService\x12?\n\x03Log\x12\x1b.wandb_internal.HistoryData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"7\n\x0fRunUpdateResult\x12$\n\x03run\x18\x01 \x01(\x0b\x32\x17.wandb_internal.RunData\"\x0f\n\rRunExitResult\"\x0b\n\tLogResult\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\x9d\x03\n\x0fInternalService\x12G\n\tRunUpdate\x12\x17.wandb_internal.RunData\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12\x44\n\x07RunExit\x12\x18.wandb_internal.ExitData\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12?\n\x03Log\x12\x1b.wandb_internal.HistoryData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,])
 
 
 
 
-_LOGRESULT = _descriptor.Descriptor(
-  name='LogResult',
-  full_name='wandb_internal.LogResult',
+_RUNUPDATERESULT = _descriptor.Descriptor(
+  name='RunUpdateResult',
+  full_name='wandb_internal.RunUpdateResult',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='code', full_name='wandb_internal.LogResult.code', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='status', full_name='wandb_internal.LogResult.status', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
+      name='run', full_name='wandb_internal.RunUpdateResult.run', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
@@ -60,7 +53,55 @@ _LOGRESULT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=84,
-  serialized_end=125,
+  serialized_end=139,
+)
+
+
+_RUNEXITRESULT = _descriptor.Descriptor(
+  name='RunExitResult',
+  full_name='wandb_internal.RunExitResult',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=141,
+  serialized_end=156,
+)
+
+
+_LOGRESULT = _descriptor.Descriptor(
+  name='LogResult',
+  full_name='wandb_internal.LogResult',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=158,
+  serialized_end=169,
 )
 
 
@@ -83,8 +124,8 @@ _SERVERSHUTDOWNREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=127,
-  serialized_end=150,
+  serialized_start=171,
+  serialized_end=194,
 )
 
 
@@ -95,20 +136,6 @@ _SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
-    _descriptor.FieldDescriptor(
-      name='code', full_name='wandb_internal.ServerShutdownResult.code', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='status', full_name='wandb_internal.ServerShutdownResult.status', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -121,8 +148,8 @@ _SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=152,
-  serialized_end=204,
+  serialized_start=196,
+  serialized_end=218,
 )
 
 
@@ -145,8 +172,8 @@ _SERVERSTATUSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=206,
-  serialized_end=227,
+  serialized_start=220,
+  serialized_end=241,
 )
 
 
@@ -157,20 +184,6 @@ _SERVERSTATUSRESULT = _descriptor.Descriptor(
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
-    _descriptor.FieldDescriptor(
-      name='code', full_name='wandb_internal.ServerStatusResult.code', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='status', full_name='wandb_internal.ServerStatusResult.status', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -183,16 +196,33 @@ _SERVERSTATUSRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=229,
-  serialized_end=279,
+  serialized_start=243,
+  serialized_end=263,
 )
 
+_RUNUPDATERESULT.fields_by_name['run'].message_type = wandb_dot_proto_dot_wandb__internal__pb2._RUNDATA
+DESCRIPTOR.message_types_by_name['RunUpdateResult'] = _RUNUPDATERESULT
+DESCRIPTOR.message_types_by_name['RunExitResult'] = _RUNEXITRESULT
 DESCRIPTOR.message_types_by_name['LogResult'] = _LOGRESULT
 DESCRIPTOR.message_types_by_name['ServerShutdownRequest'] = _SERVERSHUTDOWNREQUEST
 DESCRIPTOR.message_types_by_name['ServerShutdownResult'] = _SERVERSHUTDOWNRESULT
 DESCRIPTOR.message_types_by_name['ServerStatusRequest'] = _SERVERSTATUSREQUEST
 DESCRIPTOR.message_types_by_name['ServerStatusResult'] = _SERVERSTATUSRESULT
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+RunUpdateResult = _reflection.GeneratedProtocolMessageType('RunUpdateResult', (_message.Message,), {
+  'DESCRIPTOR' : _RUNUPDATERESULT,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.RunUpdateResult)
+  })
+_sym_db.RegisterMessage(RunUpdateResult)
+
+RunExitResult = _reflection.GeneratedProtocolMessageType('RunExitResult', (_message.Message,), {
+  'DESCRIPTOR' : _RUNEXITRESULT,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.RunExitResult)
+  })
+_sym_db.RegisterMessage(RunExitResult)
 
 LogResult = _reflection.GeneratedProtocolMessageType('LogResult', (_message.Message,), {
   'DESCRIPTOR' : _LOGRESULT,
@@ -237,13 +267,31 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=282,
-  serialized_end=552,
+  serialized_start=266,
+  serialized_end=679,
   methods=[
+  _descriptor.MethodDescriptor(
+    name='RunUpdate',
+    full_name='wandb_internal.InternalService.RunUpdate',
+    index=0,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNDATA,
+    output_type=_RUNUPDATERESULT,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='RunExit',
+    full_name='wandb_internal.InternalService.RunExit',
+    index=1,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._EXITDATA,
+    output_type=_RUNEXITRESULT,
+    serialized_options=None,
+  ),
   _descriptor.MethodDescriptor(
     name='Log',
     full_name='wandb_internal.InternalService.Log',
-    index=0,
+    index=2,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYDATA,
     output_type=_LOGRESULT,
@@ -252,7 +300,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerShutdown',
     full_name='wandb_internal.InternalService.ServerShutdown',
-    index=1,
+    index=3,
     containing_service=None,
     input_type=_SERVERSHUTDOWNREQUEST,
     output_type=_SERVERSHUTDOWNRESULT,
@@ -261,7 +309,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerStatus',
     full_name='wandb_internal.InternalService.ServerStatus',
-    index=2,
+    index=4,
     containing_service=None,
     input_type=_SERVERSTATUSREQUEST,
     output_type=_SERVERSTATUSRESULT,

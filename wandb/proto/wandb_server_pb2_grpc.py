@@ -15,6 +15,16 @@ class InternalServiceStub(object):
     Args:
       channel: A grpc.Channel.
     """
+    self.RunUpdate = channel.unary_unary(
+        '/wandb_internal.InternalService/RunUpdate',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunData.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.RunUpdateResult.FromString,
+        )
+    self.RunExit = channel.unary_unary(
+        '/wandb_internal.InternalService/RunExit',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ExitData.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.RunExitResult.FromString,
+        )
     self.Log = channel.unary_unary(
         '/wandb_internal.InternalService/Log',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryData.SerializeToString,
@@ -35,6 +45,20 @@ class InternalServiceStub(object):
 class InternalServiceServicer(object):
   # missing associated documentation comment in .proto file
   pass
+
+  def RunUpdate(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def RunExit(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
 
   def Log(self, request, context):
     # missing associated documentation comment in .proto file
@@ -60,6 +84,16 @@ class InternalServiceServicer(object):
 
 def add_InternalServiceServicer_to_server(servicer, server):
   rpc_method_handlers = {
+      'RunUpdate': grpc.unary_unary_rpc_method_handler(
+          servicer.RunUpdate,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunData.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.RunUpdateResult.SerializeToString,
+      ),
+      'RunExit': grpc.unary_unary_rpc_method_handler(
+          servicer.RunExit,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ExitData.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.RunExitResult.SerializeToString,
+      ),
       'Log': grpc.unary_unary_rpc_method_handler(
           servicer.Log,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryData.FromString,
