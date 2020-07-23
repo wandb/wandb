@@ -128,7 +128,7 @@ encoding defaults to sys.getdefaultencoding().
 errors defaults to 'strict'.
 
 ### cli
-[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L229)
+[source](https://github.com/wandb/client/blob/master/wandb/cli.py#L228)
 ```python
 cli(ctx)
 ```
