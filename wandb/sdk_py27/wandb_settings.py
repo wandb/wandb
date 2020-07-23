@@ -523,4 +523,4 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
         self.update(args)
         self.run_id = self.run_id or _generate_id()
-        self.wandb_dir = get_wandb_dir(self.root_dir or "")
+        self.wandb_dir = get_wandb_dir(self.root_dir or ".")
