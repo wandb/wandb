@@ -178,7 +178,6 @@ class _WandbInit(object):
             "config_exclude_keys",
             "config_include_keys",
             "reinit",
-            "anonymous",
             "allow_val_change",
             "resume",
             "force",

@@ -69,6 +69,7 @@ defaults = dict(
     console="auto",
     _console=Field(str, ("auto", "redirect", "off", "file", "iowrap",)),
     git_remote="origin",
+    _anonymous=Field(str, ("allow", "must", "never",)),
 )
 
 # env mapping?
