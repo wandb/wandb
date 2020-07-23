@@ -207,7 +207,6 @@ def editor(content='', marker='# Enter a description, markdown is allowed!\n'):
 
 
 api = InternalApi()
-public_api = PublicApi()
 
 # Some commands take project/entity etc. as arguments. We provide default
 # values for those arguments from the current project configuration, as
@@ -461,6 +460,7 @@ def artifact():
 def put(path, name, description, type, alias):
     if name is None:
         name = os.path.basename(path)
+    public_api = PublicApi()
     entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -507,6 +507,7 @@ def put(path, name, description, type, alias):
 @click.option("--type", help="The type of artifact you are downloading")
 @display_error
 def get(path, root, type):
+    public_api = PublicApi()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -534,6 +535,7 @@ def get(path, root, type):
 @click.option("--type", "-t", help="The type of artifacts to list")
 @display_error
 def ls(path, type):
+    public_api = PublicApi()
     if type is not None:
         types = [public_api.artifact_type(type, path)]
     else:
