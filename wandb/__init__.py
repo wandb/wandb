@@ -128,7 +128,7 @@ def hook_torch(*args, **kwargs):
 _global_watch_idx = 0
 
 
-def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
+def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     """
     Hooks into a pytorch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
