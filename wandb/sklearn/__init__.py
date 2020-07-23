@@ -512,8 +512,8 @@ def plot_feature_importances(model=None, feature_names=None,
             importances = model.coef_
 
         indices = np.argsort(importances)[::-1]
-        
-        if feature_names == None:
+
+        if feature_names is None:
             feature_names = indices
         else:
             feature_names = np.array(feature_names)[indices]
