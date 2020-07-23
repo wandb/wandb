@@ -69,7 +69,9 @@ defaults = dict(
     console="auto",
     _console=Field(str, ("auto", "redirect", "off", "file", "iowrap",)),
     git_remote="origin",
-    _anonymous=Field(str, ("allow", "must", "never",)),
+    # anonymous might be set by a config file: "false" and "true"
+    #   or from wandb.init(anonymous=) or environment: "allow", "must", "never"
+    _anonymous=Field(str, ("allow", "must", "never", "false", "true",)),
 )
 
 # env mapping?
