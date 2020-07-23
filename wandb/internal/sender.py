@@ -11,6 +11,7 @@ import logging
 import os
 import time
 
+from wandb.lib.config import save_config_file_from_dict
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.util import sentry_set_scope
 
@@ -172,8 +173,12 @@ class SendManager(object):
     def handle_summary(self, data):
         summary = data.summary
         summary_dict = _dict_from_proto_list(summary.update)
+        json_summary = json.dumps(summary_dict)
         if self._fs:
-            self._fs.push("wandb-summary.json", json.dumps(summary_dict))
+            self._fs.push("wandb-summary.json", json_summary)
+        summary_path = os.path.join(self._settings.files_dir, "wandb-summary.json")
+        with open(summary_path, "w") as f:
+            f.write(json_summary)
 
     def handle_stats(self, data):
         stats = data.stats
@@ -225,6 +230,8 @@ class SendManager(object):
         self._api.upsert_run(
             name=self._run_id, config=config_dict, **self._api_settings
         )
+        config_path = os.path.join(self._settings.files_dir, "config")
+        save_config_file_from_dict(config_path, self._run_id, config_dict)
         # TODO(jhr): check result of upsert_run?
 
     def _save_file(self, fname):
