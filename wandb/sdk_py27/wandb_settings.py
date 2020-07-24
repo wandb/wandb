@@ -255,6 +255,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _cli_only_mode=None,  # avoid running any code specific for runs
         console=None,
         disabled=None,  # alias for mode=dryrun, not supported yet
+        _save_requirements=True,
         # compute environment
         jupyter=None,
         windows=None,

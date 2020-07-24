@@ -40,6 +40,22 @@ class Meta(object):
         # location under "code" directory in files where program was saved
         self._saved_program = None
 
+    def _save_pip(self):
+        """Saves the current working set of pip packages to requirements.txt"""
+        try:
+            import pkg_resources
+
+            installed_packages = [d for d in iter(pkg_resources.working_set)]
+            installed_packages_list = sorted(
+                ["%s==%s" % (i.key, i.version) for i in installed_packages]
+            )
+            with open(
+                os.path.join(self._settings.files_dir, "requirements.txt"), "w"
+            ) as f:
+                f.write("\n".join(installed_packages_list))
+        except Exception:
+            logger.error("Error saving pip packages")
+
     def _save_code(self):
         if self._settings.code_program is None:
             logger.warning("unable to save code -- program entry not found")
@@ -131,6 +147,9 @@ class Meta(object):
 
         if self._settings.save_code:
             self._save_code()
+
+        if self._settings._save_requirements:
+            self._save_pip()
 
     def write(self):
         with open(self.fname, "w") as f:
