@@ -1,3 +1,18 @@
+## 0.9.4 (July 24, 2020)
+
+#### :nail_care: Enhancement
+
+-  Default pytorch histogram logging frequency from 100 -> 1000 steps
+
+#### :bug: Bug Fix
+
+-  Fix multiple prompts for login when using the command line
+-  Fix "no method rename_file" error
+-  Fixed edgecase histogram calculation in PyTorch
+-  Fix error in jupyter when saving session history
+-  Correctly return artifact metadata in public api
+-  Fix matplotlib / plotly rendering error
+
 ## 0.9.3 (July 10, 2020)
 
 #### :nail_care: Enhancement

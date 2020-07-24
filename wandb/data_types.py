@@ -1285,7 +1285,6 @@ class Plotly(Media):
             val = util.ensure_matplotlib_figure(val)
             if any(len(ax.images) > 0 for ax in val.axes):
                 return Image(val)
-            val = util.ensure_matplotlib_figure(val)
             # otherwise, convert to plotly figure
             tools = util.get_module(
                 "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
