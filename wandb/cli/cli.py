@@ -133,7 +133,7 @@ def cli(ctx):
         click.echo(ctx.get_help())
 
 
-@cli.command(context_settings=CONTEXT, help="List projects")
+@cli.command(context_settings=CONTEXT, help="List projects", hidden=True)
 @click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
 @display_error
 def projects(entity, display=True):
