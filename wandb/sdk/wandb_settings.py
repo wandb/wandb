@@ -348,7 +348,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         if self.run_id:
             format_dict["run_id"] = self.run_id
         format_dict["proc"] = os.getpid()
-        format_dict["wandb_dir"] = self.wandb_dir
+        # TODO(cling): hack to make sure we read from local settings
+        #              this is wrong if the run_dir changes later
+        format_dict["wandb_dir"] = self.wandb_dir or "wandb"
 
         path_items = []
         for p in path:
