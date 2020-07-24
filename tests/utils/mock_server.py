@@ -475,7 +475,22 @@ def create_app(ctx):
 
     @app.route("/pypi/<library>/json")
     def pypi(library):
-        return b'{ "info": { "version": "%s" } }' % wandb.__version__
+        return json.dumps({
+            "info": {
+                "version": wandb.__version__},
+            "releases": {
+                "88.1.2rc2": [],
+                "88.1.2rc12": [],
+                "88.1.2rc3": [],
+                "88.1.2rc4": [],
+                "0.0.8rc6": [],
+                "0.0.8rc2": [],
+                "0.0.8rc3": [],
+                "0.0.8rc8": [],
+                "0.0.7": [],
+                "0.0.5": [],
+                "0.0.6": [],
+            }})
 
     @app.errorhandler(404)
     def page_not_found(e):
