@@ -9,6 +9,7 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
+import subprocess
 import sys
 
 from wandb import util
@@ -37,8 +38,10 @@ class Meta(object):
             if "git_remote" in self._settings.keys()
             else "origin"
         )
-        # location under "code" directory in files where program was saved
+        # Location under "code" directory in files where program was saved.
         self._saved_program = None
+        # Locations under files directory where diff patches were saved.
+        self._saved_patches = []
 
     def _save_pip(self):
         """Saves the current working set of pip packages to requirements.txt"""
@@ -74,6 +77,63 @@ class Meta(object):
 
         if not os.path.exists(saved_program):
             copyfile(program_absolute, saved_program)
+
+    def _save_patches(self):
+        """Save the current state of this repository to one or more patches.
+
+        Makes one patch against HEAD and another one against the most recent
+        commit that occurs in an upstream branch. This way we can be robust
+        to history editing as long as the user never does "push -f" to break
+        history on an upstream branch.
+
+        Writes the first patch to <files_dir>/diff.patch and the second to
+        <files_dir>/upstream_diff_<commit_id>.patch.
+
+        """
+        if not self._git.enabled:
+            return False
+
+        try:
+            root = self._git.root
+            diff_args = ["git", "diff"]
+            if self._git.has_submodule_diff:
+                diff_args.append("--submodule=diff")
+
+            if self._git.dirty:
+                patch_path = os.path.join(self._settings.files_dir, "diff.patch")
+                with open(patch_path, "wb") as patch:
+                    # we diff against HEAD to ensure we get changes in the index
+                    subprocess.check_call(
+                        diff_args + ["HEAD"], stdout=patch, cwd=root, timeout=5
+                    )
+                    self._saved_patches.append(
+                        os.path.relpath(patch_path, start=self._settings.files_dir)
+                    )
+
+            upstream_commit = self._git.get_upstream_fork_point()
+            if upstream_commit and upstream_commit != self._git.repo.head.commit:
+                sha = upstream_commit.hexsha
+                upstream_patch_path = os.path.join(
+                    self._settings.files_dir, "upstream_diff_{}.patch".format(sha)
+                )
+                with open(upstream_patch_path, "wb") as upstream_patch:
+                    subprocess.check_call(
+                        diff_args + [sha], stdout=upstream_patch, cwd=root, timeout=5
+                    )
+                    self._saved_patches.append(
+                        os.path.relpath(
+                            upstream_patch_path, start=self._settings.files_dir
+                        )
+                    )
+        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo'
+        # does not exist` so we now catch ValueError. Catching this error feels
+        # too generic.
+        except (
+            ValueError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            logger.error("Error generating diff: %s" % e)
 
     def _setup_sys(self):
         self.data["os"] = self._settings._os
@@ -147,6 +207,7 @@ class Meta(object):
 
         if self._settings.save_code:
             self._save_code()
+            self._save_patches()
 
         if self._settings._save_requirements:
             self._save_pip()
@@ -162,5 +223,7 @@ class Meta(object):
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
             files["files"].append((saved_program,))
+        for patch in self._saved_patches:
+            files["files"].append((patch,))
 
         self._interface.send_files(files)
