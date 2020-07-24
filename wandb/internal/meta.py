@@ -9,13 +9,17 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
-import subprocess
 import sys
 
 from wandb import util
 from wandb.interface import interface
 from wandb.internal import git_repo
 from wandb.vendor.pynvml import pynvml
+
+if os.name == "posix" and sys.version_info[0] < 3:
+    import subprocess32 as subprocess  # type: ignore[import]
+else:
+    import subprocess  # type: ignore[no-redef]
 
 
 METADATA_FNAME = "wandb-metadata.json"
