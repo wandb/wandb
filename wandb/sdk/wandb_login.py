@@ -20,7 +20,7 @@ def _validate_anonymous_setting(anon_str):
     return anon_str in ["must", "allow", "never"]
 
 
-def login(settings=None, api=None, relogin=None, key=None, anonymous=None):
+def login(api=None, relogin=None, key=None, anonymous=None):
     """Log in to W&B.
 
     Args:
@@ -37,7 +37,7 @@ def login(settings=None, api=None, relogin=None, key=None, anonymous=None):
         wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
         return
 
-    settings = settings or {}
+    settings = {}
     api = api or InternalApi()
 
     if anonymous is not None:
@@ -50,6 +50,10 @@ def login(settings=None, api=None, relogin=None, key=None, anonymous=None):
             return
         settings.update({"anonymous": anonymous})
 
+    # Note: This won't actually do anything if called from a codepath where
+    # wandb.setup was previously called. If wandb.setup is called further up,
+    # you must make sure the anonymous setting (and any other settings) are
+    # already properly set up there.
     wl = wandb.setup(settings=settings)
     settings = wl.settings()
 

@@ -28,6 +28,14 @@ LOGIN_CHOICES = [
 ]
 
 
+def _fixup_anon_mode(default):
+    # Convert weird anonymode values from legacy settings files
+    # into one of our expected values.
+    anon_mode = default or "never"
+    mapping = {"true": "allow", "false": "never"}
+    return mapping.get(anon_mode, anon_mode)
+
+
 def prompt_api_key(
     settings,
     api=None,
@@ -38,7 +46,7 @@ def prompt_api_key(
 ):
     input_callback = input_callback or getpass.getpass
     api = api or InternalApi()
-    anon_mode = settings.anonymous or "never"
+    anon_mode = _fixup_anon_mode(settings.anonymous)
     jupyter = settings.jupyter or False
     app_url = settings.base_url.replace("//api.", "//app.")
 
