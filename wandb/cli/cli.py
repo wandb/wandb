@@ -25,6 +25,10 @@ from wandb.old.settings import Settings
 from wandb.sync import SyncManager
 import yaml
 
+# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
+# DANGER this changes the sys.path so we should never do this in a user script
+whaaaaat = util.vendor_import("whaaaaat")
+
 
 logger = logging.getLogger("wandb")
 
@@ -66,6 +70,50 @@ def display_error(func):
     return wrapper
 
 
+def _get_cling_api():
+    """Get a reference to the internal api with cling settings."""
+    # TODO(jhr): make a settings object that is better for non runs.
+    wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
+    api = InternalApi()
+    return api
+
+
+def prompt_for_project(ctx, entity):
+    """Ask the user for a project, creating one if necessary."""
+    result = ctx.invoke(projects, entity=entity, display=False)
+    api = _get_cling_api()
+
+    try:
+        if len(result) == 0:
+            project = click.prompt("Enter a name for your first project")
+            # description = editor()
+            project = api.upsert_project(project, entity=entity)["name"]
+        else:
+            project_names = [project["name"] for project in result]
+            question = {
+                'type': 'list',
+                'name': 'project_name',
+                'message': "Which project should we use?",
+                'choices': project_names + ["Create New"]
+            }
+            result = whaaaaat.prompt([question])
+            if result:
+                project = result['project_name']
+            else:
+                project = "Create New"
+            # TODO: check with the server if the project exists
+            if project == "Create New":
+                project = click.prompt(
+                    "Enter a name for your new project", value_proc=api.format_project)
+                # description = editor()
+                project = api.upsert_project(project, entity=entity)["name"]
+
+    except wandb.errors.error.CommError as e:
+        raise ClickException(str(e))
+
+    return project
+
+
 class RunGroup(click.Group):
     @display_error
     def get_command(self, ctx, cmd_name):
@@ -85,6 +133,27 @@ def cli(ctx):
         click.echo(ctx.get_help())
 
 
+@cli.command(context_settings=CONTEXT, help="List projects")
+@click.option("--entity", "-e", default=None, envvar=env.ENTITY, help="The entity to scope the listing to.")
+@display_error
+def projects(entity, display=True):
+    api = _get_cling_api()
+    projects = api.list_projects(entity=entity)
+    if len(projects) == 0:
+        message = "No projects found for %s" % entity
+    else:
+        message = 'Latest projects for "%s"' % entity
+    if display:
+        click.echo(click.style(message, bold=True))
+        for project in projects:
+            click.echo("".join(
+                (click.style(project['name'], fg="blue", bold=True),
+                 " - ",
+                 str(project['description'] or "").split("\n")[0])
+            ))
+    return projects
+
+
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
@@ -95,8 +164,8 @@ def cli(ctx):
 def login(key, host, cloud, relogin, anonymously):
     anon_mode = "must" if anonymously else "never"
     wandb.setup(settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode))
+    api = _get_cling_api()
 
-    api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
         api.clear_setting("base_url", globally=True, persist=True)
         # To avoid writing an empty local settings file, we only clear if it exists
@@ -171,9 +240,11 @@ def init(ctx):
             'type': 'list',
             'name': 'team_name',
             'message': "Which team should we use?",
-            'choices': team_names + ["Manual Entry"]
+            'choices': team_names
+            # TODO(jhr): disabling manual entry for cling
+            # 'choices': team_names + ["Manual Entry"]
         }
-        result = click.prompt(question["message"])
+        result = whaaaaat.prompt([question])
         # result can be empty on click
         if result:
             entity = result['team_name']
@@ -184,7 +255,11 @@ def init(ctx):
     else:
         entity = viewer.get('entity') or click.prompt("What username or team should we use?")
 
-    project = click.prompt("Enter the name of the project you want to use")  # prompt_for_project(ctx, entity)
+    # TODO: this error handling sucks and the output isn't pretty
+    try:
+        project = prompt_for_project(ctx, entity)
+    except ClickWandbException:
+        raise ClickException('Could not find team: %s' % entity)
 
     api.set_setting('entity', entity, persist=True)
     api.set_setting('project', project, persist=True)
@@ -413,9 +488,10 @@ RUN_CONTEXT['ignore_unknown_options'] = True
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument('docker_run_args', nargs=-1)
-@click.option('--help')
+@click.option('--help', is_flag=True)
 def docker_run(ctx, docker_run_args, help):
-    """Simple docker wrapper that adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+    """Simple wrapper for `docker run` which sets W&B environment
+    Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
     and --runtime wasn't set.
     """

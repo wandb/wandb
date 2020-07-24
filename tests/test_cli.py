@@ -66,7 +66,7 @@ def config_dir():
 def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
     with runner.isolated_filesystem():
         runner.invoke(cli.login, [DUMMY_API_KEY])
-        result = runner.invoke(cli.init, input="y\nvanpelt\n")
+        result = runner.invoke(cli.init, input="y\n\n\n")
         print(result.output)
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))

@@ -31,6 +31,15 @@ class Api(object):
     def viewer(self):
         return self.api.viewer()
 
+    def list_projects(self, entity=None):
+        return self.api.list_projects(entity=entity)
+
+    def format_project(self, project):
+        return self.api.format_project(project)
+
+    def upsert_project(self, project, id=None, description=None, entity=None):
+        return self.api.upsert_project(project, id=id, description=description, entity=entity)
+
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 

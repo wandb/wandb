@@ -102,13 +102,13 @@ def mocked_run(runner, test_settings):
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
-    # whaaaaat = util.vendor_import("whaaaaat")
+    whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(click, 'launch', lambda x: 1)
-    # monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
-    #                    'project_name': 'test_model', 'files': ['weights.h5'],
-    #                    'attach': False, 'team_name': 'Manual Entry'})
+    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
+                        'project_name': 'test_model', 'files': ['weights.h5'],
+                        'attach': False, 'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
     mocker.patch("wandb.lib.apikey.input", lambda x: 1)
     mocker.patch("wandb.lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)

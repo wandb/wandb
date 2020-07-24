@@ -665,7 +665,9 @@ class Api(object):
         ''')
         response = self.gql(mutation, variable_values={
             'name': self.format_project(project), 'entity': entity or self.settings('entity'),
-            'description': description, 'repo': self.git.remote_url, 'id': id})
+            'description': description, 'id': id})
+        # TODO(jhr): Commenting out 'repo' field for cling, add back
+        #   'description': description, 'repo': self.git.remote_url, 'id': id})
         return response['upsertModel']['model']
 
     @normalize_exceptions

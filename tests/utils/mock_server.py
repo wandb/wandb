@@ -189,6 +189,14 @@ def create_app(ctx):
                     }
                 }
             })
+        if "query Models(" in body["query"]:
+            return json.dumps({
+                'data': {
+                    'models': {
+                        "edges": [{"node": {"id": "123", "name": "myname", "project": "myproj"}}]
+                    }
+                }
+            })
         if "query Projects(" in body["query"]:
             return json.dumps({
                 "data": {
