@@ -7,18 +7,23 @@ Manage wandb run.
 
 from __future__ import print_function
 
+import atexit
 import collections
 import glob
 import json
 import logging
 import os
 import platform
+import sys
+import traceback
 
 import click
 from six import string_types
 import wandb
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
+from wandb.errors import Error
+from wandb.lib import redirect
 from wandb.util import sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
@@ -43,6 +48,41 @@ class RunDummy(Run):
         pass
 
 
+class ExitHooks(object):
+    def __init__(self):
+        self.exit_code = 0
+        self.exception = None
+
+    def hook(self):
+        self._orig_exit = sys.exit
+        sys.exit = self.exit
+        sys.excepthook = self.exc_handler
+
+    def exit(self, code=0):
+        orig_code = code
+        if code is None:
+            code = 0
+        elif not isinstance(code, int):
+            code = 1
+        self.exit_code = code
+        self._orig_exit(orig_code)
+
+    def was_ctrl_c(self):
+        return isinstance(self.exception, KeyboardInterrupt)
+
+    def exc_handler(self, exc_type, exc, *tb):
+        self.exit_code = 1
+        self.exception = exc
+        if issubclass(exc_type, Error):
+            wandb.termerror(str(exc))
+
+        if self.was_ctrl_c():
+            self.exit_code = 255
+
+        print("except handle")
+        traceback.print_exception(exc_type, exc, *tb)
+
+
 class RunManaged(Run):
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
@@ -55,6 +95,7 @@ class RunManaged(Run):
         _datatypes_set_callback(self._datatypes_callback)
 
         self._settings = settings
+        self._wl = None
         self._backend = None
         self._reporter = None
         self._data = dict()
@@ -67,6 +108,17 @@ class RunManaged(Run):
         self._name = None
         self._notes = None
         self._tags = None
+
+        self._hooks = None
+        self._redirect_cb = None
+        self._out_redir = None
+        self._err_redir = None
+        self.stdout_redirector = None
+        self.stderr_redirector = None
+        self._save_stdout = None
+        self._save_stderr = None
+        self._stdout_slave_fd = None
+        self._stderr_slave_fd = None
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -87,6 +139,8 @@ class RunManaged(Run):
                 os.path.join("code", settings.code_program)
             )
         self._config._update(config)
+        self._atexit_cleanup_called = None
+        self._use_redirect = True
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -217,6 +271,13 @@ class RunManaged(Run):
 
         self._backend.interface.send_history(row, step)
         self.summary.update(row)
+
+    def _console_callback(self, name, data):
+        logger.info("callback: %s, %s", name, data)
+        self._backend.interface.send_output(name, data)
+
+    def _set_library(self, library):
+        self._wl = library
 
     def _set_backend(self, backend):
         self._backend = backend
@@ -502,7 +563,9 @@ class RunManaged(Run):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
-        self._backend.cleanup()
+        self._atexit_cleanup()
+        if len(self._wl._global_run_stack) > 0:
+            self._wl._global_run_stack.pop()
 
     def _get_project_url(self):
         s = self._settings
@@ -541,6 +604,111 @@ class RunManaged(Run):
             )
         )
 
+    def _redirect(self, stdout_slave_fd, stderr_slave_fd):
+        console = self._settings.console
+        logger.info("redirect: %s", console)
+
+        if console == "redirect":
+            logger.info("redirect1")
+            out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
+            out_redir = redirect.Redirect(
+                src="stdout", dest=out_cap, unbuffered=True, tee=True
+            )
+            err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
+            err_redir = redirect.Redirect(
+                src="stderr", dest=err_cap, unbuffered=True, tee=True
+            )
+            try:
+                out_redir.install()
+                err_redir.install()
+                self._out_redir = out_redir
+                self._err_redir = err_redir
+                logger.info("redirect2")
+            except (OSError, AttributeError) as e:
+                logger.error("failed to redirect", exc_info=e)
+            return
+
+        return
+
+        # TODO(jhr): everything below here is not executed as we only support redir mode
+        #
+        # from wandb.lib import console as lib_console
+        # from wandb.old import io_wrap
+        #
+        # redirect stdout
+        # if platform.system() == "Windows":
+        #     lib_console.win32_redirect(stdout_slave_fd, stderr_slave_fd)
+        # else:
+        #     self._save_stdout = sys.stdout
+        #     self._save_stderr = sys.stderr
+        #     stdout_slave = os.fdopen(stdout_slave_fd, "wb")
+        #     stderr_slave = os.fdopen(stderr_slave_fd, "wb")
+        #     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
+        #     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
+        #     stdout_redirector.redirect()
+        #     stderr_redirector.redirect()
+        #     self.stdout_redirector = stdout_redirector
+        #     self.stderr_redirector = stderr_redirector
+        # logger.info("redirect done")
+
+    def _restore(self):
+        logger.info("restore")
+        # TODO(jhr): drain and shutdown all threads
+        if self._use_redirect:
+            if self._out_redir:
+                self._out_redir.uninstall()
+            if self._err_redir:
+                self._err_redir.uninstall()
+            return
+
+        if self.stdout_redirector:
+            self.stdout_redirector.restore()
+        if self.stderr_redirector:
+            self.stderr_redirector.restore()
+        if self._save_stdout:
+            sys.stdout = self._save_stdout
+        if self._save_stderr:
+            sys.stderr = self._save_stderr
+        logger.info("restore done")
+
+    def _atexit_cleanup(self):
+        if self._backend is None:
+            logger.warning("process exited without backend configured")
+            return False
+        if self._atexit_cleanup_called:
+            return
+        self._atexit_cleanup_called = True
+
+        exit_code = self._hooks.exit_code if self._hooks else 0
+        logger.info("got exitcode: %d", exit_code)
+        ret = self._backend.interface.send_exit_sync(exit_code, timeout=60)
+        logger.info("got exit ret: %s", ret)
+        if ret is None:
+            print("Problem syncing data")
+            os._exit(1)
+
+        #  TODO: close the logging file handler
+
+        self.on_finish()
+
+        self.on_final()
+
+    def _console_start(self):
+        logger.info("atexit reg")
+        self._hooks = ExitHooks()
+        self._hooks.hook()
+        atexit.register(lambda: self._atexit_cleanup())
+
+        if self._use_redirect:
+            # setup fake callback
+            self._redirect_cb = self._console_callback
+
+        self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
+        pass
+
+    def _console_stop(self):
+        self._restore()
+
     def on_start(self):
         wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
         if self._run_obj:
@@ -551,11 +719,18 @@ class RunManaged(Run):
             )
             self._display_run()
         print("")
+        self._console_start()
 
     def on_finish(self):
+        self._console_stop()
+        self._backend.cleanup()
+        pass
+
+    def on_final(self):
         # check for warnings and errors, show log file locations
         # if self._run_obj:
         #    self._display_run()
+        # print("DEBUG on finish")
         if self._reporter:
             warning_lines = self._reporter.warning_lines
             if warning_lines:
@@ -733,3 +908,8 @@ class RunManaged(Run):
         artifact.finalize()
         self._backend.interface.send_artifact(self, artifact, aliases)
         return artifact
+
+    def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
+        self._use_redirect = use_redirect
+        self._stdout_slave_fd = stdout_slave_fd
+        self._stderr_slave_fd = stderr_slave_fd

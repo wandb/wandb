@@ -70,11 +70,12 @@ class Redirect(object):
         self._old_fd = None
         self._old_fp = None
 
-    def _redirect(self, to_fd, unbuffered=False):
-        # fp = getattr(sys, self._stream)
-        # TODO(jhr): does this still work under windows?  are we leaking a fd?
-        # Do not close old filedescriptor as others might be using it
-        # fp.close()
+    def _redirect(self, to_fd, unbuffered=False, close=False):
+        if close:
+            fp = getattr(sys, self._stream)
+            # TODO(jhr): does this still work under windows?  are we leaking a fd?
+            # Do not close old filedescriptor as others might be using it
+            fp.close()
         os.dup2(to_fd, self._old_fd)
         setattr(sys, self._stream, os.fdopen(self._old_fd, "w"))
         if unbuffered:
@@ -100,7 +101,7 @@ class Redirect(object):
 
     def uninstall(self):
         logger.info("uninstall start")
-        self._redirect(to_fd=self._old_fp.fileno())
+        self._redirect(to_fd=self._old_fp.fileno(), close=True)
         self._dest._stop()
         logger.info("uninstall done")
 

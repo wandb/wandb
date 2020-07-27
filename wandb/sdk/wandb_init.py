@@ -5,20 +5,17 @@ init.
 
 from __future__ import print_function
 
-import atexit
 import datetime
 import logging
 import os
-import platform
 import sys
 import time
-import traceback
 
 from six import raise_from, reraise
 import wandb
 from wandb.backend.backend import Backend
-from wandb.errors import Error
-from wandb.lib import filesystem, redirect, reporting
+from wandb.lib import console as lib_console
+from wandb.lib import filesystem, reporting
 from wandb.lib.globals import set_global
 from wandb.old import io_wrap
 from wandb.util import sentry_exc
@@ -43,100 +40,16 @@ def online_status(*args, **kwargs):
     pass
 
 
-class ExitHooks(object):
-    def __init__(self):
-        self.exit_code = 0
-        self.exception = None
-
-    def hook(self):
-        self._orig_exit = sys.exit
-        sys.exit = self.exit
-        sys.excepthook = self.exc_handler
-
-    def exit(self, code=0):
-        orig_code = code
-        if code is None:
-            code = 0
-        elif not isinstance(code, int):
-            code = 1
-        self.exit_code = code
-        self._orig_exit(orig_code)
-
-    def was_ctrl_c(self):
-        return isinstance(self.exception, KeyboardInterrupt)
-
-    def exc_handler(self, exc_type, exc, *tb):
-        self.exit_code = 1
-        self.exception = exc
-        if issubclass(exc_type, Error):
-            wandb.termerror(str(exc))
-
-        if self.was_ctrl_c():
-            self.exit_code = 255
-
-        print("except handle")
-        traceback.print_exception(exc_type, exc, *tb)
-
-
-def win32_redirect(stdout_slave_fd, stderr_slave_fd):
-    # import win32api
-
-    # save for later
-    # fd_stdout = os.dup(1)
-    # fd_stderr = os.dup(2)
-
-    # std_out = win32api.GetStdHandle(win32api.STD_OUTPUT_HANDLE)
-    # std_err = win32api.GetStdHandle(win32api.STD_ERROR_HANDLE)
-
-    # os.dup2(stdout_slave_fd, 1)
-    # os.dup2(stderr_slave_fd, 2)
-
-    # TODO(jhr): do something about current stdout, stderr file handles
-    pass
-
-
-def win32_create_pipe():
-    # import pywintypes
-    # import win32pipe
-
-    # sa=pywintypes.SECURITY_ATTRIBUTES()
-    # sa.bInheritHandle=1
-
-    # read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_TEXT)
-    # read_fd, write_fd = win32pipe.FdCreatePipe(sa, 0, os.O_BINARY)
-    read_fd, write_fd = os.pipe()
-    # http://timgolden.me.uk/pywin32-docs/win32pipe__FdCreatePipe_meth.html
-    # https://stackoverflow.com/questions/17942874/stdout-redirection-with-ctypes
-
-    # f = open("testing.txt", "rb")
-    # read_fd = f.fileno()
-
-    return read_fd, write_fd
-
-
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
         self.settings = None
         self.config = None
-        self.wl = None
         self.run = None
         self.backend = None
 
-        self._use_redirect = True
-        self._redirect_cb = None
-        self._out_redir = None
-        self._err_redir = None
+        self._wl = None
         self._reporter = None
-
-        # move this
-        self.stdout_redirector = None
-        self.stderr_redirector = None
-        self._save_stdout = None
-        self._save_stderr = None
-
-        self._hooks = None
-        self._atexit_cleanup_called = None
 
     def setup(self, kwargs):
         """Complete setup for wandb.init().
@@ -152,11 +65,13 @@ class _WandbInit(object):
         # TODO: Is this the best way to do this?
         session_settings_keys = ["anonymous"]
         session_settings = {k: kwargs[k] for k in session_settings_keys}
-        wl = wandb.setup(settings=session_settings)
+        self._wl = wandb.setup(settings=session_settings)
         # Make sure we have a logger setup (might be an early logger)
-        _set_logger(wl._get_logger())
+        _set_logger(self._wl._get_logger())
 
-        settings: Settings = wl.settings(dict(kwargs.pop("settings", None) or tuple()))
+        settings: Settings = self._wl.settings(
+            dict(kwargs.pop("settings", None) or tuple())
+        )
 
         self._reporter = reporting.setup_reporter(
             settings=settings.duplicate().freeze()
@@ -168,7 +83,7 @@ class _WandbInit(object):
             init_config = parse_config(init_config)
 
         # merge config with sweep (or config file)
-        self.config = wl._config or dict()
+        self.config = self._wl._config or dict()
         for k, v in init_config.items():
             self.config.setdefault(k, v)
 
@@ -177,7 +92,6 @@ class _WandbInit(object):
             "magic",
             "config_exclude_keys",
             "config_include_keys",
-            "reinit",
             "allow_val_change",
             "resume",
             "force",
@@ -210,9 +124,7 @@ class _WandbInit(object):
             self._jupyter_setup()
 
         self._log_setup(settings)
-        wl._early_logger_flush(logger)
 
-        self.wl = wl
         self.settings = settings.freeze()
 
     def _enable_logging(self, log_fname, run_id=None):
@@ -335,99 +247,19 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def _atexit_cleanup(self):
-        if self.backend is None:
-            logger.warning("process exited without backend configured")
-            return False
-        if self._atexit_cleanup_called:
-            return
-        self._atexit_cleanup_called = True
-
-        exit_code = self._hooks.exit_code if self._hooks else 0
-        logger.info("got exitcode: %d", exit_code)
-        ret = self.backend.interface.send_exit_sync(exit_code, timeout=60)
-        logger.info("got exit ret: %s", ret)
-        if ret is None:
-            print("Problem syncing data")
-            os._exit(1)
-
-        self._restore()
-        #  TODO: close the logging file handler
-
-        self.backend.cleanup()
-        # TODO(jhr): no warning allowed
-        if self.run:
-            self.run.on_finish()
-
-    def _callback(self, name, data):
-        logger.info("callback: %s, %s", name, data)
-        self.backend.interface.send_output(name, data)
-
-    def _redirect(self, stdout_slave_fd, stderr_slave_fd):
-        console = self.settings.console
-        logger.info("redirect: %s", console)
-
-        if console == "redirect":
-            logger.info("redirect1")
-            out_cap = redirect.Capture(name="stdout", cb=self._redirect_cb)
-            out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
-            )
-            err_cap = redirect.Capture(name="stderr", cb=self._redirect_cb)
-            err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
-            )
-            try:
-                out_redir.install()
-                err_redir.install()
-                self._out_redir = out_redir
-                self._err_redir = err_redir
-                logger.info("redirect2")
-            except (OSError, AttributeError) as e:
-                logger.error("failed to redirect", exc_info=e)
-            return
-
-        return
-
-        # redirect stdout
-        if platform.system() == "Windows":
-            win32_redirect(stdout_slave_fd, stderr_slave_fd)
-        else:
-            self._save_stdout = sys.stdout
-            self._save_stderr = sys.stderr
-            stdout_slave = os.fdopen(stdout_slave_fd, "wb")
-            stderr_slave = os.fdopen(stderr_slave_fd, "wb")
-            stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-            stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-            stdout_redirector.redirect()
-            stderr_redirector.redirect()
-            self.stdout_redirector = stdout_redirector
-            self.stderr_redirector = stderr_redirector
-        logger.info("redirect done")
-
-    def _restore(self):
-        logger.info("restore")
-        # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
-            if self._out_redir:
-                self._out_redir.uninstall()
-            if self._err_redir:
-                self._err_redir.uninstall()
-            return
-
-        if self.stdout_redirector:
-            self.stdout_redirector.restore()
-        if self.stderr_redirector:
-            self.stderr_redirector.restore()
-        if self._save_stdout:
-            sys.stdout = self._save_stdout
-        if self._save_stderr:
-            sys.stderr = self._save_stderr
-        logger.info("restore done")
+        self._wl._early_logger_flush(logger)
 
     def init(self):
         s = self.settings
         config = self.config
+
+        if s.reinit:
+            if len(self._wl._global_run_stack) > 0:
+                if len(self._wl._global_run_stack) > 1:
+                    wandb.termwarn(
+                        "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
+                    )
+                wandb.join()
 
         if s.mode == "noop":
             # TODO(jhr): return dummy object
@@ -436,46 +268,42 @@ class _WandbInit(object):
         # Make sure we are logged in
         wandb.login()
 
-        stdout_master_fd = None
-        stderr_master_fd = None
-        stdout_slave_fd = None
-        stderr_slave_fd = None
         console = s.console
-
-        if console == "redirect":
-            pass
-        elif console == "off":
-            pass
-        elif console == "mock":
-            pass
-        elif console == "file":
-            pass
-        elif console == "iowrap":
+        use_redirect = True
+        stdout_master_fd, stderr_master_fd = None, None
+        stdout_slave_fd, stderr_slave_fd = None, None
+        if console == "iowrap":
             stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
             stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
         elif console == "_win32":
             # Not used right now
-            stdout_master_fd, stdout_slave_fd = win32_create_pipe()
-            stderr_master_fd, stderr_slave_fd = win32_create_pipe()
-        else:
-            self._reporter.internal("Unknown console: %s", console)
+            stdout_master_fd, stdout_slave_fd = lib_console.win32_create_pipe()
+            stderr_master_fd, stderr_slave_fd = lib_console.win32_create_pipe()
 
         backend = Backend(mode=s.mode)
         backend.ensure_launched(
             settings=s,
             stdout_fd=stdout_master_fd,
             stderr_fd=stderr_master_fd,
-            use_redirect=self._use_redirect,
+            use_redirect=use_redirect,
         )
         backend.server_connect()
 
         # resuming needs access to the server, check server_status()?
 
         run = RunManaged(config=config, settings=s)
+        run._set_console(
+            use_redirect=use_redirect,
+            stdout_slave_fd=stdout_slave_fd,
+            stderr_slave_fd=stderr_slave_fd,
+        )
+        run._set_library(self._wl)
         run._set_backend(backend)
         run._set_reporter(self._reporter)
         # TODO: pass mode to backend
         # run_synced = None
+
+        self._wl._global_run_stack.append(run)
 
         backend._hack_set_run(run)
 
@@ -506,20 +334,6 @@ class _WandbInit(object):
         self._reporter.set_context(run=run)
         run.on_start()
 
-        logger.info("atexit reg")
-        self._hooks = ExitHooks()
-        self._hooks.hook()
-        atexit.register(lambda: self._atexit_cleanup())
-
-        if self._use_redirect:
-            # setup fake callback
-            self._redirect_cb = self._callback
-
-        self._redirect(stdout_slave_fd, stderr_slave_fd)
-
-        # for super agent
-        # run._save_job_spec()
-
         return run
 
 
@@ -531,30 +345,31 @@ def getcaller():
 
 
 def init(
-    settings: Union[Settings, Dict[str, Any], str, None] = None,
-    entity: Optional[str] = None,
-    team: Optional[str] = None,
-    project: Optional[str] = None,
-    mode: Optional[str] = None,
-    group: Optional[str] = None,
     job_type: Optional[str] = None,
-    tags: Optional[List] = None,
-    name: Optional[str] = None,
+    dir=None,
     config: Union[Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    reinit: bool = None,
+    tags: Optional[List] = None,
+    team: Optional[str] = None,
+    group: Optional[str] = None,
+    name: Optional[str] = None,
     notes: Optional[str] = None,
     magic: bool = None,  # TODO(jhr): type is union
     config_exclude_keys=None,
     config_include_keys=None,
-    reinit: bool = None,
     anonymous: Optional[str] = None,
-    dir=None,
-    allow_val_change=None,
+    disable: bool = None,
+    offline: bool = None,
+    allow_val_change: bool = None,
     resume=None,
     force=None,
-    tensorboard=None,
+    tensorboard=None,  # alias for sync_tensorboard
     sync_tensorboard=None,
     monitor_gym=None,
     id=None,
+    settings: Union[Settings, Dict[str, Any], str, None] = None,
 ) -> Run:
     """Initialize a wandb Run.
 
@@ -583,7 +398,6 @@ def init(
             getcaller()
             assert logger
             logger.exception("we got issues")
-            wi._atexit_cleanup()
             if wi.settings.problem == "fatal":
                 raise
             if wi.settings.problem == "warn":

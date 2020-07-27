@@ -258,6 +258,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _cli_only_mode=None,  # avoid running any code specific for runs
         console=None,
         disabled=None,  # alias for mode=dryrun, not supported yet
+        reinit=None,
         _save_requirements=True,
         # compute environment
         jupyter=None,
@@ -526,7 +527,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             dir="root_dir",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
-
         self.update(args)
         self.run_id = self.run_id or generate_id()
         self.wandb_dir = get_wandb_dir(self.root_dir or ".")

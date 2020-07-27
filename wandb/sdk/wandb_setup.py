@@ -80,6 +80,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._config = None
         self._server = None
 
+        # keep track of multiple runs so we can unwind with join()s
+        self._global_run_stack = []
+
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
         self._early_logger = _EarlyLogger()

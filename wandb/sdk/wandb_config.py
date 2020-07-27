@@ -110,6 +110,9 @@ class Config(object):
         if self._callback:
             self._callback(data=self._as_dict())
 
+    def get(self, *args):
+        return self._items.get(*args)
+
     def persist(self):
         """Calls the callback if it's set"""
         if self._callback:
