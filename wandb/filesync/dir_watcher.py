@@ -227,7 +227,9 @@ class DirWatcher(object):
                 for policy, globs in six.iteritems(self._user_file_policies):
                     if policy == "end":
                         continue
-                    for g in globs:
+                    # Convert set to list to avoid RuntimeError's
+                    # TODO: we may need to add locks
+                    for g in list(globs):
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
                             if policy == "live":
