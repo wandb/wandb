@@ -25,9 +25,9 @@ def test_parse_project_path(api):
     assert p == "proj"
 
 
-def test_parse_project_path_proj(api):
+def test_parse_project_path_proj(api, mock_server):
     e, p = api._parse_project_path("proj")
-    assert e == "vanpelt"
+    assert e == "mock_server_entity"
     assert p == "proj"
 
 
@@ -54,7 +54,7 @@ def test_parse_path_docker(api):
 
 def test_parse_path_docker_proj(mock_server, api):
     u, p, r = api._parse_path("proj:run")
-    assert u == "vanpelt"
+    assert u == "mock_server_entity"
     assert p == "proj"
     assert r == "run"
 
@@ -68,14 +68,14 @@ def test_parse_path_url(api):
 
 def test_parse_path_user_proj(mock_server, api):
     u, p, r = api._parse_path("proj/run")
-    assert u == "vanpelt"
+    assert u == "mock_server_entity"
     assert p == "proj"
     assert r == "run"
 
 
 def test_parse_path_proj(mock_server, api):
     u, p, r = api._parse_path("proj")
-    assert u == "vanpelt"
+    assert u == "mock_server_entity"
     assert p == "proj"
     assert r == "proj"
 
@@ -116,7 +116,7 @@ def test_run_summary(mock_server, api):
 
 def test_run_create(mock_server, api):
     run = api.create_run(project="test")
-    variables = {'entity': 'vanpelt', 'name': run.id, 'project': 'test'}
+    variables = {'entity': "mock_server_entity", 'name': run.id, 'project': 'test'}
     assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
 

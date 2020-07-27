@@ -77,7 +77,7 @@ def test_dir(runner):
 @pytest.fixture
 def git_repo(test_dir):
     r = git.Repo.init(".")
-    os.mkdir("wandb")
+    mkdir_exists_ok("wandb")
     # Because the forked process doesn't use my monkey patch above
     with open("wandb/settings", "w") as f:
         f.write("[default]\nproject: test")
@@ -96,6 +96,7 @@ def test_settings(test_dir):
                               base_url="http://localhost",
                               root_dir=os.getcwd(),
                               wandb_dir=wandb_dir,
+                              save_code=True,
                               host="test",
                               run_id=wandb.util.generate_id(),
                               _start_datetime=datetime.datetime.now())

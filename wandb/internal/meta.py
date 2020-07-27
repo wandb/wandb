@@ -222,7 +222,7 @@ class Meta(object):
             f.write(s)
             f.write("\n")
         base_name = os.path.basename(self.fname)
-        files = dict(files=[(base_name,)])
+        files = dict(files=[(base_name, "now")])
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)

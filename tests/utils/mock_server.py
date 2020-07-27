@@ -214,7 +214,7 @@ def create_app(ctx):
             return json.dumps({
                 "data": {
                     "viewer": {
-                        "entity": "vanpelt",
+                        "entity": "mock_server_entity",
                         "flags": '{"code_saving_enabled": true}',
                         "teams": {
                             "edges": []  # TODO make configurable for cli_test
