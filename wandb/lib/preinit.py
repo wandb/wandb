@@ -32,9 +32,11 @@ class PreInitObject(object):
             raise AttributeError()
 
 
-class PreInitCallable(object):
-    def __init__(self, name):
-        self._name = name
-
-    def __call__(self, *args, **kwargs):
-        raise wandb.Error("You must call wandb.init() before {}()".format(self._name))
+def PreInitCallable(name, destination=None):  # noqa: N802
+    def preinit_wrapper(*args, **kwargs):
+        raise wandb.Error("You must call wandb.init() before {}()".format(name))
+    preinit_wrapper.__name__ = str(name)
+    if destination:
+        preinit_wrapper.__wrapped__ = destination
+        preinit_wrapper.__doc__ = destination.__doc__
+    return preinit_wrapper

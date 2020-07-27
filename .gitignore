@@ -9,3 +9,6 @@ dist/
 *.pyc
 .python-version
 wandb_ng.egg-info
+docs/themes/
+docs/.generated-files.txt
+docs/config.toml
