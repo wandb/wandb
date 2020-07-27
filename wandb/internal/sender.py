@@ -11,6 +11,8 @@ import logging
 import os
 import time
 
+from wandb.filesync.dir_watcher import DirWatcher
+from wandb.interface.interface import file_enum_to_policy
 from wandb.lib.config import save_config_file_from_dict
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.util import sentry_set_scope
@@ -48,6 +50,7 @@ class SendManager(object):
 
         self._fs = None
         self._pusher = None
+        self._dir_watcher = None
 
         # is anyone using run_id?
         self._run_id = None
@@ -158,6 +161,7 @@ class SendManager(object):
         )
         self._fs.start()
         self._pusher = FilePusher(self._api)
+        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         self._run_id = run.run_id
         if self._run_meta:
             self._run_meta.write()
@@ -236,20 +240,18 @@ class SendManager(object):
         save_config_file_from_dict(config_path, config_dict)
         # TODO(jhr): check result of upsert_run?
 
-    def _save_file(self, fname):
+    def _save_file(self, fname, policy="end"):
         directory = self._settings.files_dir
         logger.info("saving file %s at %s", fname, directory)
         path = os.path.abspath(os.path.join(directory, fname))
         logger.info("saving file %s at full %s", fname, path)
-        self._pusher.file_changed(fname, path)
+        self._dir_watcher.update_policy(fname, policy)
 
     def handle_files(self, data):
         files = data.files
         for k in files.files:
-            fpath = k.path
             # TODO(jhr): fix paths with directories
-            fname = fpath[0]
-            self._save_file(fname)
+            self._save_file(k.path, file_enum_to_policy(k.policy))
 
     def handle_artifact(self, data):
         artifact = data.artifact
@@ -271,6 +273,8 @@ class SendManager(object):
         )
 
     def finish(self):
+        if self._dir_watcher:
+            self._dir_watcher.finish()
         if self._pusher:
             self._pusher.finish()
         if self._fs:

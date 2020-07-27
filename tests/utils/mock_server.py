@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import yaml
 import wandb
+from six.moves import urllib
 from tests.utils.mock_requests import RequestsMock
 # TODO: remove once python2 ripped out
 if sys.version_info < (3, 5):
@@ -131,7 +132,7 @@ def create_app(ctx):
         body = request.get_json()
         if body["variables"].get("files"):
             file = body["variables"]["files"][0]
-            url = request.url_root + "/storage?file=%s" % file
+            url = request.url_root + "/storage?file=%s" % urllib.parse.quote(file)
             return json.dumps({
                 "data": {
                     "model": {

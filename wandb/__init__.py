@@ -91,6 +91,10 @@ config = _preinit.PreInitObject("wandb.config")
 summary = _preinit.PreInitObject("wandb.summary")
 log = _preinit.PreInitCallable("wandb.log")
 join = _preinit.PreInitCallable("wandb.join")
+save = _preinit.PreInitCallable("wandb.save")
+restore = _preinit.PreInitCallable("wandb.restore")
+use_artifact = _preinit.PreInitCallable("wandb.use_artifact")
+log_artifact = _preinit.PreInitCallable("wandb.log_artifact")
 # record of patched libraries
 patched = {
     "tensorboard": [],

@@ -16,6 +16,7 @@ import psutil
 import atexit
 from wandb.lib.globals import unset_globals
 from wandb.internal.git_repo import GitRepo
+from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 try:
     import nbformat
@@ -68,36 +69,47 @@ start_mock_server()
 
 
 @pytest.fixture
-def git_repo(runner):
+def test_dir(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        os.mkdir("wandb")
-        # Because the forked process doesn't use my monkey patch above
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject: test")
-        open("README", "wb").close()
-        r.index.add(["README"])
-        r.index.commit("Initial commit")
-        yield GitRepo(lazy=False)
+        yield runner
 
 
 @pytest.fixture
-def test_settings():
+def git_repo(test_dir):
+    r = git.Repo.init(".")
+    os.mkdir("wandb")
+    # Because the forked process doesn't use my monkey patch above
+    with open("wandb/settings", "w") as f:
+        f.write("[default]\nproject: test")
+    open("README", "wb").close()
+    r.index.add(["README"])
+    r.index.commit("Initial commit")
+    yield GitRepo(lazy=False)
+
+
+@pytest.fixture
+def test_settings(test_dir):
     """ Settings object for tests"""
+    wandb_dir = os.path.join(os.getcwd(), "wandb")
+    mkdir_exists_ok(wandb_dir)
     settings = wandb.Settings(_start_time=time.time(),
+                              base_url="http://localhost",
+                              root_dir=os.getcwd(),
+                              wandb_dir=wandb_dir,
+                              host="test",
                               run_id=wandb.util.generate_id(),
                               _start_datetime=datetime.datetime.now())
+    settings.setdefaults()
     settings.files_dir = settings._path_convert(settings.files_dir_spec)
-    return settings
+    yield settings
 
 
 @pytest.fixture
 def mocked_run(runner, test_settings):
     """ A managed run object for tests with a mock backend """
-    with runner.isolated_filesystem():
-        run = wandb.wandb_sdk.wandb_run.RunManaged(settings=test_settings)
-        run._set_backend(MagicMock())
-        yield run
+    run = wandb.wandb_sdk.wandb_run.RunManaged(settings=test_settings)
+    run._set_backend(MagicMock())
+    yield run
 
 
 @pytest.fixture
@@ -117,7 +129,7 @@ def runner(monkeypatch, mocker):
 
 @pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
-    """Never use our real credentials, put them in an isolated dir"""
+    """Never use our real credentials, put them in their own isolated dir"""
     with CliRunner().isolated_filesystem():
         # TODO: this seems overkill...
         origexpand = os.path.expanduser
@@ -125,6 +137,24 @@ def local_netrc(monkeypatch):
         def expand(path):
             return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
         monkeypatch.setattr(os.path, "expanduser", expand)
+        yield
+
+
+@pytest.fixture()
+def local_settings(monkeypatch):
+    """Place global settings in an isolated dir"""
+    with CliRunner().isolated_filesystem():
+        # TODO: this seems overkill...
+        origexpand = os.path.expanduser
+        cfg_path = os.path.join(".config", "wandb", "settings")
+
+        def expand(path):
+            if cfg_path in path:
+                return os.path.realpath(cfg_path)
+            else:
+                return origexpand(path)
+        monkeypatch.setattr(os.path, "expanduser", expand)
+        mkdir_exists_ok(os.path.join(".config", "wandb"))
         yield
 
 

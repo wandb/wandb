@@ -5,6 +5,7 @@ settings test.
 import pytest  # type: ignore
 
 from wandb import Settings
+import os
 import copy
 
 
@@ -49,6 +50,33 @@ def test_update_both():
     s.update(dict(base_url="somethingb"), project="nothing")
     assert s.base_url == "somethingb"
     assert s.project == "nothing"
+
+
+def test_ignore_globs():
+    s = Settings()
+    s.setdefaults()
+    assert s.ignore_globs == []
+
+
+def test_ignore_globs_explicit():
+    s = Settings(ignore_globs=["foo"])
+    s.setdefaults()
+    assert s.ignore_globs == ["foo"]
+
+
+def test_ignore_globs_env():
+    s = Settings(_environ={"WANDB_IGNORE_GLOBS": "foo,bar"})
+    s.setdefaults()
+    assert s.ignore_globs == ["foo", "bar"]
+
+
+def test_ignore_globs_settings(local_settings):
+    with open(os.path.join(".config", "wandb", "settings"), "w") as f:
+        f.write("""[default]
+ignore_globs=foo,bar""")
+    s = Settings(_files=True)
+    s.setdefaults()
+    assert s.ignore_globs == ["foo", "bar"]
 
 
 def test_copy():

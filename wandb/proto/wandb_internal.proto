@@ -126,8 +126,14 @@ message FilesData {
 }
 
 message FilesItem {
-  repeated string path = 1;
-  repeated string external_path = 16;
+  enum PolicyType {
+    NOW = 0;
+    END = 1;
+    LIVE = 2;
+  }
+  string path = 1;
+  PolicyType policy = 2;
+  string external_path = 16;
 }
 
 /*

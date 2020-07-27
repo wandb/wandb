@@ -8,13 +8,14 @@ Manage wandb run.
 from __future__ import print_function
 
 import collections
+import glob
 import json
 import logging
 import os
 import platform
-import shutil
 
 import click
+from six import string_types
 import wandb
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
@@ -24,6 +25,9 @@ from wandb.viz import Visualize
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
 
 
 logger = logging.getLogger("wandb")
@@ -147,7 +151,11 @@ class RunManaged(Run):
 
     @property
     def path(self):
-        return "/".join([self._entity, self._project, self._run_id])
+        parts = []
+        for e in [self._entity, self._project, self._run_id]:
+            if e is not None:
+                parts.append(e)
+        return "/".join(parts)
 
     def project_name(self, api=None):
         # TODO(jhr): this is probably not right needed by dataframes?
@@ -187,7 +195,7 @@ class RunManaged(Run):
         self._backend.interface.send_summary(data)
 
     def _datatypes_callback(self, fname):
-        files = dict(files=[(fname,)])
+        files = dict(files=[(fname, "now")])
         self._backend.interface.send_files(files)
 
     def _history_callback(self, row=None, step=None):
@@ -273,6 +281,115 @@ class RunManaged(Run):
             self.history._row_add(data)
         else:
             self.history._row_update(data)
+
+    def save(
+        self, glob_str, base_path = None, policy = "live"
+    ):
+        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+
+        Args:
+            base_path (string): the base path to run the glob relative to
+            policy (string): on of "live", "now", or "end"
+                live: upload the file as it changes, overwriting the previous version
+                now: upload the file once now
+                end: only upload file when the run ends
+        """
+        if policy not in ("live", "end", "now"):
+            raise ValueError(
+                'Only "live" "end" and "now" policies are currently supported.'
+            )
+        if isinstance(glob_str, bytes):
+            glob_str = glob_str.decode("utf-8")
+        if not isinstance(glob_str, string_types):
+            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+
+        if base_path is None:
+            if os.path.isabs(glob_str):
+                base_path = os.path.dirname(glob_str)
+                wandb.termwarn(
+                    (
+                        "Saving files without folders. If you want to preserve "
+                        "sub directories pass base_path to wandb.save, i.e. "
+                        'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    )
+                )
+            else:
+                base_path = "."
+        wandb_glob_str = os.path.relpath(glob_str, base_path)
+        if ".." + os.sep in wandb_glob_str:
+            raise ValueError("globs can't walk above base_path")
+        if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
+            wandb.termlog(
+                "%s is a cloud storage url, can't save file to wandb." % glob_str
+            )
+            return []
+        files = glob.glob(os.path.join(self.dir, wandb_glob_str))
+        warn = False
+        if len(files) == 0 and "*" in wandb_glob_str:
+            warn = True
+        for path in glob.glob(glob_str):
+            file_name = os.path.relpath(path, base_path)
+            abs_path = os.path.abspath(path)
+            wandb_path = os.path.join(self.dir, file_name)
+            wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
+            # We overwrite symlinks because namespaces can change in Tensorboard
+            if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+                os.remove(wandb_path)
+                os.symlink(abs_path, wandb_path)
+            elif not os.path.exists(wandb_path):
+                os.symlink(abs_path, wandb_path)
+            files.append(wandb_path)
+        if warn:
+            file_str = "%i file" % len(files)
+            if len(files) > 1:
+                file_str += "s"
+            wandb.termwarn(
+                (
+                    "Symlinked %s into the W&B run directory, "
+                    "call wandb.save again to sync new files."
+                )
+                % file_str
+            )
+        files_dict = dict(files=[(wandb_glob_str, policy)])
+        self._backend.interface.send_files(files_dict)
+        return files
+
+    def restore(
+        self,
+        name,
+        run_path = None,
+        replace = False,
+        root = None,
+    ):
+        """ Downloads the specified file from cloud storage into the current run directory
+        if it doesn't exist.
+
+        Args:
+            name: the name of the file
+            run_path: optional path to a different run to pull files from
+            replace: whether to download the file even if it already exists locally
+            root: the directory to download the file to.  Defaults to the current
+                directory or the run directory if wandb.init was called.
+
+        Returns:
+            None if it can't find the file, otherwise a file object open for reading
+
+        Raises:
+            wandb.CommError if it can't find the run
+        """
+
+        #  TODO: handle restore outside of a run context?
+        api = public.Api()
+        api_run = api.run(run_path or self.path)
+        if root is None:
+            root = self.dir  # TODO: runless else '.'
+        path = os.path.join(root, name)
+        if os.path.exists(path) and replace is False:
+            return open(path, "r")
+        files = api_run.files([name])
+        if len(files) == 0:
+            return None
+        return files[0].download(root=root, replace=True)
 
     def join(self):
         self._backend.cleanup()
@@ -393,20 +510,6 @@ class RunManaged(Run):
         with open(spec_filename, "w") as f:
             print(s, file=f)
         self.save(spec_filename)
-
-    def save(self, path):
-        # TODO(jhr): this only works with files at root level of files dir
-        fname = os.path.basename(path)
-
-        if os.path.exists(path):
-            dest = os.path.join(self._settings.files_dir, fname)
-            logger.info("Saving from %s to %s", path, dest)
-            shutil.copyfile(path, dest)
-        else:
-            logger.info("file not found: %s", path)
-
-        files = dict(files=[(fname,)])
-        self._backend.interface.send_files(files)
 
     # NB: there is a copy of this in wandb_watch.py with the same signature
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):

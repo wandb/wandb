@@ -69,6 +69,7 @@ defaults = dict(
     console="auto",
     _console=Field(str, ("auto", "redirect", "off", "file", "iowrap",)),
     git_remote="origin",
+    ignore_globs=[],
     # anonymous might be set by a config file: "false" and "true"
     #   or from wandb.init(anonymous=) or environment: "allow", "must", "never"
     _anonymous=Field(str, ("allow", "must", "never", "false", "true",)),
@@ -94,13 +95,14 @@ env_settings = dict(
     username=None,
     disable_code=None,
     anonymous=None,
+    ignore_globs="WANDB_IGNORE_GLOBS",
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
 )
 
-env_convert = dict(run_tags=lambda s: s.split(","),)
+env_convert = dict(run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","))
 
 
 def _build_inverse_map(prefix, d):
@@ -244,6 +246,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         program=None,
         notebook_name=None,
         disable_code=None,
+        ignore_globs=None,
         save_code=None,
         code_program=None,
         git_remote=None,
@@ -508,6 +511,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         d = dict()
         for k in cp[section]:
             d[k] = cp[section][k]
+            # TODO (cvp): we didn't do this in the old cli, but it seems necessary
+            if k == "ignore_globs":
+                d[k] = d[k].split(",")
         return d
 
     def apply_init(self, args):

@@ -226,8 +226,8 @@ class Meta(object):
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program,))
+            files["files"].append((saved_program, "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch,))
+            files["files"].append((patch, "now"))
 
         self._interface.send_files(files)

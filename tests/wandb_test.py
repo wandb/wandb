@@ -1,5 +1,6 @@
 import wandb
 import pytest
+import tempfile
 import glob
 import os
 
@@ -185,46 +186,69 @@ def test_login_existing_key():
     del os.environ["WANDB_API_KEY"]
 
 
-@pytest.mark.skip(reason="Anonymous login not requiring must")
+@pytest.mark.skip(reason="This doesn't work for some reason")
 def test_login_anonymous(mock_server, local_netrc):
     os.environ["WANDB_API_KEY"] = "B" * 40
     wandb.login(anonymous="must")
     assert wandb.api.api_key == "ANONYMOOSE" * 4
 
 
-@pytest.mark.skip(reason="Need to bring back wandb.save")
 def test_save_policy_symlink(wandb_init_run):
     with open("test.rad", "w") as f:
         f.write("something")
     wandb.save("test.rad")
-    assert wandb_init_run.socket.send.called
+    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
+    assert wandb.run._backend.files["test.rad"] == 2
 
 
-@pytest.mark.skip(reason="Need to bring back wandb.save")
-def test_save_absolute_path(wandb_init_run):
-    with open("/tmp/test.txt", "w") as f:
+def test_save_policy_glob_symlink(wandb_init_run, capsys):
+    with open("test.rad", "w") as f:
         f.write("something")
-    wandb.save("/tmp/test.txt")
+    with open("foo.rad", "w") as f:
+        f.write("something")
+    wandb.save("*.rad")
+    _, err = capsys.readouterr()
+    assert "Symlinked 2 files" in err
+    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
+    assert os.path.exists(os.path.join(wandb_init_run.dir, "foo.rad"))
+    assert wandb.run._backend.files["*.rad"] == 2
+
+
+def test_save_absolute_path(wandb_init_run, capsys):
+    root = tempfile.gettempdir()
+    test_path = os.path.join(root, "test.txt")
+    with open(test_path, "w") as f:
+        f.write("something")
+    wandb.save(test_path)
+    _, err = capsys.readouterr()
+    assert "Saving files without folders" in err
     assert os.path.exists(os.path.join(wandb_init_run.dir, "test.txt"))
+    assert wandb.run._backend.files["test.txt"] == 2
 
 
-@pytest.mark.skip(reason="Need to bring back wandb.save")
 def test_save_relative_path(wandb_init_run):
-    with open("/tmp/test.txt", "w") as f:
+    root = tempfile.gettempdir()
+    test_path = os.path.join(root, "tmp", "test.txt")
+    print("DAMN", os.path.dirname(test_path))
+    wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
+    with open(test_path, "w") as f:
         f.write("something")
-    wandb.save("/tmp/test.txt", base_path="/")
-    assert os.path.exists(os.path.join(wandb_init_run.dir, "tmp/test.txt"))
+    wandb.save(test_path, base_path=root, policy="now")
+    assert os.path.exists(os.path.join(wandb_init_run.dir, test_path))
+    assert wandb.run._backend.files[os.path.relpath(test_path, root)] == 0
 
 
-@pytest.mark.skip(reason="Need to bring back wandb.save")
 def test_save_invalid_path(wandb_init_run):
-    with open("/tmp/test.txt", "w") as f:
+    root = tempfile.gettempdir()
+    test_path = os.path.join(root, "tmp", "test.txt")
+    wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
+    with open(test_path, "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
-        wandb.save("../tmp/../../*.txt", base_path="/tmp")
+        wandb.save(os.path.join(root, "..", "..", "*.txt"),
+                   base_path=root)
 
 
-@pytest.mark.skip(reason="Need to bring wandb.restore back")
 def test_restore(runner, mock_server, wandb_init_run):
     with runner.isolated_filesystem():
         mock_server.set_context("files", {"weights.h5": 10000})
@@ -232,13 +256,12 @@ def test_restore(runner, mock_server, wandb_init_run):
         assert os.path.getsize(res.name) == 10000
 
 
-@pytest.mark.args(env={"WANDB_RUN_ID": "123456"})
-@pytest.mark.skip(reason="Pipe these through mock server")
+@pytest.mark.wandb_args(env={"WANDB_RUN_ID": "123456"})
 def test_run_id(wandb_init_run):
     assert wandb.run.id == "123456"
 
 
-@pytest.mark.args(env={"WANDB_NAME": "coolio"})
-@pytest.mark.skip(reason="Pipe these through mock server")
+@pytest.mark.wandb_args(env={"WANDB_NAME": "coolio"})
+@pytest.mark.skip(reason="Not yet supported")
 def test_run_name(wandb_init_run):
     assert wandb.run.name == "coolio"

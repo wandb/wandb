@@ -18,6 +18,10 @@ class ResponseMock(object):
 
     @property
     def content(self):
+        return self.response.data
+
+    @property
+    def text(self):
         return self.response.data.decode('utf-8')
 
     @property
@@ -92,7 +96,10 @@ class RequestsMock(object):
         return kwargs
 
     def _store_request(self, url, body):
-        key = url.split("/")[-1]
+        parts = url.split("?")
+        key = parts[0].split("/")[-1]
+        if len(parts) > 1:
+            key = key + "?" + parts[1]
         self.ctx[key] = self.ctx.get(key, [])
         self.ctx[key].append(body)
 

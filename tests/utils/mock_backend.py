@@ -1,6 +1,6 @@
 import wandb
 import json
-from wandb.interface import constants, interface
+from wandb.interface import interface
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from pytest_mock import _get_mock_module  # type: ignore
@@ -49,7 +49,7 @@ class BackendMock(object):
         self.history = []
         self.summary = {}
         self.config = {}
-        self.files = []
+        self.files = {}
         self.mocker = _get_mock_module(get_config())
 
     def _hack_set_run(self, run):
@@ -72,7 +72,11 @@ class BackendMock(object):
         if len(rec.summary.update) > 0:
             self.summary.update(self._proto_to_dict(rec.summary.update))
         if len(rec.files.files) > 0:
-            self.files.append([f.path for f in rec.files.files])
+            for k in rec.files.files:
+                fpath = k.path
+                fpolicy = k.policy
+                # TODO(jhr): fix paths with directories
+                self.files[fpath] = fpolicy
         if rec.run:
             pass
 
