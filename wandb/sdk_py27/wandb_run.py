@@ -134,9 +134,9 @@ class RunManaged(Run):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         config[wandb_key]["cli_version"] = wandb.__version__
-        if settings.save_code and settings.code_program:
+        if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
-                os.path.join("code", settings.code_program)
+                os.path.join("code", settings.program_relpath)
             )
         self._config._update(config)
         self._atexit_cleanup_called = None

@@ -17,12 +17,14 @@ from wandb.lib.config import save_config_file_from_dict
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.util import sentry_set_scope
 
+
 # from wandb.stuff import io_wrap
 
 from . import artifacts
 from . import file_stream
 from . import internal_api
 from .file_pusher import FilePusher
+from .git_repo import GitRepo
 
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,8 @@ class SendManager(object):
             config_path = os.path.join(self._settings.files_dir, "config.yaml")
             save_config_file_from_dict(config_path, config_dict)
 
+        repo = GitRepo(remote=self._settings.git_remote)
+
         ups = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
@@ -129,6 +133,9 @@ class SendManager(object):
             config=config_dict or None,
             sweep_name=run.sweep_id or None,
             host=run.host or None,
+            program_path=self._settings.program or None,
+            repo=repo.remote_url,
+            commit=repo.last_commit,
         )
 
         if data.control.req_resp:

@@ -128,12 +128,12 @@ def _get_program():
     try:
         import __main__  # type: ignore
 
-        program = __main__.__file__
-        if not program:
-            return "<python with no main file>"
+        return __main__.__file__
     except (ImportError, AttributeError):
         return None
 
+
+def _get_program_relpath_from_gitrepo(program):
     repo = git_repo.GitRepo()
     root = repo.root
     if not root:
@@ -248,7 +248,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         disable_code=None,
         ignore_globs=None,
         save_code=None,
-        code_program=None,
+        program_relpath=None,
         git_remote=None,
         host=None,
         username=None,
@@ -464,9 +464,14 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         """Modify settings based on environment (for runs only)."""
         # If the settings say to save code, and there's not already a program file,
         # infer it now.
-        if self.save_code and not self.code_program:
-            code_program = _get_program()
-            self.update(dict(code_program=code_program))
+        if self.save_code and not self.program_relpath:
+            program = _get_program()
+            if program:
+                program_relpath = _get_program_relpath_from_gitrepo(program)
+                self.update(dict(program=program, program_relpath=program_relpath))
+            else:
+                program = "<python with no main file>"
+                self.update(dict(program=program))
 
     def setdefaults(self, __d=None):
         __d = __d or defaults

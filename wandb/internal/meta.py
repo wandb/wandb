@@ -64,12 +64,12 @@ class Meta(object):
             logger.error("Error saving pip packages")
 
     def _save_code(self):
-        if self._settings.code_program is None:
+        if self._settings.program_relpath is None:
             logger.warning("unable to save code -- program entry not found")
             return
 
         root = self._git.root or os.getcwd()
-        program_relative = self._settings.code_program
+        program_relative = self._settings.program_relpath
         util.mkdir_exists_ok(
             os.path.join(
                 self._settings.files_dir, "code", os.path.dirname(program_relative)
@@ -178,9 +178,10 @@ class Meta(object):
     def probe(self):
         self._setup_sys()
         if not self._settings.disable_code:
-            if self._settings.code_program is not None:
-                self.data["codePath"] = self._settings.code_program
-                self.data["program"] = os.path.basename(self._settings.code_program)
+            if self._settings.program_relpath is not None:
+                self.data["codePath"] = self._settings.program_relpath
+            if self._settings.program is not None:
+                self.data["program"] = self._settings.program
             else:
                 self.data["program"] = "<python with no main file>"
                 if self._settings.jupyter:
