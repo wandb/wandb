@@ -222,8 +222,9 @@ class Api(object):
         if auth:
             key = auth[-1]
         # Environment should take precedence
-        if self._environ.get(env.API_KEY):
-            key = self._environ.get(env.API_KEY)
+        env_key = self._environ.get(env.API_KEY)
+        if env_key is not None:
+            key = env_key
         return key
 
     @property

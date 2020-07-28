@@ -4,18 +4,25 @@ from wandb.apis.internal import InternalApi
 import contextlib
 import traceback
 import platform
+import getpass
 import pytest
 import netrc
 import subprocess
 import os
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
-DOCKER_SHA = ("wandb/deepo@sha256:"
-              "3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177")
+DOCKER_SHA = (
+    "wandb/deepo@sha256:"
+    "3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"
+)
 
 
 @pytest.fixture
-def docker(mock_server, mocker, monkeypatch):
+def docker(request, mock_server, mocker, monkeypatch):
+    wandb_args = {"check_output": b"wandb/deepo@sha256:abc123"}
+    marker = request.node.get_closest_marker("wandb_args")
+    if marker:
+        wandb_args.update(marker.kwargs)
     docker = mocker.MagicMock()
     api_key = mocker.patch(
         "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
@@ -31,8 +38,9 @@ def docker(mock_server, mocker, monkeypatch):
             return old_call(command, **kwargs)
 
     monkeypatch.setattr(subprocess, "call", new_call)
+
     monkeypatch.setattr(
-        subprocess, "check_output", lambda *args, **kwargs: b"wandb/deepo@sha256:abc123"
+        subprocess, "check_output", lambda *args, **kwargs: wandb_args["check_output"]
     )
     return docker
 
@@ -232,12 +240,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
 
 
 def test_docker_run_digest(runner, docker, monkeypatch):
-    result = runner.invoke(
-        cli.docker_run,
-        [
-            DOCKER_SHA
-        ],
-    )
+    result = runner.invoke(cli.docker_run, [DOCKER_SHA],)
     assert result.exit_code == 0
     docker.assert_called_once_with(
         [
@@ -502,8 +505,10 @@ def test_docker_jupyter(runner, docker):
                 "test",
                 "/bin/bash",
                 "-c",
-                ("jupyter lab --no-browser --ip=0.0.0.0 --allow-root "
-                 "--NotebookApp.token= --notebook-dir /app"),
+                (
+                    "jupyter lab --no-browser --ip=0.0.0.0 --allow-root "
+                    "--NotebookApp.token= --notebook-dir /app"
+                ),
             ]
         )
         assert result.exit_code == 0
@@ -551,3 +556,87 @@ def test_docker_digest(runner, docker):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.output == "wandb/deepo@sha256:abc123"
         assert result.exit_code == 0
+
+
+@pytest.mark.wandb_args(check_output=b"")
+def test_local_default(runner, docker):
+    result = runner.invoke(cli.local)
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    user = getpass.getuser()
+    docker.assert_called_with(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            "wandb:/vol",
+            "-p",
+            "8080:8080",
+            "--name",
+            "wandb-local",
+            "-e",
+            "LOCAL_USERNAME=%s" % user,
+            "-d",
+            "wandb/local",
+        ]
+    )
+
+
+@pytest.mark.wandb_args(check_output=b"")
+def test_local_custom_port(runner, docker):
+    result = runner.invoke(cli.local, ["-p", "3030"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    user = getpass.getuser()
+    docker.assert_called_with(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            "wandb:/vol",
+            "-p",
+            "3030:8080",
+            "--name",
+            "wandb-local",
+            "-e",
+            "LOCAL_USERNAME=%s" % user,
+            "-d",
+            "wandb/local",
+        ]
+    )
+
+
+@pytest.mark.wandb_args(check_output=b"")
+def test_local_custom_env(runner, docker):
+    result = runner.invoke(cli.local, ["-e", b"FOO=bar"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    user = getpass.getuser()
+    docker.assert_called_with(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            "wandb:/vol",
+            "-p",
+            "8080:8080",
+            "--name",
+            "wandb-local",
+            "-e",
+            "LOCAL_USERNAME=%s" % user,
+            "-e",
+            "FOO=bar",
+            "-d",
+            "wandb/local",
+        ]
+    )
+
+
+def test_local_already_running(runner, docker):
+    result = runner.invoke(cli.local)
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert "A container named wandb-local is already running" in result.output

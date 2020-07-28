@@ -12,6 +12,10 @@ class Api(object):
         return self.api.api_key
 
     @property
+    def api_url(self):
+        return self.api.api_url
+
+    @property
     def app_url(self):
         return self.api.app_url
 
@@ -38,7 +42,8 @@ class Api(object):
         return self.api.format_project(project)
 
     def upsert_project(self, project, id=None, description=None, entity=None):
-        return self.api.upsert_project(project, id=id, description=description, entity=entity)
+        return self.api.upsert_project(project, id=id, description=description,
+                                       entity=entity)
 
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)

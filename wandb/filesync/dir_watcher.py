@@ -39,6 +39,10 @@ class FileEventHandler(object):
         self.on_modified(force=True)
 
 
+class PolicyIgnore(FileEventHandler):
+    pass
+
+
 class PolicyNow(FileEventHandler):
     """This policy only uploads files now"""
     def on_modified(self, force=False):
@@ -168,6 +172,7 @@ class DirWatcher(object):
         #  TODO: what other files should we skip?
         file_event_handler._ignore_patterns = [
             "*.tmp",
+            "*.wandb",
             os.path.join(self._dir, ".*"),
             os.path.join(self._dir, "*/.*"),
         ]
@@ -219,9 +224,11 @@ class DirWatcher(object):
         save_name: its path relative to the run directory (aka the watch directory)
         """
         if save_name not in self._file_event_handlers:
+            # TODO: we can use PolicyIgnore if there are files we never want to sync
             if 'tfevents' in save_name or 'graph.pbtxt' in save_name:
-                # TODO: we want this fanciness?
-                pass
+                self._file_event_handlers[save_name] = PolicyLive(
+                    file_path, save_name, self._api, self._file_pusher
+                )
             else:
                 Handler = PolicyEnd
                 for policy, globs in six.iteritems(self._user_file_policies):

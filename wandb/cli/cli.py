@@ -3,11 +3,13 @@
 
 import copy
 from functools import wraps
+import getpass
 import logging
 import os
 import subprocess
 import sys
 import textwrap
+import time
 import traceback
 
 import click
@@ -611,6 +613,63 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
         command.extend(['-it', image, shell])
         wandb.termlog("Launching docker container \U0001F6A2")
     subprocess.call(command)
+
+
+@cli.command(context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)")
+@click.pass_context
+@click.option('--port', '-p', default="8080", help="The host port to bind W&B local on")
+@click.option('--env', '-e', default=[], multiple=True, help="Env vars to pass to wandb/local")
+@click.option('--daemon/--no-daemon', default=True, help="Run or don't run in daemon mode")
+@click.option('--upgrade', is_flag=True, default=False, help="Upgrade to the most recent version")
+@click.option('--edge', is_flag=True, default=False, help="Run the bleading edge", hidden=True)
+@display_error
+def local(ctx, port, env, daemon, upgrade, edge):
+    api = InternalApi()
+    if not find_executable('docker'):
+        raise ClickException(
+            "Docker not installed, install it from https://docker.com")
+    if wandb.docker.image_id("wandb/local") != wandb.docker.image_id_from_registry("wandb/local"):
+        if upgrade:
+            subprocess.call(["docker", "pull", "wandb/local"])
+        else:
+            wandb.termlog("A new version of W&B local is available, upgrade by calling `wandb local --upgrade`")
+    running = subprocess.check_output(["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"])
+    if running != b"":
+        if upgrade:
+            subprocess.call(["docker", "stop", "wandb-local"])
+        else:
+            wandb.termerror("A container named wandb-local is already running, run `docker stop wandb-local` if you want to start a new instance")
+            exit(1)
+    image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
+    username = getpass.getuser()
+    env_vars = ['-e', 'LOCAL_USERNAME=%s' % username]
+    for e in env:
+        env_vars.append('-e')
+        env_vars.append(e)
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port + ':8080', '--name', 'wandb-local'] + env_vars
+    host = "http://localhost:%s" % port
+    api.set_setting("base_url", host, globally=True, persist=True)
+    if daemon:
+        command += ["-d"]
+    command += [image]
+
+    # DEVNULL is only in py3
+    try:
+        from subprocess import DEVNULL
+    except ImportError:
+        DEVNULL = open(os.devnull, 'wb')  # noqa: N806
+    code = subprocess.call(command, stdout=DEVNULL)
+    if daemon:
+        if code != 0:
+            wandb.termerror("Failed to launch the W&B local container, see the above error.")
+            exit(1)
+        else:
+            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("You can stop the server by running `docker stop wandb-local`")
+            if not api.api_key:
+                # Let the server start before potentially launching a browser
+                time.sleep(2)
+                ctx.invoke(login, host=host)
 
 
 @cli.group(help="Commands for interacting with artifacts")

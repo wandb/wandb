@@ -134,6 +134,8 @@ def local_netrc(monkeypatch):
     with CliRunner().isolated_filesystem():
         # TODO: this seems overkill...
         origexpand = os.path.expanduser
+        # Touch that netrc
+        open(".netrc", "wb").close()
 
         def expand(path):
             return os.path.realpath("netrc") if "netrc" in path else origexpand(path)

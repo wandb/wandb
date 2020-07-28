@@ -60,6 +60,10 @@ class RequestsMock(object):
         return {}
 
     @property
+    def __version__(self):
+        return requests.__version__
+
+    @property
     def utils(self):
         return requests.utils
 
