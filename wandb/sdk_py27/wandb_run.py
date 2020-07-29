@@ -212,11 +212,10 @@ class RunManaged(Run):
         return "/".join(parts)
 
     def project_name(self, api=None):
-        # TODO(jhr): this is probably not right needed by dataframes?
-        # api = api or self.api
-        # return (api.settings('project') or self.auto_project_name(api) or
-        #         "uncategorized")
-        return self._project
+        if not self._run_obj:
+            wandb.termwarn("Project name not available in offline run")
+            return
+        return self._run_obj.project
 
     @property
     def entity(self):
