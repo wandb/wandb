@@ -1,5 +1,6 @@
 include wandb/py.typed
 include package_readme.md
+include requirements.txt
 
 recursive-include wandb *.py
 recursive-include wandb *.sh

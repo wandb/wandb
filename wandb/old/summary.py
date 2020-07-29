@@ -12,7 +12,6 @@ import six
 import wandb
 from wandb import util
 from wandb import data_types
-from wandb.old.meta import Meta
 from wandb.apis.internal import Api
 from six import string_types
 

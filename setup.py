@@ -9,29 +9,12 @@ from setuptools import setup
 with open('package_readme.md') as readme_file:
     readme = readme_file.read()
 
-requirements = [
-    'Click>=7.0',
-    'GitPython>=1.0.0',
-    'gql==0.2.0',
-    'nvidia-ml-py3>=7.352.0',
-    'python-dateutil>=2.6.1',
-    'requests>=2.0.0',
-    'shortuuid>=0.5.0',
-    'six>=1.10.0',
-    'watchdog>=0.8.3',
-    'psutil>=5.0.0',
-    'sentry-sdk>=0.4.0',
-    'subprocess32>=3.5.3',
-    'docker-pycreds>=0.4.0',
-    'configparser>=3.8.1',
-    'protobuf',
-    'prompt_toolkit',
-    'PyYAML',
-    'numpy',
-]
+with open('requirements.txt') as requirements_file:
+    requirements = requirements_file.read().splitlines()
 
 if sys.version_info < (3, 5):
     requirements.append('typing')
+
 test_requirements = [
     'mock>=2.0.0',
     'tox-pyenv>=1.0.3'
@@ -39,7 +22,6 @@ test_requirements = [
 
 gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
-
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
