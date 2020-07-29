@@ -19,10 +19,10 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "__version__ = '0.0.37'"
+__version__ = '0.0.37'
 
 # Used with pypi checks and other messages related to pip
-_wandb_module = "wandb-ng"
+_wandb_module = 'wandb-ng'
 
 import sys
 
