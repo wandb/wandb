@@ -14,7 +14,7 @@ import wandb
 import git
 import psutil
 import atexit
-from wandb.lib.globals import unset_globals
+from wandb.lib.module import unset_globals
 from wandb.internal.git_repo import GitRepo
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib

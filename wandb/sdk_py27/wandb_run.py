@@ -23,7 +23,7 @@ import wandb
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
-from wandb.lib import redirect
+from wandb.lib import module, redirect
 from wandb.util import sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
@@ -579,6 +579,7 @@ class RunManaged(Run):
         self._atexit_cleanup(exit_code=exit_code)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
+        module.unset_globals()
 
     def _get_project_url(self):
         s = self._settings

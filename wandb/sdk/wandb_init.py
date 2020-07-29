@@ -15,8 +15,7 @@ from six import raise_from, reraise
 import wandb
 from wandb.backend.backend import Backend
 from wandb.lib import console as lib_console
-from wandb.lib import filesystem, reporting
-from wandb.lib.globals import set_global
+from wandb.lib import filesystem, module, reporting
 from wandb.old import io_wrap
 from wandb.util import sentry_exc
 
@@ -320,7 +319,7 @@ class _WandbInit(object):
 
         self.run = run
         self.backend = backend
-        set_global(
+        module.set_global(
             run=run,
             config=run.config,
             log=run.log,
