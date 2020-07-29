@@ -419,7 +419,7 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
     env = os.environ
     entity = entity or env.get("WANDB_ENTITY") or config.get('entity')
     project = project or env.get("WANDB_PROJECT") or config.get('project') or util.auto_project_name(
-        config.get("program"), api)
+        config.get("program"))
     sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
     wandb.termlog('{} sweep with ID: {}'.format(
         'Updated' if sweep_obj_id else 'Created',

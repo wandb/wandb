@@ -779,7 +779,8 @@ class Api(object):
             kwargs['num_retries'] = num_retries
 
         variable_values = {
-            'id': id, 'entity': entity or self.settings('entity'), 'name': name, 'project': project,
+            'id': id, 'entity': entity or self.settings('entity'), 'name': name,
+            'project': project or util.auto_project_name(program_path),
             'groupName': group, 'tags': tags,
             'description': description, 'config': config, 'commit': commit,
             'displayName': display_name, 'notes': notes,

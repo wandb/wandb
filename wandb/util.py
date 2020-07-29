@@ -44,6 +44,7 @@ import wandb
 import wandb.old.core
 from wandb.old.core import wandb_dir
 from wandb.errors.error import CommError
+from wandb.internal.git_repo import GitRepo
 # from wandb import wandb_config
 from wandb import env
 
@@ -898,9 +899,10 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def auto_project_name(program, api):
+def auto_project_name(program):
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = api.git.root_dir
+    repo = GitRepo()
+    root_dir = repo.root_dir
     if root_dir is None:
         return None
     repo_name = os.path.basename(root_dir)
