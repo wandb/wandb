@@ -241,7 +241,7 @@ Wandb class for plotly plots.
  
 
 ## Graph
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1315)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1314)
 ```python
 Graph(self, format='keras')
 ```
@@ -267,7 +267,7 @@ Graph.from_keras(keras_model)
  
 
 ## Node
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1471)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1470)
 ```python
 Node(self,
      id=None,
@@ -285,7 +285,7 @@ Node used in [`Graph`](#graph)
 
 
 ## Edge
-[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1637)
+[source](https://github.com/wandb/client/blob/master/wandb/data_types.py#L1636)
 ```python
 Edge(self, from_node, to_node)
 ```

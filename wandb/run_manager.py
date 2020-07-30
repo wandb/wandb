@@ -705,11 +705,11 @@ class RunManager(object):
         new_save_name = os.path.relpath(event.dest_path, self._run.dir)
         self._ensure_file_observer_is_unblocked()
 
-        # We have to move the existing file handler to the new name, and update the stats
+        # We have to move the existing file handler to the new name. The old file
+        # path is still sync'd as well (we don't try to delete the old path).
         handler = self._get_file_event_handler(event.src_path, old_save_name)
         self._file_event_handlers[new_save_name] = handler
         del self._file_event_handlers[old_save_name]
-        self._file_pusher.rename_file(old_save_name, new_save_name, event.dest_path)
 
         handler.on_renamed(event.dest_path, new_save_name)
 

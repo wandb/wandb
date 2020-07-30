@@ -24,7 +24,7 @@ from __future__ import absolute_import, print_function
 
 __author__ = """Chris Van Pelt"""
 __email__ = 'vanpelt@wandb.com'
-__version__ = '0.9.3'
+__version__ = '0.9.4'
 
 import atexit
 import click
@@ -128,7 +128,7 @@ def hook_torch(*args, **kwargs):
 _global_watch_idx = 0
 
 
-def watch(models, criterion=None, log="gradients", log_freq=100, idx=None):
+def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     """
     Hooks into a pytorch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
