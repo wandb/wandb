@@ -454,7 +454,7 @@ class Run(object):
             if type is not None and type != artifact.type:
                 raise ValueError('Supplied type {} does not match type {} of artifact {}'.format(
                     type, artifact.type, artifact.name))
-            self.api.use_artifact(artifact.id)
+            self.api.use_artifact(artifact.id, entity_name=self.entity, project_name=self.project_name())
             return artifact
         else:
             if isinstance(aliases, six.string_types):
