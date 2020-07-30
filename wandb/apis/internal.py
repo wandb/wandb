@@ -1031,6 +1031,13 @@ class Api(object):
         project_name = project_name or self.settings('project')
         run_name = run_name or self.current_run_id
 
+        print({
+            'entityName': entity_name,
+            'projectName': project_name,
+            'runName': run_name,
+            'artifactID': artifact_id,
+        })
+
         response = self.gql(query, variable_values={
             'entityName': entity_name,
             'projectName': project_name,
