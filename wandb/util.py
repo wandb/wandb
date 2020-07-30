@@ -41,7 +41,6 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
-import wandb.old.core
 from wandb.old.core import wandb_dir
 from wandb.errors.error import CommError
 from wandb.internal.git_repo import GitRepo
@@ -55,9 +54,11 @@ _not_importable = set()
 OUTPUT_FNAME = 'output.log'
 DIFF_FNAME = 'diff.patch'
 
+IS_GIT = os.path.exists(
+    os.path.join(os.path.dirname(__file__), '..', '.git'))
 
 # these match the environments for gorilla
-if wandb.old.core.IS_GIT:
+if IS_GIT:
     SENTRY_ENV = 'development'
 else:
     SENTRY_ENV = 'production'
