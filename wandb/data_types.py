@@ -1246,7 +1246,7 @@ class ImageMask(Media):
             shape = mask["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
-            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and issubclass(mask.dtype.type, np.integer):
+            if not ((mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()) and issubclass(mask["mask_data"].dtype.type, np.integer):
                 raise TypeError("Mask data must be integers between 0 and 255")
 
         # Optional argument
