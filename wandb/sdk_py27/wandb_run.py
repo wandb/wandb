@@ -19,6 +19,7 @@ import traceback
 
 import click
 from six import string_types
+from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
@@ -585,14 +586,16 @@ class RunManaged(Run):
         s = self._settings
         r = self._run_obj
         app_url = s.base_url.replace("//api.", "//app.")
-        url = "{}/{}/{}".format(app_url, r.entity, r.project)
+        url = "{}/{}/{}".format(app_url, url_quote(r.entity), url_quote(r.project))
         return url
 
     def _get_run_url(self):
         s = self._settings
         r = self._run_obj
         app_url = s.base_url.replace("//api.", "//app.")
-        url = "{}/{}/{}/runs/{}".format(app_url, r.entity, r.project, r.run_id)
+        url = "{}/{}/{}/runs/{}".format(
+            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id)
+        )
         return url
 
     def _get_run_name(self):
