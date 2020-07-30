@@ -29,7 +29,6 @@ Alternatively you can discuss problems in the [Public Slack Forum](http://bit.ly
 - Only supported commandline options: login, sweep, agent, controller
 - No code saving support for jupyter
 - No resume support
-- No anonymous support
 
 All these compatibility issues will be addressed in upcoming releases.
 
