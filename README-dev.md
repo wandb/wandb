@@ -112,7 +112,7 @@ tox -e dev
 
 ### Supported user interface
 
-All objects and methods that users are intended to interact with are in the wand/sdk directory.  Any
+All objects and methods that users are intended to interact with are in the wandb/sdk directory.  Any
 method on an object that is not prefixed with an underscore is part of the supported interface and should
 be documented.
 
@@ -127,7 +127,7 @@ of settings:
 
  - Enforced settings from organization, team, user, project
  - settings set by environment variables: WANDB_PROJECT=
- - settings passed to wand function: wandb.init(project=)
+ - settings passed to wandb function: wandb.init(project=)
  - Default settings from organization, team, project
  - settings in global settings file: ~/.config/wandb/settings
  - settings in local settings file: ./wandb/settings
@@ -172,13 +172,63 @@ run.log(dict(this=3))
 
 ### Steps
 
+#### import wandb
+
+- minimal code should be run on import
+
 #### wandb.init()
 
-- Creates a Run object (specifically RunManaged)
+User Process:
+
+- Calls internal wandb.setup() in case the user has not yet initialized the global wandb state
+- Sets up notification and request queues for communicating with internal process
+- Spawns internal process used for syncing passing queues and the settings object
+- Creates a Run object `RunManaged`
+- Encodes passed config dictionary into RunManaged object
+- Sends synchronous protocol buffer request message `RunData` to internal process
+- Wait for response for configurable amount of time.  Populate run object with response data
+- Terminal (sys.stdout, sys.stderr) is wrapped which sends output to internal process with `RunOutput` message
 - Sets a global Run object for users who use wandb.log() syntax
+- Run.on_start() is called to display initial information about the run
 - Returns Run object
 
-TODO(jhr): finish this
+Internal Process:
 
+- Process initialization
+- Wait on notify queue for work
+- When RunData message is seen, queue this message to be written to disk `wandb_write` and sent to cloud `wandb_send`
+- wandb_send thread sends upsert_run graphql http request
+- response is populated into a response message
+- Spin up internal threads which monitor system metrics
+- Queue response message to the user process context
 
-## Sync details
+#### run.config attribute setter
+
+User Process:
+
+- Callback on the Run object is called with the changed config item
+- Run object callback generates ConfigData message and asynchronously sends to internal process 
+
+Internal Process:
+
+- When ConfigData message is seen, queue message to wandb_write and wandb_send
+- wandb_send thread sends upsert_run grapql http request
+
+#### wandb.log()
+
+User process:
+
+- Log dictionary is serialized and sent asynchronously as HistoryData message to internal process
+
+Internal Process:
+
+- When HistoryData message is seen, queue message to wandb_write and wandb_send
+- wandb_send thread sends file_stream data to cloud server
+
+#### end of program or wandb.join()
+
+User process:
+
+- Terminal wrapper is shutdown and flushed to internal process
+- Exit code of program is captured and sent synchronously to internal process as ExitData
+- Run.on_final() is called to display final information about the run
