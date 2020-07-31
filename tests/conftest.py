@@ -143,21 +143,14 @@ def local_netrc(monkeypatch):
         yield
 
 
-@pytest.fixture()
-def local_settings(monkeypatch):
+@pytest.fixture(autouse=True)
+def local_settings(mocker):
     """Place global settings in an isolated dir"""
     with CliRunner().isolated_filesystem():
-        # TODO: this seems overkill...
-        origexpand = os.path.expanduser
-        cfg_path = os.path.join(".config", "wandb", "settings")
-
-        def expand(path):
-            if cfg_path in path:
-                return os.path.realpath(cfg_path)
-            else:
-                return origexpand(path)
-        monkeypatch.setattr(os.path, "expanduser", expand)
+        cfg_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
         mkdir_exists_ok(os.path.join(".config", "wandb"))
+        mocker.patch("wandb.old.settings.Settings._global_path",
+                     return_value=cfg_path)
         yield
 
 

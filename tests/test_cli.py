@@ -183,7 +183,7 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
-@pytest.mark.skip(reason="re-enable once anonymode is back")
+@pytest.mark.skip(reason="Just need to make the mocking work correctly")
 def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
         api = InternalApi()
@@ -559,7 +559,7 @@ def test_docker_digest(runner, docker):
 
 
 @pytest.mark.wandb_args(check_output=b"")
-def test_local_default(runner, docker):
+def test_local_default(runner, docker, local_settings):
     result = runner.invoke(cli.local)
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -584,7 +584,7 @@ def test_local_default(runner, docker):
 
 
 @pytest.mark.wandb_args(check_output=b"")
-def test_local_custom_port(runner, docker):
+def test_local_custom_port(runner, docker, local_settings):
     result = runner.invoke(cli.local, ["-p", "3030"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -609,7 +609,7 @@ def test_local_custom_port(runner, docker):
 
 
 @pytest.mark.wandb_args(check_output=b"")
-def test_local_custom_env(runner, docker):
+def test_local_custom_env(runner, docker, local_settings):
     result = runner.invoke(cli.local, ["-e", b"FOO=bar"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -635,7 +635,7 @@ def test_local_custom_env(runner, docker):
     )
 
 
-def test_local_already_running(runner, docker):
+def test_local_already_running(runner, docker, local_settings):
     result = runner.invoke(cli.local)
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))

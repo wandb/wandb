@@ -1,9 +1,12 @@
 import sys
+import platform
 import pytest
 
 
-pytestmark = pytest.mark.skipif(sys.version_info < (3, 5),
-                                reason="Our notebook fixture only works in py3")
+pytestmark = pytest.mark.skipif(
+    sys.version_info < (3, 5) or platform.system() == "Windows",
+    reason="Our notebook fixture only works in py3, windows was flaking",
+)
 
 
 def test_one_cell(notebook):

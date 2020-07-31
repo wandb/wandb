@@ -173,8 +173,8 @@ def test_custom_dir_env(wandb_init_run):
 
 def test_login_key(capsys):
     wandb.login(key="A" * 40)
-    # TODO: this could be indicative a bug, suddenly had to do this in tests
-    wandb.api.set_setting("base_url", "http://localhost:8080")
+    # TODO: this was a bug when tests were leaking out to the global config
+    # wandb.api.set_setting("base_url", "http://localhost:8080")
     out, err = capsys.readouterr()
     print(out)
     print(err)
