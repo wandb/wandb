@@ -12,16 +12,6 @@ service InternalService {
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
 }
 
-message RunUpdateResult {
-  RunData run = 1;
-}
-
-message RunExitResult {
-}
-
-message LogResult {
-}
-
 message ServerShutdownRequest {
 }
 

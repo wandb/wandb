@@ -309,7 +309,8 @@ class BackendSender(object):
 
         req = self._make_record(run=run)
         resp = self._request_response(req, timeout=timeout)
-        return resp
+        assert resp.run_result
+        return resp.run_result
 
     def send_run_sync(self, run_obj, timeout=None):
         run = self._make_run(run_obj)
@@ -347,7 +348,8 @@ class BackendSender(object):
         req = self._make_record(exit=exit_data)
 
         resp = self._request_response(req, timeout=timeout)
-        return resp
+        assert resp.exit_result
+        return resp.exit_result
 
     def send_exit_sync(self, exit_code, timeout=None):
         exit_data = self._make_exit(exit_code)

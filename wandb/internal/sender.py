@@ -106,7 +106,9 @@ class SendManager(object):
                 self._save_file(save_name)
 
         if data.control.req_resp:
-            self._resp_q.put(data)
+            # TODO: send something more than an empty result
+            resp = wandb_internal_pb2.ResultRecord()
+            self._resp_q.put(resp)
 
     def handle_run(self, data):
         run = data.run
@@ -139,25 +141,28 @@ class SendManager(object):
         )
 
         if data.control.req_resp:
+            resp = wandb_internal_pb2.ResultRecord()
+            resp.run_result.run.CopyFrom(run)
+            resp_run = resp.run_result.run
             storage_id = ups.get("id")
             if storage_id:
-                data.run.storage_id = storage_id
+                resp_run.storage_id = storage_id
             display_name = ups.get("displayName")
             if display_name:
-                data.run.display_name = display_name
+                resp_run.display_name = display_name
             project = ups.get("project")
             if project:
                 project_name = project.get("name")
                 if project_name:
-                    data.run.project = project_name
+                    resp_run.project = project_name
                     self._project = project_name
                 entity = project.get("entity")
                 if entity:
                     entity_name = entity.get("name")
                     if entity_name:
-                        data.run.entity = entity_name
+                        resp_run.entity = entity_name
                         self._entity = entity_name
-            self._resp_q.put(data)
+            self._resp_q.put(resp)
 
         if self._entity is not None:
             self._api_settings["entity"] = self._entity

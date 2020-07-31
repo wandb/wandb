@@ -19,90 +19,11 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"7\n\x0fRunUpdateResult\x12$\n\x03run\x18\x01 \x01(\x0b\x32\x17.wandb_internal.RunData\"\x0f\n\rRunExitResult\"\x0b\n\tLogResult\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\x9d\x03\n\x0fInternalService\x12G\n\tRunUpdate\x12\x17.wandb_internal.RunData\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12\x44\n\x07RunExit\x12\x18.wandb_internal.ExitData\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12?\n\x03Log\x12\x1b.wandb_internal.HistoryData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\x9d\x03\n\x0fInternalService\x12G\n\tRunUpdate\x12\x17.wandb_internal.RunData\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12\x44\n\x07RunExit\x12\x18.wandb_internal.ExitData\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12?\n\x03Log\x12\x1b.wandb_internal.HistoryData\x1a\x19.wandb_internal.LogResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,])
 
 
-
-
-_RUNUPDATERESULT = _descriptor.Descriptor(
-  name='RunUpdateResult',
-  full_name='wandb_internal.RunUpdateResult',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='run', full_name='wandb_internal.RunUpdateResult.run', index=0,
-      number=1, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=84,
-  serialized_end=139,
-)
-
-
-_RUNEXITRESULT = _descriptor.Descriptor(
-  name='RunExitResult',
-  full_name='wandb_internal.RunExitResult',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=141,
-  serialized_end=156,
-)
-
-
-_LOGRESULT = _descriptor.Descriptor(
-  name='LogResult',
-  full_name='wandb_internal.LogResult',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=158,
-  serialized_end=169,
-)
 
 
 _SERVERSHUTDOWNREQUEST = _descriptor.Descriptor(
@@ -124,8 +45,8 @@ _SERVERSHUTDOWNREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=171,
-  serialized_end=194,
+  serialized_start=84,
+  serialized_end=107,
 )
 
 
@@ -148,8 +69,8 @@ _SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=196,
-  serialized_end=218,
+  serialized_start=109,
+  serialized_end=131,
 )
 
 
@@ -172,8 +93,8 @@ _SERVERSTATUSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=220,
-  serialized_end=241,
+  serialized_start=133,
+  serialized_end=154,
 )
 
 
@@ -196,40 +117,15 @@ _SERVERSTATUSRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=243,
-  serialized_end=263,
+  serialized_start=156,
+  serialized_end=176,
 )
 
-_RUNUPDATERESULT.fields_by_name['run'].message_type = wandb_dot_proto_dot_wandb__internal__pb2._RUNDATA
-DESCRIPTOR.message_types_by_name['RunUpdateResult'] = _RUNUPDATERESULT
-DESCRIPTOR.message_types_by_name['RunExitResult'] = _RUNEXITRESULT
-DESCRIPTOR.message_types_by_name['LogResult'] = _LOGRESULT
 DESCRIPTOR.message_types_by_name['ServerShutdownRequest'] = _SERVERSHUTDOWNREQUEST
 DESCRIPTOR.message_types_by_name['ServerShutdownResult'] = _SERVERSHUTDOWNRESULT
 DESCRIPTOR.message_types_by_name['ServerStatusRequest'] = _SERVERSTATUSREQUEST
 DESCRIPTOR.message_types_by_name['ServerStatusResult'] = _SERVERSTATUSRESULT
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
-
-RunUpdateResult = _reflection.GeneratedProtocolMessageType('RunUpdateResult', (_message.Message,), {
-  'DESCRIPTOR' : _RUNUPDATERESULT,
-  '__module__' : 'wandb.proto.wandb_server_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunUpdateResult)
-  })
-_sym_db.RegisterMessage(RunUpdateResult)
-
-RunExitResult = _reflection.GeneratedProtocolMessageType('RunExitResult', (_message.Message,), {
-  'DESCRIPTOR' : _RUNEXITRESULT,
-  '__module__' : 'wandb.proto.wandb_server_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.RunExitResult)
-  })
-_sym_db.RegisterMessage(RunExitResult)
-
-LogResult = _reflection.GeneratedProtocolMessageType('LogResult', (_message.Message,), {
-  'DESCRIPTOR' : _LOGRESULT,
-  '__module__' : 'wandb.proto.wandb_server_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LogResult)
-  })
-_sym_db.RegisterMessage(LogResult)
 
 ServerShutdownRequest = _reflection.GeneratedProtocolMessageType('ServerShutdownRequest', (_message.Message,), {
   'DESCRIPTOR' : _SERVERSHUTDOWNREQUEST,
@@ -267,8 +163,8 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=266,
-  serialized_end=679,
+  serialized_start=179,
+  serialized_end=592,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',
@@ -276,7 +172,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     index=0,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNDATA,
-    output_type=_RUNUPDATERESULT,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNUPDATERESULT,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
@@ -285,7 +181,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     index=1,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._EXITDATA,
-    output_type=_RUNEXITRESULT,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNEXITRESULT,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
@@ -294,7 +190,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     index=2,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYDATA,
-    output_type=_LOGRESULT,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._LOGRESULT,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(

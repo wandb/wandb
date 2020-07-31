@@ -12,6 +12,7 @@ import grpc
 from wandb.interface import constants, interface
 from wandb.internal.internal import wandb_internal
 from wandb.lib import runid
+from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
 
@@ -26,18 +27,18 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def RunUpdate(self, run_data, context):  # noqa: N802
         if not run_data.run_id:
             run_data.run_id = runid.generate_id()
-        run = self._backend._interface._send_run_sync(run_data)
-        result = wandb_server_pb2.RunUpdateResult(run=run.run)
+        result = self._backend._interface._send_run_sync(run_data)
         return result
 
     def RunExit(self, exit_data, context):  # noqa: N802
-        _ = self._backend._interface._send_exit_sync(exit_data)
-        result = wandb_server_pb2.RunExitResult()
+        result = self._backend._interface._send_exit_sync(exit_data)
         return result
 
     def Log(self, log_data, context):  # noqa: N802
+        # TODO: make this sync?
         self._backend._interface._send_history(log_data)
-        result = wandb_server_pb2.LogResult()
+        # make up a response even though this was async
+        result = wandb_internal_pb2.LogResult()
         return result
 
     def ServerShutdown(self, request, context):  # noqa: N802
@@ -81,6 +82,9 @@ class Backend:
             _internal_check_process=0,
             _disable_meta=True,
             _disable_stats=True,
+            git_remote=None,
+            program=None,
+            ignore_globs=(),
         )
 
         mp = multiprocessing

@@ -348,7 +348,8 @@ def wandb_internal(  # noqa: C901
                     rec = req_queue.get()
                     # check if reqresp set
                     send_queue.put(rec)
-                    write_queue.put(rec)
+                    if not rec.control.local:
+                        write_queue.put(rec)
                 else:
                     print("unknown", i)
                 _check_process(settings, parent_pid)

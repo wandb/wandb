@@ -19,6 +19,7 @@ message Record {
     ArtifactData    artifact = 8;
     RunData         run = 17;
     ExitData        exit = 18;
+    StatusData      status = 19;
   }
   Control       control = 16;
 }
@@ -28,6 +29,7 @@ message Record {
  */
 message Control {
   bool req_resp = 1;
+  bool local = 2;  /* should not be persisted or synchronized */
 }
 
 /*
@@ -200,4 +202,33 @@ message StoragePolicyConfigItem {
  */
 message ExitData {
   int32 exit_code = 1;
+}
+
+
+message StatusData {
+}
+
+/*
+ * Result objects
+ */
+message RunUpdateResult {
+  RunData run = 1;
+}
+
+message RunExitResult {
+}
+
+message LogResult {
+}
+
+message StatusResult {
+}
+
+message ResultRecord {
+  oneof data {
+    RunUpdateResult run_result = 17;
+    RunExitResult   exit_result = 18;
+    StatusResult    status_result = 19;
+    LogResult       log_result = 20;
+  }
 }

@@ -4,6 +4,7 @@ from wandb.interface import interface
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from pytest_mock import _get_mock_module  # type: ignore
+from wandb.proto import wandb_internal_pb2  # type: ignore
 
 
 class ProcessMock(Process):
@@ -57,7 +58,8 @@ class BackendMock(object):
         self.interface._hack_set_run(run)
 
     def _request_response(self, rec, timeout=5):
-        return rec
+        resp = wandb_internal_pb2.ResultRecord()
+        return resp
 
     def _proto_to_dict(self, obj_list):
         d = dict()
