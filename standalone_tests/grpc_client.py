@@ -46,6 +46,28 @@ def make_run_data(data):
     return rdata
 
 
+def make_summary(summary_dict, obj=None):
+    summary = obj or wandb_internal_pb2.SummaryData()
+    for k, v in six.iteritems(summary_dict):
+        update = summary.update.add()
+        update.key = k
+        update.value_json = json.dumps(v)
+    return summary
+
+
+def make_output(name, data):
+    if name == "stdout":
+        otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+    elif name == "stderr":
+        otype = wandb_internal_pb2.OutputData.OutputType.STDERR
+    else:
+        # TODO(jhr): throw error?
+        print("unknown type")
+    outdata = wandb_internal_pb2.OutputData(output_type=otype, line=data)
+    outdata.timestamp.GetCurrentTime()
+    return outdata
+
+
 class WandbInternalClient(object):
     def __init__(self):
         self._channel = None
@@ -66,15 +88,27 @@ class WandbInternalClient(object):
         req = make_log_data(data)
         _ = self._stub.Log(req)
 
+    def config(self, data):
+        req = make_config(data)
+        _ = self._stub.Config(req)
+
+    def summary(self, data):
+        req = make_summary(data)
+        _ = self._stub.Summary(req)
+
+    def output(self, outtype, data):
+        req = make_output(outtype, data)
+        _ = self._stub.Output(req)
+
     def exit(self, data):
         req = make_exit_data(data)
         _ = self._stub.RunExit(req)
 
-    def status(self):
+    def server_status(self):
         req = wandb_server_pb2.ServerStatusRequest()
         _ = self._stub.ServerStatus(req)
 
-    def shutdown(self):
+    def server_shutdown(self):
         req = wandb_server_pb2.ServerShutdownRequest()
         _ = self._stub.ServerShutdown(req)
 
@@ -107,6 +141,10 @@ def main():
     wic.log(dict(this=2, _step=1))
     wic.log(dict(this=3, _step=2))
     wic.log(dict(this=4, _step=3))
+    wic.config(dict(parm5=55, parm6=66))
+    wic.summary(dict(sum2=4, sum3=3))
+    wic.output("stdout", "Hello world\n")
+    wic.output("stderr", "I am an error\n")
     time.sleep(2)
     print(
         "Your run ({}) is complete: {}/{}/{}/runs/{}".format(
@@ -115,7 +153,7 @@ def main():
     )
     wic.exit(dict(exit_code=0))
 
-    wic.shutdown()
+    wic.server_shutdown()
 
 
 if __name__ == "__main__":

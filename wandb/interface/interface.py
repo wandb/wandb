@@ -81,8 +81,11 @@ class BackendSender(object):
             print("unknown type")
         o = wandb_internal_pb2.OutputData(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
+        self._send_output(o)
+
+    def _send_output(self, outdata):
         rec = wandb_internal_pb2.Record()
-        rec.output.CopyFrom(o)
+        rec.output.CopyFrom(outdata)
         self._queue_process(rec)
 
     def _send_history(self, history):
@@ -288,11 +291,17 @@ class BackendSender(object):
 
     def send_config(self, config_dict):
         cfg = self._make_config(config_dict)
+        self._send_config(cfg)
+
+    def _send_config(self, cfg):
         rec = self._make_record(config=cfg)
         self._queue_process(rec)
 
     def send_summary(self, summary_dict):
         summary = self._make_summary(summary_dict)
+        self._send_summary(summary)
+
+    def _send_summary(self, summary):
         rec = self._make_record(summary=summary)
         self._queue_process(rec)
 

@@ -224,11 +224,23 @@ message LogResult {
 message StatusResult {
 }
 
+message SummaryResult {
+}
+
+message OutputResult {
+}
+
+message ConfigResult {
+}
+
 message ResultRecord {
   oneof data {
     RunUpdateResult run_result = 17;
     RunExitResult   exit_result = 18;
     StatusResult    status_result = 19;
     LogResult       log_result = 20;
+    SummaryResult   summary_result = 21;
+    OutputResult    output_result = 22;
+    ConfigResult    config_result = 23;
   }
 }

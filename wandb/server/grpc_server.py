@@ -41,6 +41,27 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = wandb_internal_pb2.LogResult()
         return result
 
+    def Summary(self, summary_data, context):  # noqa: N802
+        # TODO: make this sync?
+        self._backend._interface._send_summary(summary_data)
+        # make up a response even though this was async
+        result = wandb_internal_pb2.SummaryResult()
+        return result
+
+    def Output(self, output_data, context):  # noqa: N802
+        # TODO: make this sync?
+        self._backend._interface._send_output(output_data)
+        # make up a response even though this was async
+        result = wandb_internal_pb2.OutputResult()
+        return result
+
+    def Config(self, config_data, context):  # noqa: N802
+        # TODO: make this sync?
+        self._backend._interface._send_config(config_data)
+        # make up a response even though this was async
+        result = wandb_internal_pb2.ConfigResult()
+        return result
+
     def ServerShutdown(self, request, context):  # noqa: N802
         self._backend.cleanup()
         result = wandb_server_pb2.ServerShutdownResult()
@@ -81,7 +102,7 @@ class Backend:
             _internal_queue_timeout=20,
             _internal_check_process=0,
             _disable_meta=True,
-            _disable_stats=True,
+            _disable_stats=False,
             git_remote=None,
             program=None,
             ignore_globs=(),
