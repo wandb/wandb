@@ -200,6 +200,24 @@ class RunManaged(Run):
             return None
         return self._run_obj.display_name
 
+    @name.setter
+    def name(self, name):
+        self._name = name
+        if self._backend:
+            self._backend.interface.send_run(self)
+
+    @property
+    def notes(self):
+        if not self._run_obj:
+            return None
+        return self._run_obj.notes
+
+    @notes.setter
+    def notes(self, notes):
+        self._notes = notes
+        if self._backend:
+            self._backend.interface.send_run(self)
+
     @property
     def id(self):
         return self._run_id
@@ -932,3 +950,11 @@ class RunManaged(Run):
         self._use_redirect = use_redirect
         self._stdout_slave_fd = stdout_slave_fd
         self._stderr_slave_fd = stderr_slave_fd
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        exit_code = 0 if exc_type is None else 1
+        self.join(exit_code)
+        return exc_type is None

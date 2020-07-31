@@ -130,6 +130,7 @@ keras = _lazyloader.LazyLoader("wandb.keras", globals(), "wandb.framework.keras"
 sklearn = _lazyloader.LazyLoader("wandb.sklearn", globals(), "wandb.sklearn")
 tensorflow = _lazyloader.LazyLoader("wandb.tensorflow", globals(), "wandb.tensorflow")
 xgboost = _lazyloader.LazyLoader("wandb.xgboost", globals(), "wandb.framework.xgboost")
+gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.framework.gym")
 lightgbm = _lazyloader.LazyLoader(
     "wandb.lightgbm", globals(), "wandb.framework.lightgbm"
 )
