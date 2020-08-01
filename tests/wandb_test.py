@@ -19,9 +19,9 @@ def test_log_silent(wandb_init_run, capsys):
 
 
 def test_log_only_strings_as_keys(wandb_init_run):
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         wandb.log({1: 1000})
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         wandb.log({("tup", "idx"): 1000})
 
 

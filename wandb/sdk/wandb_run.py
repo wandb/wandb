@@ -120,6 +120,7 @@ class RunManaged(Run):
         self._save_stderr = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
+        self._exit_code = None
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -445,6 +446,9 @@ class RunManaged(Run):
         if not isinstance(data, collections.Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
+        if any(not isinstance(key, string_types) for key in data.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
         if step is not None:
             if self.history._step > step:
                 wandb.termwarn(
@@ -716,17 +720,10 @@ class RunManaged(Run):
 
         exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
         logger.info("got exitcode: %d", exit_code)
-        ret = self._backend.interface.send_exit_sync(exit_code, timeout=60)
-        logger.info("got exit ret: %s", ret)
-        if ret is None:
-            print("Problem syncing data")
-            os._exit(1)
 
-        #  TODO: close the logging file handler
-
-        self.on_finish()
-
-        self.on_final()
+        self._exit_code = exit_code
+        self._on_finish()
+        self._on_final()
 
     def _console_start(self):
         logger.info("atexit reg")
@@ -744,7 +741,7 @@ class RunManaged(Run):
     def _console_stop(self):
         self._restore()
 
-    def on_start(self):
+    def _on_start(self):
         wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
         if self._run_obj:
             run_state_str = "Syncing run"
@@ -756,12 +753,21 @@ class RunManaged(Run):
         print("")
         self._console_start()
 
-    def on_finish(self):
+    def _on_finish(self):
+        # make sure all uncommitted history is flushed
+        self.history._flush()
+
+        ret = self._backend.interface.send_exit_sync(self._exit_code, timeout=60)
+        logger.info("got exit ret: %s", ret)
+        if ret is None:
+            print("Problem syncing data")
+            os._exit(1)
+
+        #  TODO: close the logging file handler
         self._console_stop()
         self._backend.cleanup()
-        pass
 
-    def on_final(self):
+    def _on_final(self):
         # check for warnings and errors, show log file locations
         # if self._run_obj:
         #    self._display_run()

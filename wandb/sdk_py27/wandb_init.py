@@ -334,7 +334,7 @@ class _WandbInit(object):
             log_artifact=run.log_artifact,
         )
         self._reporter.set_context(run=run)
-        run.on_start()
+        run._on_start()
 
         return run
 
