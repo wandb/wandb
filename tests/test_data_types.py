@@ -52,9 +52,6 @@ def test_bind_image(mocked_run):
     wb_image.bind_to_run(mocked_run, 'stuff', 10)
     assert wb_image.is_bound()
 
-    with pytest.raises(RuntimeError):
-        wb_image.bind_to_run(mocked_run, 'stuff', 10)
-
 
 full_box = {
     "position": {

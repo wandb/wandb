@@ -50,6 +50,9 @@ def _datatypes_callback(fname):
         _glob_datatypes_callback(fname)
 # cling above
 
+def wb_filename(key, step, id, extension):
+    return  '{}_{}_{}{}'.format(key, step, id, extension)
+
 
 class WBValue(object):
     """Abstract parent class for things that can be logged by wandb.log() and
@@ -183,39 +186,33 @@ class Media(WBValue):
             raise AssertionError('bind_to_run called before _set_file')
         if run is None:
             raise TypeError('Argument "run" must not be None.')
-        if self.is_bound():
-            raise RuntimeError('Value is already bound to a Run: {}'.format(self))
         self._run = run
 
-        # This is a flawed way of checking whether the file is already in
-        # the Run directory. It'd be better to check the actual directory
-        # components.
-        if not os.path.realpath(self._path).startswith(os.path.realpath(self._run.dir)):
-            base_path = os.path.join(self._run.dir, self.get_media_subdir())
+        base_path = os.path.join(self._run.dir, self.get_media_subdir())
 
-            if self._extension is None:
-                rootname, extension = os.path.splitext(os.path.basename(self._path))
-            else:
-                extension = self._extension
-                rootname = os.path.basename(self._path)[:-len(extension)]
+        if self._extension is None:
+            rootname, extension = os.path.splitext(os.path.basename(self._path))
+        else:
+            extension = self._extension
+            rootname = os.path.basename(self._path)[:-len(extension)]
 
-            if id_ is None:
-                id_ = self._sha256[:8]
+        if id_ is None:
+            id_ = self._sha256[:8]
 
-            file_path = '{}_{}_{}{}'.format(key, step, id_, extension)
-            media_path = os.path.join(self.get_media_subdir(), file_path)
-            new_path = os.path.join(base_path, file_path)
-            util.mkdir_exists_ok(os.path.dirname(new_path))
+        file_path = wb_filename(key, step, id_, extension)
+        media_path = os.path.join(self.get_media_subdir(), file_path)
+        new_path = os.path.join(base_path, file_path)
+        util.mkdir_exists_ok(os.path.dirname(new_path))
 
-            if self._is_tmp:
-                shutil.move(self._path, new_path)
-                self._path = new_path
-                self._is_tmp = False
-                _datatypes_callback(media_path)
-            else:
-                shutil.copy(self._path, new_path)
-                self._path = new_path
-                _datatypes_callback(media_path)
+        if self._is_tmp:
+            shutil.move(self._path, new_path)
+            self._path = new_path
+            self._is_tmp = False
+            _datatypes_callback(media_path)
+        else:
+            shutil.copy(self._path, new_path)
+            self._path = new_path
+            _datatypes_callback(media_path)
 
     def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
@@ -273,7 +270,7 @@ class Table(Media):
         self.data = list(rows or data or [])
         if dataframe is not None:
             assert util.is_pandas_data_frame(dataframe), 'dataframe argument expects a `Dataframe` object'
-            self.columns = dataframe.columns.to_list()
+            self.columns = list(dataframe.columns)
             self.data = []
             for row in range(len(dataframe)):
                 self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
@@ -879,6 +876,8 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
             self._image = PILImage.open(data_or_path)
+            ext = os.path.splitext(data_or_path)[1][1:]
+            self.format = ext
         else:
             data = data_or_path
 
@@ -906,6 +905,7 @@ class Image(BatchableMedia):
 
             tmp_path = os.path.join(
                 MEDIA_TMP.name, util.generate_id() + '.png')
+            self.format = "png"
             self._image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True)
 
@@ -928,7 +928,7 @@ class Image(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
         json_dict['_type'] = 'image-file'
-        json_dict['format'] = "png"
+        json_dict['format'] = self.format
 
         if self._width is not None:
             json_dict['width'] = self._width
@@ -993,8 +993,10 @@ class Image(BatchableMedia):
 
         jsons = [obj.to_json(run) for obj in images]
 
+        media_dir = cls.get_media_subdir()
+
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = util.to_forward_slash_path(media_dir)
             if not obj['path'].startswith(expected):
                 raise ValueError('Files in an array of Image\'s must be in the {} directory, not {}'.format(
                     cls.get_media_subdir(), obj['path']))
