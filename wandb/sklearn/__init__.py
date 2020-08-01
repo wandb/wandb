@@ -513,7 +513,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
         indices = np.argsort(importances)[::-1]
 
-        if feature_names is None:
+        if feature_names == None:
             feature_names = indices
         else:
             feature_names = np.array(feature_names)[indices]
