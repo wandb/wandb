@@ -1,5 +1,5 @@
 """
-wandb framework tensorboard module.
+wandb integration tensorboard module.
 """
 
 from .monkeypatch import patch

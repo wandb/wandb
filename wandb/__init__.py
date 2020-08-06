@@ -126,14 +126,14 @@ log_artifact = _preinit.PreInitCallable(
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}
 
-keras = _lazyloader.LazyLoader("wandb.keras", globals(), "wandb.framework.keras")
+keras = _lazyloader.LazyLoader("wandb.keras", globals(), "wandb.integration.keras")
 sklearn = _lazyloader.LazyLoader("wandb.sklearn", globals(), "wandb.sklearn")
-tensorflow = _lazyloader.LazyLoader("wandb.tensorflow", globals(), "wandb.framework.tensorflow")
-xgboost = _lazyloader.LazyLoader("wandb.xgboost", globals(), "wandb.framework.xgboost")
-tensorboard = _lazyloader.LazyLoader("wandb.tensorboard", globals(), "wandb.framework.tensorboard")
-gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.framework.gym")
+tensorflow = _lazyloader.LazyLoader("wandb.tensorflow", globals(), "wandb.integration.tensorflow")
+xgboost = _lazyloader.LazyLoader("wandb.xgboost", globals(), "wandb.integration.xgboost")
+tensorboard = _lazyloader.LazyLoader("wandb.tensorboard", globals(), "wandb.integration.tensorboard")
+gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.integration.gym")
 lightgbm = _lazyloader.LazyLoader(
-    "wandb.lightgbm", globals(), "wandb.framework.lightgbm"
+    "wandb.lightgbm", globals(), "wandb.integration.lightgbm"
 )
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
