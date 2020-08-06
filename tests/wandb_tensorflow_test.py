@@ -6,7 +6,6 @@ import os
 import six
 import tensorflow as tf
 import wandb
-from wandb import tensorflow as wandb_tensorflow
 from wandb import wandb_sdk
 
 
@@ -39,7 +38,7 @@ def test_tf_log():
 
     history._set_callback(spy_cb)
 
-    wandb_tensorflow.log(SUMMARY_PB, history=history)
+    wandb.tensorboard.log(SUMMARY_PB, history=history)
     history.add({})  # Flush the previous row.
     assert len(summaries_logged) == 1
     summary = summaries_logged[0]
@@ -106,10 +105,10 @@ def test_hook():
         tf_summary.scalar("c1", c1)
         summary_op = tf_summary.merge_all()
 
-        hook = wandb_tensorflow.WandbHook(summary_op, history=history, steps_per_log=1)
+        hook = wandb.tensorflow.WandbHook(summary_op, history=history, steps_per_log=1)
         with MonitoredTrainingSession(hooks=[hook]) as sess:
             summary, acc = sess.run([summary_op, c1])
         history.add({})  # Flush the previous row.
 
-    assert wandb_tensorflow.tf_summary_to_dict(summary) == {"c1": 42.0}
+    assert wandb.tensorboard.tf_summary_to_dict(summary) == {"c1": 42.0}
     assert summaries_logged[0]["c1"] == 42.0

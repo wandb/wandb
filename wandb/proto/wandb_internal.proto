@@ -20,6 +20,7 @@ message Record {
     RunData         run = 17;
     ExitData        exit = 18;
     StatusData      status = 19;
+    TBData          tbdata = 20;
   }
   Control       control = 16;
 }
@@ -206,6 +207,11 @@ message ExitData {
 
 
 message StatusData {
+}
+
+message TBData {
+  string log_dir = 1;
+  bool   save = 2;
 }
 
 /*

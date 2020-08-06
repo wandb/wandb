@@ -418,6 +418,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             console = "redirect"
             if self.jupyter:
                 console = "off"
+            if self.windows:
+                console = "off"
             u["console"] = console
 
         # For code saving, only allow env var override if value from server is true, or

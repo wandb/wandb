@@ -96,7 +96,7 @@ jobs:
                   command: |
                       ulimit -n 1024
                       python3 -m tox -v -e py37
-                  no_output_timeout: 5m
+                  no_output_timeout: 10m
     final:
         docker:
             - image: python:3.7

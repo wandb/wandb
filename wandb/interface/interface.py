@@ -88,6 +88,13 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._queue_process(rec)
 
+    def send_tbdata(self, log_dir, save):
+        tbdata = wandb_internal_pb2.TBData()
+        tbdata.log_dir = log_dir
+        tbdata.save = save
+        rec = wandb_internal_pb2.Record(tbdata=tbdata)
+        self._queue_process(rec)
+
     def _send_history(self, history):
         rec = self._make_record(history=history)
         self._queue_process(rec)

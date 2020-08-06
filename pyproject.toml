@@ -15,4 +15,5 @@ include = '''
 | wandb/util/
 | wandb/server/
 | wandb/framework/gym/
+| wandb/framework/tensorboard/
 '''

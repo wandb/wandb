@@ -94,8 +94,6 @@ class _WandbInit(object):
             "allow_val_change",
             "resume",
             "force",
-            "tensorboard",
-            "sync_tensorboard",
         )
         for key in unsupported:
             val = kwargs.pop(key, None)
@@ -107,6 +105,11 @@ class _WandbInit(object):
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()
+
+        tensorboard = kwargs.pop("tensorboard", None)
+        sync_tensorboard = kwargs.pop("sync_tensorboard", None)
+        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
+            wandb.tensorboard.patch()
 
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future or at least
