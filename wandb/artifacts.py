@@ -232,6 +232,7 @@ class Artifact(object):
             for entry in self._manifest.entries.values():
                 remap_entry(entry)
 
+
 class ArtifactSaver(object):
     def __init__(self, api, digest, server_manifest_entries, manifest_json, file_pusher=None, is_user_created=False):
         # NOTE: manifest_entries are LocalManifestEntry but they get converted to
@@ -282,9 +283,8 @@ class ArtifactSaver(object):
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
             return self._server_artifact
-        elif self._server_artifact['state'] != 'PENDING':
-            # TODO: what to do in this case?
-            raise Exception('Server artifact not in PENDING state', self._server_artifact)
+        elif self._server_artifact['state'] != 'PENDING' and self._server_artifact['state'] != 'DELETED':
+            raise Exception('Unknown artifact state "{}"'.format(self._server_artifact['state'])))
 
         # Upload Artifact "L0" files. This should only be artifact_manifest.json. We need to use
         # the use_prepare_flow, so that the file entry is created in our database before the
