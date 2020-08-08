@@ -573,9 +573,9 @@ class Api(object):
         """Check if a run exists and get resume information.
 
         Args:
-            entity (str, optional): The entity to scope this project to.
+            entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
-            run (str, optional): The run to download
+            run (str): The run to download
         """
         query = gql('''
         query Model($project: String!, $entity: String, $name: String!) {
@@ -766,6 +766,7 @@ class Api(object):
                         }
                     }
                 }
+                inserted
             }
         }
         ''')
@@ -800,7 +801,7 @@ class Api(object):
             if entity:
                 self.set_setting('entity', entity['name'])
 
-        return response['upsertBucket']['bucket']
+        return response['upsertBucket']['bucket'], response['upsertBucket']['inserted']
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
@@ -1302,15 +1303,6 @@ class Api(object):
                 responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
             open_file.close()
         return responses
-
-    def get_file_stream_api(self):
-        """This creates a new file pusher thread.  Call start to initiate the thread that talks to W&B"""
-        if not self._file_stream_api:
-            if self._current_run_id is None:
-                raise UsageError(
-                    'Must have a current run to use file stream API.')
-            self._file_stream_api = FileStreamApi(self, self._current_run_id)
-        return self._file_stream_api
 
     def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
         query = gql('''

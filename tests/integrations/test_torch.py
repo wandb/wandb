@@ -140,7 +140,7 @@ def test_all_logging(wandb_init_run):
         grads = torch.ones(32, 10)
         output.backward(grads)
         wandb.log({"a": 2})
-        assert(len(wandb.run._backend.history[0]) == 18)
+        assert(len(wandb.run._backend.history[0]) == 20)
         assert(
             len(wandb.run._backend.history[0]['parameters/fc2.bias']['bins']) == 65)
         assert(

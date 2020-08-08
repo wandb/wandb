@@ -10,6 +10,7 @@ import logging
 
 import six
 from six.moves import queue
+import wandb
 from wandb import data_types
 from wandb.interface import constants
 from wandb.proto import wandb_internal_pb2  # type: ignore
@@ -111,7 +112,6 @@ class BackendSender(object):
     def _make_run(self, run):
         proto_run = wandb_internal_pb2.RunData()
         run._make_proto_run(proto_run)
-        proto_run.start_time.GetCurrentTime()
         proto_run.host = run._settings.host
         if run._config is not None:
             config_dict = run._config._as_dict()
@@ -231,6 +231,14 @@ class BackendSender(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
+    def _make_login(self, api_key=None, anonymous=None):
+        login = wandb_internal_pb2.LoginData()
+        if api_key:
+            login.api_key = api_key
+        if anonymous:
+            login.anonymous = anonymous
+        return login
+
     def _make_record(
         self,
         run=None,
@@ -241,6 +249,7 @@ class BackendSender(object):
         stats=None,
         exit=None,
         artifact=None,
+        login=None,
     ):
         rec = wandb_internal_pb2.Record()
         if run:
@@ -259,6 +268,8 @@ class BackendSender(object):
             rec.exit.CopyFrom(exit)
         if artifact:
             rec.artifact.CopyFrom(artifact)
+        if login:
+            rec.login.CopyFrom(login)
         return rec
 
     def _queue_process(self, rec):
@@ -290,6 +301,18 @@ class BackendSender(object):
 
         # returns response, err
         return rsp
+
+    def send_login_sync(self, api_key=None, anonymous=None, timeout=5):
+        login = self._make_login(api_key, anonymous)
+        rec = self._make_record(login=login)
+        resp = self._request_response(rec, timeout=timeout)
+        if resp is None:
+            # TODO: friendlier error message here
+            raise wandb.Error(
+                "Couldn't communicate with backend after %s seconds" % timeout
+            )
+        assert resp.login_result
+        return resp.login_result
 
     def send_run(self, run_obj):
         run = self._make_run(run_obj)
@@ -325,6 +348,11 @@ class BackendSender(object):
 
         req = self._make_record(run=run)
         resp = self._request_response(req, timeout=timeout)
+        if resp is None:
+            # TODO: friendlier error message here
+            raise wandb.Error(
+                "Couldn't communicate with backend after %s seconds" % timeout
+            )
         assert resp.run_result
         return resp.run_result
 
@@ -364,6 +392,11 @@ class BackendSender(object):
         req = self._make_record(exit=exit_data)
 
         resp = self._request_response(req, timeout=timeout)
+        if resp is None:
+            # TODO: friendlier error message here
+            raise wandb.Error(
+                "Couldn't communicate with backend after %s seconds" % timeout
+            )
         assert resp.exit_result
         return resp.exit_result
 

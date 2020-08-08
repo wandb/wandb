@@ -31,10 +31,7 @@ class DefaultFilePolicy(object):
         }
 
 
-class JsonlFilePolicy(object):
-    def __init__(self, start_chunk_id=0):
-        self._chunk_id = start_chunk_id
-
+class JsonlFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
@@ -53,7 +50,7 @@ class JsonlFilePolicy(object):
         }
 
 
-class SummaryFilePolicy(object):
+class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
         if len(data) > MAX_LINE_SIZE:
@@ -66,7 +63,7 @@ class SummaryFilePolicy(object):
         }
 
 
-class CRDedupeFilePolicy(object):
+class CRDedupeFilePolicy(DefaultFilePolicy):
     """File stream policy that removes characters that would be erased by
     carriage returns.
 
@@ -74,9 +71,6 @@ class CRDedupeFilePolicy(object):
     amount of data we need to send over the network (eg. for progress bars),
     while preserving the output's appearance in the web app.
     """
-
-    def __init__(self, start_chunk_id=0):
-        self._chunk_id = start_chunk_id
 
     def process_chunks(self, chunks):
         content = []
@@ -95,10 +89,7 @@ class CRDedupeFilePolicy(object):
         }
 
 
-class BinaryFilePolicy(object):
-    def __init__(self):
-        self._offset = 0
-
+class BinaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = b''.join([c.data for c in chunks])
         enc = base64.b64encode(data).decode('ascii')
@@ -124,12 +115,13 @@ class FileStreamApi(object):
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, settings=None):
+    def __init__(self, api, run_id, start_time, settings=None):
         if settings is None:
             settings = dict()
         self._settings = settings
         self._api = api
         self._run_id = run_id
+        self._start_time = start_time
         self._client = requests.Session()
         self._client.auth = ('api', api.api_key)
         self._client.timeout = self.HTTP_TIMEOUT
@@ -174,7 +166,7 @@ class FileStreamApi(object):
         return self._api.dynamic_settings["heartbeat_seconds"]
 
     def rate_limit_seconds(self):
-        run_time = time.time() - wandb.START_TIME
+        run_time = time.time() - self._start_time
         if run_time < 60:
             return max(1, self.heartbeat_seconds / 15)
         elif run_time < 300:
@@ -243,6 +235,7 @@ class FileStreamApi(object):
         chunks.sort(key=lambda c: c.filename)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
             file_chunks = list(file_chunks)  # groupby returns iterator
+            # Specific file policies are set by internal/sender.py
             self.set_default_file_policy(filename, DefaultFilePolicy())
             files[filename] = self._file_policies[filename].process_chunks(
                 file_chunks)

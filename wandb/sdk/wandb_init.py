@@ -14,6 +14,7 @@ import time
 from six import raise_from, reraise
 import wandb
 from wandb.backend.backend import Backend
+from wandb.errors.error import UsageError
 from wandb.lib import console as lib_console
 from wandb.lib import filesystem, module, reporting
 from wandb.old import io_wrap
@@ -47,6 +48,7 @@ class _WandbInit(object):
         self.run = None
         self.backend = None
 
+        self._log_handler = None
         self._wl = None
         self._reporter = None
 
@@ -58,13 +60,12 @@ class _WandbInit(object):
 
         """
         self.kwargs = kwargs
-
         # Some settings should be persisted across multiple runs the first
         # time setup is called.
         # TODO: Is this the best way to do this?
         session_settings_keys = ["anonymous"]
         session_settings = {k: kwargs[k] for k in session_settings_keys}
-        self._wl = wandb.setup(settings=session_settings)
+        self._wl = wandb.setup(settings=session_settings, _warn=False)
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
@@ -92,7 +93,6 @@ class _WandbInit(object):
             "config_exclude_keys",
             "config_include_keys",
             "allow_val_change",
-            "resume",
             "force",
         )
         for key in unsupported:
@@ -161,8 +161,10 @@ class _WandbInit(object):
         if run_id:
             handler.addFilter(WBFilter())
         logger.propagate = False
-        logger.setLevel(logging.DEBUG)
         logger.addHandler(handler)
+        # TODO: make me configurable
+        logger.setLevel(logging.DEBUG)
+        self._wl.set_log_handler(handler)
 
     def _safe_symlink(self, base, target, name, delete=False):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
@@ -264,14 +266,11 @@ class _WandbInit(object):
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
-                wandb.join()
+                self._wl._global_run_stack[-1].join()
 
         if s.mode == "noop":
             # TODO(jhr): return dummy object
             return None
-
-        # Make sure we are logged in
-        wandb.login()
 
         console = s.console
         use_redirect = True
@@ -293,6 +292,8 @@ class _WandbInit(object):
             use_redirect=use_redirect,
         )
         backend.server_connect()
+        # Make sure we are logged in
+        wandb.login(backend=backend)
 
         # resuming needs access to the server, check server_status()?
 
@@ -308,13 +309,18 @@ class _WandbInit(object):
         # TODO: pass mode to backend
         # run_synced = None
 
-        self._wl._global_run_stack.append(run)
-
         backend._hack_set_run(run)
 
         if s.mode == "online":
             ret = backend.interface.send_run_sync(run, timeout=30)
-            # TODO: fail on error, check return type
+            # TODO: fail on more errors, check return type
+            # TODO: make the backend log stacktraces on catostrophic failure
+            if ret.HasField("error"):
+                # Shutdown the backend and get rid of the logger
+                # we don't need to do console cleanup at this point
+                backend.cleanup()
+                self._wl.on_finish()
+                raise UsageError(ret.error.message)
             run._set_run_obj(ret.run)
         elif s.mode in ("offline", "dryrun"):
             backend.interface.send_run(run)
@@ -323,6 +329,7 @@ class _WandbInit(object):
             # TODO: on network error, do async run save
             backend.interface.send_run(run)
 
+        self._wl._global_run_stack.append(run)
         self.run = run
         self.backend = backend
         module.set_global(
@@ -368,7 +375,7 @@ def init(
     disable: bool = None,
     offline: bool = None,
     allow_val_change: bool = None,
-    resume=None,
+    resume: Optional[Union[bool, str]] = None,
     force=None,
     tensorboard=None,  # alias for sync_tensorboard
     sync_tensorboard=None,
@@ -402,15 +409,16 @@ def init(
                 sentry_exc(e)
             getcaller()
             assert logger
-            logger.exception("we got issues")
             if wi.settings.problem == "fatal":
                 raise
             if wi.settings.problem == "warn":
                 pass
             run = RunDummy()
+    except UsageError:
+        raise
     except KeyboardInterrupt as e:
         assert logger
-        logger.warning("interupted", exc_info=e)
+        logger.warning("interrupted", exc_info=e)
         raise_from(Exception("interrupted"), e)
     except Exception as e:
         assert logger

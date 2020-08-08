@@ -12,3 +12,5 @@ wandb_ng.egg-info
 docs/themes/
 docs/.generated-files.txt
 docs/config.toml
+tests/logs/*
+!tests/logs/cleanup.sh

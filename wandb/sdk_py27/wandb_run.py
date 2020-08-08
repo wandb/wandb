@@ -15,6 +15,7 @@ import logging
 import os
 import platform
 import sys
+import time
 import traceback
 
 import click
@@ -37,6 +38,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
 
 logger = logging.getLogger("wandb")
+EXIT_TIMEOUT = 60
 
 
 class Run(object):
@@ -80,7 +82,6 @@ class ExitHooks(object):
         if self.was_ctrl_c():
             self.exit_code = 255
 
-        print("except handle")
         traceback.print_exception(exc_type, exc, *tb)
 
 
@@ -90,7 +91,7 @@ class RunManaged(Run):
         self._config._set_callback(self._config_callback)
         self.summary = wandb_summary.Summary()
         self.summary._set_callback(self._summary_callback)
-        self.history = wandb_history.History()
+        self.history = wandb_history.History(self)
         self.history._set_callback(self._history_callback)
 
         _datatypes_set_callback(self._datatypes_callback)
@@ -106,6 +107,8 @@ class RunManaged(Run):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
+        self._start_time = time.time()
+        self._starting_step = 0
         self._name = None
         self._notes = None
         self._tags = None
@@ -179,6 +182,8 @@ class RunManaged(Run):
         if self._tags is not None:
             for tag in self._tags:
                 run.tags.append(tag)
+        if self._start_time is not None:
+            run.start_time.FromSeconds(int(self._start_time))
         # Note: run.config is set in interface/interface:_make_run()
 
     def __getstate__(self):
@@ -230,6 +235,28 @@ class RunManaged(Run):
             if e is not None:
                 parts.append(e)
         return "/".join(parts)
+
+    @property
+    def start_time(self):
+        if not self._run_obj:
+            return self._start_time
+        else:
+            return self._run_obj.start_time.ToSeconds()
+
+    @property
+    def starting_step(self):
+        if not self._run_obj:
+            return self._starting_step
+        else:
+            return self._run_obj.starting_step
+
+    @property
+    def resumed(self):
+        return self._starting_step > 0
+
+    @property
+    def step(self):
+        return self.history._step
 
     def project_name(self, api=None):
         if not self._run_obj:
@@ -310,6 +337,8 @@ class RunManaged(Run):
 
     def _set_run_obj(self, run_obj):
         self._run_obj = run_obj
+        # TODO: Update run summary when resuming?
+        self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
 
@@ -469,7 +498,6 @@ class RunManaged(Run):
                 self.history._step = step
         elif commit is None:
             commit = True
-        #  TODO: ensure history is pushed on exit for non-added rows
         if commit:
             self.history._row_add(data)
         else:
@@ -603,6 +631,8 @@ class RunManaged(Run):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        # detach logger, other setup cleanup
+        self._wl.on_finish()
         self._atexit_cleanup(exit_code=exit_code)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -724,6 +754,10 @@ class RunManaged(Run):
 
         exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
         logger.info("got exitcode: %d", exit_code)
+        if exit_code == 0:
+            # Cleanup our resume file on a clean exit
+            if os.path.exists(self._settings.resume_fname):
+                os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
         self._on_finish()
@@ -748,7 +782,10 @@ class RunManaged(Run):
     def _on_start(self):
         wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
         if self._run_obj:
-            run_state_str = "Syncing run"
+            if self.resumed:
+                run_state_str = "Resuming run"
+            else:
+                run_state_str = "Syncing run"
             run_name = self._get_run_name()
             wandb.termlog(
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
@@ -761,15 +798,20 @@ class RunManaged(Run):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        ret = self._backend.interface.send_exit_sync(self._exit_code, timeout=60)
-        logger.info("got exit ret: %s", ret)
-        if ret is None:
-            print("Problem syncing data")
-            os._exit(1)
-
-        #  TODO: close the logging file handler
-        self._console_stop()
-        self._backend.cleanup()
+        # TODO: we need to handle catastrophic failure better
+        # some tests were timing out on sending exit for reasons not clear to me
+        try:
+            ret = self._backend.interface.send_exit_sync(
+                self._exit_code, timeout=EXIT_TIMEOUT
+            )
+            logger.info("got exit ret: %s", ret)
+            if ret is None:
+                # TODO: do we really want to exit here?
+                print("Problem syncing data")
+                os._exit(1)
+        finally:
+            self._console_stop()
+            self._backend.cleanup()
 
     def _on_final(self):
         # check for warnings and errors, show log file locations

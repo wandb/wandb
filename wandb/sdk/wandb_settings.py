@@ -22,6 +22,7 @@ import configparser
 import copy
 import datetime
 import getpass
+import json
 import logging
 import os
 import platform
@@ -96,6 +97,7 @@ env_settings = dict(
     disable_code=None,
     anonymous=None,
     ignore_globs=None,
+    resume=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -204,6 +206,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_id: str = None,
         run_name: str = None,
         run_notes: str = None,
+        resume: str = None,
         run_tags=None,
         sweep_id=None,
         # compatibility / error handling
@@ -236,6 +239,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
         log_user=None,  # computed
         log_internal=None,  # computed
+        resume_fname_spec="{wandb_dir}/wandb-resume.json",
+        resume_fname=None,  # computed
         files_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}/files",
         files_dir=None,  # computed
         symlink=None,  # probed
@@ -332,6 +337,10 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
             _logger.info("setting env: {}".format(env_dict))
             self.update(env_dict, _setter="env")
+        # TODO: is this the right place to do this?
+        self.update(
+            {"resume_fname": self._path_convert(self.__dict__.get("resume_fname_spec"))}
+        )
 
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
@@ -537,6 +546,33 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             dir="root_dir",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
+        # fun logic to convert the resume init arg
+        if args.get("resume") is not None:
+            if isinstance(args["resume"], six.string_types):
+                if args["resume"] not in ("allow", "must", "never", "auto"):
+                    if args.get("run_id") is None:
+                        #  TODO: deprecate or don't support
+                        args["run_id"] = args["resume"]
+                    args["resume"] = "allow"
+            elif args["resume"] is True:
+                args["resume"] = "auto"
         self.update(args)
-        self.run_id = self.run_id or generate_id()
         self.wandb_dir = get_wandb_dir(self.root_dir or ".")
+        # handle auto resume logic
+        if self.resume == "auto":
+            if os.path.exists(self.resume_fname):
+                with open(self.resume_fname) as f:
+                    resume_run_id = json.load(f)["run_id"]
+                if self.run_id is None:
+                    self.run_id = resume_run_id
+                else:
+                    wandb.termwarn(
+                        "Tried to auto resume run with id %s but id %s is set."
+                        % (resume_run_id, self.run_id)
+                    )
+        self.run_id = self.run_id or generate_id()
+        # persist our run id incase of failure
+        if self.resume == "auto":
+            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            with open(self.resume_fname, "w") as f:
+                f.write(json.dumps({"run_id": self.run_id}))

@@ -5,6 +5,7 @@ internal.
 
 from __future__ import print_function
 
+import atexit
 import logging
 import multiprocessing
 import os
@@ -33,7 +34,30 @@ from . import update
 logger = logging.getLogger(__name__)
 
 
+_exited = False
+
+
+@atexit.register
+def handle_exit(*args):
+    global _exited
+    if not _exited:
+        _exited = True
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        if exc_traceback:
+            logger.exception("Internal process exited with exception:")
+        else:
+            logger.info("Process exited cleanly")
+
+
+# TODO: we may want this someday, but are avoiding it now to avoid conflicts
+# signal.signal(signal.SIGTERM, handle_exit)
+# signal.signal(signal.SIGINT, handle_exit)
+
+
 def setup_logging(log_fname, log_level, run_id=None):
+    # TODO: we may want make prints and stdout make it into the logs
+    # sys.stdout = open(settings.log_internal, "a")
+    # sys.stderr = open(settings.log_internal, "a")
     handler = logging.FileHandler(log_fname)
     handler.setLevel(log_level)
 
@@ -164,19 +188,6 @@ def _get_stdout_stderr_streams():
     stdout_streams = [stdout, output_log]
     stderr_streams = [stderr, output_log]
 
-    #        if self._cloud:
-    #            # Tee stdout/stderr into our TextOutputStream,
-    #            # which will push lines to the cloud.
-    #            fs_api = self._api.get_file_stream_api()
-    #            self._stdout_stream = streaming_log.TextStreamPusher(
-    #                fs_api, util.OUTPUT_FNAME, prepend_timestamp=True)
-    #            self._stderr_stream = streaming_log.TextStreamPusher(
-    #                fs_api, util.OUTPUT_FNAME, line_prepend='ERROR',
-    #                prepend_timestamp=True)
-    #
-    #            stdout_streams.append(self._stdout_stream)
-    #            stderr_streams.append(self._stderr_stream)
-
     return stdout_streams, stderr_streams
 
 
@@ -195,8 +206,10 @@ def _check_process(settings, pid):
 
     exists = psutil.pid_exists(pid)
     if not exists:
+        logger.warning("Internal process exiting, parent pid %s disappeared" % pid)
         # my_pid = os.getpid()
         # print("badness: process gone", pid, my_pid)
+        handle_exit()
         os._exit(-1)
 
 
@@ -224,11 +237,12 @@ def wandb_internal(  # noqa: C901
 
     # Lets make sure we dont modify settings so use a static object
     settings = settings_static.SettingsStatic(settings)
-
     if settings.log_internal:
         setup_logging(settings.log_internal, log_level)
 
     pid = os.getpid()
+
+    logger.info("W&B internal server running at pid: %s", pid)
 
     system_stats = None
     if not settings._disable_stats:

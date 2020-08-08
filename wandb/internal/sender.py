@@ -56,11 +56,22 @@ class SendManager(object):
         self._dir_watcher = None
         self._tb_watcher = None
 
-        # is anyone using run_id?
-        self._run_id = None
-
+        # State updated by login
         self._entity = None
+        self._flags = None
+
+        # State updated by wandb.init
+        self._run = None
         self._project = None
+
+        # State updated by resuming
+        self._offsets = {
+            "step": 0,
+            "history": 0,
+            "events": 0,
+            "output": 0,
+            "runtime": 0,
+        }
 
         self._api = internal_api.Api(default_settings=settings)
         self._api_settings = dict()
@@ -100,9 +111,24 @@ class SendManager(object):
             tbdata = data.tbdata
             self._tb_watcher.add(tbdata.log_dir, tbdata.save)
 
+    def handle_login(self, data):
+        # TODO: do something with api_key or anonymous?
+        # TODO: return an error if we aren't logged in?
+        viewer = self._api.viewer()
+        self._flags = json.loads(viewer.get("flags", "{}"))
+        self._entity = viewer.get("entity")
+        if data.control.req_resp:
+            resp = wandb_internal_pb2.ResultRecord()
+            login_result = wandb_internal_pb2.LoginResult()
+            login_result.active_entity = self._entity
+            resp.login_result.CopyFrom(login_result)
+            self._resp_q.put(resp)
+
     def handle_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
+
+        logger.info("handling exit code: %s", exit.exit_code)
 
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
@@ -118,17 +144,69 @@ class SendManager(object):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, run_dir)
-                logger.info("scan save: %s %s", file_path, save_name)
                 self._save_file(save_name)
 
         if data.control.req_resp:
+            logger.info("informing user process exit was handled")
             # TODO: send something more than an empty result
             resp = wandb_internal_pb2.ResultRecord()
             self._resp_q.put(resp)
 
+    def _maybe_setup_resume(self, run):
+        """This maybe queries the backend for a run and fails if the settings are
+        incompatible."""
+        error = None
+        if self._settings.resume:
+            # TODO: This causes a race, we need to make the upsert atomically
+            # only create or update depending on the resume config
+            # we use the runs entity if set, otherwise fallback to users entity
+            entity = run.entity or self._entity
+            logger.info(
+                "checking resume status for %s/%s/%s", entity, run.project, run.run_id
+            )
+            resume_status = self._api.run_resume_status(
+                entity=entity, project_name=run.project, name=run.run_id
+            )
+            logger.info("resume status %s", resume_status)
+            if resume_status is None:
+                if self._settings.resume == "must":
+                    error = wandb_internal_pb2.ErrorData()
+                    error.code = wandb_internal_pb2.ErrorData.ErrorCode.INVALID
+                    error.message = (
+                        "resume='must' but run (%s) doesn't exist" % run.run_id
+                    )
+            else:
+                if self._settings.resume == "never":
+                    error = wandb_internal_pb2.ErrorData()
+                    error.code = wandb_internal_pb2.ErrorData.ErrorCode.INVALID
+                    error.message = "resume='never' but run (%s) exists" % run.run_id
+                elif self._settings.resume in ("allow", "auto"):
+                    history = {}
+                    events = {}
+                    try:
+                        history = json.loads(
+                            json.loads(resume_status["historyTail"])[-1]
+                        )
+                        events = json.loads(json.loads(resume_status["eventsTail"])[-1])
+                    except (IndexError, ValueError) as e:
+                        logger.error("unable to load resume tails", exc_info=e)
+                    # TODO: Do we need to restore config / summary?
+                    # System metrics runtime is usually greater than history
+                    events_rt = events.get("_runtime", 0)
+                    history_rt = history.get("_runtime", 0)
+                    self._offsets["runtime"] = max(events_rt, history_rt)
+                    self._offsets["step"] = history.get("_step", -1) + 1
+                    self._offsets["history"] = resume_status["historyLineCount"]
+                    self._offsets["events"] = resume_status["eventsLineCount"]
+                    self._offsets["output"] = resume_status["logLineCount"]
+                    logger.info("configured resuming with: %s" % self._offsets)
+        return error
+
     def handle_run(self, data):
         run = data.run
         run_tags = run.tags[:]
+        error = None
+        is_wandb_init = self._run is None
 
         # build config dict
         config_dict = None
@@ -139,7 +217,23 @@ class SendManager(object):
 
         repo = GitRepo(remote=self._settings.git_remote)
 
-        ups = self._api.upsert_run(
+        if is_wandb_init:
+            # Only check resume status on `wandb.init`
+            error = self._maybe_setup_resume(run)
+
+        if error is not None:
+            if data.control.req_resp:
+                resp = wandb_internal_pb2.ResultRecord()
+                resp.run_result.run.CopyFrom(run)
+                resp.run_result.error.CopyFrom(error)
+                self._resp_q.put(resp)
+            else:
+                logger.error("Got error in async mode: %s", error.message)
+            return
+
+        # TODO: we don't check inserted currently, ultimately we should make
+        # the upsert know the resume state and fail transactionally
+        ups, inserted = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -156,46 +250,73 @@ class SendManager(object):
             commit=repo.last_commit,
         )
 
+        # We subtract the previous runs runtime when resuming
+        start_time = run.start_time.ToSeconds() - self._offsets["runtime"]
+        self._run = run
+        self._run.starting_step = self._offsets["step"]
+        self._run.start_time.FromSeconds(start_time)
+        storage_id = ups.get("id")
+        if storage_id:
+            self._run.storage_id = storage_id
+        display_name = ups.get("displayName")
+        if display_name:
+            self._run.display_name = display_name
+        project = ups.get("project")
+        if project:
+            project_name = project.get("name")
+            if project_name:
+                self._run.project = project_name
+                self._project = project_name
+            entity = project.get("entity")
+            if entity:
+                entity_name = entity.get("name")
+                if entity_name:
+                    self._run.entity = entity_name
+                    self._entity = entity_name
+
         if data.control.req_resp:
             resp = wandb_internal_pb2.ResultRecord()
-            resp.run_result.run.CopyFrom(run)
-            resp_run = resp.run_result.run
-            storage_id = ups.get("id")
-            if storage_id:
-                resp_run.storage_id = storage_id
-            display_name = ups.get("displayName")
-            if display_name:
-                resp_run.display_name = display_name
-            project = ups.get("project")
-            if project:
-                project_name = project.get("name")
-                if project_name:
-                    resp_run.project = project_name
-                    self._project = project_name
-                entity = project.get("entity")
-                if entity:
-                    entity_name = entity.get("name")
-                    if entity_name:
-                        resp_run.entity = entity_name
-                        self._entity = entity_name
+            resp.run_result.run.CopyFrom(self._run)
             self._resp_q.put(resp)
 
         if self._entity is not None:
             self._api_settings["entity"] = self._entity
         if self._project is not None:
             self._api_settings["project"] = self._project
-        self._fs = file_stream.FileStreamApi(
-            self._api, run.run_id, settings=self._api_settings
-        )
-        self._fs.start()
-        self._pusher = FilePusher(self._api)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
-        self._tb_watcher = tb_watcher.TBWatcher(self._settings, sender=self)
-        self._run_id = run.run_id
-        if self._run_meta:
-            self._run_meta.write()
-        sentry_set_scope("internal", run.entity, run.project)
-        logger.info("run started: %s", self._run_id)
+
+        # Only spin up our threads on the first run message
+        if is_wandb_init:
+            self._fs = file_stream.FileStreamApi(
+                self._api, run.run_id, start_time, settings=self._api_settings
+            )
+            # Ensure the streaming polices have the proper offsets
+            self._fs.set_file_policy(
+                "wandb-summary.json", file_stream.SummaryFilePolicy()
+            )
+            self._fs.set_file_policy(
+                "wandb-history.jsonl",
+                file_stream.JsonlFilePolicy(start_chunk_id=self._offsets["history"]),
+            )
+            self._fs.set_file_policy(
+                "wandb-events.jsonl",
+                file_stream.JsonlFilePolicy(start_chunk_id=self._offsets["events"]),
+            )
+            self._fs.set_file_policy(
+                "output.log",
+                file_stream.CRDedupeFilePolicy(start_chunk_id=self._offsets["output"]),
+            )
+            self._fs.start()
+            self._pusher = FilePusher(self._api)
+            self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
+            self._tb_watcher = tb_watcher.TBWatcher(self._settings, sender=self)
+            if self._run_meta:
+                self._run_meta.write()
+            sentry_set_scope("internal", run.entity, run.project)
+            logger.info(
+                "run started: %s with start time %s", self._run.run_id, start_time
+            )
+        else:
+            logger.info("updated run: %s", self._run.run_id)
 
     def _save_history(self, history_dict):
         if self._fs:
@@ -239,7 +360,7 @@ class SendManager(object):
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now
-        row["_runtime"] = int(now - self._settings._start_time)
+        row["_runtime"] = int(now - self._run.start_time.ToSeconds())
         self._fs.push("wandb-events.jsonl", json.dumps(row))
         # TODO(jhr): check fs.push results?
 
@@ -273,17 +394,14 @@ class SendManager(object):
         cfg = data.config
         config_dict = _config_dict_from_proto_list(cfg.update)
         self._api.upsert_run(
-            name=self._run_id, config=config_dict, **self._api_settings
+            name=self._run.run_id, config=config_dict, **self._api_settings
         )
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         save_config_file_from_dict(config_path, config_dict)
         # TODO(jhr): check result of upsert_run?
 
     def _save_file(self, fname, policy="end"):
-        directory = self._settings.files_dir
-        logger.info("saving file %s at %s", fname, directory)
-        path = os.path.abspath(os.path.join(directory, fname))
-        logger.info("saving file %s at full %s", fname, path)
+        logger.info("saving file %s with policy %s", fname, policy)
         self._dir_watcher.update_policy(fname, policy)
 
     def handle_files(self, data):
@@ -312,6 +430,7 @@ class SendManager(object):
         )
 
     def finish(self):
+        logger.info("shutting down sender")
         if self._tb_watcher:
             self._tb_watcher.finish()
         if self._dir_watcher:

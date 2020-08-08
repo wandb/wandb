@@ -20,7 +20,7 @@ def _validate_anonymous_setting(anon_str):
     return anon_str in ["must", "allow", "never"]
 
 
-def login(api=None, relogin=None, key=None, anonymous=None):
+def login(backend=None, relogin=None, key=None, anonymous=None):
     """Log in to W&B.
 
     Args:
@@ -38,7 +38,7 @@ def login(api=None, relogin=None, key=None, anonymous=None):
         return
 
     settings = {}
-    api = api or Api()
+    api = Api()
 
     if anonymous is not None:
         # TODO: Move this check into wandb_settings probably.
@@ -54,12 +54,17 @@ def login(api=None, relogin=None, key=None, anonymous=None):
     # wandb.setup was previously called. If wandb.setup is called further up,
     # you must make sure the anonymous setting (and any other settings) are
     # already properly set up there.
-    wl = wandb.setup(settings=settings)
+    wl = wandb.setup(settings=settings, _warn=False)
     settings = wl.settings()
 
     active_entity = None
     if is_logged_in():
-        active_entity = wl._get_entity()
+        # TODO: do we want to move all login logic to the backend?
+        if backend:
+            res = backend.interface.send_login_sync(key, anonymous)
+            active_entity = res.active_entity
+        else:
+            active_entity = wl._get_entity()
     if active_entity and not relogin:
         login_state_str = "Currently logged in as:"
         login_info_str = "(use `wandb login --relogin` to force relogin)"
@@ -89,7 +94,7 @@ def login(api=None, relogin=None, key=None, anonymous=None):
 
 def api_key(settings=None):
     if not settings:
-        wl = wandb.setup()
+        wl = wandb.setup(_warn=False)
         settings = wl.settings()
     if settings.api_key:
         return settings.api_key
@@ -100,6 +105,6 @@ def api_key(settings=None):
 
 
 def is_logged_in(settings=None):
-    wl = wandb.setup(settings=settings)
+    wl = wandb.setup(settings=settings, _warn=False)
     settings = wl.settings()
     return api_key(settings=settings) is not None

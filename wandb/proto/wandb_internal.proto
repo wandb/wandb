@@ -17,6 +17,7 @@ message Record {
     FilesData       files = 6;
     StatsData       stats = 7;
     ArtifactData    artifact = 8;
+    LoginData       login = 9;
     RunData         run = 17;
     ExitData        exit = 18;
     StatusData      status = 19;
@@ -31,6 +32,14 @@ message Record {
 message Control {
   bool req_resp = 1;
   bool local = 2;  /* should not be persisted or synchronized */
+}
+
+/*
+ * LoginData: wandb/sdk/wandb_login#login()
+ */
+message LoginData {
+  string api_key = 1;
+  string anonymous = 2;
 }
 
 /*
@@ -50,6 +59,7 @@ message RunData {
   SettingsData settings = 11;
   string sweep_id = 12;
   string host = 13;
+  int64 starting_step = 14;
 
   string storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
@@ -205,6 +215,18 @@ message ExitData {
   int32 exit_code = 1;
 }
 
+message ErrorData {
+  enum ErrorCode {
+    UNKNOWN = 0;
+    INVALID = 1;
+    PERMISSION = 2;
+    NETWORK = 3;
+    INTERNAL = 4;
+  }
+  string  message = 1;
+  ErrorCode code = 2;
+}
+
 
 message StatusData {
 }
@@ -219,6 +241,7 @@ message TBData {
  */
 message RunUpdateResult {
   RunData run = 1;
+  ErrorData error = 2;
 }
 
 message RunExitResult {
@@ -239,6 +262,10 @@ message OutputResult {
 message ConfigResult {
 }
 
+message LoginResult {
+  string active_entity = 1;
+}
+
 message ResultRecord {
   oneof data {
     RunUpdateResult run_result = 17;
@@ -248,5 +275,6 @@ message ResultRecord {
     SummaryResult   summary_result = 21;
     OutputResult    output_result = 22;
     ConfigResult    config_result = 23;
+    LoginResult     login_result = 24;
   }
 }

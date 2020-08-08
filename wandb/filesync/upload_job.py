@@ -1,10 +1,12 @@
 import collections
 import os
+import logging
 import threading
 
 import wandb
 
 EventJobDone = collections.namedtuple('EventJobDone', ('job', 'success'))
+logger = logging.getLogger(__file__)
 
 
 class UploadJob(threading.Thread):
@@ -54,6 +56,7 @@ class UploadJob(threading.Thread):
                     lambda _, t: self._stats.update_uploaded_file(self.save_path, t))
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
+                logger.exception("Failed to upload file: %s", self.save_path)
                 wandb.util.sentry_exc(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
@@ -64,7 +67,10 @@ class UploadJob(threading.Thread):
                 return False
 
             if deduped:
+                logger.info("Skipped uploading %s", self.save_path)
                 self._stats.set_file_deduped(self.save_path)
+            else:
+                logger.info("Uploaded file %s", self.save_path)
             return True
 
         if self.md5:
@@ -84,6 +90,7 @@ class UploadJob(threading.Thread):
             upload_url = file_info['url']
 
         if upload_url is None:
+            logger.info("Skipped uploading %s", self.save_path)
             self._stats.set_file_deduped(self.save_name)
         else:
             extra_headers = {}
@@ -102,8 +109,10 @@ class UploadJob(threading.Thread):
                         f,
                         lambda _, t: self.progress(t),
                         extra_headers=extra_headers)
+                logger.info("Uploaded file %s", self.save_path)
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
+                logger.exception("Failed to upload file: %s", self.save_path)
                 wandb.util.sentry_exc(e)
                 wandb.termerror('Error uploading "{}": {}, {}'.format(
                     self.save_name, type(e).__name__, e))

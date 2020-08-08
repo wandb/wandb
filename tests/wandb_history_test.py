@@ -15,17 +15,18 @@ class MockCallback(object):
         self.row = row
 
 
-def test_row_add():
+def test_row_add(mocked_run):
     m = MockCallback()
-    h = wandb_sdk.History()
+    h = wandb_sdk.History(mocked_run)
     h._set_callback(m.callback)
     h._row_add(dict(this=2))
-    assert m.row == dict(this=2, _step=0)
+    assert m.row["this"] == 2
+    assert m.row["_step"] == 0
 
 
-def test_row_update():
+def test_row_update(mocked_run):
     m = MockCallback()
-    h = wandb_sdk.History()
+    h = wandb_sdk.History(mocked_run)
     h._set_callback(m.callback)
     h._row_update(dict(this=2)) 
-    assert m.row == None
+    assert m.row is None

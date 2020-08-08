@@ -1,4 +1,5 @@
 import os
+import logging
 import tempfile as builtin_tempfile
 import time
 from six.moves import queue
@@ -30,6 +31,9 @@ warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wan
 # reduce the probability that the file gets changed while we're
 # uploading it.
 TMP_DIR = tempfile.TemporaryDirectory('wandb')
+
+
+logger = logging.getLogger(__file__)
 
 
 class FilePusher(object):
@@ -127,6 +131,7 @@ class FilePusher(object):
         self._incoming_queue.put(event)
 
     def finish(self):
+        logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish())
 
     def is_alive(self):

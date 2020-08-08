@@ -1,3 +1,7 @@
+"""These test the high level sdk methods by mocking out the backend.
+See wandb_integration_test.py for tests that launch a real backend against
+a live backend server.
+"""
 import wandb
 import pytest
 import tempfile

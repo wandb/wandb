@@ -9,12 +9,13 @@ from wandb.errors.term import termerror
 
 
 RequestUpload = collections.namedtuple(
-    'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5', 'copied', 'save_fn', 'digest'))
+    'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5', 'copied',
+                            'save_fn', 'digest'))
 RequestCommitArtifact = collections.namedtuple(
     'RequestCommitArtifact', ('artifact_id', 'on_commit'))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
-    
+
 class StepUpload(object):
     def __init__(self, api, stats, event_queue, max_jobs):
         self._api = api

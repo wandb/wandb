@@ -29,8 +29,8 @@ else:
     get_or_create_global_step = tf.compat.v1.train.get_or_create_global_step
 
 
-def test_tf_log():
-    history = wandb_sdk.History()
+def test_tf_log(mocked_run):
+    history = wandb_sdk.History(mocked_run)
     summaries_logged = []
 
     def spy_cb(row, step=None):
@@ -67,6 +67,8 @@ def test_tf_log():
     assert all(isinstance(hist, wandb.Histogram) for hist in histos)
     assert summary == {
         "_step": 0,
+        "_runtime": summary["_runtime"],
+        "_timestamp": summary["_timestamp"],
         "accuracy_1": 0.8799999952316284,
         "cross_entropy_1": 0.37727174162864685,
         "dropout/dropout_keep_probability": 0.8999999761581421,
@@ -89,8 +91,8 @@ def test_tf_log():
     }
 
 
-def test_hook():
-    history = wandb_sdk.History()
+def test_hook(mocked_run):
+    history = wandb_sdk.History(mocked_run)
     summaries_logged = []
 
     def spy_cb(row, step=None):

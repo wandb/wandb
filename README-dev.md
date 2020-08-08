@@ -83,12 +83,15 @@ tox -e py37 -- --open-files
 `tests/conftest.py` contains a number of helpful fixtures automatically exposed to all tests as arguments for testing the app:
 
 - `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
+- `local_settings` - used automatically for all tests and patches the global settings path to an isolated directory.
+- `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`.  See `tests/wandb_integration_test.py`
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`.  This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
 - `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling wandb.init).  No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`.  See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
 - `mock_server` - mocks all calls to the `requests` module with sane defaults.  You can customize `tests/utils/mock_server.py` to use context or add api calls.
-- `live_mock_server` - actually starts a background process to serve up mock_server requests
+- `live_mock_server` - we start a live flask server when tests start.  live_mock_server configures WANDB_BASE_URL point to this server.  You can alter or get it's context with the `get_ctx` and `set_ctx` methods.  See `tests/wandb_integration_test.py`.  NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
 - `git_repo` — places the test context into an isolated git repository
+- `test_dir` - places the test into `tests/logs/NAME_OF_TEST` this is useful for looking at debug logs.  This is used by `test_settings`
 - `notebook` — gives you a context manager for reading a notebook providing `execute_cell`.  See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`.  This uses `live_mock_server` to enable actual api calls in a notebook context.
 
 ## Live development

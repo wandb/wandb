@@ -126,8 +126,9 @@ def test_plot_classifier(dummy_classifier, wandb_init_run):
         ["fur", "sound"],
     )
 
+    hist = wandb.run._backend.history
     logged_keys = [
-        [k for k in r.keys() if k != "_step"][0] for r in wandb.run._backend.history
+        [k for k in r.keys() if not k.startswith("_")][0] for r in hist
     ]
     assert logged_keys == [
         "feature_importances",
