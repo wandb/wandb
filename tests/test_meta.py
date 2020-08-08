@@ -8,6 +8,16 @@ from wandb.internal.sender import SendManager
 
 
 @pytest.fixture()
+def process_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def notify_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
 def resp_q():
     return queue.Queue()
 
@@ -25,7 +35,7 @@ def meta(test_settings, req_q):
 @pytest.fixture()
 def sm(runner, git_repo, resp_q, test_settings, meta, mock_server, mocked_run, req_q):
     test_settings.root_dir = os.getcwd()
-    sm = SendManager(test_settings, resp_q)
+    sm = SendManager(test_settings, process_q, notify_q, resp_q)
     meta._interface.send_run(mocked_run)
     sm.send(req_q.get())
     yield sm
@@ -43,5 +53,6 @@ def test_meta_probe(mock_server, meta, sm, req_q):
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
     assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
+
 
 # TODO: test actual code saving

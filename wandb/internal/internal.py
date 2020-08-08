@@ -126,9 +126,11 @@ def wandb_read(settings, q, data_q, stopped):
     # ds.close()
 
 
-def wandb_send(settings, q, resp_q, read_q, data_q, stopped, run_meta):
+def wandb_send(
+    settings, process_q, notify_q, q, resp_q, read_q, data_q, stopped, run_meta
+):
 
-    sh = sender.SendManager(settings, resp_q, run_meta)
+    sh = sender.SendManager(settings, process_q, notify_q, resp_q, run_meta)
 
     while not stopped.isSet():
         try:
@@ -313,6 +315,8 @@ def wandb_internal(  # noqa: C901
         target=wandb_send,
         args=(
             settings,
+            process_queue,
+            notify_queue,
             send_queue,
             resp_queue,
             read_queue,

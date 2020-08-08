@@ -10,6 +10,16 @@ from wandb.interface.interface import BackendSender
 
 
 @pytest.fixture()
+def process_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def notify_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
 def resp_q():
     return queue.Queue()
 
@@ -27,19 +37,19 @@ def sender(req_q, resp_q):
 
 
 @pytest.fixture()
-def sm(runner, resp_q, test_settings, sender, mock_server, mocked_run, req_q):
+def sm(runner, process_q, notify_q, resp_q, test_settings, sender, mock_server, mocked_run, req_q):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        sm = SendManager(test_settings, resp_q)
+        sm = SendManager(test_settings, process_q, notify_q, resp_q)
         sender.send_run(mocked_run)
         sm.send(req_q.get())
         yield sm
 
 
-def test_resume_success(mocked_run, test_settings, mock_server, sender, req_q, resp_q):
+def test_resume_success(mocked_run, test_settings, mock_server, sender, process_q, notify_q, req_q, resp_q):
     test_settings.resume = "allow"
     mock_server.ctx["resume"] = True
-    sm = SendManager(test_settings, resp_q)
+    sm = SendManager(test_settings, process_q, notify_q, resp_q)
     sender.send_run(mocked_run)
     payload = req_q.get()
     payload.control.req_resp = True
@@ -51,11 +61,11 @@ def test_resume_success(mocked_run, test_settings, mock_server, sender, req_q, r
 
 
 def test_resume_error_never(
-    mocked_run, test_settings, mock_server, sender, req_q, resp_q
+    mocked_run, test_settings, mock_server, sender, process_q, notify_q, req_q, resp_q
 ):
     test_settings.resume = "never"
     mock_server.ctx["resume"] = True
-    sm = SendManager(test_settings, resp_q)
+    sm = SendManager(test_settings, process_q, notify_q, resp_q)
     sender.send_run(mocked_run)
     payload = req_q.get()
     payload.control.req_resp = True
@@ -69,11 +79,11 @@ def test_resume_error_never(
 
 
 def test_resume_error_must(
-    mocked_run, test_settings, mock_server, sender, req_q, resp_q
+    mocked_run, test_settings, mock_server, sender, process_q, notify_q, req_q, resp_q
 ):
     test_settings.resume = "must"
     mock_server.ctx["resume"] = False
-    sm = SendManager(test_settings, resp_q)
+    sm = SendManager(test_settings, process_q, notify_q, resp_q)
     sender.send_run(mocked_run)
     payload = req_q.get()
     payload.control.req_resp = True

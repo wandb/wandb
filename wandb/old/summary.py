@@ -13,11 +13,11 @@ import wandb
 from wandb import util
 from wandb import data_types
 from wandb.apis.internal import Api
+from wandb.lib.filenames import SUMMARY_FNAME
 from six import string_types
 
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
-SUMMARY_FNAME = 'wandb-summary.json'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 
 h5py = util.get_module("h5py")

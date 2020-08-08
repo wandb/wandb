@@ -50,8 +50,6 @@ logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
-OUTPUT_FNAME = 'output.log'
-DIFF_FNAME = 'diff.patch'
 
 IS_GIT = os.path.exists(
     os.path.join(os.path.dirname(__file__), '..', '.git'))
@@ -709,12 +707,6 @@ def get_log_file_path():
     """
     # return wandb.GLOBAL_LOG_FNAME # TODO(jhr): refactor
     return "TODO_refactor.txt"
-
-
-def is_wandb_file(name):
-    #return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
-    # FIXME(jhr): need fix
-    return None
 
 
 def docker_image_regex(image):

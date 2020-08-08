@@ -22,6 +22,8 @@ message Record {
     ExitData        exit = 18;
     StatusData      status = 19;
     TBData          tbdata = 20;
+    ExitFinalData   final = 21;
+    GetSummaryData  get_summary = 22;
   }
   Control       control = 16;
 }
@@ -215,6 +217,12 @@ message ExitData {
   int32 exit_code = 1;
 }
 
+message ExitFinalData {
+}
+
+message GetSummaryData {
+}
+
 message ErrorData {
   enum ErrorCode {
     UNKNOWN = 0;
@@ -226,7 +234,6 @@ message ErrorData {
   string  message = 1;
   ErrorCode code = 2;
 }
-
 
 message StatusData {
 }
@@ -245,6 +252,15 @@ message RunUpdateResult {
 }
 
 message RunExitResult {
+  FilesSynced files = 1;
+
+}
+
+message FilesSynced {
+  int32 wandb_count = 1;
+  int32 media_count = 2;
+  int32 artifact_count = 3;
+  int32 other_count = 4;
 }
 
 message LogResult {
@@ -262,6 +278,10 @@ message OutputResult {
 message ConfigResult {
 }
 
+message GetSummaryResult {
+  repeated SummaryItem item = 1;
+}
+
 message LoginResult {
   string active_entity = 1;
 }
@@ -276,5 +296,6 @@ message ResultRecord {
     OutputResult    output_result = 22;
     ConfigResult    config_result = 23;
     LoginResult     login_result = 24;
+    GetSummaryResult  get_summary_result = 25;
   }
 }

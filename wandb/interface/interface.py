@@ -249,6 +249,8 @@ class BackendSender(object):
         stats=None,
         exit=None,
         artifact=None,
+        final=None,
+        get_summary=None,
         login=None,
     ):
         rec = wandb_internal_pb2.Record()
@@ -268,6 +270,10 @@ class BackendSender(object):
             rec.exit.CopyFrom(exit)
         if artifact:
             rec.artifact.CopyFrom(artifact)
+        if final:
+            rec.final.CopyFrom(final)
+        if get_summary:
+            rec.get_summary.CopyFrom(get_summary)
         if login:
             rec.login.CopyFrom(login)
         return rec
@@ -400,6 +406,18 @@ class BackendSender(object):
         assert resp.exit_result
         return resp.exit_result
 
+    def send_exit_final(self):
+        finalize_data = wandb_internal_pb2.ExitFinalData()
+        rec = self._make_record(final=finalize_data)
+        rec.control.local = True
+        self._queue_process(rec)
+
     def send_exit_sync(self, exit_code, timeout=None):
         exit_data = self._make_exit(exit_code)
         return self._send_exit_sync(exit_data, timeout=timeout)
+
+    def send_get_summary_sync(self):
+        req = self._make_record(get_summary=wandb_internal_pb2.GetSummaryData())
+        resp = self._request_response(req)
+
+        return resp.get_summary_result

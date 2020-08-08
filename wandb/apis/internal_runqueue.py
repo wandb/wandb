@@ -36,6 +36,7 @@ from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
+from wandb.lib.filenames import DIFF_FNAME, METADATA_FNAME
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ class Api(object):
         to history editing as long as the user never does "push -f" to break
         history on an upstream branch.
 
-        Writes the first patch to <out_dir>/diff.patch and the second to
+        Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
         <out_dir>/upstream_diff_<commit_id>.patch.
 
         Args:
@@ -171,7 +172,7 @@ class Api(object):
         try:
             root = self.git.root
             if self.git.dirty:
-                patch_path = os.path.join(out_dir, 'diff.patch')
+                patch_path = os.path.join(out_dir, DIFF_FNAME)
                 if self.git.has_submodule_diff:
                     with open(patch_path, 'wb') as patch:
                         # we diff against HEAD to ensure we get changes in the index

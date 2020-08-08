@@ -132,7 +132,7 @@ def test_settings(test_dir, mocker):
     """ Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
-    wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 5
+    wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
     wandb_dir = os.path.join(os.getcwd(), "wandb")
     mkdir_exists_ok(wandb_dir)
