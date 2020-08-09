@@ -53,7 +53,7 @@ def with_datastore(request):
 def test_proto_write_partial():
     """Serialize a proto into a partial block."""
     data = dict(this=2, that=4)
-    history = wandb_internal_pb2.HistoryData()
+    history = wandb_internal_pb2.HistoryRecord()
     for k, v in data.items():
         json_data = json.dumps(v)
         item = history.item.add()

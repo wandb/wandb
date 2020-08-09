@@ -74,13 +74,13 @@ class BackendSender(object):
         # ts.GetCurrentTime()
         # now = datetime.now()
         if name == "stdout":
-            otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+            otype = wandb_internal_pb2.OutputRecord.OutputType.STDOUT
         elif name == "stderr":
-            otype = wandb_internal_pb2.OutputData.OutputType.STDERR
+            otype = wandb_internal_pb2.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
             print("unknown type")
-        o = wandb_internal_pb2.OutputData(output_type=otype, line=data)
+        o = wandb_internal_pb2.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._send_output(o)
 
@@ -90,7 +90,7 @@ class BackendSender(object):
         self._queue_process(rec)
 
     def send_tbdata(self, log_dir, save):
-        tbdata = wandb_internal_pb2.TBData()
+        tbdata = wandb_internal_pb2.TBRecord()
         tbdata.log_dir = log_dir
         tbdata.save = save
         rec = wandb_internal_pb2.Record(tbdata=tbdata)
@@ -102,7 +102,7 @@ class BackendSender(object):
 
     def send_history(self, data, step):
         data = data_types.history_dict_to_json(self._run, data, step)
-        history = wandb_internal_pb2.HistoryData()
+        history = wandb_internal_pb2.HistoryRecord()
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
@@ -110,7 +110,7 @@ class BackendSender(object):
         self._send_history(history)
 
     def _make_run(self, run):
-        proto_run = wandb_internal_pb2.RunData()
+        proto_run = wandb_internal_pb2.RunRecord()
         run._make_proto_run(proto_run)
         proto_run.host = run._settings.host
         if run._config is not None:
@@ -119,7 +119,7 @@ class BackendSender(object):
         return proto_run
 
     def _make_artifact(self, artifact):
-        proto_artifact = wandb_internal_pb2.ArtifactData()
+        proto_artifact = wandb_internal_pb2.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
         proto_artifact.digest = artifact.digest
@@ -156,12 +156,12 @@ class BackendSender(object):
         return proto_manifest
 
     def _make_exit(self, exit_code):
-        exit = wandb_internal_pb2.ExitData()
+        exit = wandb_internal_pb2.RunExitRecord()
         exit.exit_code = exit_code
         return exit
 
     def _make_config(self, config_dict, obj=None):
-        config = obj or wandb_internal_pb2.ConfigData()
+        config = obj or wandb_internal_pb2.ConfigRecord()
         for k, v in six.iteritems(config_dict):
             update = config.update.add()
             update.key = k
@@ -170,8 +170,8 @@ class BackendSender(object):
         return config
 
     def _make_stats(self, stats_dict):
-        stats = wandb_internal_pb2.StatsData()
-        stats.stats_type = wandb_internal_pb2.StatsData.StatsType.SYSTEM
+        stats = wandb_internal_pb2.StatsRecord()
+        stats.stats_type = wandb_internal_pb2.StatsRecord.StatsType.SYSTEM
         stats.timestamp.GetCurrentTime()
         for k, v in six.iteritems(stats_dict):
             item = stats.item.add()
@@ -216,7 +216,7 @@ class BackendSender(object):
 
     def _make_summary(self, summary_dict):
         data = self._summary_encode(summary_dict, tuple())
-        summary = wandb_internal_pb2.SummaryData()
+        summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(data):
             update = summary.update.add()
             update.key = k
@@ -224,7 +224,7 @@ class BackendSender(object):
         return summary
 
     def _make_files(self, files_dict):
-        files = wandb_internal_pb2.FilesData()
+        files = wandb_internal_pb2.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
             f.path = path
@@ -232,12 +232,27 @@ class BackendSender(object):
         return files
 
     def _make_login(self, api_key=None, anonymous=None):
-        login = wandb_internal_pb2.LoginData()
+        login = wandb_internal_pb2.LoginRequest()
         if api_key:
             login.api_key = api_key
         if anonymous:
             login.anonymous = anonymous
         return login
+
+    def _make_request(
+        self, login=None, defer=None, get_summary=None,
+    ):
+        request = wandb_internal_pb2.Request()
+        if login:
+            request.login.CopyFrom(login)
+        elif defer:
+            request.defer.CopyFrom(defer)
+        elif get_summary:
+            request.get_summary.CopyFrom(get_summary)
+        else:
+            raise Exception("problem")
+        record = self._make_record(request=request)
+        return record
 
     def _make_record(
         self,
@@ -249,34 +264,30 @@ class BackendSender(object):
         stats=None,
         exit=None,
         artifact=None,
-        final=None,
-        get_summary=None,
-        login=None,
+        request=None,
     ):
-        rec = wandb_internal_pb2.Record()
+        record = wandb_internal_pb2.Record()
         if run:
-            rec.run.CopyFrom(run)
-        if config:
-            rec.config.CopyFrom(config)
-        if summary:
-            rec.summary.CopyFrom(summary)
-        if history:
-            rec.history.CopyFrom(history)
-        if files:
-            rec.files.CopyFrom(files)
-        if stats:
-            rec.stats.CopyFrom(stats)
-        if exit:
-            rec.exit.CopyFrom(exit)
-        if artifact:
-            rec.artifact.CopyFrom(artifact)
-        if final:
-            rec.final.CopyFrom(final)
-        if get_summary:
-            rec.get_summary.CopyFrom(get_summary)
-        if login:
-            rec.login.CopyFrom(login)
-        return rec
+            record.run.CopyFrom(run)
+        elif config:
+            record.config.CopyFrom(config)
+        elif summary:
+            record.summary.CopyFrom(summary)
+        elif history:
+            record.history.CopyFrom(history)
+        elif files:
+            record.files.CopyFrom(files)
+        elif stats:
+            record.stats.CopyFrom(stats)
+        elif exit:
+            record.exit.CopyFrom(exit)
+        elif artifact:
+            record.artifact.CopyFrom(artifact)
+        elif request:
+            record.request.CopyFrom(request)
+        else:
+            raise Exception("problem")
+        return record
 
     def _queue_process(self, rec):
         if self._process and not self._process.is_alive():
@@ -310,15 +321,16 @@ class BackendSender(object):
 
     def send_login_sync(self, api_key=None, anonymous=None, timeout=5):
         login = self._make_login(api_key, anonymous)
-        rec = self._make_record(login=login)
-        resp = self._request_response(rec, timeout=timeout)
-        if resp is None:
+        rec = self._make_request(login=login)
+        result = self._request_response(rec, timeout=timeout)
+        if result is None:
             # TODO: friendlier error message here
             raise wandb.Error(
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
-        assert resp.login_result
-        return resp.login_result
+        login_response = result.response.login_response
+        assert login_response
+        return login_response
 
     def send_run(self, run_obj):
         run = self._make_run(run_obj)
@@ -345,11 +357,11 @@ class BackendSender(object):
         """Send synchronous run object waiting for a response.
 
         Args:
-            run: RunData object
+            run: RunRecord object
             timeout: number of seconds to wait
 
         Returns:
-            RunData object
+            RunRecord object
         """
 
         req = self._make_record(run=run)
@@ -397,18 +409,18 @@ class BackendSender(object):
     def _send_exit_sync(self, exit_data, timeout=None):
         req = self._make_record(exit=exit_data)
 
-        resp = self._request_response(req, timeout=timeout)
-        if resp is None:
+        result = self._request_response(req, timeout=timeout)
+        if result is None:
             # TODO: friendlier error message here
             raise wandb.Error(
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
-        assert resp.exit_result
-        return resp.exit_result
+        assert result.exit_result
+        return result.exit_result
 
-    def send_exit_final(self):
-        finalize_data = wandb_internal_pb2.ExitFinalData()
-        rec = self._make_record(final=finalize_data)
+    def send_defer(self):
+        defer_request = wandb_internal_pb2.DeferRequest()
+        rec = self._make_request(defer=defer_request)
         rec.control.local = True
         self._queue_process(rec)
 
@@ -417,7 +429,8 @@ class BackendSender(object):
         return self._send_exit_sync(exit_data, timeout=timeout)
 
     def send_get_summary_sync(self):
-        req = self._make_record(get_summary=wandb_internal_pb2.GetSummaryData())
-        resp = self._request_response(req)
-
-        return resp.get_summary_result
+        record = self._make_request(get_summary=wandb_internal_pb2.GetSummaryRequest())
+        result = self._request_response(record)
+        get_summary_response = result.response.get_summary_response
+        assert get_summary_response
+        return get_summary_response

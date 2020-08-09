@@ -91,17 +91,27 @@ class SendManager(object):
         # self._consolidated_config = dict()
         self._consolidated_summary = dict()
 
-    def send(self, i):
-        t = i.WhichOneof("data")
-        if t is None:
+    def send(self, record):
+        record_type = record.WhichOneof("record_type")
+        if record_type is None:
+            print("unknown record")
             return
-        handler = getattr(self, "handle_" + t, None)
+        handler = getattr(self, "handle_" + record_type, None)
         if handler is None:
-            print("unknown handle", t)
+            print("unknown handle", record_type)
             return
+        handler(record)
 
-        # run the handler
-        handler(i)
+    def send_request(self, record):
+        request_type = record.request.WhichOneof("request_type")
+        if request_type is None:
+            print("unknown request")
+            return
+        handler = getattr(self, "handle_request_" + request_type, None)
+        if handler is None:
+            print("unknown request handle", request_type)
+            return
+        handler(record)
 
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
@@ -117,18 +127,19 @@ class SendManager(object):
             tbdata = data.tbdata
             self._tb_watcher.add(tbdata.log_dir, tbdata.save)
 
-    def handle_login(self, data):
+    def handle_request(self, rec):
+        self.send_request(rec)
+
+    def handle_request_login(self, data):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         viewer = self._api.viewer()
         self._flags = json.loads(viewer.get("flags", "{}"))
         self._entity = viewer.get("entity")
         if data.control.req_resp:
-            resp = wandb_internal_pb2.ResultRecord()
-            login_result = wandb_internal_pb2.LoginResult()
-            login_result.active_entity = self._entity
-            resp.login_result.CopyFrom(login_result)
-            self._resp_q.put(resp)
+            result = wandb_internal_pb2.Result()
+            result.response.login_response.active_entity = self._entity
+            self._resp_q.put(result)
 
     def handle_exit(self, data):
         exit = data.exit
@@ -150,11 +161,11 @@ class SendManager(object):
         if data.control.req_resp:
             # send exit_final to give the queue a chance to flush
             # response will be handled in handle_exit_final
-            logger.info("send final")
-            self._interface.send_exit_final()
+            logger.info("send defer")
+            self._interface.send_defer()
 
-    def handle_final(self, data):
-        logger.info("handle final")
+    def handle_request_defer(self, data):
+        logger.info("handle defer")
 
         if self._dir_watcher:
             self._dir_watcher.finish()
@@ -170,7 +181,7 @@ class SendManager(object):
 
         # NB: assume we always need to send a response for this message
         # since it was sent on behalf of handle_exit() req/resp logic
-        resp = wandb_internal_pb2.ResultRecord()
+        resp = wandb_internal_pb2.Result()
         file_counts = self._pusher.file_counts_by_category()
         resp.exit_result.files.wandb_count = file_counts["wandb"]
         resp.exit_result.files.media_count = file_counts["media"]
@@ -182,12 +193,6 @@ class SendManager(object):
         if self._pusher:
             self._pusher.print_status()
             self._pusher = None
-
-        if data.control.req_resp:
-            logger.info("informing user process exit was handled")
-            # TODO: send something more than an empty result
-            resp = wandb_internal_pb2.ResultRecord()
-            self._resp_q.put(resp)
 
     def _maybe_setup_resume(self, run):
         """This maybe queries the backend for a run and fails if the settings are
@@ -207,15 +212,15 @@ class SendManager(object):
             logger.info("resume status %s", resume_status)
             if resume_status is None:
                 if self._settings.resume == "must":
-                    error = wandb_internal_pb2.ErrorData()
-                    error.code = wandb_internal_pb2.ErrorData.ErrorCode.INVALID
+                    error = wandb_internal_pb2.ErrorInfo()
+                    error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
                     error.message = (
                         "resume='must' but run (%s) doesn't exist" % run.run_id
                     )
             else:
                 if self._settings.resume == "never":
-                    error = wandb_internal_pb2.ErrorData()
-                    error.code = wandb_internal_pb2.ErrorData.ErrorCode.INVALID
+                    error = wandb_internal_pb2.ErrorInfo()
+                    error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
                     error.message = "resume='never' but run (%s) exists" % run.run_id
                 elif self._settings.resume in ("allow", "auto"):
                     history = {}
@@ -260,7 +265,7 @@ class SendManager(object):
 
         if error is not None:
             if data.control.req_resp:
-                resp = wandb_internal_pb2.ResultRecord()
+                resp = wandb_internal_pb2.Result()
                 resp.run_result.run.CopyFrom(run)
                 resp.run_result.error.CopyFrom(error)
                 self._resp_q.put(resp)
@@ -312,7 +317,7 @@ class SendManager(object):
                     self._entity = entity_name
 
         if data.control.req_resp:
-            resp = wandb_internal_pb2.ResultRecord()
+            resp = wandb_internal_pb2.Result()
             resp.run_result.run.CopyFrom(self._run)
             self._resp_q.put(resp)
 
@@ -386,7 +391,7 @@ class SendManager(object):
 
     def handle_stats(self, data):
         stats = data.stats
-        if stats.stats_type != wandb_internal_pb2.StatsData.StatsType.SYSTEM:
+        if stats.stats_type != wandb_internal_pb2.StatsRecord.StatsType.SYSTEM:
             return
         if not self._fs:
             return
@@ -408,7 +413,7 @@ class SendManager(object):
         out = data.output
         prepend = ""
         stream = "stdout"
-        if out.output_type == wandb_internal_pb2.OutputData.OutputType.STDERR:
+        if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
             prepend = "ERROR "
         line = out.line
@@ -467,15 +472,14 @@ class SendManager(object):
             use_after_commit=artifact.use_after_commit,
         )
 
-    def handle_get_summary(self, data):
-        resp = wandb_internal_pb2.ResultRecord()
+    def handle_request_get_summary(self, data):
+        result = wandb_internal_pb2.Result()
         for key, value in six.iteritems(self._consolidated_summary):
             item = wandb_internal_pb2.SummaryItem()
             item.key = key
             item.value_json = json.dumps(value)
-            resp.get_summary_result.item.append(item)
-
-        self._resp_q.put(resp)
+            result.response.get_summary_response.item.append(item)
+        self._resp_q.put(result)
 
     def finish(self):
         logger.info("shutting down sender")

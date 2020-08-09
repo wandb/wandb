@@ -58,7 +58,7 @@ class BackendMock(object):
         self.interface._hack_set_run(run)
 
     def _request_response(self, rec, timeout=5):
-        resp = wandb_internal_pb2.ResultRecord()
+        resp = wandb_internal_pb2.Result()
         return resp
 
     def _proto_to_dict(self, obj_list):

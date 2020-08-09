@@ -38,7 +38,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         # TODO: make this sync?
         self._backend._interface._send_history(log_data)
         # make up a response even though this was async
-        result = wandb_internal_pb2.LogResult()
+        result = wandb_internal_pb2.HistoryResult()
         return result
 
     def Summary(self, summary_data, context):  # noqa: N802
@@ -105,6 +105,7 @@ class Backend:
             _disable_stats=False,
             git_remote=None,
             program=None,
+            resume=None,
             ignore_globs=(),
         )
 

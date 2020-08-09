@@ -15,13 +15,13 @@ from wandb.proto import wandb_server_pb2_grpc  # type: ignore
 
 
 def make_exit_data(data):
-    edata = wandb_internal_pb2.ExitData()
+    edata = wandb_internal_pb2.RunExitRecord()
     edata.exit_code = data.get("exit_code", 0)
     return edata
 
 
 def make_log_data(data):
-    hdata = wandb_internal_pb2.HistoryData()
+    hdata = wandb_internal_pb2.HistoryRecord()
     for k, v in data.items():
         item = hdata.item.add()
         item.key = k
@@ -30,7 +30,7 @@ def make_log_data(data):
 
 
 def make_config(config_dict, obj=None):
-    config = obj or wandb_internal_pb2.ConfigData()
+    config = obj or wandb_internal_pb2.ConfigRecord()
     for k, v in six.iteritems(config_dict):
         update = config.update.add()
         update.key = k
@@ -39,7 +39,7 @@ def make_config(config_dict, obj=None):
 
 
 def make_run_data(data):
-    rdata = wandb_internal_pb2.RunData()
+    rdata = wandb_internal_pb2.RunRecord()
     config_dict = data.get("config")
     if config_dict:
         make_config(config_dict, obj=rdata.config)
@@ -47,7 +47,7 @@ def make_run_data(data):
 
 
 def make_summary(summary_dict, obj=None):
-    summary = obj or wandb_internal_pb2.SummaryData()
+    summary = obj or wandb_internal_pb2.SummaryRecord()
     for k, v in six.iteritems(summary_dict):
         update = summary.update.add()
         update.key = k
@@ -57,13 +57,13 @@ def make_summary(summary_dict, obj=None):
 
 def make_output(name, data):
     if name == "stdout":
-        otype = wandb_internal_pb2.OutputData.OutputType.STDOUT
+        otype = wandb_internal_pb2.OutputRecord.OutputType.STDOUT
     elif name == "stderr":
-        otype = wandb_internal_pb2.OutputData.OutputType.STDERR
+        otype = wandb_internal_pb2.OutputRecord.OutputType.STDERR
     else:
         # TODO(jhr): throw error?
         print("unknown type")
-    outdata = wandb_internal_pb2.OutputData(output_type=otype, line=data)
+    outdata = wandb_internal_pb2.OutputRecord(output_type=otype, line=data)
     outdata.timestamp.GetCurrentTime()
     return outdata
 
@@ -145,7 +145,8 @@ def main():
     wic.summary(dict(sum2=4, sum3=3))
     wic.output("stdout", "Hello world\n")
     wic.output("stderr", "I am an error\n")
-    time.sleep(2)
+    print("delay for 30 seconds...")
+    time.sleep(30)
     print(
         "Your run ({}) is complete: {}/{}/{}/runs/{}".format(
             run.display_name, base_url, run.entity, run.project, run.run_id

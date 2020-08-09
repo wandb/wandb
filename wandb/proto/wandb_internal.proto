@@ -5,84 +5,136 @@ package wandb_internal;
 import "google/protobuf/timestamp.proto";
 
 /*
+ * Record: Persistent on disk data (BE CAREFUL)
+ * Result: responses from Record requests
+ *
+ * Request: Communication requests between processes
+ * Response: Responses from Request messages
+ */
+
+/************************
+ * Records and Results
+ ************************/
+
+/*
  * Record: joined record for message passing and persistance
  */
 message Record {
-  int64         num = 1;
-  oneof data {
-    HistoryData     history = 2;
-    SummaryData     summary = 3;
-    OutputData      output = 4;
-    ConfigData      config = 5;
-    FilesData       files = 6;
-    StatsData       stats = 7;
-    ArtifactData    artifact = 8;
-    LoginData       login = 9;
-    RunData         run = 17;
-    ExitData        exit = 18;
-    StatusData      status = 19;
-    TBData          tbdata = 20;
-    ExitFinalData   final = 21;
-    GetSummaryData  get_summary = 22;
+  int64            num = 1;
+  oneof record_type {
+    // Low numbers for more frequent data
+    HistoryRecord  history = 2;
+    SummaryRecord  summary = 3;
+    OutputRecord   output = 4;
+    ConfigRecord   config = 5;
+    FilesRecord    files = 6;
+    StatsRecord    stats = 7;
+    ArtifactRecord artifact = 8;
+    TBRecord       tbrecord = 9;
+    // Higher numbers for less frequent data
+    RunRecord      run = 17;
+    RunExitRecord  exit = 18;
+    // request field does not belong here longterm
+    Request        request = 100;
   }
-  Control       control = 16;
+  Control          control = 16;
 }
 
-/*
- * Control: message passing metadata
- */
 message Control {
-  bool req_resp = 1;
-  bool local = 2;  /* should not be persisted or synchronized */
+  bool req_resp = 1;  // record is expecting a result
+  bool local = 2;     // should not be persisted or synchronized
 }
 
 /*
- * LoginData: wandb/sdk/wandb_login#login()
+ * Result: all results
  */
-message LoginData {
-  string api_key = 1;
-  string anonymous = 2;
+message Result {
+  oneof result_type {
+    RunUpdateResult   run_result = 17;
+    RunExitResult     exit_result = 18;
+    HistoryResult     log_result = 20;
+    SummaryResult     summary_result = 21;
+    OutputResult      output_result = 22;
+    ConfigResult      config_result = 23;
+    /* response field does not belong here longterm */
+    Response          response = 100;
+  }
 }
 
 /*
- * RunData: wandb/sdk/wandb_run/Run
+ * RunRecord: wandb/sdk/wandb_run/Run
  */
-message RunData {
-  string run_id = 1;
-  string entity = 2;
-  string project = 3;
-  ConfigData config = 4;
-  SummaryData summary = 5;
-  string run_group = 6;
-  string job_type = 7;
-  string display_name = 8;
-  string notes = 9;
-  repeated string tags = 10;
-  SettingsData settings = 11;
-  string sweep_id = 12;
-  string host = 13;
-  int64 starting_step = 14;
+message RunRecord {
+  string                    run_id = 1;
+  string                    entity = 2;
+  string                    project = 3;
+  ConfigRecord              config = 4;
+  SummaryRecord             summary = 5;
+  string                    run_group = 6;
+  string                    job_type = 7;
+  string                    display_name = 8;
+  string                    notes = 9;
+  repeated string           tags = 10;
+  SettingsRecord            settings = 11;
+  string                    sweep_id = 12;
+  string                    host = 13;
+  int64                     starting_step = 14;
 
-  string storage_id = 16;
+  string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
 }
 
+message RunUpdateResult {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
+}
+
+message ErrorInfo {
+  enum ErrorCode {
+    UNKNOWN = 0;
+    INVALID = 1;
+    PERMISSION = 2;
+    NETWORK = 3;
+    INTERNAL = 4;
+  }
+  string  message = 1;
+  ErrorCode code = 2;
+}
+
 /*
- * SettingsData: wandb/sdk/wandb_settings/Settings
+ * RunExitRecord: exit status of process
  */
-message SettingsData {
+message RunExitRecord {
+  int32 exit_code = 1;
+}
+
+message RunExitResult {
+  FilesSynced files = 1;
+}
+
+message FilesSynced {
+  int32 wandb_count = 1;
+  int32 media_count = 2;
+  int32 artifact_count = 3;
+  int32 other_count = 4;
+}
+
+/*
+ * SettingsRecord: wandb/sdk/wandb_settings/Settings
+ */
+message SettingsRecord {
   repeated SettingsItem item = 1;
 }
 
 message SettingsItem {
-  string          key = 1;
-  string          value_json = 16;
+  string key = 1;
+  string value_json = 16;
 }
 
 /*
- * HistoryData: wandb/sdk/wandb_history/History
+ * HistoryRecord: wandb/sdk/wandb_history/History
  */
-message HistoryData {
+message HistoryRecord {
   repeated HistoryItem item = 1;
 }
 
@@ -92,10 +144,13 @@ message HistoryItem {
   string          value_json = 16;
 }
 
+message HistoryResult {
+}
+
 /*
- * OutputData: console output
+ * OutputRecord: console output
  */
-message OutputData {
+message OutputRecord {
   enum OutputType {
     STDERR = 0;
     STDOUT = 1;
@@ -105,10 +160,13 @@ message OutputData {
   string                    line = 3;
 }
 
+message OutputResult {
+}
+
 /*
- * ConfigData: wandb/sdk/wandb_config/Config
+ * ConfigRecord: wandb/sdk/wandb_config/Config
  */
-message ConfigData {
+message ConfigRecord {
   repeated ConfigItem update = 1;
   repeated ConfigItem remove = 2;
 }
@@ -119,10 +177,13 @@ message ConfigItem {
   string          value_json = 16;
 }
 
+message ConfigResult {
+}
+
 /*
- * SummaryData: wandb/sdk/wandb_summary/Summary
+ * SummaryRecord: wandb/sdk/wandb_summary/Summary
  */
-message SummaryData {
+message SummaryRecord {
   repeated SummaryItem update = 1;
   repeated SummaryItem remove = 2;
 }
@@ -133,10 +194,13 @@ message SummaryItem {
   string          value_json = 16;
 }
 
+message SummaryResult {
+}
+
 /*
- * FilesData: files added to run
+ * FilesRecord: files added to run
  */
-message FilesData {
+message FilesRecord {
   repeated FilesItem files = 1;
 }
 
@@ -152,9 +216,9 @@ message FilesItem {
 }
 
 /*
- * StatsData: system metrics
+ * StatsRecord: system metrics
  */
-message StatsData {
+message StatsRecord {
   enum StatsType {
     SYSTEM = 0;
   }
@@ -168,7 +232,10 @@ message StatsItem {
   string          value_json = 16;
 }
 
-message ArtifactData {
+/*
+ * ArtifactRecord: track artifacts
+ */
+message ArtifactRecord {
   string                        run_id = 1;
   string                        project = 2;
   string                        entity = 3;
@@ -211,91 +278,72 @@ message StoragePolicyConfigItem {
 }
 
 /*
- * ExitData: exit status of process
+ * TBRecord: store tb locations
  */
-message ExitData {
-  int32 exit_code = 1;
-}
-
-message ExitFinalData {
-}
-
-message GetSummaryData {
-}
-
-message ErrorData {
-  enum ErrorCode {
-    UNKNOWN = 0;
-    INVALID = 1;
-    PERMISSION = 2;
-    NETWORK = 3;
-    INTERNAL = 4;
-  }
-  string  message = 1;
-  ErrorCode code = 2;
-}
-
-message StatusData {
-}
-
-message TBData {
+message TBRecord {
   string log_dir = 1;
   bool   save = 2;
 }
 
+/************************
+ * Requests and Responses
+ ************************/
+
 /*
- * Result objects
+ * Request: all non persistent messages
  */
-message RunUpdateResult {
-  RunData run = 1;
-  ErrorData error = 2;
+message Request {
+  oneof request_type {
+    StatusRequest     status = 1;
+    DeferRequest      defer = 3;
+    GetSummaryRequest get_summary = 4;
+    LoginRequest      login = 5;
+  }
 }
 
-message RunExitResult {
-  FilesSynced files = 1;
-
+/*
+ * Response: all non persistent responses to Requests
+ */
+message Response {
+  oneof response_type {
+    StatusResponse     status_response = 19;
+    LoginResponse      login_response = 24;
+    GetSummaryResponse get_summary_response = 25;
+  }
 }
 
-message FilesSynced {
-  int32 wandb_count = 1;
-  int32 media_count = 2;
-  int32 artifact_count = 3;
-  int32 other_count = 4;
+/*
+ * DeferRequest: internal message to defer work
+ */
+message DeferRequest {
 }
 
-message LogResult {
+/*
+ * LoginRequest: wandb/sdk/wandb_login
+ */
+message LoginRequest {
+  string api_key = 1;
 }
 
-message StatusResult {
-}
-
-message SummaryResult {
-}
-
-message OutputResult {
-}
-
-message ConfigResult {
-}
-
-message GetSummaryResult {
-  repeated SummaryItem item = 1;
-}
-
-message LoginResult {
+message LoginResponse {
   string active_entity = 1;
 }
 
-message ResultRecord {
-  oneof data {
-    RunUpdateResult run_result = 17;
-    RunExitResult   exit_result = 18;
-    StatusResult    status_result = 19;
-    LogResult       log_result = 20;
-    SummaryResult   summary_result = 21;
-    OutputResult    output_result = 22;
-    ConfigResult    config_result = 23;
-    LoginResult     login_result = 24;
-    GetSummaryResult  get_summary_result = 25;
-  }
+/*
+ * GetSummaryRequest: request consolidated summary
+ */
+message GetSummaryRequest {
+}
+
+message GetSummaryResponse {
+  repeated SummaryItem item = 1;
+}
+
+/*
+ * StatusRequest:
+ */
+message StatusRequest {
+}
+
+message StatusResponse {
 }
