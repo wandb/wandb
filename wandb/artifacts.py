@@ -893,9 +893,12 @@ class S3Handler(StorageHandler):
         ref = path
         if name is None:
             if prefix in obj.key and prefix != obj.key:
-                name = os.path.relpath(obj.key, start=prefix)
+                relpath = os.path.relpath(obj.key, start=prefix)
+                name = relpath
+                ref = os.path.join(path, relpath)
             else:
                 name = os.path.basename(obj.key)
+                ref = path
         elif multi:
             relpath = os.path.relpath(obj.key, start=prefix)
             name = os.path.join(name, relpath)
