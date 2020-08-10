@@ -203,12 +203,32 @@ def superagent(project=None, entity=None, agent_spec=None):
 
 
 @cli.command(context_settings=CONTEXT, help="Configure a directory with Weights & Biases")
+@click.option("--project", "-p", help="The project to use.")
+@click.option("--entity", "-e", help="The entity to scope the project to.")
+# TODO(jhr): Enable these with settings rework
+# @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
+# @click.option('--show', is_flag=True, help="Show settings")
+@click.option('--reset', is_flag=True, help="Reset settings")
 @click.pass_context
 @display_error
-def init(ctx):
+def init(ctx, project, entity, reset):
     from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
     if __stage_dir__ is None:
         _set_stage_dir('wandb')
+
+    # non interactive init
+    if reset or project or entity:
+        api = InternalApi()
+        if reset:
+            api.clear_setting("entity", persist=True)
+            api.clear_setting("project", persist=True)
+            # TODO(jhr): clear more settings?
+        if entity:
+            api.set_setting('entity', entity, persist=True)
+        if project:
+            api.set_setting('project', project, persist=True)
+        return
+
     if os.path.isdir(wandb_dir()) and os.path.exists(os.path.join(wandb_dir(), "settings")):
         click.confirm(click.style(
             "This directory has been configured previously, should we re-configure it?", bold=True), abort=True)

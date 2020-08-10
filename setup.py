@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
-import sys
-
 from setuptools import setup
 
 with open('package_readme.md') as readme_file:
@@ -11,9 +9,6 @@ with open('package_readme.md') as readme_file:
 
 with open('requirements.txt') as requirements_file:
     requirements = requirements_file.read().splitlines()
-
-if sys.version_info < (3, 5):
-    requirements.append('typing')
 
 test_requirements = [
     'mock>=2.0.0',
