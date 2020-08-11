@@ -271,7 +271,7 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def to_manifest_json(self, include_local=False):
         """This is the JSON that's stored in wandb_manifest.json
-        
+
         If include_local is True we also include the local paths to files. This is
         used to represent an artifact that's waiting to be saved on the current
         system. We don't need to include the local paths in the artifact manifest
@@ -741,7 +741,7 @@ class S3Handler(StorageHandler):
         self.init_boto()
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
-        if checksum == False:
+        if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
 
         objs = [self._s3.Object(bucket, key)]
@@ -797,14 +797,15 @@ class S3Handler(StorageHandler):
         ref = path
         if name is None:
             if prefix in obj.key and prefix != obj.key:
-                name = os.path.relpath(obj.key, start=prefix)
-                ref = os.path.join(path, name)
+                relpath = os.path.relpath(obj.key, start=prefix)
+                name = relpath
+                ref = os.path.join(path, relpath)
             else:
                 name = os.path.basename(obj.key)
         elif multi:
-            # We're listing a path and user provided name, just prepend it
-            name = os.path.join(name, os.path.basename(obj.key))
-            ref = os.path.join(path, name)
+            relpath = os.path.relpath(obj.key, start=prefix)
+            name = os.path.join(name, relpath)
+            ref = os.path.join(path, relpath)
         return ArtifactManifestEntry(
             name,
             ref,

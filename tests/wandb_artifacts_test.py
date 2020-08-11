@@ -193,6 +193,17 @@ def test_add_s3_reference_object(runner, mocker):
             'digest': '1234567890abcde', 'ref': 's3://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
+def test_add_s3_reference_object_with_name(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name='my-arty')
+        mock_boto(artifact)
+        artifact.add_reference("s3://my-bucket/my_object.pb", name="renamed.pb")
+
+        assert artifact.digest == 'bd85fe009dc9e408a5ed9b55c95f47b2'
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest['contents']['renamed.pb'] == {
+            'digest': '1234567890abcde', 'ref': 's3://my-bucket/my_object.pb',
+            'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
 def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
@@ -242,6 +253,17 @@ def test_add_gs_reference_object(runner, mocker):
             'digest': '1234567890abcde', 'ref': 'gs://my-bucket/my_object.pb',
             'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
+def test_add_gs_reference_object_with_name(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name='my-arty')
+        mock_gcs(artifact)
+        artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
+
+        assert artifact.digest == 'bd85fe009dc9e408a5ed9b55c95f47b2'
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest['contents']['renamed.pb'] == {
+            'digest': '1234567890abcde', 'ref': 'gs://my-bucket/my_object.pb',
+            'extra': {'etag': '1234567890abcde', 'versionID': '1'}, 'size': 10}
 
 def test_add_gs_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
