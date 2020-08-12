@@ -7,6 +7,8 @@ Manage backend sender.
 
 import json
 import logging
+import threading
+import uuid
 
 import six
 from six.moves import queue
@@ -46,6 +48,70 @@ def file_enum_to_policy(enum):
     return policy
 
 
+class MessageRouter(object):
+    class _Future(object):
+        def __init__(self):
+            self._object = None
+            self._object_ready = threading.Event()
+            self._lock = threading.Lock()
+
+        def get(self, timeout=None):
+            is_set = self._object_ready.wait(timeout)
+            if is_set and self._object:
+                return self._object
+            return None
+
+        def _set_object(self, obj):
+            self._object = obj
+            self._object_ready.set()
+
+    def __init__(self, request_queue, notify_queue, response_queue):
+        self._request_queue = request_queue
+        self._notify_queue = notify_queue
+        self._response_queue = response_queue
+
+        self._pending_reqs = {}
+        self._lock = threading.Lock()
+
+        self._join_event = threading.Event()
+        self._thread = threading.Thread(target=self.message_loop)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def message_loop(self):
+        while not self._join_event.is_set():
+            try:
+                msg = self._response_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            self._handle_msg_rcv(msg)
+
+    def send_and_receive(self, rec, local=False):
+        rec.control.req_resp = True
+        rec.control.local = local
+        rec.uuid = uuid.uuid4().hex
+        future = self._Future()
+        with self._lock:
+            self._pending_reqs[rec.uuid] = future
+
+        self._request_queue.put(rec)
+        self._notify_queue.put(constants.NOTIFY_REQUEST)
+
+        return future
+
+    def join(self):
+        self._join_event.set()
+        self._thread.join()
+
+    def _handle_msg_rcv(self, msg):
+        with self._lock:
+            future = self._pending_reqs.pop(msg.uuid)
+        if future is None:
+            logger.warning("No listener found for msg with uuid %s", msg.uuid)
+            return
+        future._set_object(msg)
+
+
 class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
@@ -64,6 +130,11 @@ class BackendSender(object):
         self.response_queue = response_queue
         self._run = None
         self._process = process
+
+        if self.request_queue:
+            self._sync_message_router = MessageRouter(
+                request_queue, notify_queue, response_queue
+            )
 
     def _hack_set_run(self, run):
         self._run = run
@@ -240,7 +311,7 @@ class BackendSender(object):
         return login
 
     def _make_request(
-        self, login=None, defer=None, get_summary=None,
+        self, login=None, defer=None, get_summary=None, status=None,
     ):
         request = wandb_internal_pb2.Request()
         if login:
@@ -249,6 +320,8 @@ class BackendSender(object):
             request.defer.CopyFrom(defer)
         elif get_summary:
             request.get_summary.CopyFrom(get_summary)
+        elif status:
+            request.status.CopyFrom(status)
         else:
             raise Exception("problem")
         record = self._make_record(request=request)
@@ -295,29 +368,12 @@ class BackendSender(object):
         self.process_queue.put(rec)
         self.notify_queue.put(constants.NOTIFY_PROCESS)
 
-    def _request_flush(self):
-        # TODO: make sure request queue is cleared
-        # probably need to send a cancel message and
-        # wait for it to come back
-        pass
-
-    def _request_response(self, rec, timeout=5):
-        # TODO: make sure this is called from main process.
-        # can only be one outstanding
-        # add a cancel queue
-        rec.control.req_resp = True
-        self.request_queue.put(rec)
-        self.notify_queue.put(constants.NOTIFY_REQUEST)
-
-        try:
-            rsp = self.response_queue.get(timeout=timeout)
-        except queue.Empty:
-            self._request_flush()
-            # raise BackendSender.ExceptionTimeout("timeout")
-            return None
-
-        # returns response, err
-        return rsp
+    def _request_response(self, rec, timeout=5, local=False):
+        assert (
+            self._sync_message_router is not None
+        ), "This BackendSender instance does not have a MessageRouter"
+        future = self._sync_message_router.send_and_receive(rec, local)
+        return future.get(timeout)
 
     def send_login_sync(self, api_key=None, anonymous=None, timeout=5):
         login = self._make_login(api_key, anonymous)
@@ -403,6 +459,15 @@ class BackendSender(object):
         rec = self._make_record(artifact=proto_artifact)
         self._queue_process(rec)
 
+    def send_status_request(self, check_stop_req, timeout=None):
+        status = wandb_internal_pb2.StatusRequest()
+        status.check_stop_req = check_stop_req
+        req = self._make_request(status=status)
+
+        resp = self._request_response(req, timeout=timeout, local=True)
+        assert resp.response.status_response
+        return resp.response.status_response
+
     def send_exit(self, exit_code):
         pass
 
@@ -418,9 +483,10 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def send_defer(self):
+    def send_defer(self, uuid):
         defer_request = wandb_internal_pb2.DeferRequest()
         rec = self._make_request(defer=defer_request)
+        rec.uuid = uuid
         rec.control.local = True
         self._queue_process(rec)
 
@@ -434,3 +500,7 @@ class BackendSender(object):
         get_summary_response = result.response.get_summary_response
         assert get_summary_response
         return get_summary_response
+
+    def join(self):
+        if self._sync_message_router:
+            self._sync_message_router.join()

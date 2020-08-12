@@ -38,6 +38,7 @@ message Record {
     Request        request = 100;
   }
   Control          control = 16;
+  string           uuid = 19;
 }
 
 message Control {
@@ -59,6 +60,7 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  string              uuid = 24;
 }
 
 /*
@@ -343,7 +345,9 @@ message GetSummaryResponse {
  * StatusRequest:
  */
 message StatusRequest {
+  bool check_stop_req = 1;
 }
 
 message StatusResponse {
+  bool run_should_stop = 1;
 }

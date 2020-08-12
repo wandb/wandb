@@ -47,6 +47,9 @@ def run(ctx):
         created_at = now.replace(day=now.day - 1).isoformat()
     else:
         created_at = datetime.now().isoformat()
+
+    stopped = ctx.get("stopped", False)
+
     return {
         "id": "test",
         "name": "wild-test",
@@ -79,7 +82,7 @@ def run(ctx):
         "sampledHistory": ['{"loss": 0, "acc": 100}'],
         "shouldStop": False,
         "failed": False,
-        "stopped": False,
+        "stopped": stopped,
         "running": True,
         "tags": [],
         "notes": None,
@@ -127,6 +130,7 @@ class CTX(object):
     NOTE: This will stop working for live_mock_server if we make pytest run
     in parallel.
     """
+
     lock = threading.Lock()
     STATE = None
 
@@ -264,7 +268,14 @@ def create_app(user_ctx=None):
         if "query Run(" in body["query"]:
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
-            return json.dumps({"data": {"model": {"bucket": run(ctx)}}})
+            project_field_name = "model"
+            run_field_name = "bucket"
+            if "project(" in body["query"]:
+                project_field_name = "project"
+                run_field_name = "run"
+            return json.dumps(
+                {"data": {project_field_name: {run_field_name: run(ctx)}}}
+            )
         if "query Models(" in body["query"]:
             return json.dumps(
                 {
@@ -491,7 +502,13 @@ def create_app(user_ctx=None):
             return {"data": {"project": {"artifact": art}}}
         if "stopped" in body["query"]:
             return json.dumps(
-                {"data": {"Model": {"project": {"run": {"stopped": False}}}}}
+                {
+                    "data": {
+                        "Model": {
+                            "project": {"run": {"stopped": ctx.get("stopped", False)}}
+                        }
+                    }
+                }
             )
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}

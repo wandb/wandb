@@ -122,6 +122,23 @@ class SendManager(object):
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
+    def handle_request_status(self, data):
+        if not data.control.req_resp:
+            return
+
+        result = wandb_internal_pb2.Result(uuid=data.uuid)
+        status_resp = result.response.status_response
+        if data.request.status.check_stop_req:
+            status_resp.run_should_stop = False
+            if self._entity and self._project and self._run.run_id:
+                try:
+                    status_resp.run_should_stop = self._api.check_stop_requested(
+                        self._project, self._entity, self._run.run_id
+                    )
+                except Exception as e:
+                    logger.warning("Failed to check stop requested status: %s", e)
+        self._resp_q.put(result)
+
     def handle_tbdata(self, data):
         if self._tb_watcher:
             tbdata = data.tbdata
@@ -137,7 +154,7 @@ class SendManager(object):
         self._flags = json.loads(viewer.get("flags", "{}"))
         self._entity = viewer.get("entity")
         if data.control.req_resp:
-            result = wandb_internal_pb2.Result()
+            result = wandb_internal_pb2.Result(uuid=data.uuid)
             result.response.login_response.active_entity = self._entity
             self._resp_q.put(result)
 
@@ -162,7 +179,7 @@ class SendManager(object):
             # send exit_final to give the queue a chance to flush
             # response will be handled in handle_exit_final
             logger.info("send defer")
-            self._interface.send_defer()
+            self._interface.send_defer(data.uuid)
 
     def handle_request_defer(self, data):
         logger.info("handle defer")
@@ -181,7 +198,7 @@ class SendManager(object):
 
         # NB: assume we always need to send a response for this message
         # since it was sent on behalf of handle_exit() req/resp logic
-        resp = wandb_internal_pb2.Result()
+        resp = wandb_internal_pb2.Result(uuid=data.uuid)
         file_counts = self._pusher.file_counts_by_category()
         resp.exit_result.files.wandb_count = file_counts["wandb"]
         resp.exit_result.files.media_count = file_counts["media"]
@@ -265,7 +282,7 @@ class SendManager(object):
 
         if error is not None:
             if data.control.req_resp:
-                resp = wandb_internal_pb2.Result()
+                resp = wandb_internal_pb2.Result(uuid=data.uuid)
                 resp.run_result.run.CopyFrom(run)
                 resp.run_result.error.CopyFrom(error)
                 self._resp_q.put(resp)
@@ -317,7 +334,7 @@ class SendManager(object):
                     self._entity = entity_name
 
         if data.control.req_resp:
-            resp = wandb_internal_pb2.Result()
+            resp = wandb_internal_pb2.Result(uuid=data.uuid)
             resp.run_result.run.CopyFrom(self._run)
             self._resp_q.put(resp)
 
@@ -473,7 +490,7 @@ class SendManager(object):
         )
 
     def handle_request_get_summary(self, data):
-        result = wandb_internal_pb2.Result()
+        result = wandb_internal_pb2.Result(uuid=data.uuid)
         for key, value in six.iteritems(self._consolidated_summary):
             item = wandb_internal_pb2.SummaryItem()
             item.key = key

@@ -181,4 +181,5 @@ class Backend(object):
         # TODO: make sure this is last in the queue?  lock?
         self.notify_queue.close()
         self.wandb_process.join()
+        self.interface.join()
         # No printing allowed from here until redirect restore!!!
