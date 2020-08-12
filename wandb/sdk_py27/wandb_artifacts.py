@@ -352,7 +352,7 @@ class WandbStoragePolicy(StoragePolicy):
         retry_strategy = requests.packages.urllib3.util.retry.Retry(
             backoff_factor=1,
             total=16,
-            status_forcelist=(308, 409, 429, 500, 502, 503, 504),
+            status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
         )
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
