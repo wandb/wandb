@@ -23,6 +23,8 @@ class HyperParameter():
     Q_NORMAL = 8
     LOG_NORMAL = 9
     Q_LOG_NORMAL = 10
+    BETA = 11
+    Q_BETA = 12
 
     def _load_parameter(self, param_config, param_name):
         if param_name in param_config:
@@ -43,7 +45,7 @@ class HyperParameter():
         self.config = param_config.copy()
 
         allowed_config_keys = set(['distribution', 'value', 'values', 'min', 'max', 'q',
-                                   'mu', 'sigma', 'desc'])
+                                   'mu', 'sigma', 'a', 'b', 'desc'])
         for key in self.config.keys():
             if key not in allowed_config_keys:
                 raise ValueError(
@@ -101,6 +103,18 @@ class HyperParameter():
                 self._load_optional_parameter(self.config, 'sigma', 1.0)
                 self._load_optional_parameter(self.config, 'q', 1.0)
                 # need or set mean and stdev
+            elif self.distribution == 'beta':
+                self.type = HyperParameter.BETA
+                self._load_optional_parameter(self.config, 'a', 1.0)
+                self._load_optional_parameter(self.config, 'b', 1.0)
+                self._load_optional_parameter(self.config, 'q', 1.0)
+                # need or set alpha and beta parameter
+            elif self.distribution == 'q_beta':
+                self.type = HyperParameter.Q_BETA
+                self._load_optional_parameter(self.config, 'a', 1.0)
+                self._load_optional_parameter(self.config, 'b', 1.0)
+                self._load_optional_parameter(self.config, 'q', 1.0)
+                # need or set alpha and beta parameter
             else:
                 raise ValueError(
                     "Unsupported distribution: {}".format(self.distribution))
@@ -111,11 +125,11 @@ class HyperParameter():
             if 'sigma' in dir(self):
                 if self.sigma < 0.0:
                     raise ValueError('sigma must be positive.')
-            if ('min' in dir(self) and 'max' in dir(self)):
-                if self.min >= self.max:
-                    raise ValueError('max must be greater than min.')
         else:
             self._infer_distribution(self.config, param_name)
+        if ('min' in dir(self) and 'max' in dir(self)):
+            if self.min >= self.max:
+                raise ValueError('max must be greater than min.')
 
     def value_to_int(self, value):
         if self.type != HyperParameter.CATEGORICAL:
@@ -137,7 +151,8 @@ class HyperParameter():
         if self.type == HyperParameter.CONSTANT:
             return 0.0
         elif self.type == HyperParameter.CATEGORICAL:
-            return stats.randint.cdf(self.values.index(x), 0, len(self.values))
+            idxs = [self.values.index(v) for v in x] if type(x) == np.ndarray else self.values.index(x)
+            return stats.randint.cdf(idxs, 0, len(self.values))
         elif self.type == HyperParameter.INT_UNIFORM:
             return stats.randint.cdf(x, self.min, self.max + 1)
         elif (self.type == HyperParameter.UNIFORM or
@@ -152,6 +167,9 @@ class HyperParameter():
         elif (self.type == HyperParameter.LOG_NORMAL or
                 self.type == HyperParameter.Q_LOG_NORMAL):
             return stats.lognorm.cdf(x, s=self.sigma, scale=np.exp(self.mu))
+        elif (self.type == HyperParameter.BETA or
+                self.type == HyperParameter.Q_BETA):
+            return stats.beta.cdf(x, a=self.a, b=self.b)
         else:
             raise ValueError("Unsupported hyperparameter distribution type")
 
@@ -207,6 +225,16 @@ class HyperParameter():
                 return int(ret_val)
             else:
                 return ret_val
+        elif self.type == HyperParameter.BETA:
+            return stats.beta.ppf(x, a=self.a, b=self.b)
+        elif self.type == HyperParameter.Q_BETA:
+            r = stats.beta.ppf(x, a=self.a, b=self.b)
+            ret_val = np.round(r / self.q) * self.q
+
+            if type(self.q) == int:
+                return int(ret_val)
+            else:
+                return ret_val
         else:
             raise ValueError("Unsupported hyperparameter distribution type")
 
@@ -242,11 +270,9 @@ class HyperParameter():
         #     raise ValueError("Unsupported hyperparameter distribution type")
 
     def to_config(self):
-        config = {}
-        if self.value != None:
-            config['value'] = self.value
-            # Remove values list if we have picked a value for this parameter
-            self.config.pop('values', None)
+        config = dict(value=self.value)
+        # Remove values list if we have picked a value for this parameter
+        self.config.pop('values', None)
         return self.name, config
 
     def _infer_distribution(self, config, param_name):
@@ -381,3 +407,23 @@ class HyperParameterSet(list):
 
                 X[bayes_opt_index] = bayes_opt_value
         return X
+
+    def convert_runs_to_normalized_vector(self, runs):
+        runs_params = [run.config or {} for run in runs]
+        X = np.zeros([len(self.searchable_params), len(runs)])
+
+        for key, bayes_opt_index in self.param_names_to_index.items():
+            row = np.array([
+                config[key]['value']
+                if key in config
+                else float('nan')
+                for config in runs_params
+            ])
+            param = self.param_names_to_param[key]
+            X_row = param.cdf(row)
+
+            # only use values where input wasn't nan
+            non_nan = row == row
+            X[bayes_opt_index,non_nan] = X_row[non_nan]
+
+        return np.transpose(X)
