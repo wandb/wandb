@@ -161,10 +161,10 @@ class BackendSender(object):
         self._queue_process(rec)
 
     def send_tbdata(self, log_dir, save):
-        tbdata = wandb_internal_pb2.TBRecord()
-        tbdata.log_dir = log_dir
-        tbdata.save = save
-        rec = wandb_internal_pb2.Record(tbdata=tbdata)
+        tbrecord = wandb_internal_pb2.TBRecord()
+        tbrecord.log_dir = log_dir
+        tbrecord.save = save
+        rec = self._make_record(tbrecord=tbrecord)
         self._queue_process(rec)
 
     def _send_history(self, history):
@@ -365,6 +365,7 @@ class BackendSender(object):
         stats=None,
         exit=None,
         artifact=None,
+        tbrecord=None,
         request=None,
     ):
         record = wandb_internal_pb2.Record()
@@ -384,6 +385,8 @@ class BackendSender(object):
             record.exit.CopyFrom(exit)
         elif artifact:
             record.artifact.CopyFrom(artifact)
+        elif tbrecord:
+            record.tbrecord.CopyFrom(tbrecord)
         elif request:
             record.request.CopyFrom(request)
         else:

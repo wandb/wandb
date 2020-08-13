@@ -139,10 +139,10 @@ class SendManager(object):
                     logger.warning("Failed to check stop requested status: %s", e)
         self._resp_q.put(result)
 
-    def handle_tbdata(self, data):
+    def handle_tbrecord(self, data):
         if self._tb_watcher:
-            tbdata = data.tbdata
-            self._tb_watcher.add(tbdata.log_dir, tbdata.save)
+            tbrecord = data.tbrecord
+            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save)
 
     def handle_request(self, rec):
         self.send_request(rec)
