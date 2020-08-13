@@ -125,6 +125,12 @@ class HyperParameter():
             if 'sigma' in dir(self):
                 if self.sigma < 0.0:
                     raise ValueError('sigma must be positive.')
+            if 'a' in dir(self):
+                if self.a < 0.0:
+                    raise ValueError('a must be positive.')
+            if 'b' in dir(self):
+                if self.b < 0.0:
+                    raise ValueError('b must be positive.')
         else:
             self._infer_distribution(self.config, param_name)
         if ('min' in dir(self) and 'max' in dir(self)):
