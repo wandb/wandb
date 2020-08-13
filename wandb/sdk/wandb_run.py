@@ -28,6 +28,7 @@ import wandb
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
+from wandb.interface.summary_record import SummaryRecord
 from wandb.lib import module, redirect
 from wandb.lib.dict import dict_from_proto_list
 from wandb.lib.filenames import JOBSPEC_FNAME
@@ -40,7 +41,6 @@ from . import wandb_summary
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional
-
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -127,8 +127,11 @@ class RunManaged(Run):
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
-        self.summary = wandb_summary.Summary()
-        self.summary._set_callback(self._summary_callback)
+        self._backend = None
+        self.summary = wandb_summary.Summary(
+            self._summary_get_current_summary_callback,
+        )
+        self.summary._set_update_callback(self._summary_update_callback)
         self.history = wandb_history.History(self)
         self.history._set_callback(self._history_callback)
 
@@ -136,7 +139,6 @@ class RunManaged(Run):
 
         self._settings = settings
         self._wl = None
-        self._backend = None
         self._reporter = None
         self._data = dict()
 
@@ -334,8 +336,12 @@ class RunManaged(Run):
         logger.info("config_cb %s %s %s", key, val, data)
         self._backend.interface.send_config(data)
 
-    def _summary_callback(self, key=None, val=None, data=None):
-        self._backend.interface.send_summary(data)
+    def _summary_update_callback(self, summary_record: SummaryRecord):
+        self._backend.interface.send_summary(summary_record)
+
+    def _summary_get_current_summary_callback(self):
+        ret = self._backend.interface.send_get_summary_sync()
+        return dict_from_proto_list(ret.item)
 
     def _datatypes_callback(self, fname):
         files = dict(files=[(fname, "now")])

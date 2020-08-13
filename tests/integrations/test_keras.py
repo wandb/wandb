@@ -57,6 +57,7 @@ def dummy_data(request):
 
 
 def graph_json(run):
+    print(run._backend.summary["graph"])
     graph_path = run._backend.summary["graph"]["path"]
     return json.load(open(os.path.join(run.dir, graph_path)))
 
