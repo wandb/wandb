@@ -29,7 +29,7 @@ def _files():
             {'node': {
                 'name': 'model.json',
                 'url': 'https://model.url',
-                'directUrl': 'https://weights.url',
+                'directUrl': 'https://model.url',
                 'md5': 'mZFLkyvTelC5g8XnyQrpOw==',
                 'sizeBytes': "1000",
                 'mimetype': "application/json",
