@@ -511,7 +511,7 @@ Download the artifact to dir specified by the <root>
  
 
 ### Artifact.file
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2208)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2209)
 ```python
 Artifact.file(self, root=None)
 ```
@@ -528,7 +528,7 @@ Download a single file artifact to dir specified by the <root>
  
 
 ### Artifact.save
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2247)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2249)
 ```python
 Artifact.save(self)
 ```
@@ -537,7 +537,7 @@ Persists artifact changes to the wandb backend.
 
 
 ### Artifact.verify
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2280)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2282)
 ```python
 Artifact.verify(self, root=None)
 ```
@@ -551,7 +551,7 @@ Raises a ValueError if the verification fails. Does not verify downloaded refere
  
 
 ## ArtifactVersions
-[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2362)
+[source](https://github.com/wandb/client/blob/master/wandb/apis/public.py#L2364)
 ```python
 ArtifactVersions(self,
                  client,
