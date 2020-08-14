@@ -542,7 +542,7 @@ class Api(object):
                     files(names: ["wandb-metadata.json"]) {
                         edges {
                             node {
-                                url
+                                directUrl
                             }
                         }
                     }
@@ -555,13 +555,13 @@ class Api(object):
             'name': project, 'run': run, 'entity': entity
         })
         if response['model'] == None:
-            raise ValueError("Run {}/{}/{} not found".format(entity, project, run) )
+            raise CommError("Run {}/{}/{} not found".format(entity, project, run) )
         run = response['model']['bucket']
         commit = run['commit']
         patch = run['patch']
         config = json.loads(run['config'] or '{}')
         if len(run['files']['edges']) > 0:
-            url = run['files']['edges'][0]['node']['url']
+            url = run['files']['edges'][0]['node']['directUrl']
             res = requests.get(url)
             res.raise_for_status()
             metadata = res.json()

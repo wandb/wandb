@@ -210,7 +210,8 @@ def test_artifact_download(runner, git_repo, mock_server):
     assert "Downloading dataset artifact" in result.output
     path = os.path.join(".", "artifacts", "mnist:v0")
     if platform.system() == "Windows":
-        path = path.replace(":", "-")
+        head, tail = os.path.splitdrive(path)
+        path = head + tail.replace(":", "-")
     assert "Artifact downloaded to %s" % path in result.output
     assert os.path.exists(path)
 
