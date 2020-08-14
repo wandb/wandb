@@ -20,6 +20,7 @@ def _files():
             {'node': {
                 'name': 'weights.h5',
                 'url': 'https://weights.url',
+                'directUrl': 'https://weights.url',
                 'md5': 'fakemd5',
                 'sizeBytes': "100",
                 'mimetype': "",
@@ -28,6 +29,7 @@ def _files():
             {'node': {
                 'name': 'model.json',
                 'url': 'https://model.url',
+                'directUrl': 'https://model.url',
                 'md5': 'mZFLkyvTelC5g8XnyQrpOw==',
                 'sizeBytes': "1000",
                 'mimetype': "application/json",
@@ -203,7 +205,7 @@ index 30d74d2..9a2c773 100644
         'github': 'https://github.com/vanpelt',
         'config': '{"foo":{"value":"bar"}}',
         'files': {
-            'edges': [{'node': {'url': 'https://metadata.json'}}]
+            'edges': [{'node': {'url': 'https://metadata.json', 'directUrl': 'https://metadata.json'}}]
         }
     }
 

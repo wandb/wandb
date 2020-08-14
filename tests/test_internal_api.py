@@ -25,6 +25,7 @@ from six import StringIO
 
 api = None
 
+
 def test_projects_success(request_mocker, query_projects):
     query_projects(request_mocker)
     res = api.list_projects()
@@ -42,8 +43,8 @@ def test_project_download_urls(request_mocker, query_project):
     query_project(request_mocker)
     res = api.download_urls("test")
     assert res == {
-        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'md5': 'fakemd5', 'updatedAt': None, 'url': 'https://weights.url'},
-        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'updatedAt': None, 'url': 'https://model.url'}
+        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'md5': 'fakemd5', 'updatedAt': None, 'url': 'https://weights.url', 'directUrl': 'https://weights.url'},
+        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'updatedAt': None, 'url': 'https://model.url', 'directUrl': 'https://model.url', }
     }
 
 
@@ -53,8 +54,8 @@ def test_project_upload_urls(request_mocker, query_project):
         "test", files=["weights.h5", "model.json"])
     assert bucket_id == 'test1234'
     assert res == {
-        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'url': 'https://weights.url', 'updatedAt': None, 'md5': 'fakemd5'},
-        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'url': 'https://model.url', 'updatedAt': None, 'md5': 'mZFLkyvTelC5g8XnyQrpOw=='}
+        'weights.h5': {'name': 'weights.h5', 'mimetype': '', 'sizeBytes': "100", 'url': 'https://weights.url', 'updatedAt': None, 'md5': 'fakemd5', 'directUrl': 'https://weights.url'},
+        'model.json': {'name': 'model.json', 'mimetype': 'application/json', 'sizeBytes': "1000", 'url': 'https://model.url', 'updatedAt': None, 'md5': 'mZFLkyvTelC5g8XnyQrpOw==', 'directUrl': 'https://model.url'}
     }
 
 
@@ -78,11 +79,13 @@ def test_parse_slug():
     assert project == "bar"
     assert run == "foo"
 
+
 def test_base_url_env(git_repo):
     api.set_setting("base_url", "https://api.wandb.ai", persist=True)
     os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
     api.settings("base_url") == "http://localhost:8080"
     del os.environ["WANDB_BASE_URL"]
+
 
 def test_app_url():
     api.set_setting("base_url", "https://api.test")
@@ -90,11 +93,13 @@ def test_app_url():
     api.set_setting("base_url", "https://api.foo.bar.baz")
     assert api.app_url == "https://app.foo.bar.baz"
 
+
 def test_base_url():
     api.set_setting("base_url", "foo.com/")
     assert api.settings("base_url") == "https://foo.com"
     api.set_setting("base_url", "http://foo.com")
     assert api.settings("base_url") == "http://foo.com"
+
 
 def test_pull_success(request_mocker, download_url, query_project):
     query_project(request_mocker)

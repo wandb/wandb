@@ -54,6 +54,7 @@ def config_dir():
     finally:
         del os.environ["WANDB_CONFIG"]
 
+
 def setup_module(module):
     os.environ["WANDB_TEST"] = "true"
 
@@ -243,23 +244,27 @@ def test_restore_no_remote(runner, request_mocker, query_run, git_repo, docker, 
     assert "Restored config variables to wandb" + os.sep in result.output
     assert "Launching docker container" in result.output
     docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
-    wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e',
-    'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+                               wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
+                               ':/app', '-w', '/app', '-e',
+                               'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+
 
 def test_restore_bad_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
     api = InternalApi({'project': 'test'})
     monkeypatch.setattr(cli, 'api', api)
+
     def bad_commit(cmt):
         raise ValueError()
     monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
-    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: []) 
+    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: [])
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 1
     assert "Run `git clone http://fake.git/foo/bar`" in result.output
+
 
 def test_restore_good_remote(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
@@ -273,6 +278,7 @@ def test_restore_good_remote(runner, request_mocker, query_run, git_repo, docker
     assert result.exit_code == 0
     assert "Created branch wandb/abcdef" in result.output
 
+
 def test_restore_no_git(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
@@ -282,6 +288,7 @@ def test_restore_no_git(runner, request_mocker, query_run, git_repo, docker, mon
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Restored config variables" in result.output
+
 
 def test_restore_slashes(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
@@ -293,6 +300,7 @@ def test_restore_slashes(runner, request_mocker, query_run, git_repo, docker, mo
     assert result.exit_code == 0
     assert "Restored config variables" in result.output
 
+
 def test_restore_no_entity(runner, request_mocker, query_run, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock = query_run(request_mocker, {"git": {"repo": "http://fake.git/foo/bar"}})
@@ -302,6 +310,7 @@ def test_restore_no_entity(runner, request_mocker, query_run, git_repo, docker, 
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Restored config variables" in result.output
+
 
 def test_restore_not_git(runner, request_mocker, query_run, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
@@ -314,6 +323,7 @@ def test_restore_not_git(runner, request_mocker, query_run, docker, monkeypatch)
         assert result.exit_code == 0
         assert "Original run has no git history" in result.output
 
+
 @pytest.fixture
 def docker(request_mocker, query_run, mocker, monkeypatch):
     mock = query_run(request_mocker)
@@ -324,6 +334,7 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
     monkeypatch.setattr(cli, 'find_executable', lambda name: True)
     monkeypatch.setattr(cli, 'api', api)
     old_call = subprocess.call
+
     def new_call(command, **kwargs):
         if command[0] == "docker":
             return docker(command)
@@ -334,78 +345,92 @@ def docker(request_mocker, query_run, mocker, monkeypatch):
                         lambda *args, **kwargs: b"wandb/deepo@sha256:abc123")
     return docker
 
+
 @pytest.fixture
 def no_tty(mocker):
     with mocker.patch("wandb.sys.stdin") as stdin_mock:
         stdin_mock.isatty.return_value = False
         yield
 
+
 def test_docker_run_digest(runner, docker, monkeypatch):
-    result = runner.invoke(cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
+    result = runner.invoke(
+        cli.docker_run, ["wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"])
     assert result.exit_code == 0
-    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177', '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177',
+                                    '--runtime', 'nvidia', 'wandb/deepo@sha256:3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177'])
+
 
 def test_docker_run_bad_image(runner, docker, monkeypatch):
     result = runner.invoke(cli.docker_run, ["wandb///foo$"])
     assert result.exit_code == 0
     docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '--runtime', 'nvidia', "wandb///foo$"])
 
+
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
     monkeypatch.setattr(cli, 'find_executable', lambda name: False)
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
     assert result.exit_code == 0
-    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-v', 'cool:/cool', 'rad'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e',
+                                    'WANDB_DOCKER=wandb/deepo@sha256:abc123', '-v', 'cool:/cool', 'rad'])
+
 
 def test_docker_run_nvidia(runner, docker):
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad", "/bin/bash", "cool"])
     assert result.exit_code == 0
-    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', 
-        '--runtime', 'nvidia', '-v', 'cool:/cool', 'rad', '/bin/bash', 'cool'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123',
+                                    '--runtime', 'nvidia', '-v', 'cool:/cool', 'rad', '/bin/bash', 'cool'])
+
 
 def test_docker(runner, docker):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.docker, ["test"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
-        docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', 
-            wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', 
-            os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-it', 'test', '/bin/bash'])
+        docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
+                                        wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v',
+                                        os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-it', 'test', '/bin/bash'])
         assert result.exit_code == 0
+
 
 def test_docker_basic(runner, docker, git_repo):
     result = runner.invoke(cli.docker, ["test:abc123"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert "Launching docker container" in result.output
-    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', 
-            wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', 
-            os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-it', 'test:abc123', '/bin/bash'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
+                                    wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v',
+                                    os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-it', 'test:abc123', '/bin/bash'])
     assert result.exit_code == 0
+
 
 def test_docker_sha(runner, docker):
     result = runner.invoke(cli.docker, ["test@sha256:abc123"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=test@sha256:abc123', '--ipc=host', '-v',
-    wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e',
-    'WANDB_API_KEY=test', '-it', 'test@sha256:abc123', '/bin/bash'])
+                                    wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
+                                    ':/app', '-w', '/app', '-e',
+                                    'WANDB_API_KEY=test', '-it', 'test@sha256:abc123', '/bin/bash'])
     assert result.exit_code == 0
+
 
 def test_docker_no_dir(runner, docker):
     result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
-    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', 
-        wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-e', 'WANDB_API_KEY=test', '-it', 'test:abc123', '/bin/bash'])
+    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
+                                    wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-e', 'WANDB_API_KEY=test', '-it', 'test:abc123', '/bin/bash'])
     assert result.exit_code == 0
+
 
 def test_docker_no_interactive_custom_command(runner, docker, git_repo):
     result = runner.invoke(cli.docker, ["test:abc123", "--no-tty", "--cmd", "python foo.py"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
-    
-    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', 
-    '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', 'test:abc123', '/bin/bash', '-c', 'python foo.py'])
+
+    docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh',
+                                    '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', 'test:abc123', '/bin/bash', '-c', 'python foo.py'])
     assert result.exit_code == 0
 
 
@@ -414,11 +439,13 @@ def test_docker_jupyter(runner, docker):
         result = runner.invoke(cli.docker, ["test", "--jupyter"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
-        
-        docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh', 
-        '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_ENSURE_JUPYTER=1', '-p', '8888:8888', 
-        'test', '/bin/bash', '-c', 'jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir /app'])
+
+        docker.assert_called_once_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh',
+                                        '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
+                                        ':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_ENSURE_JUPYTER=1', '-p', '8888:8888',
+                                        'test', '/bin/bash', '-c', 'jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir /app'])
         assert result.exit_code == 0
+
 
 def test_docker_args(runner, docker):
     with runner.isolated_filesystem():
@@ -426,8 +453,9 @@ def test_docker_args(runner, docker):
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint+':/wandb-entrypoint.sh',
-        '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', 'test', '-v', '/tmp:/tmp', '-it', 'wandb/deepo:all-cpu', '/bin/bash'])
+                                   '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', 'test', '-v', '/tmp:/tmp', '-it', 'wandb/deepo:all-cpu', '/bin/bash'])
         assert result.exit_code == 0
+
 
 def test_docker_digest(runner, docker):
     with runner.isolated_filesystem():
@@ -484,6 +512,7 @@ def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
 def test_login_abort(runner, empty_netrc, local_netrc, mocker, monkeypatch):
     with runner.isolated_filesystem():
         reload(wandb)
+
         def prompt(*args, **kwargs):
             raise click.exceptions.Abort()
         mocker.patch("click.prompt", prompt)
@@ -500,6 +529,7 @@ def test_signup(runner, empty_netrc, local_netrc, mocker, monkeypatch):
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         reload(wandb)
+
         def prompt(*args, **kwargs):
             #raise click.exceptions.Abort()
             return DUMMY_API_KEY
@@ -666,6 +696,7 @@ def test_sync(runner, git_repo, mock_server):
     assert "Uploading history metrics" in str(result.output)
     assert result.exit_code == 0
 
+
 @pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
 def test_sync_tensorboard_ignore(runner, git_repo, mock_server):
     # Un comment this line when re-recording the cassette
@@ -677,12 +708,14 @@ def test_sync_tensorboard_ignore(runner, git_repo, mock_server):
     tf_events="events.out.tfevents.111.test.localdomain"
     shutil.copyfile(os.path.dirname(__file__) + "/fixtures/"+tf_events, "./logs/train/"+tf_events)
     shutil.copyfile(os.path.dirname(__file__) + "/fixtures/"+tf_events, "./logs/val/"+tf_events)
-    result = runner.invoke(cli.sync, ["--id", "abc123", "-e", "vanpelt", "--ignore", "garbage.txt", "logs"], env=os.environ)
+    result = runner.invoke(cli.sync, ["--id", "abc123", "-e", "vanpelt",
+                                      "--ignore", "garbage.txt", "logs"], env=os.environ)
     print(result.output)
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert "Found tfevents file, converting..." in str(result.output)
     assert result.exit_code == 0
+
 
 @pytest.mark.skipif(os.getenv("NO_ML") == "true" or sys.version_info < (3, 5), reason="Tensorboard not installed and we don't support tensorboard syncing in py2")
 def test_sync_tensorboard_single(runner, git_repo, mock_server):
@@ -738,6 +771,7 @@ def test_run_simple(runner, git_repo, mock_server, monkeypatch):
     assert "Syncing run lovely-dawn-32" in result.output
     assert result.exit_code == 0
 
+
 def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     run_id = "abc123"
     os.environ["WANDB_IGNORE_GLOBS"] = "*.patch"
@@ -757,6 +791,7 @@ def test_run_ignore_diff(runner, git_repo, mock_server, monkeypatch):
     assert "Syncing run lovely-dawn-32" in result.output
     assert 'storage?file=diff.patch' not in mock_server.ctx.keys()
     wandb.reset_env()
+
 
 @pytest.mark.skipif(os.getenv("NO_ML") == "true", reason="No PIL in NO_ML, this was also failing in windows for some reason")
 def test_run_image(runner, git_repo, mock_server):
@@ -851,6 +886,7 @@ def test_resume_must(runner, request_mocker, query_no_run_resume_status, query_v
 
 # TODO: test actual resume
 
+
 def test_artifact_download(runner, git_repo, mock_server):
     result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
     print(result.output)
@@ -860,9 +896,11 @@ def test_artifact_download(runner, git_repo, mock_server):
     assert "Downloading dataset artifact" in result.output
     path = os.path.join(".", "artifacts", "mnist:v0")
     if platform.system() == "Windows":
-        path = path.replace(":", "-")
+        head, tail = os.path.splitdrive(path)
+        path = head + tail.replace(":", "-")
     assert "Artifact downloaded to %s" % path in result.output
     assert os.path.exists(path)
+
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="The run fails to init in windows, skipping until Cling is rocking")
 def test_artifact_upload(runner, git_repo, mock_server):
@@ -875,6 +913,7 @@ def test_artifact_upload(runner, git_repo, mock_server):
     assert result.exit_code == 0
     assert "Uploading file artifact.txt to:" in result.output
     assert 'artifact = run.use_artifact("vanpelt/test/simple:v0")' in result.output
+
 
 def test_artifact_ls(runner, git_repo, mock_server):
     result = runner.invoke(cli.artifact, ["ls", "test"])
