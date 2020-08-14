@@ -107,6 +107,7 @@ class Backend:
             program=None,
             resume=None,
             ignore_globs=(),
+            offline=None,
         )
 
         mp = multiprocessing

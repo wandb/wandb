@@ -65,7 +65,9 @@ defaults = dict(
     base_url="https://api.wandb.ai",
     show_warnings=2,
     summary_warnings=5,
-    _mode=Field(str, ("auto", "noop", "online", "offline", "dryrun", "run",)),
+    # old mode field (deprecated in favor of WANDB_OFFLINE=true)
+    _mode=Field(str, ("dryrun", "run",)),
+    # problem: TODO(jhr): Not implemented yet, needs new name?
     _problem=Field(str, ("fatal", "warn", "silent",)),
     console="auto",
     _console=Field(str, ("auto", "redirect", "off", "file", "iowrap",)),
@@ -89,6 +91,8 @@ env_settings = dict(
     job_type=None,
     problem=None,
     console=None,
+    offline=None,
+    disabled=None,
     config_paths=None,
     run_id=None,
     notebook_name=None,
@@ -165,7 +169,7 @@ def get_wandb_dir(root_dir):
         __stage_dir__ = "wandb" + os.sep
 
     path = os.path.join(root_dir, __stage_dir__)
-    if not os.access(root_dir, os.W_OK):
+    if not os.access(root_dir or ".", os.W_OK):
         wandb.termwarn("Path %s wasn't writable, using system temp directory" % path)
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
@@ -195,7 +199,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         api_key = None,
         anonymous=None,
         # how do we annotate that: dryrun==offline?
-        mode = "online",
+        mode = "run",
+        offline = None,
         entity = None,
         project = None,
         run_group = None,
@@ -207,8 +212,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_tags=None,
         sweep_id=None,
         # compatibility / error handling
-        compat_version=None,  # set to "0.8" for safer defaults for older users
-        strict=None,  # set to "on" to enforce current best practices (also "warn")
+        # compat_version=None,  # set to "0.8" for safer defaults for older users
+        # strict=None,  # set to "on" to enforce current best practices (also "warn")
         problem="fatal",
         # dynamic settings
         system_sample_seconds=2,
@@ -223,13 +228,13 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         settings_workspace_spec="{wandb_dir}/settings",
         settings_system=None,  # computed
         settings_workspace=None,  # computed
-        sync_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}",
-        sync_file_spec="run-{timespec}-{run_id}.wandb",
+        sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",
+        sync_file_spec="{run_mode}-{timespec}-{run_id}.wandb",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
-        sync_symlink_latest_spec="{wandb_dir}/latest",
+        sync_symlink_latest_spec="{wandb_dir}/latest-run",
         sync_file=None,  # computed
-        log_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}/logs",
+        log_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",
         log_user_spec="debug-{timespec}-{run_id}.log",
         log_internal_spec="debug-internal-{timespec}-{run_id}.log",
         log_symlink_user_spec="{wandb_dir}/debug.log",
@@ -238,7 +243,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         log_internal=None,  # computed
         resume_fname_spec="{wandb_dir}/wandb-resume.json",
         resume_fname=None,  # computed
-        files_dir_spec="{wandb_dir}/runs/run-{timespec}-{run_id}/files",
+        files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
         files_dir=None,  # computed
         symlink=None,  # probed
         # where files are temporary stored when saving
@@ -357,6 +362,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             )
         if self.run_id:
             format_dict["run_id"] = self.run_id
+        format_dict["run_mode"] = "offline" if self.offline else "run"
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later
@@ -430,6 +436,10 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             if self.windows:
                 console = "off"
             u["console"] = console
+
+        # convert wandb mode to "offline"
+        if self.mode == "dryrun":
+            self.offline = True
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
@@ -554,7 +564,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             elif args["resume"] is True:
                 args["resume"] = "auto"
         self.update(args)
-        self.wandb_dir = get_wandb_dir(self.root_dir or ".")
+        self.wandb_dir = get_wandb_dir(self.root_dir or "")
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):

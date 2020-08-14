@@ -69,6 +69,11 @@ class FilePusher(object):
         # TODO(artifacts): maybe don't do this
         self._temp_file_refs = []
 
+    def get_status(self):
+        running = self.is_alive()
+        summary = self._stats.summary()
+        return running, summary
+
     def print_status(self, prefix=True):
         step = 0
         spinner_states = ['-', '\\', '|', '/']
@@ -133,8 +138,12 @@ class FilePusher(object):
     def finish(self):
         logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish())
+
+    def join(self):
+        # NOTE: must have called finish before join
+        logger.info("waiting for file pusher")
         while self.is_alive():
-            time.sleep(0.2)
+            time.sleep(0.5)
 
     def is_alive(self):
         return (self._step_checksum.is_alive()

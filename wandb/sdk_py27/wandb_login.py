@@ -57,6 +57,9 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
     wl = wandb.setup(settings=settings, _warn=False)
     settings = wl.settings()
 
+    if settings.offline:
+        return
+
     active_entity = None
     logged_in = is_logged_in()
     if logged_in:

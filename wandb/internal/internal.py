@@ -258,14 +258,14 @@ def wandb_internal(  # noqa: C901
     logger.info("W&B internal server running at pid: %s", pid)
 
     system_stats = None
-    if not settings._disable_stats:
+    if not settings._disable_stats and not settings.offline:
         system_stats = stats.SystemStats(
             pid=pid, process_q=process_queue, notify_q=notify_queue
         )
         system_stats.start()
 
     run_meta = None
-    if not settings._disable_meta:
+    if not settings._disable_meta and not settings.offline:
         # We'll gather the meta now, but wait until we have a run to persist by wiring
         # this through to the sender.
         # If we try to persist now, there may not be a run yet, and we'll error out.
@@ -316,40 +316,53 @@ def wandb_internal(  # noqa: C901
 
     stopped = threading.Event()
 
-    send_queue = queue.Queue()
     write_queue = queue.Queue()
-    read_queue = queue.Queue()
-    data_queue = queue.Queue()
-
-    send_thread = threading.Thread(
-        name="wandb_send",
-        target=wandb_send,
-        args=(
-            settings,
-            process_queue,
-            notify_queue,
-            send_queue,
-            resp_queue,
-            read_queue,
-            data_queue,
-            stopped,
-            run_meta,
-            system_stats,
-        ),
-    )
     write_thread = threading.Thread(
         name="wandb_write", target=wandb_write, args=(settings, write_queue, stopped)
     )
-    read_thread = threading.Thread(
-        name="wandb_read",
-        target=wandb_read,
-        args=(settings, read_queue, data_queue, stopped),
-    )
-    # sequencer_thread - future
 
-    read_thread.start()
-    send_thread.start()
-    write_thread.start()
+    # offline requires doesnt need these queues and threads
+    send_queue = None
+    read_queue = None
+    data_queue = None
+    send_thread = None
+    read_thread = None
+
+    if not settings.offline:
+        send_queue = queue.Queue()
+        read_queue = queue.Queue()
+        data_queue = queue.Queue()
+
+        send_thread = threading.Thread(
+            name="wandb_send",
+            target=wandb_send,
+            args=(
+                settings,
+                process_queue,
+                notify_queue,
+                send_queue,
+                resp_queue,
+                read_queue,
+                data_queue,
+                stopped,
+                run_meta,
+                system_stats,
+            ),
+        )
+        read_thread = threading.Thread(
+            name="wandb_read",
+            target=wandb_read,
+            args=(settings, read_queue, data_queue, stopped),
+        )
+        # sequencer_thread - future
+
+    # startup all the threads
+    if read_thread:
+        read_thread.start()
+    if send_thread:
+        send_thread.start()
+    if write_thread:
+        write_thread.start()
 
     done = False
     while not done:
@@ -367,7 +380,8 @@ def wandb_internal(  # noqa: C901
                     pass
                 elif i == constants.NOTIFY_PROCESS:
                     rec = process_queue.get()
-                    send_queue.put(rec)
+                    if send_queue:
+                        send_queue.put(rec)
                     write_queue.put(rec)
                 elif i == constants.NOTIFY_SHUTDOWN:
                     # make sure queue is empty?
@@ -377,7 +391,8 @@ def wandb_internal(  # noqa: C901
                 elif i == constants.NOTIFY_REQUEST:
                     rec = req_queue.get()
                     # check if reqresp set
-                    send_queue.put(rec)
+                    if send_queue:
+                        send_queue.put(rec)
                     if not rec.control.local:
                         write_queue.put(rec)
                 else:
@@ -395,6 +410,9 @@ def wandb_internal(  # noqa: C901
     if system_stats:
         system_stats.shutdown()
 
-    read_thread.join()
-    send_thread.join()
-    write_thread.join()
+    if read_thread:
+        read_thread.join()
+    if send_thread:
+        send_thread.join()
+    if write_thread:
+        write_thread.join()

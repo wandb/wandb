@@ -181,6 +181,8 @@ class RunManaged(Run):
         # Created when the run "starts".
         self._run_status_checker = None
 
+        self._poll_exit_response = None
+
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
@@ -192,6 +194,7 @@ class RunManaged(Run):
         self._config._update(config)
         self._atexit_cleanup_called = None
         self._use_redirect = True
+        self._progress_step = 0
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -899,38 +902,79 @@ class RunManaged(Run):
             )
             self._display_run()
         print("")
-        if self._backend:
+        if self._backend and not self._settings.offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
+
+    def _pusher_print_status(self, progress, prefix=True, done=False):
+        spinner_states = ["-", "\\", "|", "/"]
+        line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+            progress.uploaded_bytes / 1048576.0,
+            progress.total_bytes / 1048576.0,
+            progress.deduped_bytes / 1048576.0,
+        )
+        line = spinner_states[self._progress_step % 4] + line
+        self._progress_step += 1
+        wandb.termlog(line, newline=False, prefix=prefix)
+
+        if done:
+            dedupe_fraction = (
+                progress.deduped_bytes / float(progress.total_bytes)
+                if progress.total_bytes > 0
+                else 0
+            )
+            if dedupe_fraction > 0.01:
+                wandb.termlog(
+                    "W&B sync reduced upload amount by %.1f%%             "
+                    % (dedupe_fraction * 100),
+                    prefix=prefix,
+                )
+            # clear progress line.
+            wandb.termlog(" " * 79, prefix=prefix)
+
+    def _on_finish_progress(self, progress, done=None):
+        self._pusher_print_status(progress, done=done)
 
     def _halt_bg_threads(self):
         if self._run_status_checker:
             self._run_status_checker.join()
             self._run_status_checker = None
 
+    def _wait_for_finish(self):
+        ret = None
+        while True:
+            ret = self._backend.interface.send_poll_exit_sync()
+            logger.info("got exit ret: %s", ret)
+
+            done = ret.response.poll_exit_response.done
+            pusher_stats = ret.response.poll_exit_response.pusher_stats
+            if pusher_stats:
+                self._on_finish_progress(pusher_stats, done)
+            if done:
+                break
+            time.sleep(2)
+        return ret
+
     def _on_finish(self):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        # TODO: we need to handle catastrophic failure better
-        # some tests were timing out on sending exit for reasons not clear to me
-        try:
-            ret = self._backend.interface.send_exit_sync(
-                self._exit_code, timeout=EXIT_TIMEOUT
-            )
-            logger.info("got exit ret: %s", ret)
-            if ret is None:
-                # TODO: do we really want to exit here?
-                print("Problem syncing data")
-                os._exit(1)
+        if self._settings.offline:
+            self._backend.interface.send_exit(self._exit_code)
+        else:
+            # TODO: we need to handle catastrophic failure better
+            # some tests were timing out on sending exit for reasons not clear to me
+            self._backend.interface.send_exit(self._exit_code)
 
-            self._exit_result = ret
+            # Wait for data to be synced
+            ret = self._wait_for_finish()
 
+            self._poll_exit_response = ret.response.poll_exit_response
             ret = self._backend.interface.send_get_summary_sync()
             self._final_summary = dict_from_proto_list(ret.item)
-        finally:
-            self._console_stop()
-            self._backend.cleanup()
+
+        self._console_stop()
+        self._backend.cleanup()
 
     def _on_final(self):
         # check for warnings and errors, show log file locations
@@ -966,14 +1010,14 @@ class RunManaged(Run):
 
         self._print_summary()
 
-        if self._exit_result.files:
+        if self._poll_exit_response and self._poll_exit_response.file_counts:
             logger.info("logging synced files")
             wandb.termlog(
                 "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)".format(  # noqa:E501
-                    self._exit_result.files.wandb_count,
-                    self._exit_result.files.media_count,
-                    self._exit_result.files.artifact_count,
-                    self._exit_result.files.other_count,
+                    self._poll_exit_response.file_counts.wandb_count,
+                    self._poll_exit_response.file_counts.media_count,
+                    self._poll_exit_response.file_counts.artifact_count,
+                    self._poll_exit_response.file_counts.other_count,
                 )
             )
 
@@ -987,7 +1031,7 @@ class RunManaged(Run):
             )
 
     def _print_summary(self):
-        if len(self._final_summary):
+        if self._final_summary:
             logger.info("rendering summary")
             wandb.termlog("Run summary:")
             max_len = max([len(k) for k in self._final_summary.keys()])
