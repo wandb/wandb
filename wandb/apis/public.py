@@ -116,6 +116,17 @@ fragment ArtifactFragment on Artifact {
         artifactCollectionName
         alias
     }
+    artifactType {
+        id
+        name
+    }
+    currentManifest {
+        id
+        file {
+            id
+            url
+        }
+    }
 }
 '''
 
@@ -394,7 +405,7 @@ class Api(object):
         Returns:
             A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project = self._parse_project_path(path)
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(self.client, entity, project,
@@ -2291,17 +2302,6 @@ class Artifact(object):
             project(name: $projectName, entityName: $entityName) {
                 artifact(name: $name) {
                     ...ArtifactFragment
-                    artifactType {
-                       id
-                       name
-                    }
-                    currentManifest {
-                        id
-                        file {
-                            id
-                            url
-                        }
-                    }
                 }
             }
         }

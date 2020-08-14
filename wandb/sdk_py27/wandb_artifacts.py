@@ -565,6 +565,7 @@ class LocalFileHandler(StorageHandler):
         are expanded to create an entry for each file contained within.
         """
         self._scheme = scheme or "file"
+        self._cache = get_artifacts_cache()
 
     @property
     def scheme(self):
@@ -574,18 +575,20 @@ class LocalFileHandler(StorageHandler):
         url = urlparse(manifest_entry.ref)
         local_path = "%s%s" % (url.netloc, url.path)
         if not os.path.exists(local_path):
-            raise ValueError("Failed to find file at path %s" % local_path)
+            raise ValueError(
+                "Local file reference: Failed to find file at path %s" % local_path
+            )
 
-        path = "%s/%s" % (artifact.cache_dir, manifest_entry.path)
-        if os.path.isfile(path):
-            md5 = md5_file_b64(path)
-            if md5 == manifest_entry.digest:
-                # Skip download.
-                return path
+        path, hit = self._cache.check_md5_obj_path(
+            manifest_entry.digest, manifest_entry.size
+        )
+        if hit:
+            return path
+
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
             raise ValueError(
-                "Digest mismatch for path %s: expected %s but found %s"
+                "Local file reference: Digest mismatch for path %s: expected %s but found %s"
                 % (local_path, manifest_entry.digest, md5)
             )
 
@@ -649,6 +652,7 @@ class S3Handler(StorageHandler):
         self._scheme = scheme or "s3"
         self._s3 = None
         self._versioning_enabled = None
+        self._cache = get_artifacts_cache()
 
     @property
     def scheme(self):
@@ -684,6 +688,12 @@ class S3Handler(StorageHandler):
         return self._versioning_enabled
 
     def load_path(self, artifact, manifest_entry, local=False):
+        path, hit = self._cache.check_etag_obj_path(
+            manifest_entry.digest, manifest_entry.size
+        )
+        if hit:
+            return path
+
         self.init_boto()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
@@ -693,8 +703,8 @@ class S3Handler(StorageHandler):
             # We don't have version information so just get the latest version
             # and fallback to listing all versions if we don't have a match.
             obj = self._s3.Object(bucket, key)
-            md5 = self._md5_from_obj(obj)
-            if md5 != manifest_entry.digest:
+            etag = self._etag_from_obj(obj)
+            if etag != manifest_entry.digest:
                 if self.versioning_enabled(bucket):
                     # Fallback to listing versions
                     obj = None
@@ -717,7 +727,7 @@ class S3Handler(StorageHandler):
                 else:
                     raise ValueError(
                         "Digest mismatch for object %s: expected %s but found %s"
-                        % (manifest_entry.ref, manifest_entry.digest, md5)
+                        % (manifest_entry.ref, manifest_entry.digest, etag)
                     )
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
@@ -726,14 +736,6 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = "%s/%s" % (artifact.cache_dir, manifest_entry.path)
-
-        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
-        # downloading. Switching to object caching (caching files by their digest instead
-        # of file name), this would work. Or we can store a list of known etags for local
-        # files.
-
-        util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_file(path, ExtraArgs=extra_args)
         return path
 
@@ -809,19 +811,13 @@ class S3Handler(StorageHandler):
         return ArtifactManifestEntry(
             name,
             ref,
-            self._md5_from_obj(obj),
+            self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
-    def _md5_from_obj(obj):
-        # If we're lucky, the MD5 is directly in the metadata.
-        if hasattr(obj, "metadata") and "md5" in obj.metadata:
-            return obj.metadata["md5"]
-        # Unfortunately, this is not the true MD5 of the file. Without
-        # streaming the file and computing an MD5 manually, there is no
-        # way to obtain the true MD5.
+    def _etag_from_obj(obj):
         return obj.e_tag[1:-1]  # escape leading and trailing quote
 
     @staticmethod
@@ -847,6 +843,7 @@ class GCSHandler(StorageHandler):
         self._scheme = scheme or "gs"
         self._client = None
         self._versioning_enabled = None
+        self._cache = get_artifacts_cache()
 
     def versioning_enabled(self, bucket):
         if self._versioning_enabled is not None:
@@ -878,6 +875,12 @@ class GCSHandler(StorageHandler):
         return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
+        path, hit = self._cache.check_md5_obj_path(
+            manifest_entry.digest, manifest_entry.size
+        )
+        if hit:
+            return path
+
         self.init_gcs()
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
@@ -907,14 +910,6 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path = "%s/%s" % (artifact.cache_dir, manifest_entry.path)
-
-        # TODO: We only have etag for this file, so we can't compare to an md5 to skip
-        # downloading. Switching to object caching (caching files by their digest instead
-        # of file name), this would work. Or we can store a list of known etags for local
-        # files.
-
-        util.mkdir_exists_ok(os.path.dirname(path))
         obj.download_to_filename(path)
         return path
 
