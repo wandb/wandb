@@ -140,7 +140,7 @@ class Api(object):
         """Syncs this run with spell"""
         try:
             env = env or os.environ
-            run.config._set_wandb("spell_url", env.get("SPELL_RUN_URL"))
+            run.config["_wandb"]["spell_url"] = env.get("SPELL_RUN_URL")
             run.config.persist()
             try:
                 url = run.get_url()

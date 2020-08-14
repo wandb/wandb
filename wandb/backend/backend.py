@@ -31,7 +31,7 @@ class Backend(object):
         self.notify_queue = None  # notify activity on ...
 
         self._done = False
-        self._wl = wandb.setup()
+        self._wl = wandb.setup(_warn=False)
         self.interface = None
 
     def _hack_set_run(self, run):
@@ -49,6 +49,11 @@ class Backend(object):
         log_level = log_level or logging.DEBUG
         settings = settings or {}
         settings = dict(settings)
+        # TODO: this is brittle and should likely be handled directly on the
+        # settings object.  Multi-processing blows up when it can't pickle
+        # objects.
+        if "_early_logger" in settings:
+            del settings["_early_logger"]
 
         # os.set_inheritable(stdout_fd, True)
         # os.set_inheritable(stderr_fd, True)

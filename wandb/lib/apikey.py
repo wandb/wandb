@@ -36,6 +36,20 @@ def _fixup_anon_mode(default):
     return mapping.get(anon_mode, anon_mode)
 
 
+def _prompt_choice():
+    try:
+        return (
+            int(
+                input(
+                    "%s: Enter your choice: " % LOG_STRING
+                )
+            )
+            - 1  # noqa: W503
+        )
+    except ValueError:
+        return -1
+
+
 def prompt_api_key(
     settings,
     api=None,
@@ -59,8 +73,9 @@ def prompt_api_key(
 
     if jupyter and 'google.colab' in sys.modules:
         key = wandb.jupyter.attempt_colab_login(api.app_url)
-        write_key(settings, key)
-        return key
+        if key is not None:
+            write_key(settings, key)
+            return key
 
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
@@ -73,22 +88,9 @@ def prompt_api_key(
         for i, choice in enumerate(choices):
             wandb.termlog("(%i) %s" % (i + 1, choice))
 
-        def prompt_choice():
-            try:
-                return (
-                    int(
-                        input(
-                            "%s: Enter your choice: " % LOG_STRING
-                        )
-                    )
-                    - 1  # noqa: W503
-                )
-            except ValueError:
-                return -1
-
         idx = -1
         while idx < 0 or idx > len(choices) - 1:
-            idx = prompt_choice()
+            idx = _prompt_choice()
             if idx < 0 or idx > len(choices) - 1:
                 wandb.termwarn("Invalid choice")
         result = choices[idx]

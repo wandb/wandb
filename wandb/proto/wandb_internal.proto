@@ -300,6 +300,8 @@ message Request {
     DeferRequest      defer = 3;
     GetSummaryRequest get_summary = 4;
     LoginRequest      login = 5;
+    PauseRequest      pause = 6;
+    ResumeRequest     resume = 7;
   }
 }
 
@@ -318,6 +320,18 @@ message Response {
  * DeferRequest: internal message to defer work
  */
 message DeferRequest {
+}
+
+/*
+ * PauseRequest: internal message to pause the heartbeat
+ */
+message PauseRequest {
+}
+
+/*
+ * ResumeRequest: internal message to resume the heartbeat
+ */
+message ResumeRequest {
 }
 
 /*

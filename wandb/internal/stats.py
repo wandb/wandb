@@ -77,10 +77,13 @@ class SystemStats(object):
         else:
             wandb.termlog(
                 "psutil not installed, only GPU stats will be reported.  Install with pip install psutil")
-        self._thread = threading.Thread(target=self._thread_body)
-        self._thread.daemon = True
+        self._thread = None
 
     def start(self):
+        if self._thread is None:
+            self._shutdown = False
+            self._thread = threading.Thread(target=self._thread_body)
+            self._thread.daemon = True
         self._thread.start()
 
     @property
@@ -121,10 +124,10 @@ class SystemStats(object):
     def shutdown(self):
         self._shutdown = True
         try:
-            self._thread.join()
-        # Incase we never start it
-        except RuntimeError:
-            pass
+            if self._thread is not None:
+                self._thread.join()
+        finally:
+            self._thread = None
 
     def flush(self):
         stats = self.stats()

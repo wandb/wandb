@@ -7,7 +7,6 @@ import sys
 import requests
 from requests.compat import urljoin
 import wandb
-from wandb import env
 
 try:
     from IPython.core.getipython import get_ipython
@@ -162,8 +161,9 @@ def attempt_colab_login(app_url):
 
 
 class Notebook(object):
-    def __init__(self):
+    def __init__(self, settings):
         self.outputs = {}
+        self.settings = settings
         self.shell = get_ipython()
 
     def save_display(self, exc_count, data_with_metadata):
@@ -196,8 +196,8 @@ class Notebook(object):
             return
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        # TODO: get code_saving turned on from settings
-        if len(hist) <= 1 or not env.should_save_code():
+        if len(hist) <= 1 or not self.settings.save_code:
+            logger.info("not saving jupyter history")
             return
         try:
             for _, execution_count, exc in hist:
@@ -226,6 +226,7 @@ class Notebook(object):
                 language_info = self.shell.kernel.language_info
             else:
                 language_info = {"name": "python", "version": sys.version}
+            logger.info("saving %i cells to _session_history.ipynb", len(cells))
             nb = v4.new_notebook(
                 cells=cells,
                 metadata={
@@ -238,7 +239,7 @@ class Notebook(object):
                 },
             )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run.config._set_wandb("session_history", state_path)
+            wandb.run.config["_wandb"]["session_history"] = state_path
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(

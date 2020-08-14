@@ -58,7 +58,8 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
     settings = wl.settings()
 
     active_entity = None
-    if is_logged_in():
+    logged_in = is_logged_in()
+    if logged_in:
         # TODO: do we want to move all login logic to the backend?
         if backend:
             res = backend.interface.send_login_sync(key, anonymous)
@@ -89,6 +90,10 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
         apikey.write_key(settings, key)
     else:
         apikey.prompt_api_key(settings, api=api)
+    if backend and not logged_in:
+        # TODO: calling this twice is gross, this deserves a refactor
+        # Make sure our backend picks up the new creds
+        backend.interface.send_login(key, anonymous)
     return
 
 

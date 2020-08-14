@@ -339,7 +339,13 @@ class BackendSender(object):
         return login
 
     def _make_request(
-        self, login=None, defer=None, get_summary=None, status=None,
+        self,
+        login=None,
+        defer=None,
+        get_summary=None,
+        pause=None,
+        resume=None,
+        status=None,
     ):
         request = wandb_internal_pb2.Request()
         if login:
@@ -348,10 +354,14 @@ class BackendSender(object):
             request.defer.CopyFrom(defer)
         elif get_summary:
             request.get_summary.CopyFrom(get_summary)
+        elif pause:
+            request.pause.CopyFrom(pause)
+        elif resume:
+            request.resume.CopyFrom(resume)
         elif status:
             request.status.CopyFrom(status)
         else:
-            raise Exception("problem")
+            raise Exception("Invalid request")
         record = self._make_record(request=request)
         return record
 
@@ -390,12 +400,12 @@ class BackendSender(object):
         elif request:
             record.request.CopyFrom(request)
         else:
-            raise Exception("problem")
+            raise Exception("Invalid record")
         return record
 
     def _queue_process(self, rec):
         if self._process and not self._process.is_alive():
-            raise Exception("problem")
+            raise Exception("The wandb backend process has shutdown")
         self.process_queue.put(rec)
         self.notify_queue.put(constants.NOTIFY_PROCESS)
 
@@ -418,6 +428,21 @@ class BackendSender(object):
         login_response = result.response.login_response
         assert login_response
         return login_response
+
+    def send_login(self, api_key=None, anonymous=None):
+        login = self._make_login(api_key, anonymous)
+        rec = self._make_request(login=login)
+        self._queue_process(rec)
+
+    def send_pause(self):
+        pause = wandb_internal_pb2.PauseRequest()
+        rec = self._make_request(pause=pause)
+        self._queue_process(rec)
+
+    def send_resume(self):
+        resume = wandb_internal_pb2.ResumeRequest()
+        rec = self._make_request(resume=resume)
+        self._queue_process(rec)
 
     def send_run(self, run_obj):
         run = self._make_run(run_obj)

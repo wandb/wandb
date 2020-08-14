@@ -154,6 +154,7 @@ class RunManaged(Run):
         self._tags = None
 
         self._hooks = None
+        self._teardown_hooks = []
         self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
@@ -383,6 +384,9 @@ class RunManaged(Run):
 
     def _set_reporter(self, reporter):
         self._reporter = reporter
+
+    def _set_teardown_hooks(self, hooks):
+        self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj):
         self._run_obj = run_obj
@@ -681,7 +685,9 @@ class RunManaged(Run):
         call this method when your script exits.
         """
         # detach logger, other setup cleanup
-        self._wl.on_finish()
+        logger.info("joining run %s", self.path)
+        for hook in self._teardown_hooks:
+            hook()
         self._atexit_cleanup(exit_code=exit_code)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -703,28 +709,80 @@ class RunManaged(Run):
         )
         return url
 
+    def _get_sweep_url(self):
+        """Generate a url for a sweep.
+
+        Returns:
+            string - url if the run is part of a sweep
+            None - if the run is not part of the sweep
+        """
+
+        r = self._run_obj
+        sweep_id = r.sweep_id
+        if sweep_id is None:
+            return
+
+        app_url = self._settings.base_url.replace("//api.", "//app.")
+
+        return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
+            base=app_url,
+            entity=url_quote(r.entity),
+            project=url_quote(r.project),
+            sweepid=url_quote(sweep_id),
+        )
+
     def _get_run_name(self):
         r = self._run_obj
         return r.display_name
 
     def _display_run(self):
-        emojis = dict(star="", broom="", rocket="")
-        if platform.system() != "Windows":
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
         project_url = self._get_project_url()
         run_url = self._get_run_url()
-        wandb.termlog(
-            "{} View project at {}".format(
-                emojis.get("star", ""),
-                click.style(project_url, underline=True, fg="blue"),
+        sweep_url = self._get_sweep_url()
+        if self._settings.jupyter:
+            from IPython.core.display import display, HTML  # type: ignore
+
+            sweep_line = (
+                'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
+                    sweep_url, sweep_url
+                )
+                if sweep_url
+                else ""
             )
-        )
-        wandb.termlog(
-            "{} View run at {}".format(
-                emojis.get("rocket", ""),
-                click.style(run_url, underline=True, fg="blue"),
+            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'  # noqa: E501
+            display(
+                HTML(
+                    """
+                Logging results to <a href="https://wandb.com" target="_blank">Weights & Biases</a> {}.<br/>
+                Project page: <a href="{}" target="_blank">{}</a><br/>
+                {}Run page: <a href="{}" target="_blank">{}</a><br/>
+            """.format(  # noqa: E501
+                        docs_html,
+                        project_url,
+                        project_url,
+                        sweep_line,
+                        run_url,
+                        run_url,
+                    )
+                )
             )
-        )
+        else:
+            emojis = dict(star="", broom="", rocket="")
+            if platform.system() != "Windows":
+                emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+
+            wandb.termlog(
+                "{} View project at {}".format(
+                    emojis.get("star", ""),
+                    click.style(project_url, underline=True, fg="blue"),
+                )
+            )
+            wandb.termlog(
+                "{} View run at {}".format(
+                    emojis.get("rocket", ""),
+                    click.style(run_url, underline=True, fg="blue"),
+                )
+            )
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
         console = self._settings.console
