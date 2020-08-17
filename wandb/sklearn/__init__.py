@@ -368,7 +368,8 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
         if true_labels is None:
             true_classes = classes
         else:
-            validate_labels(classes, true_labels, "true_labels")
+            # TODO: Where did this go?
+            # validate_labels(classes, true_labels, "true_labels")
 
             true_label_indexes = np.in1d(classes, true_labels)
 
@@ -378,7 +379,8 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
         if pred_labels is None:
             pred_classes = classes
         else:
-            validate_labels(classes, pred_labels, "pred_labels")
+            # TODO: Where did this go?
+            # validate_labels(classes, pred_labels, "pred_labels")
 
             pred_label_indexes = np.in1d(classes, pred_labels)
 
@@ -512,7 +514,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
         indices = np.argsort(importances)[::-1]
 
-        if feature_names == None:
+        if feature_names is None or not feature_names.astype(np.object).any():
             feature_names = indices
         else:
             feature_names = np.array(feature_names)[indices]
