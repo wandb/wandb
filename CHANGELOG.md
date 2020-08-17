@@ -1,5 +1,20 @@
-## 0.9.4 (July 24, 2020)
+## 0.9.5 (August 17, 2020)
 
+#### :nail_care: Enhancement
+
+-  Remove unused y_probas in sklearn plots, thanks @dreamflasher
+-  New deletion apis for artifacts
+
+#### :bug: Bug Fix
+
+-  Fix `wandb restore` when not logged in
+-  Fix artifact download paths on Windows
+-  Retry 408 errors on upload
+-  Fix mask numeric types, thanks @numpee
+-  Fix artifact reference naming mixup
+
+## 0.9.4 (July 24, 2020)
+ 
 #### :nail_care: Enhancement
 
 -  Default pytorch histogram logging frequency from 100 -> 1000 steps
