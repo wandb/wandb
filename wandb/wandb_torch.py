@@ -80,7 +80,7 @@ class TorchHistory(object):
         self._jupyter_run = None
 
     def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0, jupyter_run=None):
-        """ This instuments hooks into the pytorch module
+        """ This instruments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
