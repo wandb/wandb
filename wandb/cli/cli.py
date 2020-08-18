@@ -305,7 +305,7 @@ def init(ctx, project, entity, reset):
 
 
 @cli.command(context_settings=CONTEXT,
-             help="Upload an offline training directory to W&B", hidden=True)
+             help="Upload an offline training directory to W&B")
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--id", help="The run you want to upload to.")
@@ -316,12 +316,9 @@ def init(ctx, project, entity, reset):
 @click.option('--all', is_flag=True, default=False, help="Sync all runs")
 @display_error
 def sync(ctx, path, id, project, entity, ignore, all):
-    all_args = locals()
-    unsupported = ("id", "project", "entity", "ignore")
-    for item in unsupported:
-        if all_args.get(item):
-            cli_unsupported(item)
-    sm = SyncManager()
+    if ignore:
+        ignore = ignore.split(",")
+    sm = SyncManager(project=project, entity=entity, run_id=id, ignore=ignore)
     if not path:
         # Show listing of possible paths to sync
         # (if interactive, allow user to pick run to sync)

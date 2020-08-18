@@ -229,7 +229,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         settings_system=None,  # computed
         settings_workspace=None,  # computed
         sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",
-        sync_file_spec="{run_mode}-{timespec}-{run_id}.wandb",
+        sync_file_spec="run-{timespec}-{run_id}.wandb",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest-run",
@@ -362,7 +362,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             )
         if self.run_id:
             format_dict["run_id"] = self.run_id
-        format_dict["run_mode"] = "offline" if self.offline else "run"
+        format_dict["run_mode"] = "offline-run" if self.offline else "run"
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later

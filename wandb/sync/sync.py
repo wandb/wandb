@@ -4,12 +4,16 @@ sync.
 
 from __future__ import print_function
 
+import fnmatch
 import os
+import sys
 import threading
 import time
 
 from six.moves import queue
+from six.moves.urllib.parse import quote as url_quote
 import wandb
+from wandb.interface import constants
 from wandb.internal import datastore
 from wandb.internal import sender
 from wandb.internal import settings_static
@@ -17,11 +21,14 @@ from wandb.proto import wandb_internal_pb2  # type: ignore
 
 
 class SyncThread(threading.Thread):
-    def __init__(self, sync_list):
+    def __init__(self, sync_list, project=None, entity=None, run_id=None):
         threading.Thread.__init__(self)
         # mark this process as internal
         wandb._IS_INTERNAL_PROCESS = True
         self._sync_list = sync_list
+        self._project = project
+        self._entity = entity
+        self._run_id = run_id
 
     def run(self):
         for sync_item in self._sync_list:
@@ -29,10 +36,19 @@ class SyncThread(threading.Thread):
             files_dir = os.path.join(dirname, "files")
             sd = dict(files_dir=files_dir,
                       _start_time=0,
+                      git_remote=None,
+                      resume=None,
+                      program=None,
+                      ignore_globs=[],
                       )
             settings = settings_static.SettingsStatic(sd)
-            resp_queue = queue.Queue()
-            sm = sender.SendManager(settings=settings, resp_q=resp_queue)
+            process_q = queue.Queue()
+            notify_q = queue.Queue()
+            resp_q = queue.Queue()
+            run_meta = None
+            system_stats = None
+            sm = sender.SendManager(
+                settings, process_q, notify_q, resp_q, run_meta, system_stats)
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
             while True:
@@ -41,19 +57,48 @@ class SyncThread(threading.Thread):
                     break
                 pb = wandb_internal_pb2.Record()
                 pb.ParseFromString(data)
+                record_type = pb.WhichOneof("record_type")
+                if record_type == "run":
+                    if self._run_id:
+                        pb.run.run_id = self._run_id
+                    if self._project:
+                        pb.run.project = self._project
+                    if self._entity:
+                        pb.run.entity = self._entity
+                    pb.control.req_resp = True
                 sm.send(pb)
+                while not notify_q.empty():
+                    i = notify_q.get(block=True)
+                    assert i == constants.NOTIFY_PROCESS
+                    data = process_q.get(block=True)
+                    sm.send(data)
                 if pb.control.req_resp:
-                    try:
-                        _ = resp_queue.get(timeout=20)
-                    except queue.Empty:
-                        raise Exception("timeout?")
+                    result = resp_q.get(block=True)
+                    result_type = result.WhichOneof("result_type")
+                    if result_type == "run_result":
+                        r = result.run_result.run
+                        # TODO(jhr): hardcode until we have settings in sync
+                        app_url = "https://app.wandb.ai"
+                        url = "{}/{}/{}/runs/{}".format(
+                            app_url,
+                            url_quote(r.entity),
+                            url_quote(r.project),
+                            url_quote(r.run_id)
+                        )
+                        print("Syncing: %s ..." % url, end="")
+                        sys.stdout.flush()
             sm.finish()
+            print("done.")
 
 
 class SyncManager:
-    def __init__(self):
+    def __init__(self, project=None, entity=None, run_id=None, ignore=None):
         self._sync_list = []
         self._thread = None
+        self._project = project
+        self._entity = entity
+        self._run_id = run_id
+        self._ignore = ignore
 
     def status(self):
         pass
@@ -64,21 +109,31 @@ class SyncManager:
 
     def list(self):
         # TODO(jhr): grab dir info from settings
-        base = os.path.join("wandb", "runs")
+        base = os.path.join("wandb")
         dirs = os.listdir(base)
-        dirs = [d for d in dirs if d.startswith("run-")]
+        dirs = [d for d in dirs if d.startswith("offline-run-")]
         # find run file in each dir
         fnames = []
         for d in dirs:
-            files = os.listdir(os.path.join(base, d))
-            for f in files:
+            paths = os.listdir(os.path.join(base, d))
+            if self._ignore:
+                paths = set(paths)
+                for g in self._ignore:
+                    paths = paths - set(fnmatch.filter(paths, g))
+                paths = list(paths)
+
+            for f in paths:
                 if f.endswith(".wandb"):
                     fnames.append(os.path.join(base, d, f))
         return fnames
 
     def start(self):
         # create a thread for each file?
-        self._thread = SyncThread(self._sync_list)
+        self._thread = SyncThread(
+            self._sync_list,
+            project=self._project,
+            entity=self._entity,
+            run_id=self._run_id)
         self._thread.start()
 
     def is_done(self):

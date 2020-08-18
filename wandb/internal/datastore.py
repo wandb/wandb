@@ -108,6 +108,7 @@ class DataStore(object):
         fields = struct.unpack("<IHB", header)
         checksum, dlength, dtype = fields
         # check len, better fit in the block
+        self._index += LEVELDBLOG_HEADER_LEN
         data = self._fp.read(dlength)
         checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
         assert checksum == checksum_computed
@@ -120,7 +121,7 @@ class DataStore(object):
         offset = self._index % LEVELDBLOG_BLOCK_LEN
         space_left = LEVELDBLOG_BLOCK_LEN - offset
         if space_left < LEVELDBLOG_HEADER_LEN:
-            pad_check = "\x00" * space_left
+            pad_check = strtobytes("\x00" * space_left)
             pad = self._fp.read(space_left)
             # verify they are zero
             assert pad == pad_check
@@ -136,15 +137,16 @@ class DataStore(object):
         assert dtype == LEVELDBLOG_FIRST
         while True:
             offset = self._index % LEVELDBLOG_BLOCK_LEN
-            assert offset == 0
-
-            dtype, new_data = self.scan_record()
+            record = self.scan_record()
+            if record is None:  # eof
+                return None
+            dtype, new_data = record
             if dtype == LEVELDBLOG_LAST:
                 data += new_data
                 break
             assert dtype == LEVELDBLOG_MIDDLE
             data += new_data
-        return None
+        return data
 
     def _write_header(self):
         data = struct.pack(
@@ -182,6 +184,8 @@ class DataStore(object):
         dtype = dtype or LEVELDBLOG_FULL
         # print("record: length={} type={}".format(dlength, dtype))
         checksum = zlib.crc32(s, self._crc[dtype]) & 0xFFFFFFFF
+        # logger.info("write_record: index=%d len=%d dtype=%d",
+        #     self._index, dlength, dtype)
         self._fp.write(struct.pack("<IHB", checksum, dlength, dtype))
         if dlength:
             self._fp.write(s)
@@ -196,6 +200,8 @@ class DataStore(object):
         space_left = LEVELDBLOG_BLOCK_LEN - offset
         data_used = 0
         data_left = len(s)
+        # logger.info("write_data: index=%d offset=%d len=%d",
+        #     self._index, offset, data_left)
         if space_left < LEVELDBLOG_HEADER_LEN:
             pad = "\x00" * space_left
             self._fp.write(strtobytes(pad))
