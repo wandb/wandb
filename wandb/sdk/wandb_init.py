@@ -8,10 +8,10 @@ from __future__ import print_function
 import datetime
 import logging
 import os
-import sys
 import time
+import traceback
 
-from six import raise_from, reraise
+from six import raise_from
 import wandb
 from wandb.backend.backend import Backend
 from wandb.errors.error import UsageError
@@ -429,6 +429,7 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = locals()
+    error_seen = False
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
@@ -451,11 +452,17 @@ def init(
         logger.warning("interrupted", exc_info=e)
         raise_from(Exception("interrupted"), e)
     except Exception as e:
+        error_seen = True
+        traceback.print_exc()
         assert logger
         logger.error("error", exc_info=e)
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
         sentry_exc(e, delay=True)
-        reraise(*sys.exc_info())
-        #  raise_from(Exception("problem"), e)
+        # reraise(*sys.exc_info())
+        # raise_from(Exception("problem"), e)
+    finally:
+        if error_seen:
+            wandb.termerror("Abnormal program exit")
+            os._exit(-1)
     return run

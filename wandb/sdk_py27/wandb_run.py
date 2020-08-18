@@ -871,7 +871,11 @@ class RunManaged(Run):
 
         self._exit_code = exit_code
         self._halt_bg_threads()
-        self._on_finish()
+        try:
+            self._on_finish()
+        except KeyboardInterrupt:
+            wandb.termerror("Control-C detected -- Run data was not synced")
+            os._exit(-1)
         self._on_final()
 
     def _console_start(self):
