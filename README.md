@@ -1,16 +1,17 @@
+# ** Client - Next Generation**
 <div align="center">
-  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
+  <img src="https://i.imgur.com/dKqSdPi.png" width="600" /><br><br>
 </div>
 
-# **Experimental Client - Next Generation**
+Try the latest version of W&B for machine learning experiment tracking. Install the new library with:
 
-This repo contains experimental changes to the production wandb client at [github.com/wandb/client](http://github.com/wandb/client).
+```
+pip install wandb --upgrade --pre
+```
 
-## Primary Features
-
-- Better support for different operating environments including windows and juypter
-- Improved configurability (Documentation coming soon)
-- Improved syncing and offline mode to support compute nodes without internet connection (Not in current release)
+Why should I switch to the new CLI?
+- Better support for Windows and Jupyter notebooks
+- Preview the upcoming release and share feedback
 
 ## Support
 
