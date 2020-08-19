@@ -2109,7 +2109,7 @@ class Artifact(object):
         
         raise ValueError('Unexpected API result.')
 
-    def new_file(self, name):
+    def new_file(self, name, mode=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 
     def add_file(self, path, name=None):
