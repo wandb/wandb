@@ -3,14 +3,14 @@
 config.
 """
 
-import inspect
 import logging
-import types
 
 import six
 from wandb.lib.config import ConfigError
 from wandb.lib.term import terminfo
 from wandb.util import json_friendly
+
+from .wandb_helper import parse_config
 
 try:
     # Since python 3
@@ -20,41 +20,6 @@ except ImportError:
     from collections import Sequence
 
 logger = logging.getLogger("wandb")
-
-
-def parse_config(params):
-    if isinstance(params, dict):
-        return params
-
-    # Handle some cases where params is not a dictionary
-    # by trying to convert it into a dictionary
-    meta = inspect.getmodule(params)
-    if meta:
-        is_tf_flags_module = (
-            isinstance(params, types.ModuleType)
-            and meta.__name__ == "tensorflow.python.platform.flags"  # noqa: W503
-        )
-        if is_tf_flags_module or meta.__name__ == "absl.flags":
-            params = params.FLAGS
-            meta = inspect.getmodule(params)
-
-    # newer tensorflow flags (post 1.4) uses absl.flags
-    if meta and meta.__name__ == "absl.flags._flagvalues":
-        params = {name: params[name].value for name in dir(params)}
-    elif "__flags" in vars(params):
-        # for older tensorflow flags (pre 1.4)
-        if not "__parsed" not in vars(params):
-            params._parse_flags()
-        params = vars(params)["__flags"]
-    elif not hasattr(params, "__dict__"):
-        raise TypeError("config must be a dict or have a __dict__ attribute.")
-    else:
-        # params is a Namespace object (argparse)
-        # or something else
-        params = vars(params)
-
-    # assume argparse Namespace
-    return params
 
 
 # TODO(jhr): consider a callback for persisting changes?
@@ -98,6 +63,9 @@ class Config(object):
 
     def __getattr__(self, key):
         return self.__getitem__(key)
+
+    def __contains__(self, key):
+        return key in self._items
 
     def _update(self, d, allow_val_change=False):
         parsed_dict = parse_config(d)

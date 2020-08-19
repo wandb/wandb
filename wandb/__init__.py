@@ -44,6 +44,7 @@ setup = wandb_sdk.setup
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 login = wandb_sdk.login
+helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
 Settings = wandb_sdk.Settings
 
