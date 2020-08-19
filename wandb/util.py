@@ -955,3 +955,48 @@ def to_native_slash_path(path):
 def bytes_to_hex(bytestr):
     # Works in python2 / python3
     return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
+
+
+class ImportMetaHook():
+    def __init__(self):
+        self.modules = {}
+        self.on_import = {}
+
+    def add(self, fullname, on_import):
+        self.on_import.setdefault(fullname, []).append(on_import)
+
+    def install(self):
+        sys.meta_path.insert(0, self)
+
+    def uninstall(self):
+        sys.meta_path.remove(self)
+
+    def find_module(self, fullname, path=None):
+        if fullname in self.on_import:
+            return self
+
+    def load_module(self, fullname):
+        self.uninstall()
+        mod = importlib.import_module(fullname)
+        self.install()
+        self.modules[fullname] = mod
+        on_imports = self.on_import.get(fullname)
+        if on_imports:
+            for f in on_imports:
+                f()
+        return mod
+
+    def get_modules(self):
+        return tuple(self.modules)
+
+    def get_module(self, module):
+        return self.modules[module]
+
+_import_hook = None
+
+def add_import_hook(fullname, on_import):
+    global _import_hook
+    if _import_hook is None:
+        _import_hook = ImportMetaHook()
+        _import_hook.install()
+    _import_hook.add(fullname, on_import)

@@ -59,6 +59,9 @@ class Config(object):
         if self._callback:
             self._callback(key=key, val=val, data=self._as_dict())
 
+    def items(self):
+        return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
+
     __setattr__ = __setitem__
 
     def __getattr__(self, key):

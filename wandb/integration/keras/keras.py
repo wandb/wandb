@@ -14,30 +14,13 @@ import os
 import numpy as np
 import wandb
 import sys
+from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
 
-# Use system keras if it's been imported
-if "keras" in sys.modules:
-    import keras
-    import keras.backend as K
-elif "tensorflow.python.keras" in sys.modules:
-    import tensorflow.keras as keras
-    import tensorflow.keras.backend as K
-else:
-    try:
-        wandb.termwarn(
-            "import wandb.keras called before import keras or import tensorflow.keras.  This can lead to a version mismatch, W&B now assumes tensorflow.keras")
-        import tensorflow.keras as keras
-        import tensorflow.keras.backend as K
-    except ImportError:
-        import keras
-        import keras.backend as K
-
 
 def is_dataset(data):
-    dataset_ops = wandb.util.get_module(
-        "tensorflow.python.data.ops.dataset_ops")
+    dataset_ops = wandb.util.get_module("tensorflow.python.data.ops.dataset_ops")
     if dataset_ops and hasattr(dataset_ops, "DatasetV2"):
         dataset_types = (dataset_ops.DatasetV2,)
         if hasattr(dataset_ops, "DatasetV1"):
@@ -51,8 +34,7 @@ def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
     types = (keras.utils.Sequence,)
-    iterator_ops = wandb.util.get_module(
-        "tensorflow.python.data.ops.iterator_ops")
+    iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
         # EagerIterator was in tensorflow < 2
@@ -60,8 +42,7 @@ def is_generator_like(data):
             types = types + (iterator_ops.EagerIterator,)
         elif hasattr(iterator_ops, "IteratorV2"):
             types = types + (iterator_ops.IteratorV2,)
-    return (hasattr(data, 'next') or hasattr(data, '__next__') or isinstance(
-        data, types))
+    return hasattr(data, "next") or hasattr(data, "__next__") or isinstance(data, types)
 
 
 def patch_tf_keras():
@@ -72,9 +53,9 @@ def patch_tf_keras():
     from tensorflow.python.keras.engine import training_generator
 
     # Tensorflow 2.1
-    training_v2_1 = wandb.util.get_module('tensorflow.python.keras.engine.training_v2')
+    training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")
     # Tensorflow 2.2
-    training_v2_2 = wandb.util.get_module('tensorflow.python.keras.engine.training_v1')
+    training_v2_2 = wandb.util.get_module("tensorflow.python.keras.engine.training_v1")
 
     if training_v2_1:
         old_v2 = training_v2_1.Loop.fit
@@ -93,12 +74,14 @@ def patch_tf_keras():
                     cbk.generator = iter(val_data)
                 else:
                     wandb.termwarn(
-                        "Found a validation dataset in graph mode, can't patch Keras.")
+                        "Found a validation dataset in graph mode, can't patch Keras."
+                    )
             elif isinstance(val_data, tuple) and isinstance(val_data[0], tf.Tensor):
                 # Graph mode dataset generator
                 def gen():
                     while True:
                         yield K.get_session().run(val_data)
+
                 cbk.generator = gen()
             else:
                 cbk.validation_data = val_data
@@ -134,25 +117,46 @@ def patch_tf_keras():
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
     wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"])
+        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"]
+    )
     wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_generator", "fit_generator"])
+        ["tensorflow.python.keras.engine.training_generator", "fit_generator"]
+    )
 
     if training_v2_1:
         training_v2_1.Loop.fit = new_v2
         wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training_v2.Loop", "fit"])
+            ["tensorflow.python.keras.engine.training_v2.Loop", "fit"]
+        )
     elif training_v2_2:
         training.Model.fit = new_v2
         wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training.Model", "fit"])
+            ["tensorflow.python.keras.engine.training.Model", "fit"]
+        )
 
-if "tensorflow" in wandb.util.get_full_typename(keras):
-    try:
-        patch_tf_keras()
-    except Exception:
+
+def _check_keras_version():
+    import keras
+
+    keras_version = keras.__version__
+    major, minor, patch = keras_version.split(".")
+    if int(major) < 2 or int(minor) < 4:
         wandb.termwarn(
-            "Unable to patch tensorflow.keras for use with W&B.  You will not be able to log images unless you set the generator argument of the callback.")
+            "Keras version %s is not fully supported. Required keras >= 2.4.0"
+            % (keras_version)
+        )
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
+
+import tensorflow.keras as keras
+import tensorflow.keras.backend as K
+
+patch_tf_keras()
 
 
 class WandbCallback(keras.callbacks.Callback):
@@ -224,16 +228,32 @@ class WandbCallback(keras.callbacks.Callback):
             and stored as summary metrics.
     """
 
-    def __init__(self, monitor='val_loss', verbose=0, mode='auto',
-                 save_weights_only=False, log_weights=False, log_gradients=False,
-                 save_model=True, training_data=None, validation_data=None,
-                 labels=[], data_type=None, predictions=36, generator=None,
-                 input_type=None, output_type=None, log_evaluation=False,
-                 validation_steps=None, class_colors=None, log_batch_frequency=None,
-                 log_best_prefix="best_", save_graph=True):
+    def __init__(
+        self,
+        monitor="val_loss",
+        verbose=0,
+        mode="auto",
+        save_weights_only=False,
+        log_weights=False,
+        log_gradients=False,
+        save_model=True,
+        training_data=None,
+        validation_data=None,
+        labels=[],
+        data_type=None,
+        predictions=36,
+        generator=None,
+        input_type=None,
+        output_type=None,
+        log_evaluation=False,
+        validation_steps=None,
+        class_colors=None,
+        log_batch_frequency=None,
+        log_best_prefix="best_",
+        save_graph=True,
+    ):
         if wandb.run is None:
-            raise wandb.Error(
-                'You must call wandb.init() before WandbCallback()')
+            raise wandb.Error("You must call wandb.init() before WandbCallback()")
 
         self.validation_data = None
         # This is kept around for legacy reasons
@@ -251,8 +271,8 @@ class WandbCallback(keras.callbacks.Callback):
         self.save_weights_only = save_weights_only
         self.save_graph = save_graph
 
-        wandb.save('model-best.h5')
-        self.filepath = os.path.join(wandb.run.dir, 'model-best.h5')
+        wandb.save("model-best.h5")
+        self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
         self.log_weights = log_weights
         self.log_gradients = log_gradients
@@ -268,29 +288,32 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
 
+        self._prediction_batch_size = None
+
         if self.training_data:
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
 
         # From Keras
-        if mode not in ['auto', 'min', 'max']:
-            print('WandbCallback mode %s is unknown, '
-                  'fallback to auto mode.' % (mode))
-            mode = 'auto'
+        if mode not in ["auto", "min", "max"]:
+            print(
+                "WandbCallback mode %s is unknown, " "fallback to auto mode." % (mode)
+            )
+            mode = "auto"
 
-        if mode == 'min':
+        if mode == "min":
             self.monitor_op = operator.lt
-            self.best = float('inf')
-        elif mode == 'max':
+            self.best = float("inf")
+        elif mode == "max":
             self.monitor_op = operator.gt
-            self.best = float('-inf')
+            self.best = float("-inf")
         else:
-            if 'acc' in self.monitor or self.monitor.startswith('fmeasure'):
+            if "acc" in self.monitor or self.monitor.startswith("fmeasure"):
                 self.monitor_op = operator.gt
-                self.best = float('-inf')
+                self.best = float("-inf")
             else:
                 self.monitor_op = operator.lt
-                self.best = float('inf')
+                self.best = float("inf")
 
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
@@ -306,8 +329,10 @@ class WandbCallback(keras.callbacks.Callback):
 
     def set_model(self, model):
         self.model = model
-        if self.input_type == 'auto' and len(model.inputs) == 1:
-            self.input_type = wandb.util.guess_data_type(model.inputs[0].shape, risky=True)
+        if self.input_type == "auto" and len(model.inputs) == 1:
+            self.input_type = wandb.util.guess_data_type(
+                model.inputs[0].shape, risky=True
+            )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
 
@@ -318,27 +343,38 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in ("image", "images", "segmentation_mask") or self.output_type in ("image", "images", "segmentation_mask"):
+        if self.input_type in (
+            "image",
+            "images",
+            "segmentation_mask",
+        ) or self.output_type in ("image", "images", "segmentation_mask"):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
                 wandb.termwarn(
-                    "No validation_data set, pass a generator to the callback.")
+                    "No validation_data set, pass a generator to the callback."
+                )
             elif self.validation_data and len(self.validation_data) > 0:
-                wandb.log({"examples": self._log_images(
-                    num_images=self.predictions)}, commit=False)
+                wandb.log(
+                    {"examples": self._log_images(num_images=self.predictions)},
+                    commit=False,
+                )
 
-        wandb.log({'epoch': epoch}, commit=False)
+        wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
 
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
-                wandb.run.summary["%s%s" % (self.log_best_prefix, self.monitor)] = self.current
+                wandb.run.summary[
+                    "%s%s" % (self.log_best_prefix, self.monitor)
+                ] = self.current
                 wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
-                    print('Epoch %05d: %s improved from %0.5f to %0.5f' % (
-                        epoch, self.monitor, self.best, self.current))
+                    print(
+                        "Epoch %05d: %s improved from %0.5f to %0.5f"
+                        % (epoch, self.monitor, self.best, self.current)
+                    )
             if self.save_model:
                 self._save_model(epoch)
             self.best = self.current
@@ -351,7 +387,7 @@ class WandbCallback(keras.callbacks.Callback):
     def on_batch_end(self, batch, logs=None):
         if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
-            wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
 
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
@@ -363,7 +399,7 @@ class WandbCallback(keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs=None):
         if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
-            wandb.run.summary['graph'] = wandb.Graph.from_keras(self.model)
+            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.model)
             self._graph_rendered = True
 
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
@@ -386,7 +422,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_end(self, logs=None):
         if self.log_evaluation:
-            wandb.run.summary['results'] = self._log_dataframe()
+            wandb.run.summary["results"] = self._log_dataframe()
         pass
 
     def on_test_begin(self, logs=None):
@@ -419,12 +455,15 @@ class WandbCallback(keras.callbacks.Callback):
             # TODO: handle validation_y
             if len(self.labels) == 2:
                 # User has named true and false
-                captions = [self.labels[1] if logits[0] >
-                            0.5 else self.labels[0] for logit in logits]
+                captions = [
+                    self.labels[1] if logits[0] > 0.5 else self.labels[0]
+                    for logit in logits
+                ]
             else:
                 if len(self.labels) != 0:
                     wandb.termwarn(
-                        "keras model is producing a single output, so labels should be a length two array: [\"False label\", \"True label\"].")
+                        'keras model is producing a single output, so labels should be a length two array: ["False label", "True label"].'
+                    )
                 captions = [logit[0] for logit in logits]
         else:
             # Vector output from the model
@@ -447,8 +486,11 @@ class WandbCallback(keras.callbacks.Callback):
         # if its a binary mask, just return it as grayscale instead of picking the argmax
         if len(masks[0].shape) == 2 or masks[0].shape[-1] == 1:
             return masks
-        class_colors = self.class_colors if self.class_colors is not None else np.array(
-            wandb.util.class_colors(masks[0].shape[2]))
+        class_colors = (
+            self.class_colors
+            if self.class_colors is not None
+            else np.array(wandb.util.class_colors(masks[0].shape[2]))
+        )
         imgs = class_colors[np.argmax(masks, axis=-1)]
         return imgs
 
@@ -460,8 +502,7 @@ class WandbCallback(keras.callbacks.Callback):
 
         if validation_length > num_images:
             # pick some data at random
-            indices = np.random.choice(
-                validation_length, num_images, replace=False)
+            indices = np.random.choice(validation_length, num_images, replace=False)
         else:
             indices = range(validation_length)
 
@@ -472,15 +513,32 @@ class WandbCallback(keras.callbacks.Callback):
             test_data.append(test_example)
             test_output.append(validation_y[i])
 
-        predictions = self.model.predict(np.stack(test_data))
+        if self.model.stateful:
+            predictions = self.model.predict(np.stack(test_data), batch_size=1)
+            self.model.reset_states()
+        else:
+            predictions = self.model.predict(
+                np.stack(test_data), batch_size=self._prediction_batch_size
+            )
+            if len(predictions) != len(test_data):
+                self._prediction_batch_size = 1
+                predictions = self.model.predict(
+                    np.stack(test_data), batch_size=self._prediction_batch_size
+                )
 
-        if self.input_type == 'label':
-            if self.output_type in ('image', 'images', 'segmentation_mask'):
+        if self.input_type == "label":
+            if self.output_type in ("image", "images", "segmentation_mask"):
                 captions = self._logits_to_captions(test_data)
-                output_image_data = self._masks_to_pixels(
-                    predictions) if self.output_type == 'segmentation_mask' else predictions
-                reference_image_data = self._masks_to_pixels(
-                    test_output) if self.output_type == 'segmentation_mask' else test_output
+                output_image_data = (
+                    self._masks_to_pixels(predictions)
+                    if self.output_type == "segmentation_mask"
+                    else predictions
+                )
+                reference_image_data = (
+                    self._masks_to_pixels(test_output)
+                    if self.output_type == "segmentation_mask"
+                    else test_output
+                )
                 output_images = [
                     wandb.Image(data, caption=captions[i], grouping=2)
                     for i, data in enumerate(output_image_data)
@@ -490,32 +548,67 @@ class WandbCallback(keras.callbacks.Callback):
                     for i, data in enumerate(reference_image_data)
                 ]
                 return list(chain.from_iterable(zip(output_images, reference_images)))
-        elif self.input_type in ('image', 'images', 'segmentation_mask'):
-            input_image_data = self._masks_to_pixels(test_data) if self.input_type == 'segmentation_mask' else test_data
-            if self.output_type == 'label':
+        elif self.input_type in ("image", "images", "segmentation_mask"):
+            input_image_data = (
+                self._masks_to_pixels(test_data)
+                if self.input_type == "segmentation_mask"
+                else test_data
+            )
+            if self.output_type == "label":
                 # we just use the predicted label as the caption for now
                 captions = self._logits_to_captions(predictions)
-                return [wandb.Image(data, caption=captions[i]) for i, data in enumerate(test_data)]
-            elif self.output_type in ('image', 'images', 'segmentation_mask'):
-                output_image_data = self._masks_to_pixels(
-                    predictions) if self.output_type == 'segmentation_mask' else predictions
-                reference_image_data = self._masks_to_pixels(
-                    test_output) if self.output_type == 'segmentation_mask' else test_output
-                input_images = [wandb.Image(data, grouping=3) for i, data in enumerate(input_image_data)]
-                output_images = [wandb.Image(data) for i, data in enumerate(output_image_data)]
-                reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
-                return list(chain.from_iterable(zip(input_images, output_images, reference_images)))
+                return [
+                    wandb.Image(data, caption=captions[i])
+                    for i, data in enumerate(test_data)
+                ]
+            elif self.output_type in ("image", "images", "segmentation_mask"):
+                output_image_data = (
+                    self._masks_to_pixels(predictions)
+                    if self.output_type == "segmentation_mask"
+                    else predictions
+                )
+                reference_image_data = (
+                    self._masks_to_pixels(test_output)
+                    if self.output_type == "segmentation_mask"
+                    else test_output
+                )
+                input_images = [
+                    wandb.Image(data, grouping=3)
+                    for i, data in enumerate(input_image_data)
+                ]
+                output_images = [
+                    wandb.Image(data) for i, data in enumerate(output_image_data)
+                ]
+                reference_images = [
+                    wandb.Image(data) for i, data in enumerate(reference_image_data)
+                ]
+                return list(
+                    chain.from_iterable(
+                        zip(input_images, output_images, reference_images)
+                    )
+                )
             else:
                 # unknown output, just log the input images
                 return [wandb.Image(img) for img in test_data]
-        elif self.output_type in ('image', 'images', 'segmentation_mask'):
+        elif self.output_type in ("image", "images", "segmentation_mask"):
             # unknown input, just log the predicted and reference outputs without captions
-            output_image_data = self._masks_to_pixels(
-                predictions) if self.output_type == 'segmentation_mask' else predictions
-            reference_image_data = self._masks_to_pixels(
-                test_output) if self.output_type == 'segmentation_mask' else test_output
-            output_images = [wandb.Image(data, grouping=2) for i, data in enumerate(output_image_data)]
-            reference_images = [wandb.Image(data) for i, data in enumerate(reference_image_data)]
+            output_image_data = (
+                self._masks_to_pixels(predictions)
+                if self.output_type == "segmentation_mask"
+                else predictions
+            )
+            reference_image_data = (
+                self._masks_to_pixels(test_output)
+                if self.output_type == "segmentation_mask"
+                else test_output
+            )
+            output_images = [
+                wandb.Image(data, grouping=2)
+                for i, data in enumerate(output_image_data)
+            ]
+            reference_images = [
+                wandb.Image(data) for i, data in enumerate(reference_image_data)
+            ]
             return list(chain.from_iterable(zip(output_images, reference_images)))
 
     def _log_weights(self):
@@ -523,55 +616,70 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics["parameters/" + layer.name +
-                        ".weights"] = wandb.Histogram(weights[0])
+                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                    weights[0]
+                )
             elif len(weights) == 2:
-                metrics["parameters/" + layer.name +
-                        ".weights"] = wandb.Histogram(weights[0])
-                metrics["parameters/" + layer.name +
-                        ".bias"] = wandb.Histogram(weights[1])
+                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                    weights[0]
+                )
+                metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
+                    weights[1]
+                )
         return metrics
 
     def _log_gradients(self):
-        if (not self.training_data):
-            raise ValueError(
-                "Need to pass in training data if logging gradients")
+        if not self.training_data:
+            raise ValueError("Need to pass in training data if logging gradients")
 
         X_train = self.training_data[0]
         y_train = self.training_data[1]
         metrics = {}
         weights = self.model.trainable_weights  # weight tensors
         # filter down weights tensors to only ones which are trainable
-        weights = [weight for weight in weights
-                   if self.model.get_layer(weight.name.split('/')[0]).trainable]
+        weights = [
+            weight
+            for weight in weights
+            if self.model.get_layer(weight.name.split("/")[0]).trainable
+        ]
 
         gradients = self.model.optimizer.get_gradients(
-            self.model.total_loss, weights)  # gradient tensors
+            self.model.total_loss, weights
+        )  # gradient tensors
         if hasattr(self.model, "targets"):
             # TF < 1.14
             target = self.model.targets[0]
             sample_weight = self.model.sample_weights[0]
-        elif hasattr(self.model, "_training_endpoints") and len(self.model._training_endpoints) > 0:
+        elif (
+            hasattr(self.model, "_training_endpoints")
+            and len(self.model._training_endpoints) > 0
+        ):
             # TF > 1.14 TODO: not sure if we're handling sample_weight properly here...
             target = self.model._training_endpoints[0].training_target.target
-            sample_weight = self.model._training_endpoints[0].sample_weight or K.variable(1)
+            sample_weight = self.model._training_endpoints[
+                0
+            ].sample_weight or K.variable(1)
         else:
             wandb.termwarn(
-                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client", repeat=False)
+                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client",
+                repeat=False,
+            )
             return metrics
-        input_tensors = [self.model.inputs[0],  # input data
-                         # how much to weight each sample by
-                         sample_weight,
-                         target,  # labels
-                         K.learning_phase(),  # train or test mode
-                         ]
+        input_tensors = [
+            self.model.inputs[0],  # input data
+            # how much to weight each sample by
+            sample_weight,
+            target,  # labels
+            K.learning_phase(),  # train or test mode
+        ]
 
         get_gradients = K.function(inputs=input_tensors, outputs=gradients)
         grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
 
         for (weight, grad) in zip(weights, grads):
-            metrics["gradients/" + weight.name.split(
-                ':')[0] + ".gradient"] = wandb.Histogram(grad)
+            metrics[
+                "gradients/" + weight.name.split(":")[0] + ".gradient"
+            ] = wandb.Histogram(grad)
 
         return metrics
 
@@ -584,7 +692,8 @@ class WandbCallback(keras.callbacks.Callback):
         elif self.generator:
             if not self.validation_steps:
                 wandb.termwarn(
-                    'when using a generator for validation data with dataframes, you must pass validation_steps. skipping')
+                    "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
+                )
                 return None
 
             for i in range(self.validation_steps):
@@ -593,24 +702,41 @@ class WandbCallback(keras.callbacks.Callback):
                 if x is None:
                     x, y_true, y_pred = bx, by_true, by_pred
                 else:
-                    x, y_true, y_pred = np.append(x, bx, axis=0), np.append(
-                        y_true, by_true, axis=0), np.append(y_pred, by_pred, axis=0)
+                    x, y_true, y_pred = (
+                        np.append(x, bx, axis=0),
+                        np.append(y_true, by_true, axis=0),
+                        np.append(y_pred, by_pred, axis=0),
+                    )
 
-        if self.input_type in ('image', 'images') and self.output_type == 'label':
-            return wandb.image_categorizer_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels)
-        elif self.input_type in ('image', 'images') and self.output_type == 'segmentation_mask':
-            return wandb.image_segmentation_dataframe(x=x, y_true=y_true, y_pred=y_pred, labels=self.labels, class_colors=self.class_colors)
+        if self.input_type in ("image", "images") and self.output_type == "label":
+            return wandb.image_categorizer_dataframe(
+                x=x, y_true=y_true, y_pred=y_pred, labels=self.labels
+            )
+        elif (
+            self.input_type in ("image", "images")
+            and self.output_type == "segmentation_mask"
+        ):
+            return wandb.image_segmentation_dataframe(
+                x=x,
+                y_true=y_true,
+                y_pred=y_pred,
+                labels=self.labels,
+                class_colors=self.class_colors,
+            )
         else:
-            wandb.termwarn('unknown dataframe type for input_type=%s and output_type=%s' %
-                           (self.input_type, self.output_type))
+            wandb.termwarn(
+                "unknown dataframe type for input_type=%s and output_type=%s"
+                % (self.input_type, self.output_type)
+            )
             return None
 
     def _save_model(self, epoch):
         if self.verbose > 0:
-            print('Epoch %05d: %s improved from %0.5f to %0.5f,'
-                  ' saving model to %s'
-                  % (epoch, self.monitor, self.best,
-                     self.current, self.filepath))
+            print(
+                "Epoch %05d: %s improved from %0.5f to %0.5f,"
+                " saving model to %s"
+                % (epoch, self.monitor, self.best, self.current, self.filepath)
+            )
 
         try:
             if self.save_weights_only:
@@ -620,8 +746,5 @@ class WandbCallback(keras.callbacks.Callback):
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
         except (ImportError, RuntimeError, TypeError) as e:
-            wandb.termerror(
-                "Can't save model, h5py returned error: %s" % e)
+            wandb.termerror("Can't save model, h5py returned error: %s" % e)
             self.save_model = False
-
-

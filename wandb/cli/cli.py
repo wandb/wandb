@@ -23,6 +23,7 @@ from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb.apis import InternalApi, PublicApi
+from wandb.integration.magic import magic_install
 from wandb.old.settings import Settings
 from wandb.sync import SyncManager
 import yaml
@@ -165,7 +166,8 @@ def projects(entity, display=True):
 @display_error
 def login(key, host, cloud, relogin, anonymously):
     anon_mode = "must" if anonymously else "never"
-    wandb.setup(settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode))
+    wandb.setup(settings=wandb.Settings(
+        _cli_only_mode=True, anonymous=anon_mode))
     api = _get_cling_api()
 
     if host == "https://api.wandb.ai" or (host is None and cloud):
@@ -176,7 +178,8 @@ def login(key, host, cloud, relogin, anonymously):
     elif host:
         if not host.startswith("http"):
             raise ClickException("host must start with http(s)://")
-        api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
+        api.set_setting("base_url", host.strip("/"),
+                        globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
 
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode)
@@ -275,7 +278,8 @@ def init(ctx, project, entity, reset):
         if entity == "Manual Entry":
             entity = click.prompt("Enter the name of the team you want to use")
     else:
-        entity = viewer.get('entity') or click.prompt("What username or team should we use?")
+        entity = viewer.get('entity') or click.prompt(
+            "What username or team should we use?")
 
     # TODO: this error handling sucks and the output isn't pretty
     try:
@@ -292,7 +296,7 @@ def init(ctx, project, entity, reset):
         file.write("*\n!settings")
 
     click.echo(click.style("This directory is configured!  Next, track a run:\n",
-               fg="green") + textwrap.dedent("""\
+                           fg="green") + textwrap.dedent("""\
         * In your training script:
             {code1}
             {code2}
@@ -328,7 +332,8 @@ def sync(ctx, path, id, project, entity, ignore, all):
             return
         if not all:
             wandb.termlog("NOTE: use sync --all to sync all unsynced runs")
-            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            wandb.termlog(
+                "Number of runs to be synced: {}".format(len(sync_items)))
             some_runs = 5
             if some_runs < len(sync_items):
                 wandb.termlog("Showing {} runs".format(some_runs))
@@ -363,12 +368,13 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
-        # TODO(jhr): merge with magic_impl:_parse_magic
+        # TODO(jhr): merge with magic:_parse_magic
         if settings.find('=') > 0:
             for item in settings.split(","):
                 kv = item.split("=")
                 if len(kv) != 2:
-                    wandb.termwarn("Unable to parse sweep settings key value pair", repeat=False)
+                    wandb.termwarn(
+                        "Unable to parse sweep settings key value pair", repeat=False)
                 ret.update(dict([kv]))
             return ret
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
@@ -391,7 +397,8 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
         sweep_id = parts.get("name") or update
         found = api.sweep(sweep_id, '{}', entity=entity, project=project)
         if not found:
-            wandb.termerror('Could not find sweep {}/{}/{}'.format(entity, project, sweep_id))
+            wandb.termerror(
+                'Could not find sweep {}/{}/{}'.format(entity, project, sweep_id))
             return
         sweep_obj_id = found['id']
 
@@ -437,7 +444,8 @@ def sweep(ctx, project, entity, controller, verbose, name, program, settings, up
     entity = entity or env.get("WANDB_ENTITY") or config.get('entity')
     project = project or env.get("WANDB_PROJECT") or config.get('project') or util.auto_project_name(
         config.get("program"))
-    sweep_id = api.upsert_sweep(config, project=project, entity=entity, obj_id=sweep_obj_id)
+    sweep_id = api.upsert_sweep(
+        config, project=project, entity=entity, obj_id=sweep_obj_id)
     wandb.termlog('{} sweep with ID: {}'.format(
         'Updated' if sweep_obj_id else 'Created',
         click.style(sweep_id, fg="yellow")))
@@ -482,7 +490,8 @@ def agent(ctx, project, entity, count, sweep_id):
         ctx.invoke(login, no_offline=True)
 
     wandb.termlog('Starting wandb agent 🕵️')
-    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
+    wandb_agent.run_agent(sweep_id, entity=entity,
+                          project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
@@ -519,7 +528,8 @@ def docker_run(ctx, docker_run_args, help):
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
     if help or len(args) == 0:
-        wandb.termlog("This commands adds wandb env variables to your docker run calls")
+        wandb.termlog(
+            "This commands adds wandb env variables to your docker run calls")
         subprocess.call(['docker', 'run'] + args + ['--help'])
         exit()
     #  TODO: is this what we want?
@@ -534,11 +544,13 @@ def docker_run(ctx, docker_run_args, help):
     if resolved_image:
         args = ['-e', 'WANDB_DOCKER=%s' % resolved_image] + args
     else:
-        wandb.termlog("Couldn't detect image argument, running command without the WANDB_DOCKER env variable")
+        wandb.termlog(
+            "Couldn't detect image argument, running command without the WANDB_DOCKER env variable")
     if api.api_key:
         args = ['-e', 'WANDB_API_KEY=%s' % api.api_key] + args
     else:
-        wandb.termlog("Not logged in, run `wandb login` from the host machine to enable result logging")
+        wandb.termlog(
+            "Not logged in, run `wandb login` from the host machine to enable result logging")
     subprocess.call(['docker', 'run'] + args)
 
 
@@ -616,7 +628,8 @@ def docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_
     if api.api_key:
         command.extend(['-e', 'WANDB_API_KEY=%s' % api.api_key])
     else:
-        wandb.termlog("Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
+        wandb.termlog(
+            "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics")
     if jupyter:
         command.extend(['-e', 'WANDB_ENSURE_JUPYTER=1', '-p', port + ':8888'])
         no_tty = True
@@ -649,13 +662,16 @@ def local(ctx, port, env, daemon, upgrade, edge):
         if upgrade:
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
-            wandb.termlog("A new version of W&B local is available, upgrade by calling `wandb local --upgrade`")
-    running = subprocess.check_output(["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"])
+            wandb.termlog(
+                "A new version of W&B local is available, upgrade by calling `wandb local --upgrade`")
+    running = subprocess.check_output(
+        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"])
     if running != b"":
         if upgrade:
             subprocess.call(["docker", "stop", "wandb-local"])
         else:
-            wandb.termerror("A container named wandb-local is already running, run `docker stop wandb-local` if you want to start a new instance")
+            wandb.termerror(
+                "A container named wandb-local is already running, run `docker stop wandb-local` if you want to start a new instance")
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
     username = getpass.getuser()
@@ -663,7 +679,8 @@ def local(ctx, port, env, daemon, upgrade, edge):
     for e in env:
         env_vars.append('-e')
         env_vars.append(e)
-    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol', '-p', port + ':8080', '--name', 'wandb-local'] + env_vars
+    command = ['docker', 'run', '--rm', '-v', 'wandb:/vol',
+               '-p', port + ':8080', '--name', 'wandb-local'] + env_vars
     host = "http://localhost:%s" % port
     api.set_setting("base_url", host, globally=True, persist=True)
     if daemon:
@@ -678,11 +695,14 @@ def local(ctx, port, env, daemon, upgrade, edge):
     code = subprocess.call(command, stdout=DEVNULL)
     if daemon:
         if code != 0:
-            wandb.termerror("Failed to launch the W&B local container, see the above error.")
+            wandb.termerror(
+                "Failed to launch the W&B local container, see the above error.")
             exit(1)
         else:
-            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
-            wandb.termlog("You can stop the server by running `docker stop wandb-local`")
+            wandb.termlog(
+                "W&B local started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog(
+                "You can stop the server by running `docker stop wandb-local`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
@@ -712,7 +732,8 @@ def put(path, name, description, type, alias):
     api = InternalApi()
     api.set_setting("entity", entity)
     api.set_setting("project", project)
-    artifact = wandb.Artifact(name=artifact_name, type=type, description=description)
+    artifact = wandb.Artifact(
+        name=artifact_name, type=type, description=description)
     artifact_path = "{entity}/{project}/{name}:{alias}".format(entity=entity,
                                                                project=project, name=artifact_name, alias=alias[0])
     if os.path.isdir(path):
@@ -730,15 +751,18 @@ def put(path, name, description, type, alias):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    run = wandb.init(entity=entity, project=project, config={"path": path}, job_type="cli_put")
+    run = wandb.init(entity=entity, project=project, config={
+                     "path": path}, job_type="cli_put")
     # We create the artifact manually to get the current version
     res = api.create_artifact(type, artifact_name, artifact.digest,
                               entity_name=entity, project_name=project, run_name=run.id, description=description,
                               aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias])
-    artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
+    artifact_path = artifact_path.split(
+        ":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
     run.log_artifact(artifact, aliases=alias)
-    wandb.termlog("Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
+    wandb.termlog(
+        "Artifact uploaded, use this artifact in a run by adding:\n", prefix=False)
 
     wandb.termlog("    artifact = run.use_artifact(\"{path}\")\n".format(
         path=artifact_path,
@@ -830,3 +854,41 @@ def pull(run, project, entity):
                     for data in response.iter_content(chunk_size=4096):
                         f.write(data)
                         bar.update(len(data))
+
+
+@cli.command(context_settings=CONTEXT, help="Run any script with wandb", hidden=True)
+@click.pass_context
+@click.argument('program')
+@click.argument('args', nargs=-1)
+@display_error
+def magic(ctx, program, args):
+
+    def magic_run(cmd, globals, locals):
+        try:
+            exec(cmd, globals, locals)
+        finally:
+            pass
+
+    sys.argv[:] = args
+    sys.argv.insert(0, program)
+    sys.path.insert(0, os.path.dirname(program))
+    try:
+        with open(program, 'rb') as fp:
+            code = compile(fp.read(), program, 'exec')
+    except IOError:
+        click.echo(click.style("Could not launch program: %s" %
+                               program, fg="red"))
+        sys.exit(1)
+    globs = {
+        '__file__': program,
+        '__name__': '__main__',
+        '__package__': None,
+        'wandb_magic_install': magic_install,
+    }
+    prep = '''
+import __main__
+__main__.__file__ = "%s"
+wandb_magic_install()
+''' % program
+    magic_run(prep, globs, None)
+    magic_run(code, globs, None)

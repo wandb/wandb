@@ -16,4 +16,6 @@ include = '''
 | wandb/server/
 | wandb/integration/gym/
 | wandb/integration/tensorboard/
+| wandb/integration/magic.py
+| wandb/integration/keras
 '''

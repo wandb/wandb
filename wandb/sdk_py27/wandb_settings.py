@@ -209,6 +209,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_name = None,
         run_notes = None,
         resume = None,
+        magic = False,
         run_tags=None,
         sweep_id=None,
         # compatibility / error handling

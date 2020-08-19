@@ -25,6 +25,7 @@ from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.urllib.parse import quote as url_quote
 import wandb
+from wandb import trigger
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
@@ -960,6 +961,8 @@ class RunManaged(Run):
         return ret
 
     def _on_finish(self):
+        trigger.call("on_finished")
+
         # make sure all uncommitted history is flushed
         self.history._flush()
 

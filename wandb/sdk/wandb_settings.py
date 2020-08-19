@@ -212,6 +212,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         run_name: str = None,
         run_notes: str = None,
         resume: str = None,
+        magic: Union[Dict, str, bool] = False,
         run_tags=None,
         sweep_id=None,
         # compatibility / error handling
