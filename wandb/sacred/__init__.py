@@ -75,7 +75,10 @@ class WandbObserver(RunObserver):
     def log_metrics(self, metrics_by_name, info):
         for metric_name, metric_ptr in metrics_by_name.items():
             for step, value in zip(metric_ptr["steps"], metric_ptr["values"]):
-                wandb.log({metric_name:value},step=step)
+                if isinstance(value,numpy.ndarray):
+                    wandb.log({metric_name:wandb.Image(value)})
+                else:
+                    wandb.log({metric_name:value})
     
     def __update_config(self,config):
         for k, v in config.items():
