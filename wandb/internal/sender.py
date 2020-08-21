@@ -427,7 +427,9 @@ class SendManager(object):
             self._fs.start()
             self._pusher = FilePusher(self._api)
             self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
-            self._tb_watcher = tb_watcher.TBWatcher(self._settings, sender=self)
+            self._tb_watcher = tb_watcher.TBWatcher(
+                self._settings, sender=self, run_proto=self._run
+            )
             if self._run_meta:
                 self._run_meta.write()
             sentry_set_scope("internal", run.entity, run.project)
