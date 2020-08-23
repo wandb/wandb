@@ -17,7 +17,7 @@ import psutil
 import atexit
 import wandb
 from wandb.lib.module import unset_globals
-from wandb.internal.git_repo import GitRepo
+from wandb.lib.git import GitRepo
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 try:

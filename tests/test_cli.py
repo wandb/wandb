@@ -641,3 +641,83 @@ def test_local_already_running(runner, docker, local_settings):
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert "A container named wandb-local is already running" in result.output
+
+
+def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
+    with open("patch.txt", "w") as f:
+        f.write("test")
+    git_repo.repo.index.add(["patch.txt"])
+    git_repo.repo.commit()
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Created branch wandb/abcdef" in result.output
+    assert "Applied patch" in result.output
+    assert "Restored config variables to " in result.output
+    assert "Launching docker container" in result.output
+    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
+                            wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
+                            ':/app', '-w', '/app', '-e',
+                            'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+
+
+def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    api = InternalApi({'project': 'test'})
+    monkeypatch.setattr(cli, '_api', api)
+    def bad_commit(cmt):
+        raise ValueError()
+    monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
+    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: []) 
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 1
+    assert "Run `git clone http://fake.git/foo/bar`" in result.output
+
+
+def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    git_repo.repo.create_remote('origin', "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, 'check_call', lambda command: True)
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Created branch wandb/abcdef" in result.output
+
+
+def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Restored config variables" in result.output
+
+
+def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Restored config variables" in result.output
+
+
+def test_restore_not_git(runner, mock_server, docker, monkeypatch):
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+        result = runner.invoke(cli.restore, ["test/abcdef"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Original run has no git history" in result.output

@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import logging
 import os
 
@@ -148,7 +150,7 @@ class GitRepo(object):
             return most_recent_ancestor
         except exc.GitCommandError as e:
             logger.debug("git remote upstream fork point could not be found")
-            logger.debug(e.message)
+            logger.debug(str(e))
             return None
 
     def tag(self, name, message):

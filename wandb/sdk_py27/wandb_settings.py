@@ -32,7 +32,7 @@ import tempfile
 
 import six
 import wandb
-from wandb.internal import git_repo
+from wandb.lib.git import GitRepo
 from wandb.lib.ipython import _get_python_type
 from wandb.lib.runid import generate_id
 
@@ -140,7 +140,7 @@ def _get_program():
 
 
 def _get_program_relpath_from_gitrepo(program):
-    repo = git_repo.GitRepo()
+    repo = GitRepo()
     root = repo.root
     if not root:
         root = os.getcwd()

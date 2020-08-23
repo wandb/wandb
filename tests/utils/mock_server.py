@@ -170,6 +170,29 @@ def set_ctx(ctx):
     g.ctx.set(ctx)
 
 
+
+def _bucket_config():
+    return {
+        'patch': '''
+diff --git a/patch.txt b/patch.txt
+index 30d74d2..9a2c773 100644
+--- a/patch.txt
++++ b/patch.txt
+@@ -1 +1 @@
+-test
+\ No newline at end of file
++testing
+\ No newline at end of file
+        ''',
+        'commit': 'HEAD',
+        'github': 'https://github.com/vanpelt',
+        'config': '{"foo":{"value":"bar"}}',
+        'files': {
+            'edges': [{'node': {'directUrl': request.url_root + "/storage?file=metadata.json"}}]
+        }
+    }
+
+
 def create_app(user_ctx=None):
     app = Flask(__name__)
     # When starting in live mode, user_ctx is a fancy object
@@ -268,13 +291,18 @@ def create_app(user_ctx=None):
         if "query Run(" in body["query"]:
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
-            project_field_name = "model"
-            run_field_name = "bucket"
             if "project(" in body["query"]:
                 project_field_name = "project"
                 run_field_name = "run"
+            else:
+                project_field_name = "model"
+                run_field_name = "bucket"
+            if "commit" in body["query"]:
+                run_config = _bucket_config()
+            else:
+                run_config = run(ctx)
             return json.dumps(
-                {"data": {project_field_name: {run_field_name: run(ctx)}}}
+                {"data": {project_field_name: {run_field_name: run_config}}}
             )
         if "query Models(" in body["query"]:
             return json.dumps(
@@ -527,9 +555,11 @@ def create_app(user_ctx=None):
                 "storagePolicy": "wandb-storage-policy-v1",
                 "storagePolicyConfig": {},
                 "contents": {
-                    "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299}
+                    "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299},
                 },
             }
+        elif file == "metadata.json":
+            return {"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"], "git": ctx.get("git", {})}
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])

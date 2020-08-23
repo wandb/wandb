@@ -81,5 +81,8 @@ class Api(object):
     def create_artifact(self, *args, **kwargs):
         return self.api.create_artifact(*args, **kwargs)
 
+    def run_config(self, *args, **kwargs):
+        return self.api.run_config(*args, **kwargs)
+
 
 __all__ = ["Api"]

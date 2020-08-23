@@ -29,13 +29,13 @@ import wandb
 from wandb import __version__
 from wandb.old.core import wandb_dir, Error
 from wandb import env
-#from wandb.git_repo import GitRepo
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
 from wandb.lib.filenames import DIFF_FNAME, METADATA_FNAME
+from wandb.lib.git import GitRepo
 
 from .file_stream import FileStreamApi
 from .progress import Progress
@@ -73,8 +73,7 @@ class Api(object):
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
         self._settings = Settings(load_settings=load_settings)
-        #self.git = GitRepo(remote=self.settings("git_remote"))
-        self.git = None
+        self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             'system_sample_seconds': 2,
