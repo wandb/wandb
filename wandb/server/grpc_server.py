@@ -9,7 +9,7 @@ import os
 import time
 
 import grpc
-from wandb.interface import constants, interface
+from wandb.interface import interface
 from wandb.internal.internal import wandb_internal
 from wandb.lib import runid
 from wandb.proto import wandb_internal_pb2  # type: ignore
@@ -27,37 +27,41 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def RunUpdate(self, run_data, context):  # noqa: N802
         if not run_data.run_id:
             run_data.run_id = runid.generate_id()
-        result = self._backend._interface._send_run_sync(run_data)
+        result = self._backend._interface._communicate_run(run_data)
+
+        # initiate run (stats and metadata probing)
+        _ = self._backend._interface.communicate_run_start()
+
         return result
 
     def RunExit(self, exit_data, context):  # noqa: N802
-        result = self._backend._interface._send_exit_sync(exit_data)
+        result = self._backend._interface._communicate_exit(exit_data)
         return result
 
     def Log(self, log_data, context):  # noqa: N802
         # TODO: make this sync?
-        self._backend._interface._send_history(log_data)
+        self._backend._interface._publish_history(log_data)
         # make up a response even though this was async
         result = wandb_internal_pb2.HistoryResult()
         return result
 
     def Summary(self, summary_data, context):  # noqa: N802
         # TODO: make this sync?
-        self._backend._interface._send_summary(summary_data)
+        self._backend._interface._publish_summary(summary_data)
         # make up a response even though this was async
         result = wandb_internal_pb2.SummaryResult()
         return result
 
     def Output(self, output_data, context):  # noqa: N802
         # TODO: make this sync?
-        self._backend._interface._send_output(output_data)
+        self._backend._interface._publish_output(output_data)
         # make up a response even though this was async
         result = wandb_internal_pb2.OutputResult()
         return result
 
     def Config(self, config_data, context):  # noqa: N802
         # TODO: make this sync?
-        self._backend._interface._send_config(config_data)
+        self._backend._interface._publish_config(config_data)
         # make up a response even though this was async
         result = wandb_internal_pb2.ConfigResult()
         return result
@@ -77,9 +81,12 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
 class Backend:
     def __init__(self):
         self._done = False
+        self._interface = None
+        self._record_q = None
+        self._result_q = None
 
     def setup(self):
-        log_level = logging.DEBUG
+        log_level = logging.ERROR
         start_time = time.time()
         start_datetime = datetime.datetime.now()
         timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
@@ -108,45 +115,37 @@ class Backend:
             resume=None,
             ignore_globs=(),
             offline=None,
+            _log_level=log_level,
+            run_id=None,
+            entity=None,
+            project=None,
+            run_group=None,
+            job_type=None,
+            run_tags=None,
+            run_name=None,
+            run_notes=None,
         )
 
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
 
-        process_queue = mp.Queue()
+        record_q = mp.Queue()
         # TODO: should this be one item just to make sure it stays fully synchronous?
-        req_queue = mp.Queue()
-        resp_queue = mp.Queue()
-        cancel_queue = mp.Queue()
-        notify_queue = mp.Queue()
-        use_redirect = True
+        result_q = mp.Queue()
 
         wandb_process = mp.Process(
             target=wandb_internal,
-            args=(
-                settings,
-                notify_queue,
-                process_queue,
-                req_queue,
-                resp_queue,
-                cancel_queue,
-                fd_pipe_child,
-                log_level,
-                use_redirect,
-            ),
+            kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
         )
         wandb_process.name = "wandb_internal"
         wandb_process.start()
 
+        self.record_q = record_q
+        self.result_q = result_q
         self.wandb_process = wandb_process
-        self.notify_queue = notify_queue
 
         self._interface = interface.BackendSender(
-            process_queue=process_queue,
-            notify_queue=notify_queue,
-            request_queue=req_queue,
-            response_queue=resp_queue,
-            process=wandb_process,
+            record_q=record_q, result_q=result_q, process=wandb_process,
         )
 
     def cleanup(self):
@@ -154,11 +153,10 @@ class Backend:
         if self._done:
             return
         self._done = True
-
-        self.notify_queue.put(constants.NOTIFY_SHUTDOWN)
-        # TODO: make sure this is last in the queue?  lock?
-        self.notify_queue.close()
+        self._interface.join()
         self.wandb_process.join()
+        self.record_q.close()
+        self.result_q.close()
         # No printing allowed from here until redirect restore!!!
 
 

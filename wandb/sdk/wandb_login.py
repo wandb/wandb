@@ -65,7 +65,7 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
     if logged_in:
         # TODO: do we want to move all login logic to the backend?
         if backend:
-            res = backend.interface.send_login_sync(key, anonymous)
+            res = backend.interface.communicate_login(key, anonymous)
             active_entity = res.active_entity
         else:
             active_entity = wl._get_entity()
@@ -96,7 +96,7 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
     if backend and not logged_in:
         # TODO: calling this twice is gross, this deserves a refactor
         # Make sure our backend picks up the new creds
-        backend.interface.send_login(key, anonymous)
+        _ = backend.interface.communicate_login(key, anonymous)
     return
 
 

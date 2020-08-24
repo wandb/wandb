@@ -302,6 +302,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _args=None,
         _os=None,
         _python=None,
+        _except_exit=None,
     ):
         kwargs = locals()
         object.__setattr__(self, "_masked_keys", set(["self", "_frozen"]))
@@ -482,6 +483,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         u["_args"] = sys.argv[1:]
         u["_os"] = platform.platform(aliased=True)
         u["_python"] = platform.python_version()
+        # hack to make sure we don't hang on windows
+        if self.windows and self._except_exit is None:
+            u["_except_exit"] = True
 
         self.update(u)
 

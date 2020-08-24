@@ -17,7 +17,7 @@ import yaml
 
 import wandb
 from wandb.apis import InternalApi
-from wandb.lib.config import save_config_file_from_dict
+from wandb.lib import config_util
 from wandb import util
 
 
@@ -289,7 +289,7 @@ class Agent(object):
         run_id = command.get('run_id')
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         config_file = os.path.join("wandb", "sweeps", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
-        save_config_file_from_dict(config_file, command['args'])
+        config_util.save_config_file_from_dict(config_file, command['args'])
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
 

@@ -227,12 +227,12 @@ class _WandbInit(object):
     def _pause_backend(self):
         if self.backend is not None:
             logger.info("pausing backend")
-            self.backend.interface.send_pause()
+            self.backend.interface.publish_pause()
 
     def _resume_backend(self):
         if self.backend is not None:
             logger.info("resuming backend")
-            self.backend.interface.send_resume()
+            self.backend.interface.publish_resume()
 
     def _jupyter_teardown(self):
         """Teardown hooks and display saving, called with wandb.join"""
@@ -379,9 +379,14 @@ class _WandbInit(object):
         backend._hack_set_run(run)
 
         if s.offline:
-            backend.interface.send_run(run)
+            backend.interface.publish_run(run)
         else:
-            ret = backend.interface.send_run_sync(run, timeout=30)
+            ret = backend.interface.communicate_check_version()
+            message = ret.response.check_version_response.message
+            if message:
+                wandb.termlog(message)
+
+            ret = backend.interface.communicate_run(run, timeout=30)
             # TODO: fail on more errors, check return type
             # TODO: make the backend log stacktraces on catostrophic failure
             if ret.HasField("error"):
@@ -391,6 +396,9 @@ class _WandbInit(object):
                 self.teardown()
                 raise UsageError(ret.error.message)
             run._set_run_obj(ret.run)
+
+        # initiate run (stats and metadata probing)
+        _ = backend.interface.communicate_run_start()
 
         self._wl._global_run_stack.append(run)
         self.run = run
@@ -461,12 +469,15 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = locals()
-    error_seen = False
+    error_seen = None
+    except_exit = None
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
+        except_exit = wi.settings._except_exit
         try:
             run = wi.init()
+            except_exit = wi.settings._except_exit
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
                 sentry_exc(e)
@@ -484,7 +495,7 @@ def init(
         logger.warning("interrupted", exc_info=e)
         raise_from(Exception("interrupted"), e)
     except Exception as e:
-        error_seen = True
+        error_seen = e
         traceback.print_exc()
         assert logger
         logger.error("error", exc_info=e)
@@ -496,5 +507,7 @@ def init(
     finally:
         if error_seen:
             wandb.termerror("Abnormal program exit")
-            os._exit(-1)
+            if except_exit:
+                os._exit(-1)
+            raise_from(Exception("problem"), error_seen)
     return run

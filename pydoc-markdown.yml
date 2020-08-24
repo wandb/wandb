@@ -30,7 +30,7 @@ renderer:
   pages:
     - title: Developer Documentation
       name: index
-      source: README-dev.md
+      source: CONTRIBUTING.md
     - title: SDK Documentation
       contents:
         - 'wandb'

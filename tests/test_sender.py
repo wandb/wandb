@@ -6,114 +6,172 @@ import time
 import shutil
 
 from wandb.util import mkdir_exists_ok
+from wandb.internal.handler import HandleManager
 from wandb.internal.sender import SendManager
 from wandb.interface import constants
 from wandb.interface.interface import BackendSender
 
 
 @pytest.fixture()
-def process_q():
+def record_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def notify_q():
+def result_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def resp_q():
+def sender_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def req_q():
+def writer_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def sender(process_q, req_q, resp_q, notify_q):
+def process():
+    # FIXME: return mocked process (needs is_alive())
+    return MockProcess()
+
+
+class MockProcess():
+    def __init__(self):
+        pass
+
+    def is_alive(self):
+        return True
+
+
+@pytest.fixture()
+def sender(record_q, result_q, process):
     return BackendSender(
-        process_queue=process_q,
-        request_queue=req_q,
-        notify_queue=notify_q,
-        response_queue=resp_q,
+        record_q=record_q,
+        result_q=result_q,
+        process=process,
     )
 
 
 @pytest.fixture()
 def sm(
-    runner, process_q, notify_q, resp_q, test_settings, sender, mock_server, mocked_run,
+    runner, sender_q, result_q, test_settings, sender, mock_server,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        sm = SendManager(test_settings, process_q, notify_q, resp_q)
-        sender.send_run(mocked_run)
-        notify_q.get()
-        sm.send(process_q.get())
+        sm = SendManager(settings=test_settings, record_q=sender_q, result_q=result_q,)
         yield sm
 
 
 @pytest.fixture()
-def get_message(notify_q, process_q, req_q):
-    def _get_message(timeout=None):
-        try:
-            i = notify_q.get(timeout=timeout)
-        except queue.Empty:
-            return None
-        if i == constants.NOTIFY_PROCESS:
-            return process_q.get()
-        elif i == constants.NOTIFY_REQUEST:
-            return req_q.get()
-
-    return _get_message
+def hm(
+    runner, record_q, result_q, test_settings, sender, mock_server, sender_q, writer_q,
+):
+    with runner.isolated_filesystem():
+        test_settings.root_dir = os.getcwd()
+        stopped = threading.Event()
+        hm = HandleManager(settings=test_settings, record_q=record_q, result_q=result_q, stopped=stopped,
+                sender_q=sender_q, writer_q=writer_q)
+        yield hm
 
 
 @pytest.fixture()
-def start_rcv_thread(get_message):
+def get_record():
+    def _get_record(input_q, timeout=None):
+        try:
+            i = input_q.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        return i
+
+    return _get_record
+
+
+@pytest.fixture()
+def start_send_thread(sender_q, get_record):
     stop_event = threading.Event()
 
-    def start_rcv(send_manager):
-        def rcv():
+    def start_send(send_manager):
+        def target():
             while not stop_event.is_set():
-                payload = get_message(timeout=0.1)
+                payload = get_record(input_q=sender_q, timeout=0.1)
                 if payload:
                     send_manager.send(payload)
 
-        t = threading.Thread(target=rcv)
+        t = threading.Thread(target=target)
         t.daemon = True
         t.start()
 
-    yield start_rcv
+    yield start_send
     stop_event.set()
 
 
-def test_send_status_request(mock_server, sm, sender, start_rcv_thread):
-    mock_server.ctx["stopped"] = True
-    start_rcv_thread(sm)
+@pytest.fixture()
+def start_handle_thread(record_q, get_record):
+    stop_event = threading.Event()
 
-    status_resp = sender.send_status_request(check_stop_req=True)
+    def start_handle(handle_manager):
+        def target():
+            while not stop_event.is_set():
+                payload = get_record(input_q=record_q, timeout=0.1)
+                if payload:
+                    handle_manager.handle(payload)
+
+        t = threading.Thread(target=target)
+        t.daemon = True
+        t.start()
+
+    yield start_handle
+    stop_event.set()
+
+
+@pytest.fixture()
+def start_backend(mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,):
+    def start_backend_func(initial_run=True):
+        start_handle_thread(hm)
+        start_send_thread(sm)
+        if initial_run:
+            _ = sender.communicate_run(mocked_run)
+
+    yield start_backend_func
+
+
+@pytest.fixture()
+def stop_backend(mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,):
+    def stop_backend_func():
+        _ = sender.communicate_exit(0)
+
+    yield stop_backend_func
+
+
+def test_send_status_request(mock_server, sender, start_backend,):
+    mock_server.ctx["stopped"] = True
+    start_backend()
+
+    status_resp = sender.communicate_status(check_stop_req=True)
     assert status_resp is not None
     assert status_resp.run_should_stop
 
 
-def test_parallel_requests(mock_server, sm, sender, start_rcv_thread):
+def test_parallel_requests(mock_server, sender, start_backend,):
     mock_server.ctx["stopped"] = True
     work_queue = queue.Queue()
-    start_rcv_thread(sm)
+    start_backend()
 
     def send_sync_request(i):
         work_queue.get()
         if i % 3 == 0:
-            status_resp = sender.send_status_request(check_stop_req=True)
+            status_resp = sender.communicate_status(check_stop_req=True)
             assert status_resp is not None
             assert status_resp.run_should_stop
         elif i % 3 == 1:
-            status_resp = sender.send_status_request(check_stop_req=False)
+            status_resp = sender.communicate_status(check_stop_req=False)
             assert status_resp is not None
             assert not status_resp.run_should_stop
         elif i % 3 == 2:
-            summary_resp = sender.send_get_summary_sync()
+            summary_resp = sender.communicate_summary()
             assert summary_resp is not None
             assert hasattr(summary_resp, "item")
         work_queue.task_done()
@@ -132,17 +190,13 @@ def test_resume_success(
     test_settings,
     mock_server,
     sender,
-    process_q,
-    notify_q,
-    resp_q,
-    start_rcv_thread,
+    start_backend,
 ):
     test_settings.resume = "allow"
     mock_server.ctx["resume"] = True
-    sm = SendManager(test_settings, process_q, notify_q, resp_q)
-    start_rcv_thread(sm)
+    start_backend(initial_run=False)
 
-    run_result = sender.send_run_sync(mocked_run)
+    run_result = sender.communicate_run(mocked_run)
     assert run_result.HasField("error") is False
     assert run_result.run.starting_step == 16
 
@@ -152,17 +206,13 @@ def test_resume_error_never(
     test_settings,
     mock_server,
     sender,
-    process_q,
-    notify_q,
-    resp_q,
-    start_rcv_thread,
+    start_backend,
 ):
     test_settings.resume = "never"
     mock_server.ctx["resume"] = True
-    sm = SendManager(test_settings, process_q, notify_q, resp_q)
-    start_rcv_thread(sm)
+    start_backend(initial_run=False)
 
-    run_result = sender.send_run_sync(mocked_run)
+    run_result = sender.communicate_run(mocked_run)
     assert run_result.HasField("error")
     assert (
         run_result.error.message == "resume='never' but run (%s) exists" % mocked_run.id
@@ -174,17 +224,13 @@ def test_resume_error_must(
     test_settings,
     mock_server,
     sender,
-    process_q,
-    notify_q,
-    resp_q,
-    start_rcv_thread,
+    start_backend,
 ):
     test_settings.resume = "must"
     mock_server.ctx["resume"] = False
-    sm = SendManager(test_settings, process_q, notify_q, resp_q)
-    start_rcv_thread(sm)
+    start_backend(initial_run=False)
 
-    run_result = sender.send_run_sync(mocked_run)
+    run_result = sender.communicate_run(mocked_run)
     assert run_result.HasField("error")
     assert (
         run_result.error.message
@@ -192,27 +238,27 @@ def test_resume_error_must(
     )
 
 
-def test_save_live_existing_file(mocked_run, mock_server, sender, sm, process_q):
+def test_save_live_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sender.send_files({"files": [("test.txt", "live")]})
-    sm.send(process_q.get())
-    sm.finish()
+    sender.publish_files({"files": [("test.txt", "live")]})
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_live_write_after_policy(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "live")]})
-    sm.send(process_q.get())
+def test_save_live_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "live")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_live_multi_write(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "live")]})
-    sm.send(process_q.get())
+def test_save_live_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "live")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
     with open(test_file, "w") as f:
         f.write("TEST TEST")
@@ -220,19 +266,19 @@ def test_save_live_multi_write(mocked_run, mock_server, sender, sm, process_q):
     time.sleep(1.5)
     with open(test_file, "w") as f:
         f.write("TEST TEST TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 2
 
 
-def test_save_live_glob_multi_write(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("checkpoints/*", "live")]})
-    sm.send(process_q.get())
+def test_save_live_glob_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("checkpoints/*", "live")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
     test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
-    time.sleep(0.5)
+    time.sleep(1.5)
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST")
     # File system polling happens every second
@@ -241,46 +287,46 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, sender, sm, process
         f.write("TEST TEST TEST TEST")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
-    sm.finish()
-    assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 2
+    stop_backend()
+    assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
 
-def test_save_rename_file(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "live")]})
-    sm.send(process_q.get())
+def test_save_rename_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "live")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
     with open(test_file, "w") as f:
         f.write("TEST TEST")
     # File system polling happens every second
     time.sleep(1.5)
     shutil.copy(test_file, test_file.replace("test.txt", "test-copy.txt"))
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
     assert len(mock_server.ctx["storage?file=test-copy.txt"]) == 1
 
 
-def test_save_end_write_after_policy(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "end")]})
-    sm.send(process_q.get())
+def test_save_end_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "end")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_end_existing_file(mocked_run, mock_server, sender, sm, process_q):
+def test_save_end_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sender.send_files({"files": [("test.txt", "end")]})
-    sm.send(process_q.get())
-    sm.finish()
+    sender.publish_files({"files": [("test.txt", "end")]})
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_end_multi_write(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "end")]})
-    sm.send(process_q.get())
+def test_save_end_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "end")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
     with open(test_file, "w") as f:
         f.write("TEST TEST")
@@ -288,31 +334,31 @@ def test_save_end_multi_write(mocked_run, mock_server, sender, sm, process_q):
     time.sleep(1.5)
     with open(test_file, "w") as f:
         f.write("TEST TEST TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_write_after_policy(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "now")]})
-    sm.send(process_q.get())
+def test_save_now_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "now")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_existing_file(mocked_run, mock_server, sender, sm, process_q):
+def test_save_now_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
-    sender.send_files({"files": [("test.txt", "now")]})
-    sm.send(process_q.get())
-    sm.finish()
+    sender.publish_files({"files": [("test.txt", "now")]})
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_multi_write(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("test.txt", "now")]})
-    sm.send(process_q.get())
+def test_save_now_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("test.txt", "now")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
     with open(test_file, "w") as f:
         f.write("TEST TEST")
@@ -320,13 +366,13 @@ def test_save_now_multi_write(mocked_run, mock_server, sender, sm, process_q):
     time.sleep(1.5)
     with open(test_file, "w") as f:
         f.write("TEST TEST TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_glob_multi_write(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("checkpoints/*", "now")]})
-    sm.send(process_q.get())
+def test_save_glob_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("checkpoints/*", "now")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
     test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
@@ -336,27 +382,27 @@ def test_save_glob_multi_write(mocked_run, mock_server, sender, sm, process_q):
     time.sleep(1.5)
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
-    sm.finish()
+    stop_backend()
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 1
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
 
-def test_save_now_relative_path(mocked_run, mock_server, sender, sm, process_q):
-    sender.send_files({"files": [("foo/test.txt", "now")]})
-    sm.send(process_q.get())
+def test_save_now_relative_path(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
+    sender.publish_files({"files": [("foo/test.txt", "now")]})
     test_file = os.path.join(mocked_run.dir, "foo", "test.txt")
     mkdir_exists_ok(os.path.dirname(test_file))
     with open(test_file, "w") as f:
         f.write("TEST TEST")
-    sm.finish()
+    stop_backend()
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 1
 
 
-def test_save_now_twice(mocked_run, mock_server, sender, sm, process_q):
+def test_save_now_twice(mocked_run, mock_server, sender, start_backend, stop_backend,):
+    start_backend()
     file_path = os.path.join("foo", "test.txt")
-    sender.send_files({"files": [(file_path, "now")]})
-    sm.send(process_q.get())
+    sender.publish_files({"files": [(file_path, "now")]})
     test_file = os.path.join(mocked_run.dir, file_path)
     mkdir_exists_ok(os.path.dirname(test_file))
     with open(test_file, "w") as f:
@@ -364,9 +410,8 @@ def test_save_now_twice(mocked_run, mock_server, sender, sm, process_q):
     time.sleep(1.5)
     with open(test_file, "w") as f:
         f.write("TEST TEST TEST TEST")
-    sender.send_files({"files": [(file_path, "now")]})
-    sm.send(process_q.get())
-    sm.finish()
+    sender.publish_files({"files": [(file_path, "now")]})
+    stop_backend()
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
 

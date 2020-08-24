@@ -288,13 +288,17 @@ message TBRecord {
  */
 message Request {
   oneof request_type {
-    StatusRequest     status = 1;
-    DeferRequest      defer = 3;
-    GetSummaryRequest get_summary = 4;
-    LoginRequest      login = 5;
-    PauseRequest      pause = 6;
-    ResumeRequest     resume = 7;
-    PollExitRequest   poll_exit = 8;
+    StatusRequest         status = 1;
+    DeferRequest          defer = 3;
+    GetSummaryRequest     get_summary = 4;
+    LoginRequest          login = 5;
+    PauseRequest          pause = 6;
+    ResumeRequest         resume = 7;
+    PollExitRequest       poll_exit = 8;
+    SampledHistoryRequest sampled_history = 9;
+    RunStartRequest       run_start = 11;
+    CheckVersionRequest   check_version = 12;
+    ShutdownRequest       shutdown = 64;
   }
 }
 
@@ -303,10 +307,14 @@ message Request {
  */
 message Response {
   oneof response_type {
-    StatusResponse     status_response = 19;
-    LoginResponse      login_response = 24;
-    GetSummaryResponse get_summary_response = 25;
-    PollExitResponse   poll_exit_response = 26;
+    StatusResponse         status_response = 19;
+    LoginResponse          login_response = 24;
+    GetSummaryResponse     get_summary_response = 25;
+    PollExitResponse       poll_exit_response = 26;
+    SampledHistoryResponse sampled_history_response = 27;
+    RunStartResponse       run_start_response = 28;
+    CheckVersionResponse   check_version_response = 29;
+    ShutdownResponse       shutdown_response = 64;
   }
 }
 
@@ -384,4 +392,50 @@ message FilePusherStats {
   int64 uploaded_bytes = 1;
   int64 total_bytes = 2;
   int64 deduped_bytes = 3;
+}
+
+/*
+ * ShutdownRequest:
+ */
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
+}
+
+/*
+ * SampledHistoryRequest:
+ */
+message SampledHistoryRequest {
+}
+
+message SampledHistoryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  repeated float  values_float = 3;
+  repeated int64  values_int = 4;
+}
+
+message SampledHistoryResponse {
+  repeated SampledHistoryItem item = 1;
+}
+
+/*
+ * RunStartRequest: start the run
+ */
+message RunStartRequest {
+  RunRecord run = 1;
+}
+
+message RunStartResponse {
+}
+
+/*
+ * CheckVersion:
+ */
+message CheckVersionRequest {
+}
+
+message CheckVersionResponse {
+  string message = 1;
 }

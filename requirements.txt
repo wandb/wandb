@@ -4,7 +4,7 @@ gql==0.2.0
 python-dateutil>=2.6.1
 requests>=2.0.0
 shortuuid>=0.5.0
-six>=1.10.0
+six>=1.13.0
 watchdog>=0.8.3
 psutil>=5.0.0
 sentry-sdk>=0.4.0

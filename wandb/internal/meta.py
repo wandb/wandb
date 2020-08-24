@@ -29,13 +29,11 @@ logger = logging.getLogger(__name__)
 class Meta(object):
     """Used to store metadata during and after a run."""
 
-    def __init__(self, settings=None, process_q=None, notify_q=None):
+    def __init__(self, settings=None, record_q=None):
         self._settings = settings
         self.data = {}
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
-        self._interface = interface.BackendSender(
-            process_queue=process_q, notify_queue=notify_q,
-        )
+        self._interface = interface.BackendSender(record_q=record_q)
         self._git = GitRepo(
             remote=self._settings["git_remote"]
             if "git_remote" in self._settings.keys()
@@ -230,4 +228,4 @@ class Meta(object):
         for patch in self._saved_patches:
             files["files"].append((patch, "now"))
 
-        self._interface.send_files(files)
+        self._interface.publish_files(files)

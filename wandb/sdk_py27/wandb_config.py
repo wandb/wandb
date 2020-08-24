@@ -6,18 +6,13 @@ config.
 import logging
 
 import six
-from wandb.lib.config import ConfigError
-from wandb.lib.term import terminfo
+from six.moves.collections_abc import Sequence
+import wandb
+from wandb.lib import config_util
 from wandb.util import json_friendly
 
-from .wandb_helper import parse_config
+from . import wandb_helper
 
-try:
-    # Since python 3
-    from collections.abc import Sequence
-except ImportError:
-    # Won't work after python 3.8
-    from collections import Sequence
 
 logger = logging.getLogger("wandb")
 
@@ -52,7 +47,7 @@ class Config(object):
     def __setitem__(self, key, val):
         key, val = self._sanitize(key, val)
         if key in self._locked:
-            terminfo("Config item '%s' was locked." % key)
+            wandb.termwarn("Config item '%s' was locked." % key)
             return
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -71,7 +66,7 @@ class Config(object):
         return key in self._items
 
     def _update(self, d, allow_val_change=False):
-        parsed_dict = parse_config(d)
+        parsed_dict = wandb_helper.parse_config(d)
         sanitized = self._sanitize_dict(parsed_dict)
         self._items.update(sanitized)
 
@@ -90,7 +85,7 @@ class Config(object):
             self._callback(data=self._as_dict())
 
     def setdefaults(self, d):
-        d = parse_config(d)
+        d = wandb_helper.parse_config(d)
         d = self._sanitize_dict(d)
         for k, v in six.iteritems(d):
             self._items.setdefault(k, v)
@@ -125,7 +120,7 @@ class Config(object):
         val = self._sanitize_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
-                raise ConfigError(
+                raise config_util.ConfigError(
                     (
                         'Attempted to change value of key "{}" '
                         "from {} to {}\n"

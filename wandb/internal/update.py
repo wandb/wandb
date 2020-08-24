@@ -49,7 +49,7 @@ def check_available(current_version):
     latest_version, pip_prerelease = package_info
 
     # A new version is available!
-    wandb.termlog(
+    return (
         "%s version %s is available!  To upgrade, please run:\n"
         " $ pip install %s --upgrade%s"
         % (

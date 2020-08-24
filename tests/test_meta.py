@@ -1,53 +1,44 @@
+import os
 import pytest
 import platform
-import os
-from six.moves import queue
+import threading
 
+from six.moves import queue
 from wandb.internal.meta import Meta
 from wandb.internal.sender import SendManager
 
 
 @pytest.fixture()
-def process_q():
+def record_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def notify_q():
+def result_q():
     return queue.Queue()
 
 
 @pytest.fixture()
-def resp_q():
-    return queue.Queue()
+def meta(test_settings, record_q):
+    return Meta(settings=test_settings, record_q=record_q)
 
 
 @pytest.fixture()
-def req_q():
-    return queue.Queue()
-
-
-@pytest.fixture()
-def meta(test_settings, req_q):
-    return Meta(test_settings, req_q, queue.Queue())
-
-
-@pytest.fixture()
-def sm(runner, git_repo, resp_q, test_settings, meta, mock_server, mocked_run, req_q):
+def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run):
     test_settings.root_dir = os.getcwd()
-    sm = SendManager(test_settings, process_q, notify_q, resp_q)
-    meta._interface.send_run(mocked_run)
-    sm.send(req_q.get())
+    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q)
+    meta._interface.publish_run(mocked_run)
+    sm.send(record_q.get())
     yield sm
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="git stopped working")
-def test_meta_probe(mock_server, meta, sm, req_q):
+def test_meta_probe(mock_server, meta, sm, record_q):
     with open("README", "w") as f:
         f.write("Testing")
     meta.probe()
     meta.write()
-    sm.send(req_q.get())
+    sm.send(record_q.get())
     sm.finish()
     print(mock_server.ctx)
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1

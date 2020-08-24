@@ -13,7 +13,6 @@ import time
 from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
-from wandb.interface import constants
 from wandb.internal import datastore
 from wandb.internal import sender
 from wandb.internal import settings_static
@@ -40,15 +39,21 @@ class SyncThread(threading.Thread):
                       resume=None,
                       program=None,
                       ignore_globs=[],
+                      run_id=None,
+                      entity=None,
+                      project=None,
+                      run_group=None,
+                      job_type=None,
+                      run_tags=None,
+                      run_name=None,
+                      run_notes=None,
+                      save_code=None,
                       )
             settings = settings_static.SettingsStatic(sd)
-            process_q = queue.Queue()
-            notify_q = queue.Queue()
-            resp_q = queue.Queue()
-            run_meta = None
-            system_stats = None
+            record_q = queue.Queue()
+            result_q = queue.Queue()
             sm = sender.SendManager(
-                settings, process_q, notify_q, resp_q, run_meta, system_stats)
+                settings=settings, record_q=record_q, result_q=result_q)
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
             while True:
@@ -67,13 +72,11 @@ class SyncThread(threading.Thread):
                         pb.run.entity = self._entity
                     pb.control.req_resp = True
                 sm.send(pb)
-                while not notify_q.empty():
-                    i = notify_q.get(block=True)
-                    assert i == constants.NOTIFY_PROCESS
-                    data = process_q.get(block=True)
+                while not record_q.empty():
+                    data = record_q.get(block=True)
                     sm.send(data)
                 if pb.control.req_resp:
-                    result = resp_q.get(block=True)
+                    result = result_q.get(block=True)
                     result_type = result.WhichOneof("result_type")
                     if result_type == "run_result":
                         r = result.run_result.run
