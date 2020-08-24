@@ -136,6 +136,7 @@ def configure_logging(log_fname, log_level, run_id=None):
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
+    logging.root.handlers = []
     log_handler = logging.FileHandler(log_fname)
     log_handler.setLevel(log_level)
 

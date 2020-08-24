@@ -86,7 +86,7 @@ class Backend:
         self._result_q = None
 
     def setup(self):
-        log_level = logging.ERROR
+        log_level = logging.DEBUG
         start_time = time.time()
         start_datetime = datetime.datetime.now()
         timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
@@ -169,8 +169,8 @@ def serve(backend):
         server.add_insecure_port("[::]:50051")
         server.start()
         server.wait_for_termination()
-        print("server shutting down")
-        print("shutdown")
+        # print("server shutting down")
+        # print("shutdown")
     except KeyboardInterrupt:
         print("control-c")
 
