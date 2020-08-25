@@ -78,9 +78,17 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         ret = []
         flag = False # whether the cursor can be moved up
         for c in chunks:
-            s = c.data.split(':')
-            tstamp = s[0] + ':' + s[1].split(' ')[0]
-            lines = c.data.split(os.linesep)
+            # Line has two possible formats:
+            # 1) "2020-08-25T20:38:36.895321 this is my line of text"
+            # 2) "ERROR 2020-08-25T20:38:36.895321 this is my line of text"
+            prefix = ""
+            token, rest = c.data.split(" ", 1)
+            if token == "ERROR":
+                prefix += token + " "
+                token, rest = rest.split(" ", 1)
+            prefix += token + " "
+
+            lines = rest.split(os.linesep)
             for line in lines:
                 line = line.split('\r')[-1]
                 if line:
@@ -90,7 +98,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                             ret.pop()
                             flag = False
                     else:
-                        ret.append(tstamp + ' ' + line + os.linesep)
+                        ret.append(prefix + line + os.linesep)
                         flag = True
         chunk_id = self._chunk_id
         self._chunk_id += len(ret)
