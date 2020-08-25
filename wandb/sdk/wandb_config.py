@@ -28,9 +28,13 @@ class Config(object):
         object.__setattr__(self, "_users_inv", dict())
         object.__setattr__(self, "_users_cnt", 0)
         object.__setattr__(self, "_callback", None)
+        object.__setattr__(self, "_settings", None)
 
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
+
+    def _set_settings(self, settings):
+        object.__setattr__(self, "_settings", settings)
 
     def __repr__(self):
         return str(dict(self))
@@ -65,13 +69,12 @@ class Config(object):
     def __contains__(self, key):
         return key in self._items
 
-    def _update(self, d, allow_val_change=False):
+    def _update(self, d, allow_val_change=None):
         parsed_dict = wandb_helper.parse_config(d)
         sanitized = self._sanitize_dict(parsed_dict)
         self._items.update(sanitized)
 
-    def update(self, d, allow_val_change=False):
-        # TODO(cling): implement allow_val_change.
+    def update(self, d, allow_val_change=None):
         self._update(d, allow_val_change)
         if self._callback:
             self._callback(data=self._as_dict())
@@ -106,7 +109,7 @@ class Config(object):
             self._locked[k] = num
             self._items[k] = v
 
-    def _sanitize_dict(self, config_dict, allow_val_change=False):
+    def _sanitize_dict(self, config_dict, allow_val_change=None):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             k, v = self._sanitize(k, v)
@@ -114,7 +117,10 @@ class Config(object):
 
         return sanitized
 
-    def _sanitize(self, key, val, allow_val_change=False):
+    def _sanitize(self, key, val, allow_val_change=None):
+        # Let jupyter change config freely by default
+        if self._settings and self._settings.jupyter and allow_val_change is None:
+            allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
         val = self._sanitize_val(val)

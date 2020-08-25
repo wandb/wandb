@@ -338,6 +338,9 @@ class _WandbInit(object):
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
                 self._wl._global_run_stack[-1].join()
+        elif wandb.run:
+            logger.info("wandb.init() called when a run is still active")
+            return wandb.run
 
         console = s.console
         use_redirect = True

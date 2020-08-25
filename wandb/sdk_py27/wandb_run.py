@@ -130,6 +130,7 @@ class RunManaged(Run):
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
+        self._config._set_settings(settings)
         self._backend = None
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
@@ -414,7 +415,7 @@ class RunManaged(Run):
         self._backend.interface.publish_history(row, step)
 
     def _console_callback(self, name, data):
-        logger.info("console callback: %s, %s", name, data)
+        # logger.info("console callback: %s, %s", name, data)
         self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(self, logdir, save=None):
