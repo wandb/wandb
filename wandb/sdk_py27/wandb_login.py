@@ -20,7 +20,13 @@ def _validate_anonymous_setting(anon_str):
     return anon_str in ["must", "allow", "never"]
 
 
-def login(backend=None, relogin=None, key=None, anonymous=None):
+def login(anonymous=None, key=None, relogin=None):
+    return _login(anonymous=anonymous, key=key, relogin=relogin)
+
+
+def _login(
+    anonymous=None, key=None, relogin=None, _backend=None, _disable_warning=None
+):
     """Log in to W&B.
 
     Args:
@@ -34,7 +40,8 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
         None
     """
     if wandb.run is not None:
-        wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
+        if not _disable_warning:
+            wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
         return
 
     settings = {}
@@ -64,8 +71,8 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
     logged_in = is_logged_in()
     if logged_in:
         # TODO: do we want to move all login logic to the backend?
-        if backend:
-            res = backend.interface.communicate_login(key, anonymous)
+        if _backend:
+            res = _backend.interface.communicate_login(key, anonymous)
             active_entity = res.active_entity
         else:
             active_entity = wl._get_entity()
@@ -75,7 +82,8 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
         wandb.termlog(
             "{} {} {}".format(
                 login_state_str, click.style(active_entity, fg="yellow"), login_info_str
-            )
+            ),
+            repeat=False,
         )
         return
 
@@ -93,10 +101,10 @@ def login(backend=None, relogin=None, key=None, anonymous=None):
         apikey.write_key(settings, key)
     else:
         apikey.prompt_api_key(settings, api=api)
-    if backend and not logged_in:
+    if _backend and not logged_in:
         # TODO: calling this twice is gross, this deserves a refactor
         # Make sure our backend picks up the new creds
-        _ = backend.interface.communicate_login(key, anonymous)
+        _ = _backend.interface.communicate_login(key, anonymous)
     return
 
 

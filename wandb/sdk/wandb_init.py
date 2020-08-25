@@ -23,6 +23,7 @@ from wandb.old import io_wrap
 from wandb.util import sentry_exc
 
 from .wandb_helper import parse_config
+from .wandb_login import _login
 from .wandb_run import Run, RunDummy, RunManaged
 from .wandb_settings import Settings
 
@@ -330,7 +331,7 @@ class _WandbInit(object):
         s = self.settings
         config = self.config
 
-        if s.reinit:
+        if s.reinit or (s.jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
@@ -359,7 +360,7 @@ class _WandbInit(object):
         )
         backend.server_connect()
         # Make sure we are logged in
-        wandb.login(backend=backend)
+        _login(_backend=backend, _disable_warning=True)
 
         # resuming needs access to the server, check server_status()?
 

@@ -765,7 +765,7 @@ class RunManaged(Run):
 
         r = self._run_obj
         sweep_id = r.sweep_id
-        if sweep_id is None:
+        if not sweep_id:
             return
 
         app_url = self._settings.base_url.replace("//api.", "//app.")

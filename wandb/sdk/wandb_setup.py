@@ -203,11 +203,12 @@ class _WandbSetup(object):
     _instance = None
 
     def __init__(self, settings=None, _warn=True):
-        if _WandbSetup._instance is not None and _warn:
-            logger.warning(
-                "Ignoring settings passed to wandb.setup() "
-                "which has already been configured."
-            )
+        if _WandbSetup._instance is not None:
+            if _warn:
+                logger.warning(
+                    "Ignoring settings passed to wandb.setup() "
+                    "which has already been configured."
+                )
             return
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
 
