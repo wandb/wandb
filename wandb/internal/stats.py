@@ -52,7 +52,7 @@ def gpu_in_use_by_this_process(gpu_handle):
 
 
 class SystemStats(object):
-    def __init__(self, pid=None, api=None, record_q=None):
+    def __init__(self, pid=None, api=None, interface=None):
         try:
             pynvml.nvmlInit()
             self.gpu_count = pynvml.nvmlDeviceGetCount()
@@ -61,7 +61,7 @@ class SystemStats(object):
         #self.run = run
         self._pid = pid
         self._api = api
-        self._interface = interface.BackendSender(record_q=record_q)
+        self._interface = interface
         self.sampler = {}
         self.samples = 0
         self._shutdown = False

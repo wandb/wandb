@@ -25,6 +25,7 @@ import traceback
 import psutil  # type: ignore
 from six.moves import queue
 import wandb
+from wandb.interface import interface
 from wandb.internal import handler
 from wandb.internal import internal_util
 from wandb.internal import sender
@@ -60,12 +61,18 @@ def wandb_internal(settings, record_q, result_q):
 
     logger.info("W&B internal server running at pid: %s", pid)
 
+    publish_interface = interface.BackendSender(record_q=record_q)
+
     stopped = threading.Event()
     threads = []
 
     send_record_q = queue.Queue()
     record_sender_thread = SenderThread(
-        settings=settings, record_q=send_record_q, result_q=result_q, stopped=stopped,
+        settings=settings,
+        record_q=send_record_q,
+        result_q=result_q,
+        stopped=stopped,
+        interface=publish_interface,
     )
     threads.append(record_sender_thread)
 
@@ -86,6 +93,7 @@ def wandb_internal(settings, record_q, result_q):
         stopped=stopped,
         sender_q=send_record_q,
         writer_q=write_record_q,
+        interface=publish_interface,
     )
     threads.append(record_handler_thread)
 
@@ -167,7 +175,9 @@ def configure_logging(log_fname, log_level, run_id=None):
 class HandlerThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to handler routines."""
 
-    def __init__(self, settings, record_q, result_q, stopped, sender_q, writer_q):
+    def __init__(
+        self, settings, record_q, result_q, stopped, sender_q, writer_q, interface
+    ):
         super(HandlerThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped,
         )
@@ -178,6 +188,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._stopped = stopped
         self._sender_q = sender_q
         self._writer_q = writer_q
+        self._interface = interface
 
     def _setup(self):
         self._hm = handler.HandleManager(
@@ -187,6 +198,7 @@ class HandlerThread(internal_util.RecordLoopThread):
             stopped=self._stopped,
             sender_q=self._sender_q,
             writer_q=self._writer_q,
+            interface=self._interface,
         )
 
     def _process(self, record):
@@ -199,7 +211,9 @@ class HandlerThread(internal_util.RecordLoopThread):
 class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
 
-    def __init__(self, settings, record_q, result_q, stopped):
+    def __init__(
+        self, settings, record_q, result_q, stopped, interface,
+    ):
         super(SenderThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped,
         )
@@ -207,10 +221,14 @@ class SenderThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._interface = interface
 
     def _setup(self):
         self._sm = sender.SendManager(
-            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
+            interface=self._interface,
         )
 
     def _process(self, record):

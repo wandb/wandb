@@ -5,7 +5,6 @@ sender.
 
 from __future__ import print_function
 
-import collections
 from datetime import datetime
 import json
 import logging
@@ -25,16 +24,10 @@ from wandb.util import sentry_set_scope
 from . import artifacts
 from . import file_stream
 from . import internal_api
-from . import tb_watcher
 from .file_pusher import FilePusher
 
 
 logger = logging.getLogger(__name__)
-
-
-DeferState = collections.namedtuple(  # type: ignore[attr-defined]
-    "DeferState", "begin flush_tb flush_dir flush_fp flush_fs end"
-)._make(range(6))
 
 
 def _config_dict_from_proto_list(obj_list):
@@ -46,18 +39,16 @@ def _config_dict_from_proto_list(obj_list):
 
 class SendManager(object):
     def __init__(
-        self, settings, record_q, result_q,
+        self, settings, record_q, result_q, interface,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
-
-        self._resp_q = result_q
+        self._interface = interface
 
         self._fs = None
         self._pusher = None
         self._dir_watcher = None
-        self._tb_watcher = None
 
         # State updated by login
         self._entity = None
@@ -88,7 +79,6 @@ class SendManager(object):
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
-        self._defer_state = None
         self._exit_code = 0
 
     def send(self, record):
@@ -158,48 +148,41 @@ class SendManager(object):
 
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
-        self._defer_state = DeferState.begin
-        logger.info("send defer: {}".format(self._defer_state))
-        self._queue_defer()
-
-    def _queue_defer(self):
-        rec = wandb_internal_pb2.Record()
-        rec.request.defer.CopyFrom(wandb_internal_pb2.DeferRequest())
-        self._record_q.put(rec)
+        logger.info("send defer")
+        self._interface.publish_defer()
 
     def send_request_defer(self, data):
-        logger.info("handle defer: {}".format(self._defer_state))
+        defer = data.request.defer
+        state = defer.state
+        logger.info("handle sender defer: {}".format(state))
 
         done = False
-        state = self._defer_state
-        if state == DeferState.begin:
+        if state == defer.BEGIN:
             pass
-        elif state == DeferState.flush_tb:
-            # shutdown tensorboard workers so we get all metrics flushed
-            if self._tb_watcher:
-                self._tb_watcher.finish()
-                self._tb_watcher = None
-        elif state == DeferState.flush_dir:
+        elif state == defer.FLUSH_TB:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            pass
+        elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
                 self._dir_watcher = None
-        elif state == DeferState.flush_fp:
+        elif state == defer.FLUSH_FP:
             if self._pusher:
                 self._pusher.finish()
-        elif state == DeferState.flush_fs:
+        elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
-        elif state == DeferState.end:
+        elif state == defer.END:
             done = True
         else:
             raise AssertionError("unknown state")
 
         if not done:
-            self._defer_state += 1
-            logger.info("send defer: {}".format(self._defer_state))
-            self._queue_defer()
+            state += 1
+            logger.info("send defer: {}".format(state))
+            self._interface.publish_defer(state)
             return
 
         exit_result = wandb_internal_pb2.RunExitResult()
@@ -215,7 +198,7 @@ class SendManager(object):
             resp = wandb_internal_pb2.Result(
                 exit_result=exit_result, uuid=self._exit_sync_uuid
             )
-            self._resp_q.put(resp)
+            self._result_q.put(resp)
 
         # mark exit done in case we are polling on exit
         self._exit_result = exit_result
@@ -244,7 +227,7 @@ class SendManager(object):
             self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
             result.response.poll_exit_response.done = True
-        self._resp_q.put(result)
+        self._result_q.put(result)
 
     def _maybe_setup_resume(self, run):
         """This maybe queries the backend for a run and fails if the settings are
@@ -320,7 +303,7 @@ class SendManager(object):
                 resp = wandb_internal_pb2.Result(uuid=data.uuid)
                 resp.run_result.run.CopyFrom(run)
                 resp.run_result.error.CopyFrom(error)
-                self._resp_q.put(resp)
+                self._result_q.put(resp)
             else:
                 logger.error("Got error in async mode: %s", error.message)
             return
@@ -371,7 +354,7 @@ class SendManager(object):
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)
             resp.run_result.run.CopyFrom(self._run)
-            self._resp_q.put(resp)
+            self._result_q.put(resp)
 
         if self._entity is not None:
             self._api_settings["entity"] = self._entity
@@ -402,9 +385,6 @@ class SendManager(object):
             self._fs.start()
             self._pusher = FilePusher(self._api)
             self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
-            self._tb_watcher = tb_watcher.TBWatcher(
-                self._settings, sender=self, run_proto=self._run
-            )
             sentry_set_scope("internal", run.entity, run.project)
             logger.info(
                 "run started: %s with start time %s", self._run.run_id, start_time
@@ -497,10 +477,8 @@ class SendManager(object):
             self._save_file(k.path, interface.file_enum_to_policy(k.policy))
 
     def send_tbrecord(self, data):
-        logger.info("handling tbrecord: %s", data)
-        if self._tb_watcher:
-            tbrecord = data.tbrecord
-            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save)
+        # tbrecord watching threads are handled by handler.py
+        pass
 
     def send_artifact(self, data):
         artifact = data.artifact
@@ -523,12 +501,15 @@ class SendManager(object):
 
     def finish(self):
         logger.info("shutting down sender")
-        if self._tb_watcher:
-            self._tb_watcher.finish()
+        # if self._tb_watcher:
+        #     self._tb_watcher.finish()
         if self._dir_watcher:
             self._dir_watcher.finish()
+            self._dir_watcher = None
         if self._pusher:
             self._pusher.finish()
             self._pusher.join()
+            self._pusher = None
         if self._fs:
             self._fs.finish(self._exit_code)
+            self._fs = None

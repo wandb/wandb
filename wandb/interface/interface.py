@@ -160,8 +160,9 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
-    def publish_history(self, data, step):
-        data = data_types.history_dict_to_json(self._run, data, step)
+    def publish_history(self, data, step=None, run=None):
+        run = run or self._run
+        data = data_types.history_dict_to_json(run, data, step=step)
         history = wandb_internal_pb2.HistoryRecord()
         for k, v in six.iteritems(data):
             item = history.item.add()
@@ -425,6 +426,11 @@ class BackendSender(object):
         login_response = result.response.login_response
         assert login_response
         return login_response
+
+    def publish_defer(self, state=0):
+        rec = wandb_internal_pb2.Record()
+        rec.request.defer.CopyFrom(wandb_internal_pb2.DeferRequest(state=state))
+        self._publish(rec)
 
     def publish_login(self, api_key=None, anonymous=None):
         login = self._make_login(api_key, anonymous)

@@ -12,7 +12,6 @@ from shutil import copyfile
 import sys
 
 from wandb import util
-from wandb.interface import interface
 from wandb.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
 from wandb.lib.git import GitRepo
 from wandb.vendor.pynvml import pynvml
@@ -29,11 +28,11 @@ logger = logging.getLogger(__name__)
 class Meta(object):
     """Used to store metadata during and after a run."""
 
-    def __init__(self, settings=None, record_q=None):
+    def __init__(self, settings=None, interface=None):
         self._settings = settings
         self.data = {}
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
-        self._interface = interface.BackendSender(record_q=record_q)
+        self._interface = interface
         self._git = GitRepo(
             remote=self._settings["git_remote"]
             if "git_remote" in self._settings.keys()

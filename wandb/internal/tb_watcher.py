@@ -2,7 +2,6 @@
 tensor b watcher.
 """
 
-import json
 import os
 import threading
 import time
@@ -10,21 +9,17 @@ import time
 import six
 from six.moves import queue
 import wandb
-from wandb import data_types
 from wandb import util
 from wandb.internal import run as internal_run
-from wandb.util import json_dumps_safer_history
 
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
 
 
-def _link_and_save_file(path, base_path=None, sender=None):
+def _link_and_save_file(path, base_path, interface, settings):
     # TODO(jhr): should this logic be merged with Run.save()
-    if base_path is None:
-        base_path = os.path.dirname(path)
-    files_dir = sender._settings.files_dir
+    files_dir = settings.files_dir
     file_name = os.path.relpath(path, base_path)
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
@@ -36,15 +31,15 @@ def _link_and_save_file(path, base_path=None, sender=None):
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    sender._save_file(file_name, policy="live")
+    interface.publish_files(dict(files=[(file_name, "live")]))
 
 
 class TBWatcher(object):
-    def __init__(self, settings, run_proto, sender=None):
+    def __init__(self, settings, run_proto, interface):
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
-        self._sender = sender
+        self._interface = interface
         self._internal_run = internal_run.InternalRun(run_proto, settings)
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
@@ -135,7 +130,8 @@ class TBDirWatcher(object):
 
     def _loader(self, save=True, namespace=None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
-        _loader_sender = self._tbwatcher._sender
+        _loader_interface = self._tbwatcher._interface
+        _loader_settings = self._tbwatcher._settings
 
         class EventFileLoader(self.event_file_loader.EventFileLoader):
             def __init__(self, file_path):
@@ -148,7 +144,10 @@ class TBDirWatcher(object):
                         parts.pop()
                         logdir = os.path.join(*parts)
                     _link_and_save_file(
-                        file_path, base_path=logdir, sender=_loader_sender
+                        path=file_path,
+                        base_path=logdir,
+                        interface=_loader_interface,
+                        settings=_loader_settings,
                     )
 
         return EventFileLoader
@@ -258,15 +257,7 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row):
-        data = {}
-        row = data_types.history_dict_to_json(self._internal_run, row)
-        for k, v in six.iteritems(row):
-            if v is None:
-                continue
-
-            data[k] = json.loads(json_dumps_safer_history(v))
-
-        self._tbwatcher._sender._save_history(data)
+        self._tbwatcher._interface.publish_history(row, run=self._internal_run)
 
 
 class TBHistory(object):

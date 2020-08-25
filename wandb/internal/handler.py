@@ -11,6 +11,7 @@ import os
 import six
 import wandb
 from wandb.internal import meta, sample, stats, update
+from wandb.internal import tb_watcher
 from wandb.lib import proto_util
 from wandb.proto import wandb_internal_pb2
 
@@ -19,14 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class HandleManager(object):
-    def __init__(self, settings, record_q, result_q, stopped, sender_q, writer_q):
+    def __init__(
+        self, settings, record_q, result_q, stopped, sender_q, writer_q, interface,
+    ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
         self._sender_q = sender_q
         self._writer_q = writer_q
+        self._interface = interface
 
+        self._tb_watcher = None
         self._system_stats = None
 
         # keep track of config and summary from key/val updates
@@ -56,6 +61,20 @@ class HandleManager(object):
         if not self._settings.offline:
             self._sender_q.put(record)
         self._writer_q.put(record)
+
+    def handle_request_defer(self, record):
+        defer = record.request.defer
+        state = defer.state
+
+        logger.info("handle defer: {}".format(state))
+        # only handle flush tb (sender handles the rest)
+        if state == defer.FLUSH_TB:
+            if self._tb_watcher:
+                # shutdown tensorboard workers so we get all metrics flushed
+                self._tb_watcher.finish()
+                self._tb_watcher = None
+
+        self._dispatch_record(record)
 
     def handle_request_login(self, record):
         self._dispatch_record(record)
@@ -159,15 +178,23 @@ class HandleManager(object):
         self._result_q.put(result)
 
     def handle_request_run_start(self, record):
+        run_start = record.request.run_start
+        assert run_start
+        assert run_start.run
+
         if not self._settings._disable_stats and not self._settings.offline:
             pid = os.getpid()
-            self._system_stats = stats.SystemStats(pid=pid, record_q=self._record_q,)
+            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface,)
             self._system_stats.start()
 
         if not self._settings._disable_meta and not self._settings.offline:
-            run_meta = meta.Meta(settings=self._settings, record_q=self._record_q,)
+            run_meta = meta.Meta(settings=self._settings, interface=self._interface,)
             run_meta.probe()
             run_meta.write()
+
+        self._tb_watcher = tb_watcher.TBWatcher(
+            self._settings, interface=self._interface, run_proto=run_start.run,
+        )
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
@@ -198,6 +225,10 @@ class HandleManager(object):
         self._result_q.put(result)
 
     def handle_tbrecord(self, record):
+        logger.info("handling tbrecord: %s", record)
+        if self._tb_watcher:
+            tbrecord = record.tbrecord
+            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save)
         self._dispatch_record(record)
 
     def handle_request_sampled_history(self, data):
@@ -206,11 +237,9 @@ class HandleManager(object):
             item = wandb_internal_pb2.SampledHistoryItem()
             item.key = key
             values = sampled.get()
-            first = next(iter(values), None)
-            assert first is not None
-            if isinstance(first, numbers.Integral):
+            if all(isinstance(i, numbers.Integral) for i in values):
                 item.values_int.extend(values)
-            elif isinstance(first, numbers.Real):
+            elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
         self._result_q.put(result)
@@ -222,7 +251,9 @@ class HandleManager(object):
         self._stopped.set()
 
     def finish(self):
-        pass
+        logger.info("shutting down handler")
+        if self._tb_watcher:
+            self._tb_watcher.finish()
 
 
 def _config_dict_from_proto_list(obj_list):

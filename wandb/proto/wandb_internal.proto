@@ -322,6 +322,15 @@ message Response {
  * DeferRequest: internal message to defer work
  */
 message DeferRequest {
+  enum DeferState {
+    BEGIN = 0;
+    FLUSH_TB = 1;
+    FLUSH_DIR = 2;
+    FLUSH_FP = 3;
+    FLUSH_FS = 4;
+    END = 5;
+  }
+  DeferState state = 1;
 }
 
 /*

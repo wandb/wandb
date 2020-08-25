@@ -23,6 +23,11 @@ def result_q():
 
 
 @pytest.fixture()
+def interface(record_q):
+    return BackendSender(record_q=record_q)
+
+
+@pytest.fixture()
 def sender_q():
     return queue.Queue()
 
@@ -57,23 +62,23 @@ def sender(record_q, result_q, process):
 
 @pytest.fixture()
 def sm(
-    runner, sender_q, result_q, test_settings, sender, mock_server,
+    runner, sender_q, result_q, test_settings, mock_server, interface,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        sm = SendManager(settings=test_settings, record_q=sender_q, result_q=result_q,)
+        sm = SendManager(settings=test_settings, record_q=sender_q, result_q=result_q, interface=interface,)
         yield sm
 
 
 @pytest.fixture()
 def hm(
-    runner, record_q, result_q, test_settings, sender, mock_server, sender_q, writer_q,
+    runner, record_q, result_q, test_settings, mock_server, sender_q, writer_q, interface,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
         stopped = threading.Event()
         hm = HandleManager(settings=test_settings, record_q=record_q, result_q=result_q, stopped=stopped,
-                sender_q=sender_q, writer_q=writer_q)
+                sender_q=sender_q, writer_q=writer_q, interface=interface,)
         yield hm
 
 

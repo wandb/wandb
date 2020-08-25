@@ -6,6 +6,7 @@ import threading
 from six.moves import queue
 from wandb.internal.meta import Meta
 from wandb.internal.sender import SendManager
+from wandb.interface.interface import BackendSender
 
 
 @pytest.fixture()
@@ -19,14 +20,19 @@ def result_q():
 
 
 @pytest.fixture()
-def meta(test_settings, record_q):
-    return Meta(settings=test_settings, record_q=record_q)
+def interface(record_q):
+    return BackendSender(record_q=record_q)
 
 
 @pytest.fixture()
-def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run):
+def meta(test_settings, interface):
+    return Meta(settings=test_settings, interface=interface)
+
+
+@pytest.fixture()
+def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run, interface):
     test_settings.root_dir = os.getcwd()
-    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q)
+    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q, interface=interface)
     meta._interface.publish_run(mocked_run)
     sm.send(record_q.get())
     yield sm
