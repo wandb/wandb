@@ -43,7 +43,7 @@ jobs:
               run: |
                   git status
             - name: Commit changes
-              uses: stefanzweifel/git-auto-commit-action@v2.5.0
+              uses: stefanzweifel/git-auto-commit-action@v4
               with:
                   commit_message: "Doc updates"
                   branch: ${{ github.head_ref }}
