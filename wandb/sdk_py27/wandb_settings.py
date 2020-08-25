@@ -437,8 +437,8 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             console = "redirect"
             if self.jupyter:
                 console = "off"
-            if self.windows:
-                console = "off"
+            # if self.windows:
+            #     console = "off"
             u["console"] = console
 
         # convert wandb mode to "offline"
