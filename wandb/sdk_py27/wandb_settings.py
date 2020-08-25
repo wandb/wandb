@@ -299,6 +299,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _args=None,
         _os=None,
         _python=None,
+        _kaggle=None,
         _except_exit=None,
     ):
         kwargs = locals()
@@ -422,6 +423,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         """Modify settings based on environment (for runs and cli)."""
         d = {}
         d["jupyter"] = _get_python_type() != "python"
+        d["_kaggle"] = _is_kaggle()
         d["windows"] = platform.system() == "Windows"
         # disable symlinks if on windows (requires admin or developer setup)
         d["symlink"] = True

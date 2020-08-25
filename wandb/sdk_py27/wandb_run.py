@@ -190,7 +190,20 @@ class RunManaged(Run):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-        config[wandb_key]["cli_version"] = wandb.__version__
+
+        wandb_data = dict()
+        wandb_data["cli_version"] = wandb.__version__
+        wandb_data["python_version"] = platform.python_version()
+        wandb_data["is_jupyter_run"] = settings.jupyter or False
+        wandb_data["is_kaggle_kernel"] = settings._kaggle or False
+        hf_version = huggingface_version()
+        if hf_version:
+            wandb_data["huggingface_version"] = hf_version
+        framework = self._telemetry_get_framework()
+        if framework:
+            wandb_data["framework"] = framework
+        config[wandb_key].update(wandb_data)
+
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -199,6 +212,32 @@ class RunManaged(Run):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+
+    def _telemetry_get_framework(self):
+        """Get telemetry data for internal config structure."""
+        # detect framework by checking what is loaded
+        loaded = {}
+        loaded["lightgbm"] = sys.modules.get("lightgbm")
+        loaded["catboost"] = sys.modules.get("catboost")
+        loaded["xgboost"] = sys.modules.get("xgboost")
+        loaded["fastai"] = sys.modules.get("fastai")
+        loaded["torch"] = sys.modules.get("torch")
+        loaded["keras"] = sys.modules.get("keras")  # vanilla keras
+        loaded["tensorflow"] = sys.modules.get("tensorflow")
+        loaded["sklearn"] = sys.modules.get("sklearn")
+
+        priority = (
+            "lightgbm",
+            "catboost",
+            "xgboost",
+            "fastai",
+            "torch",
+            "keras",
+            "tensorflow",
+            "sklearn",
+        )
+        framework = next((f for f in priority if loaded.get(f)), None)
+        return framework
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -1250,3 +1289,11 @@ class RunManaged(Run):
         exit_code = 0 if exc_type is None else 1
         self.join(exit_code)
         return exc_type is None
+
+
+def huggingface_version():
+    if "transformers" in sys.modules:
+        trans = wandb.util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
