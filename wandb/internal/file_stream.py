@@ -10,6 +10,8 @@ import itertools
 from six.moves import queue
 from wandb import util
 from wandb import env
+import os
+
 
 MAX_LINE_SIZE = 4*1024*1024 - 100*1024  # imposed by back end
 
@@ -73,19 +75,28 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     """
 
     def process_chunks(self, chunks):
-        content = []
-        for line in [c.data for c in chunks]:
-            if content and content[-1].endswith('\r'):
-                content[-1] = line
-            else:
-                content.append(line)
+        ret = []
+        flag = False # whether the cursor can be moved up
+        for c in chunks:
+            s = c.data.split(':')
+            tstamp = s[0] + ':' + s[1].split(' ')[0]
+            lines = c.data.split(os.linesep)
+            for line in lines:
+                line = line.split('\r')[-1]
+                if line:
+                    # check for cursor up control character
+                    if line.endswith('\x1b\x5b\x41'):
+                        if flag:
+                            ret.pop()
+                            flag = False
+                    else:
+                        ret.append(tstamp + ' ' + line + os.linesep)
+                        flag = True
         chunk_id = self._chunk_id
-        self._chunk_id += len(content)
-        if content and content[-1].endswith('\r'):
-            self._chunk_id -= 1
+        self._chunk_id += len(ret)
         return {
             'offset': chunk_id,
-            'content': content
+            'content': ret
         }
 
 
