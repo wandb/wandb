@@ -12,7 +12,7 @@ mock==2.0.0
 sh==1.12.14
 Pillow==6.2.1
 numpy
-fastai
+fastai<2.0.0
 absl-py
 ipython
 matplotlib
