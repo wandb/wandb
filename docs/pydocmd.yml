@@ -11,8 +11,6 @@ generate:
           - wandb.cli++
     - keras.md:
           - wandb.keras++
-    - fastai.md:
-          - wandb.fastai++
     - data_types.md:
           - wandb.data_types+
 
