@@ -124,6 +124,8 @@ class Backend:
             run_tags=None,
             run_name=None,
             run_notes=None,
+            jupyter=None,
+            _kaggle=None,
         )
 
         mp = multiprocessing
