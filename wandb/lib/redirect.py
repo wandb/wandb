@@ -30,7 +30,7 @@ class Unbuffered(object):
         return getattr(self.stream, attr)
 
 
-def _pipe_relay(stopped, fd, name, cb, tee):
+def _pipe_relay(stopped, fd, name, cb, tee, output_writer):
     while True:
         try:
             data = os.read(fd, 4096)
@@ -46,6 +46,8 @@ def _pipe_relay(stopped, fd, name, cb, tee):
                 break
         if tee:
             os.write(tee, data)
+        if output_writer:
+            output_writer.write(data)
         if cb:
             try:
                 cb(name, data)
@@ -107,10 +109,11 @@ class Redirect(object):
 
 
 class Capture(object):
-    def __init__(self, name, cb):
+    def __init__(self, name, cb, output_writer):
         self._started = False
         self._name = name
         self._cb = cb
+        self._output_writer = output_writer
         self._stopped = None
         self._thread = None
         self._tee = None
@@ -138,7 +141,8 @@ class Capture(object):
         read_thread = threading.Thread(
             name=self._name,
             target=_pipe_relay,
-            args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee),
+            args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee,
+                  self._output_writer),
         )
         read_thread.daemon = True
         read_thread.start()
