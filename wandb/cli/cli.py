@@ -18,6 +18,7 @@ from click.exceptions import ClickException
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 import six
+from six.moves import configparser
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -1244,3 +1245,31 @@ wandb_magic_install()
     )
     magic_run(prep, globs, None)
     magic_run(code, globs, None)
+
+
+@cli.command("on", help="Ensure W&B is enabled in this directory")
+@display_error
+def on():
+    api = InternalApi()
+    try:
+        api.clear_setting("disabled", persist=True)
+    except configparser.Error:
+        pass
+    click.echo(
+        "W&B enabled, running your script from this directory will now sync to the cloud."
+    )
+
+
+@cli.command("off", help="Disable W&B in this directory, useful for testing")
+@display_error
+def off():
+    api = InternalApi()
+    try:
+        api.set_setting("disabled", "true", persist=True)
+        click.echo(
+            "W&B disabled, running your script from this directory will only write metadata locally."
+        )
+    except configparser.Error:
+        click.echo(
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+        )

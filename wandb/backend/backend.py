@@ -17,12 +17,13 @@ logger = logging.getLogger("wandb")
 
 
 class Backend(object):
-    def __init__(self, mode=None):
+    def __init__(self):
         self._done = False
         self.record_q = None
         self.result_q = None
         self.wandb_process = None
         self.interface = None
+        self._internal_pid = None
         self._wl = wandb.setup(_warn=False)
 
     def _hack_set_run(self, run):
@@ -77,6 +78,7 @@ class Backend(object):
 
         # Start the process with __name__ == "__main__" workarounds
         self.wandb_process.start()
+        self._internal_pid = self.wandb_process.pid
 
         # Undo temporary changes from: __name__ == "__main__"
         if save_mod_name:

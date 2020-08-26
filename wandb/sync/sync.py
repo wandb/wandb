@@ -13,6 +13,7 @@ import time
 from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
+from wandb.interface import interface
 from wandb.internal import datastore
 from wandb.internal import sender
 from wandb.internal import settings_static
@@ -52,8 +53,10 @@ class SyncThread(threading.Thread):
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()
             result_q = queue.Queue()
+            publish_interface = interface.BackendSender(record_q=record_q)
             sm = sender.SendManager(
-                settings=settings, record_q=record_q, result_q=result_q)
+                settings=settings, record_q=record_q, result_q=result_q,
+                interface=publish_interface)
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
             while True:

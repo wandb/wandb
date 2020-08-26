@@ -66,7 +66,7 @@ defaults = dict(
     show_warnings=2,
     summary_warnings=5,
     # old mode field (deprecated in favor of WANDB_OFFLINE=true)
-    _mode=Field(str, ("dryrun", "run",)),
+    _mode=Field(str, ("dryrun", "run", "offline", "online",)),
     # problem: TODO(jhr): Not implemented yet, needs new name?
     _problem=Field(str, ("fatal", "warn", "silent",)),
     console="auto",
@@ -237,6 +237,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest-run",
+        _sync_dir=None,  # computed
         sync_file=None,  # computed
         log_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",
         log_user_spec="debug-{timespec}-{run_id}.log",
@@ -264,6 +265,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         save_code=None,
         program_relpath=None,
         git_remote=None,
+        dev_prod=None,  # in old settings files, TODO: support?
         host=None,
         username=None,
         docker=None,
@@ -422,8 +424,18 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         self.__dict__.update({k: v for k, v in d.items() if v is not None})
         self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
 
+    def _reinfer_settings_from_env(self):
+        """As settings change we might want to run this again."""
+        # figure out if we are in offline mode
+        # (disabled is how it is stored in settings files)
+        if self.disabled:
+            self.offline = True
+        if self.mode in ("dryrun", "offline"):
+            self.offline = True
+
     def _infer_settings_from_env(self):
         """Modify settings based on environment (for runs and cli)."""
+
         d = {}
         d["jupyter"] = _get_python_type() != "python"
         d["_kaggle"] = _is_kaggle()
@@ -443,10 +455,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             # if self.windows:
             #     console = "off"
             u["console"] = console
-
-        # convert wandb mode to "offline"
-        if self.mode == "dryrun":
-            self.offline = True
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
@@ -490,6 +498,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             u["_except_exit"] = True
 
         self.update(u)
+        self._reinfer_settings_from_env()
 
     def _infer_run_settings_from_env(self):
         """Modify settings based on environment (for runs only)."""
@@ -593,3 +602,4 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
+        self._reinfer_settings_from_env()

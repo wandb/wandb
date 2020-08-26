@@ -25,7 +25,12 @@ def login(anonymous=None, key=None, relogin=None):
 
 
 def _login(
-    anonymous=None, key=None, relogin=None, _backend=None, _disable_warning=None
+    anonymous=None,
+    key=None,
+    relogin=None,
+    _backend=None,
+    _disable_warning=None,
+    _settings=None,
 ):
     """Log in to W&B.
 
@@ -62,7 +67,7 @@ def _login(
     # you must make sure the anonymous setting (and any other settings) are
     # already properly set up there.
     wl = wandb.setup(settings=settings, _warn=False)
-    settings = wl.settings()
+    settings = _settings or wl.settings()
 
     if settings.offline:
         return

@@ -49,6 +49,7 @@ class BackendMock(object):
         self.config = {}
         self.files = {}
         self.mocker = _get_mock_module(get_config())
+        self._internal_pid = None
 
     def _hack_set_run(self, run):
         self._run = run

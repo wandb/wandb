@@ -838,6 +838,8 @@ class RunManaged(Run):
                     click.style(run_url, underline=True, fg="blue"),
                 )
             )
+            if not self._settings.offline:
+                wandb.termlog("Run `wandb off` to turn off syncing.")
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
         console = self._settings.console
@@ -960,7 +962,19 @@ class RunManaged(Run):
         self._output_writer = None
 
     def _on_start(self):
+        if self._settings.offline:
+            wandb.termlog("Offline run mode, not syncing to the cloud.")
         wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
+        if self._settings.offline:
+            wandb.termlog(
+                (
+                    "W&B is disabled in this directory.  "
+                    "Run `wandb on` to enable cloud syncing."
+                )
+            )
+        wandb.termlog(
+            "Run data is saved locally in {}".format(self._settings._sync_dir)
+        )
         if self._run_obj:
             if self.resumed:
                 run_state_str = "Resuming run"
@@ -1031,6 +1045,15 @@ class RunManaged(Run):
 
         self._console_stop()
         print("")
+        pid = self._backend._internal_pid
+        wandb.termlog("Waiting for W&B process to finish, PID {}".format(pid))
+        if not self._exit_code:
+            wandb.termlog("Program ended successfully.")
+        else:
+            msg = "Program failed with code {}. ".format(self._exit_code)
+            if not self._settings.offline:
+                msg += " Press ctrl-c to abort syncing."
+            wandb.termlog(msg)
 
         if self._settings.offline:
             self._backend.interface.publish_exit(self._exit_code)
@@ -1085,6 +1108,13 @@ class RunManaged(Run):
             wandb.termlog(
                 "Find internal logs for this run at: {}".format(
                     self._settings.log_internal
+                )
+            )
+        if self._settings.offline:
+            wandb.termlog("You can sync this run to the cloud by running:")
+            wandb.termlog(
+                click.style(
+                    "wandb sync {}".format(self._settings.sync_file), fg="yellow"
                 )
             )
 

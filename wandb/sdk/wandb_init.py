@@ -283,6 +283,7 @@ class _WandbInit(object):
         settings.log_internal = settings._path_convert(
             settings.log_dir_spec, settings.log_internal_spec
         )
+        settings._sync_dir = settings._path_convert(settings.sync_dir_spec)
         settings.sync_file = settings._path_convert(
             settings.sync_dir_spec, settings.sync_file_spec
         )
@@ -354,7 +355,7 @@ class _WandbInit(object):
             stdout_master_fd, stdout_slave_fd = lib_console.win32_create_pipe()
             stderr_master_fd, stderr_slave_fd = lib_console.win32_create_pipe()
 
-        backend = Backend(mode=s.mode)
+        backend = Backend()
         backend.ensure_launched(
             settings=s,
             stdout_fd=stdout_master_fd,
@@ -363,7 +364,7 @@ class _WandbInit(object):
         )
         backend.server_connect()
         # Make sure we are logged in
-        _login(_backend=backend, _disable_warning=True)
+        _login(_backend=backend, _disable_warning=True, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
 
@@ -446,8 +447,7 @@ def init(
     config_exclude_keys=None,
     config_include_keys=None,
     anonymous: Optional[str] = None,
-    disabled: bool = None,
-    offline: bool = None,
+    mode: Optional[str] = None,
     allow_val_change: bool = None,
     resume: Optional[Union[bool, str]] = None,
     force=None,
