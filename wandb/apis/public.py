@@ -2150,11 +2150,30 @@ class Artifact(object):
 
         class ArtifactEntry(object):
             @staticmethod
-            def download():
+            def copy(cache_path, target_path):
+                # can't have colons in Windows
+                if platform.system() == "Windows":
+                    head, tail = os.path.splitdrive(target_path)
+                    target_path = head + tail.replace(":", "-")
+
+                need_copy = (not os.path.isfile(target_path)
+                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+                if need_copy:
+                    util.mkdir_exists_ok(os.path.dirname(target_path))
+                    # We use copy2, which preserves file metadata including modified
+                    # time (which we use above to check whether we should do the copy).
+                    shutil.copy2(cache_path, target_path)
+                return target_path
+
+            @staticmethod
+            def download(root=None):
                 if entry.ref is not None:
                     return storage_policy.load_reference(self, name, manifest.entries[name], local=True)
 
-                return storage_policy.load_file(self, name, manifest.entries[name])
+                cache_path = storage_policy.load_file(self, name, manifest.entries[name])
+                if root is not None:
+                    return ArtifactEntry().copy(cache_path, os.path.join(root, name))
+                return cache_path
 
             @staticmethod
             def ref():
@@ -2229,22 +2248,11 @@ class Artifact(object):
 
     def _download_file(self, name, dirpath):
         # download file into cache
-        cache_path = self.get_path(name).download()
+        artifact_entry = self.get_path(name)
+        cache_path = artifact_entry.download()
         # copy file into target dir
         target_path = os.path.join(dirpath, name)
-        # can't have colons in Windows
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(target_path)
-            target_path = head + tail.replace(":", "-")
-
-        need_copy = (not os.path.isfile(target_path)
-            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
-        if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
-            # We use copy2, which preserves file metadata including modified
-            # time (which we use above to check whether we should do the copy).
-            shutil.copy2(cache_path, target_path)
-        return target_path
+        return artifact_entry.copy(cache_path, target_path)
 
     @normalize_exceptions
     def save(self):
