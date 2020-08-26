@@ -288,7 +288,8 @@ class Agent(object):
 
         run_id = command.get('run_id')
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
-        config_file = os.path.join("wandb", "sweeps", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
+        # TODO(jhr): move into settings
+        config_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
         config_util.save_config_file_from_dict(config_file, command['args'])
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
@@ -314,7 +315,8 @@ class Agent(object):
                     command_list += replace_list or []
                 else:
                     command_list += [c]
-            logger.info('About to run command: {}'.format(' '.join(command_list)))
+            logger.info('About to run command: {}'.format(' '.join(
+                '"%s"' % c if ' ' in c else c for c in command_list)))
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run_id] = proc
 

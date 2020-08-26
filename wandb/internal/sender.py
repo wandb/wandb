@@ -350,6 +350,9 @@ class SendManager(object):
                 if entity_name:
                     self._run.entity = entity_name
                     self._entity = entity_name
+        sweep_id = ups.get("sweepName")
+        if sweep_id:
+            self._run.sweep_id = sweep_id
 
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)

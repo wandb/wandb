@@ -51,6 +51,12 @@ test-clean:
 	rm -rf .tox/
 	rm -rf .pytest_cache/
 
+test:
+	tox -e "codemod,black,mypy,flake8"
+
+test-full:
+	tox
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +

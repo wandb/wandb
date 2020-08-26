@@ -825,6 +825,13 @@ class RunManaged(Run):
                     click.style(project_url, underline=True, fg="blue"),
                 )
             )
+            if sweep_url:
+                wandb.termlog(
+                    "{} View sweep at {}".format(
+                        emojis.get("broom", ""),
+                        click.style(sweep_url, underline=True, fg="blue"),
+                    )
+                )
             wandb.termlog(
                 "{} View run at {}".format(
                     emojis.get("rocket", ""),

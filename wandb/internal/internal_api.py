@@ -757,6 +757,7 @@ class Api(object):
                     displayName
                     description
                     config
+                    sweepName
                     project {
                         id
                         name
