@@ -77,6 +77,9 @@ class SummaryDict(object):
 class Summary(SummaryDict):
     """Root node of the summary data structure. Contains the callback."""
 
+    # _update_callback: t.Callable
+    # _get_current_summary_callback: t.Callable
+
     def __init__(self, get_current_summary_callback):
         super(Summary, self).__init__()
         object.__setattr__(self, "_update_callback", None)
@@ -98,6 +101,10 @@ class Summary(SummaryDict):
 class SummarySubDict(SummaryDict):
     """Non-root node of the summary data structure. Contains a path to itself
     from the root."""
+
+    # _items: t.Dict
+    # _parent: SummaryDict
+    # _parent_key: str
 
     def __init__(self):
         object.__setattr__(self, "_items", dict())

@@ -193,6 +193,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     """
 
+    # pylint: disable=no-member
+    # entity: Optional[str]
+
     def __init__(  # pylint: disable=unused-argument
         self,
         base_url = None,

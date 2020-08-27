@@ -17,11 +17,10 @@ class RemoveTypesTransformer(codemod.VisitorBasedCodemodCommand):
     def leave_AnnAssign(self, original_node: cst.AnnAssign,
                         updated_node: cst.AnnAssign):
         if updated_node.value is None:
-            # e.g. `some_var: str`
-
-            # these are *only* type declarations and have no runtime behavior,
-            # so they should be removed entirely:
-            return cst.RemoveFromParent()
+            # Annotate assignments so they can be commented out by a second pass
+            return updated_node.with_changes(
+                    target=cst.Name("__COMMENT__" + original_node.target.value))
+            # return cst.RemoveFromParent()
 
         return cst.Assign(
             targets=[cst.AssignTarget(target=updated_node.target)],
