@@ -47,15 +47,19 @@ class TBWatcher(object):
 
     def _calculate_namespace(self, logdir):
         dirs = list(self._logdirs) + [logdir]
-        rootdir = os.path.dirname(os.path.commonprefix(dirs))
+        rootdir = util.to_forward_slash_path(
+            os.path.dirname(os.path.commonprefix(dirs))
+        )
         if os.path.isfile(logdir):
             filename = os.path.basename(logdir)
         else:
             filename = ""
         # Tensorboard loads all tfevents files in a directory and prepends
-        # their values with the path.  Passing namespace to log allows us
+        # their values with the path. Passing namespace to log allows us
         # to nest the values in wandb
-        namespace = logdir.replace(filename, "").replace(rootdir, "").strip(os.sep)
+        # Note that we strip '/' instead of os.sep, because elsewhere we've
+        # converted paths to forward slash.
+        namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
         # TODO: revisit this heuristic, it exists because we don't know the
         # root log directory until more than one tfevents file is written to
         if len(dirs) == 1 and namespace not in ["train", "validation"]:
@@ -63,6 +67,7 @@ class TBWatcher(object):
         return namespace
 
     def add(self, logdir, save):
+        logdir = util.to_forward_slash_path(logdir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir)

@@ -2,9 +2,6 @@
 monkeypatch: patch code to add tensorboard hooks
 """
 
-import os
-import sys
-
 import wandb
 
 
