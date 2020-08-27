@@ -702,6 +702,8 @@ class Api(object):
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
         """
+        if tags is None:
+            tags = os.environ['WANDB_TAGS']
         mutation = gql('''
         mutation UpsertBucket(
             $id: String, $name: String,
