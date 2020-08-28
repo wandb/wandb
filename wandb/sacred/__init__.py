@@ -70,11 +70,6 @@ class WandbObserver(RunObserver):
                     warnings.warn(
                         "logging results does not support type '{}' results. Ignoring this result".format(type(r)))
 
-    '''
-    def interrupted_event(self, interrupt_time, status):
-    
-    def failed_event(self, fail_time, fail_trace):
-    '''
     def artifact_event(self, name, filename, metadata=None, content_type=None):
         if content_type is None:
             content_type = 'file'
