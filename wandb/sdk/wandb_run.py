@@ -1163,9 +1163,8 @@ class RunManaged(Run):
         # Only print sparklines if the terminal is utf-8
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
-        if not hasattr(sys.stdout, "encoding") or sys.stdout.encoding not in (
-            "UTF_8",
-            "UTF-8",
+        if not hasattr(sys.stdout, "encoding") or (
+            sys.stdout.encoding.upper() not in ("UTF_8", "UTF-8",)
         ):
             return
 
