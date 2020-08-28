@@ -2255,8 +2255,7 @@ class Artifact(object):
         # download file into cache
         artifact_entry = self.get_path(name)
         # copy file into target dir
-        target_path = os.path.join(dirpath, name)
-        return artifact_entry.download(target_path)
+        return artifact_entry.download(dirpath)
 
     @normalize_exceptions
     def save(self):
