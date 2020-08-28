@@ -1,3 +1,4 @@
+#
 """Setup wandb session.
 
 This module configures a wandb session which can extend to mutiple wandb runs.
