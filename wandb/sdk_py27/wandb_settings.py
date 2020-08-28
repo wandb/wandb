@@ -16,13 +16,17 @@ Order of loading settings: (differs from priority)
 
 Priority of settings:  See "source" variable.
 
+When override is used, it has priority over non-override settings
+
+Override priorities are in the reverse order of non-override settings
+
 """
 
-import collections
 import configparser
 import copy
 import datetime
 import getpass
+import itertools
 import json
 import logging
 import os
@@ -43,44 +47,25 @@ if wandb.TYPE_CHECKING:  # type: ignore
         List,
         Optional,
         Union,
+        Tuple,
+        Callable,
+        Set,
     )
 
 logger = logging.getLogger("wandb")
-
-source = (
-    "org",
-    "entity",
-    "project",
-    "system",
-    "workspace",
-    "env",
-    "setup",
-    "settings",
-    "args",
-)
-
-Field = collections.namedtuple("TypedField", ["type", "choices"])
-
 
 defaults = dict(
     base_url="https://api.wandb.ai",
     show_warnings=2,
     summary_warnings=5,
-    # old mode field (deprecated in favor of WANDB_OFFLINE=true)
-    _mode=Field(str, ("dryrun", "run", "offline", "online",)),
-    # problem: TODO(jhr): Not implemented yet, needs new name?
-    _problem=Field(str, ("fatal", "warn", "silent",)),
     console="auto",
-    _console=Field(str, ("auto", "redirect", "off", "file", "iowrap", "notebook")),
     git_remote="origin",
-    ignore_globs=[],
-    # anonymous might be set by a config file: "false" and "true"
-    #   or from wandb.init(anonymous=) or environment: "allow", "must", "never"
-    _anonymous=Field(str, ("allow", "must", "never", "false", "true",)),
+    ignore_globs=(),
 )
 
 # env mapping?
 env_prefix = "WANDB_"
+# env_override_suffix: str = "_OVERRIDE"
 env_settings = dict(
     entity=None,
     project=None,
@@ -92,8 +77,6 @@ env_settings = dict(
     job_type=None,
     problem=None,
     console=None,
-    offline=None,
-    disabled=None,
     config_paths=None,
     run_id=None,
     notebook_name=None,
@@ -109,7 +92,9 @@ env_settings = dict(
     run_tags="WANDB_TAGS",
 )
 
-env_convert = dict(run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","))
+env_convert = dict(
+    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","),
+)
 
 
 def _build_inverse_map(prefix, d):
@@ -125,6 +110,10 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def _error_choices(value, choices):
+    return "{} not in {}".format(value, ",".join(list(choices)))
 
 
 def _get_program():
@@ -177,12 +166,7 @@ def get_wandb_dir(root_dir):
     return path
 
 
-class CantTouchThis(type):
-    def __setattr__(cls, attr, value):
-        raise Exception("NO!")
-
-
-class Settings(six.with_metaclass(CantTouchThis, object)):
+class Settings(object):
     """Settings Constructor
 
     Args:
@@ -194,8 +178,57 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
 
     """
 
-    # pylint: disable=no-member
-    # entity: Optional[str]
+    mode = None
+    console = None
+    disabled = None
+    resume_fname_spec = None
+    root_dir = None
+    log_dir_spec = None
+    log_user_spec = None
+    log_internal_spec = None
+    sync_file_spec = None
+    sync_dir_spec = None
+    files_dir_spec = None
+    log_symlink_user_spec = None
+    log_symlink_internal_spec = None
+    sync_symlink_latest_spec = None
+    settings_system_spec = None
+    settings_workspace_spec = None
+
+    # __frozen: bool
+    # __defaults_dict: Dict[str, int]
+    # __override_dict: Dict[str, int]
+    # __defaults_dict_set: Dict[str, Set[int]]
+    # __override_dict_set: Dict[str, Set[int]]
+
+    class Source(object):
+        BASE = 0
+        ORG = 1
+        ENTITY = 2
+        PROJECT = 3
+        USER = 4
+        SYSTEM = 5
+        WORKSPACE = 6
+        ENV = 7
+        SETUP = 8
+        INIT = 9
+        SETTINGS = 10
+        ARGS = 11
+
+    source_str = (
+        "base",
+        "org",
+        "entity",
+        "project",
+        "user",
+        "system",
+        "workspace",
+        "env",
+        "setup",
+        "init",
+        "settings",
+        "args",
+    )
 
     def __init__(  # pylint: disable=unused-argument
         self,
@@ -203,8 +236,7 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         api_key = None,
         anonymous=None,
         # how do we annotate that: dryrun==offline?
-        mode = "run",
-        offline = None,
+        mode = "online",
         entity = None,
         project = None,
         run_group = None,
@@ -228,29 +260,20 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _config_dict=None,
         # directories and files
         root_dir=None,
-        wandb_dir=None,  # computed
         settings_system_spec="~/.config/wandb/settings",
         settings_workspace_spec="{wandb_dir}/settings",
-        settings_system=None,  # computed
-        settings_workspace=None,  # computed
         sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",
         sync_file_spec="run-{timespec}-{run_id}.wandb",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest-run",
-        _sync_dir=None,  # computed
-        sync_file=None,  # computed
         log_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",
         log_user_spec="debug-{timespec}-{run_id}.log",
         log_internal_spec="debug-internal-{timespec}-{run_id}.log",
         log_symlink_user_spec="{wandb_dir}/debug.log",
         log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
-        log_user=None,  # computed
-        log_internal=None,  # computed
         resume_fname_spec="{wandb_dir}/wandb-resume.json",
-        resume_fname=None,  # computed
         files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
-        files_dir=None,  # computed
         symlink=None,  # probed
         # where files are temporary stored when saving
         # files_dir=None,
@@ -288,11 +311,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         show_errors=None,
         summary_errors=None,
         summary_warnings=None,
-        # special
-        _settings=None,
-        _environ=None,
-        _files=None,
-        _early_logger=None,
         _internal_queue_timeout=2,
         _internal_check_process=8,
         _disable_meta=None,
@@ -309,49 +327,132 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         _except_exit=None,
     ):
         kwargs = locals()
-        object.__setattr__(self, "_masked_keys", set(["self", "_frozen"]))
-        object.__setattr__(
-            self, "_unsaved_keys", set(["_settings", "_files", "_environ"])
-        )
-        object.__setattr__(self, "_frozen", False)
-        object.__setattr__(self, "_locked_by", dict)
-        object.__setattr__(self, "_configured_by", dict)
-        self._setup(kwargs)
+        kwargs.pop("self")
+        # Set up entries for all possible parameters
+        self.__dict__.update({k: None for k in kwargs})
+        # setup private attributes
+        object.__setattr__(self, "_Settings__frozen", False)
+        object.__setattr__(self, "_Settings__defaults_dict", dict())
+        object.__setattr__(self, "_Settings__override_dict", dict())
+        object.__setattr__(self, "_Settings__defaults_dict_set", dict())
+        object.__setattr__(self, "_Settings__override_dict_set", dict())
+        self._apply_defaults(defaults)
+        self._update(kwargs, _source=self.Source.SETTINGS)
 
-        if _files:
-            # TODO(jhr): permit setting of config in system and workspace
-            settings_system = self._path_convert(
-                self.__dict__.get("settings_system_spec")
-            )
-            self.update(self._load(settings_system), _setter="system")
-            settings_workspace = self._path_convert(
-                self.__dict__.get("settings_workspace_spec")
-            )
-            self.update(self._load(settings_workspace), _setter="workspace")
-        if _settings:
-            self.update(dict(_settings))
-        if _environ:
-            _logger = _early_logger or logger
-            inv_map = _build_inverse_map(env_prefix, env_settings)
-            env_dict = dict()
-            for k, v in six.iteritems(_environ):
-                if not k.startswith(env_prefix):
-                    continue
-                setting_key = inv_map.get(k)
-                if setting_key:
-                    conv = env_convert.get(setting_key, None)
-                    if conv:
-                        v = conv(v)
-                    env_dict[setting_key] = v
-                else:
-                    _logger.info("Unhandled environment var: {}".format(k))
+    @property
+    def offline(self):
+        ret = False
+        if self.disabled:
+            ret = True
+        if self.mode in ("dryrun", "offline"):
+            ret = True
+        return ret
 
-            _logger.info("setting env: {}".format(env_dict))
-            self.update(env_dict, _setter="env")
-        # TODO: is this the right place to do this?
-        self.update(
-            {"resume_fname": self._path_convert(self.__dict__.get("resume_fname_spec"))}
-        )
+    @property
+    def resume_fname(self):
+        return self._path_convert(self.resume_fname_spec)
+
+    @property
+    def wandb_dir(self):
+        return get_wandb_dir(self.root_dir or "")
+
+    @property
+    def log_user(self):
+        return self._path_convert(self.log_dir_spec, self.log_user_spec)
+
+    @property
+    def log_internal(self):
+        return self._path_convert(self.log_dir_spec, self.log_internal_spec)
+
+    @property
+    def _sync_dir(self):
+        return self._path_convert(self.sync_dir_spec)
+
+    @property
+    def sync_file(self):
+        return self._path_convert(self.sync_dir_spec, self.sync_file_spec)
+
+    @property
+    def files_dir(self):
+        return self._path_convert(self.files_dir_spec)
+
+    @property
+    def log_symlink_user(self):
+        return self._path_convert(self.log_symlink_user_spec)
+
+    @property
+    def log_symlink_internal(self):
+        return self._path_convert(self.log_symlink_internal_spec)
+
+    @property
+    def sync_symlink_latest(self):
+        return self._path_convert(self.sync_symlink_latest_spec)
+
+    @property
+    def settings_system(self):
+        return self._path_convert(self.settings_system_spec)
+
+    @property
+    def settings_workspace(self):
+        return self._path_convert(self.settings_workspace_spec)
+
+    def _validate_mode(self, value):
+        choices = {"dryrun", "run", "offline", "online"}
+        if value in choices:
+            return
+        return _error_choices(value, choices)
+
+    def _validate_console(self, value):
+        choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
+        if value in choices:
+            return
+        return _error_choices(value, choices)
+
+    def _validate_problem(self, value):
+        choices = {"fatal", "warn", "silent"}
+        if value in choices:
+            return
+        return _error_choices(value, choices)
+
+    def _validate_anonymous(self, value):
+        choices = {"allow", "must", "never", "false", "true"}
+        if value in choices:
+            return
+        return _error_choices(value, choices)
+
+    def _apply_settings(self, settings, _logger=None):
+        # TODO(jhr): make a more efficient version of this
+        for k in settings._public_keys():
+            source = settings.__defaults_dict.get(k)
+            self._update({k: settings[k]}, _source=source)
+
+    def _apply_defaults(self, defaults):
+        self._update(defaults, _source=self.Source.BASE)
+
+    def _apply_configfiles(self, _logger=None):
+        # TODO(jhr): permit setting of config in system and workspace
+        self._update(self._load(self.settings_system), _source=self.Source.SYSTEM)
+
+        self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)
+
+    def _apply_environ(self, environ, _logger=None):
+        _logger = _logger or logger
+        inv_map = _build_inverse_map(env_prefix, env_settings)
+        env_dict = dict()
+        for k, v in six.iteritems(environ):
+            if not k.startswith(env_prefix):
+                continue
+            setting_key = inv_map.get(k)
+            if setting_key:
+                conv = env_convert.get(setting_key, None)
+                if conv:
+                    v = conv(v)
+                env_dict[setting_key] = v
+            else:
+                _logger.info("Unhandled environment var: {}".format(k))
+
+        _logger.info("setting env: {}".format(env_dict))
+        self._update(env_dict, _source=self.Source.ENV)
 
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
@@ -384,9 +485,9 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
         path = os.path.expanduser(path)
         return path
 
-    def _clear_early_logger(self):
-        # TODO(jhr): this is a hack
-        object.__setattr__(self, "_early_logger", None)
+    # def _clear_early_logger(self):
+    #     # TODO(jhr): this is a hack
+    #     object.__setattr__(self, "_Settings__early_logger", None)
 
     def _setup(self, kwargs):
         for k, v in six.iteritems(kwargs):
@@ -396,25 +497,24 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     def __copy__(self):
         """Copy (note that the copied object will not be frozen)."""
         s = Settings()
-        s.update(dict(self))
+        s._apply_settings(self)
         return s
 
     def duplicate(self):
         return copy.copy(self)
 
     def _check_invalid(self, k, v):
-        # Check to see if matches choice
-        f = defaults.get("_" + k)
-        if f and isinstance(f, Field):
-            if v is not None and f.choices and v not in f.choices:
-                raise TypeError(
-                    "Settings field {} set to {} not in {}".format(
-                        k, v, ",".join(f.choices)
-                    )
-                )
+        if v is None:
+            return
+        f = getattr(self, "_validate_" + k, None)
+        if not f or not callable(f):
+            return
+        invalid = f(v)
+        if invalid:
+            raise TypeError("Settings field {}: {}".format(k, invalid))
 
-    def update(self, __d=None, _setter=None, **kwargs):
-        if self._frozen and (__d or kwargs):
+    def _update(self, __d=None, _source=None, _override=None, **kwargs):
+        if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
         for check in d, kwargs:
@@ -422,17 +522,39 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
                 if k not in self.__dict__:
                     raise KeyError(k)
                 self._check_invalid(k, check[k])
-        self.__dict__.update({k: v for k, v in d.items() if v is not None})
-        self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
+        for data in d, kwargs:
+            for k, v in six.iteritems(data):
+                if v is None:
+                    continue
+                if self._priority_failed(k, source=_source, override=_override):
+                    continue
+                if isinstance(v, list):
+                    v = tuple(v)
+                self.__dict__[k] = v
+                if _source:
+                    self.__defaults_dict[k] = _source
+                    self.__defaults_dict_set.setdefault(k, set()).add(_source)
+                if _override:
+                    self.__override_dict[k] = _override
+                    self.__override_dict_set.setdefault(k, set()).add(_override)
 
-    def _reinfer_settings_from_env(self):
-        """As settings change we might want to run this again."""
-        # figure out if we are in offline mode
-        # (disabled is how it is stored in settings files)
-        if self.disabled:
-            self.offline = True
-        if self.mode in ("dryrun", "offline"):
-            self.offline = True
+    def update(self, __d=None, **kwargs):
+        self._update(__d, **kwargs)
+
+    def _priority_failed(
+        self, k, source, override
+    ):
+        key_source = self.__defaults_dict.get(k)
+        key_override = self.__override_dict.get(k)
+        if not key_source or not source:
+            return False
+        if key_override and not override:
+            return True
+        if key_override and override and source > key_source:
+            return True
+        if not override and source < key_source:
+            return True
+        return False
 
     def _infer_settings_from_env(self):
         """Modify settings based on environment (for runs and cli)."""
@@ -499,7 +621,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             u["_except_exit"] = True
 
         self.update(u)
-        self._reinfer_settings_from_env()
 
     def _infer_run_settings_from_env(self):
         """Modify settings based on environment (for runs only)."""
@@ -531,24 +652,33 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
     def __setattr__(self, name, value):
         if name not in self.__dict__:
             raise AttributeError(name)
-        if self._frozen:
+        if self.__frozen:
             raise TypeError("Settings object is frozen")
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 
+    @classmethod
+    def _property_keys(cls):
+        return (k for k, v in vars(cls).items() if isinstance(v, property))
+
+    def _public_keys(self):
+        return filter(lambda x: not x.startswith("_Settings__"), self.__dict__)
+
     def keys(self):
-        return tuple(k for k in self.__dict__ if k not in self._masked_keys)
+        return itertools.chain(self._public_keys(), self._property_keys())
 
     def __getitem__(self, k):
+        props = self._property_keys()
+        if k in props:
+            return getattr(self, k)
         return self.__dict__[k]
 
     def freeze(self):
-        object.__setattr__(self, "_frozen", True)
+        self.__frozen = True
         return self
 
-    @property
-    def frozen(self):
-        return self._frozen
+    def is_frozen(self):
+        return self.__frozen
 
     def _load(self, fname):
         section = "default"
@@ -584,7 +714,6 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             elif args["resume"] is True:
                 args["resume"] = "auto"
         self.update(args)
-        self.wandb_dir = get_wandb_dir(self.root_dir or "")
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
@@ -603,4 +732,25 @@ class Settings(six.with_metaclass(CantTouchThis, object)):
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
-        self._reinfer_settings_from_env()
+
+    def _as_source(self, source, override=None):
+        return Settings._Setter(settings=self, source=source, override=override)
+
+    class _Setter(object):
+        def __init__(self, settings, source, override):
+            object.__setattr__(self, "_settings", settings)
+            object.__setattr__(self, "_source", source)
+            object.__setattr__(self, "_override", override)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            pass
+
+        def __setattr__(self, name, value):
+            self.update({name: value})
+
+        def update(self, *args, **kwargs):
+            kwargs.update(_source=self._source, _override=self._override)
+            self._settings.update(*args, **kwargs)

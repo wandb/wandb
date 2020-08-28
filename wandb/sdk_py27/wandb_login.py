@@ -67,7 +67,7 @@ def _login(
     # wandb.setup was previously called. If wandb.setup is called further up,
     # you must make sure the anonymous setting (and any other settings) are
     # already properly set up there.
-    wl = wandb.setup(settings=settings, _warn=False)
+    wl = wandb.setup()
     settings = _settings or wl.settings()
 
     if settings.offline:
@@ -116,7 +116,7 @@ def _login(
 
 def api_key(settings=None):
     if not settings:
-        wl = wandb.setup(_warn=False)
+        wl = wandb.setup()
         settings = wl.settings()
     if settings.api_key:
         return settings.api_key
@@ -127,6 +127,6 @@ def api_key(settings=None):
 
 
 def is_logged_in(settings=None):
-    wl = wandb.setup(settings=settings, _warn=False)
+    wl = wandb.setup(settings=settings)
     settings = wl.settings()
     return api_key(settings=settings) is not None

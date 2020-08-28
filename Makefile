@@ -57,6 +57,12 @@ test:
 test-full:
 	tox
 
+test-short:
+	tox -e "codemod,black,mypy,flake8,py36"
+
+format:
+	tox -e format
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +

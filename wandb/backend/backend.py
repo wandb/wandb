@@ -24,7 +24,7 @@ class Backend(object):
         self.wandb_process = None
         self.interface = None
         self._internal_pid = None
-        self._wl = wandb.setup(_warn=False)
+        self._wl = wandb.setup()
 
     def _hack_set_run(self, run):
         self.interface._hack_set_run(run)

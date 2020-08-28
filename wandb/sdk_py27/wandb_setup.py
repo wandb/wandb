@@ -111,7 +111,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             logger.info("enabling code saving by default")
             kwargs["save_code"] = flags["code_saving_enabled"]
 
-        s = wandb_settings.Settings(**kwargs)
+        s = wandb_settings.Settings()
+        s._apply_configfiles(_logger=early_logger)
+        s._apply_environ(self._environ, _logger=early_logger)
+        if settings:
+            s._apply_settings(settings, _logger=early_logger)
 
         # setup defaults
         s.setdefaults()
@@ -128,7 +132,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if not self._early_logger:
             return
         _set_logger(new_logger)
-        self._settings._clear_early_logger()
+        # self._settings._clear_early_logger()
         self._early_logger._flush()
 
     def _get_logger(self):
@@ -205,7 +209,7 @@ class _WandbSetup(object):
 
     def __init__(self, settings=None, _warn=True):
         if _WandbSetup._instance is not None:
-            if _warn:
+            if _warn and settings:
                 logger.warning(
                     "Ignoring settings passed to wandb.setup() "
                     "which has already been configured."
@@ -217,7 +221,11 @@ class _WandbSetup(object):
         return getattr(self._instance, name)
 
 
-def setup(settings=None, _warn=True):
+def _setup(settings=None, _warn=True):
     """Setup library context."""
     wl = _WandbSetup(settings=settings, _warn=_warn)
     return wl
+
+
+def setup(settings=None):
+    return _setup(settings=settings)
