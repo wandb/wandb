@@ -6,13 +6,18 @@ from sacred.observers import RunObserver
 import numpy
 import wandb
 class WandbObserver(RunObserver):
-    """Logs sacred experiment data to Neptune.
+    """Logs sacred experiment data to W&B.
     Args:
         project(str): project name in W&B Dashboard
         name(str): Experiment name
 
     Examples:
         Create sacred experiment::
+        from numpy.random import permutation
+        
+        from sklearn import svm, datasets
+        from sacred import Experiment
+        ex = Experiment('iris_rbf_svm')
         from wandb.sacred import WandbObserver
         ex.observers.append(WandbObserver(project='sacred_test',
                                                 name='test1'))
