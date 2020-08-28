@@ -12,7 +12,7 @@ RequestUpload = collections.namedtuple(
     'EventStartUploadJob', ('path', 'save_name', 'artifact_id', 'md5', 'copied',
                             'save_fn', 'digest'))
 RequestCommitArtifact = collections.namedtuple(
-    'RequestCommitArtifact', ('artifact_id', 'on_commit'))
+    'RequestCommitArtifact', ('artifact_id', 'before_commit', 'on_commit'))
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
 
@@ -78,8 +78,10 @@ class StepUpload(object):
                 self._start_upload_job(event)
         elif isinstance(event, RequestCommitArtifact):
             self._artifacts[event.artifact_id]['commit_requested'] = True
+            if event.before_commit:
+                self._artifacts[event.artifact_id]['pre_commit_callbacks'].add(event.before_commit)
             if event.on_commit:
-                self._artifacts[event.artifact_id]['commit_callbacks'].add(event.on_commit)
+                self._artifacts[event.artifact_id]['post_commit_callbacks'].add(event.on_commit)
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
             if event.artifact_id is not None:
@@ -87,7 +89,8 @@ class StepUpload(object):
                     self._artifacts[event.artifact_id] = {
                         'pending_count': 0,
                         'commit_requested': False,
-                        'commit_callbacks': set(),
+                        'pre_commit_callbacks': set(),
+                        'post_commit_callbacks': set(),
                     }
                 self._artifacts[event.artifact_id]['pending_count'] += 1
             if len(self._running_jobs) == self._max_jobs:
@@ -119,8 +122,10 @@ class StepUpload(object):
     def _maybe_commit_artifact(self, artifact_id):
         artifact_status = self._artifacts[artifact_id]
         if artifact_status['pending_count'] == 0 and artifact_status['commit_requested']:
+            for callback in artifact_status['pre_commit_callbacks']:
+                callback()
             self._api.commit_artifact(artifact_id)
-            for callback in artifact_status['commit_callbacks']:
+            for callback in artifact_status['post_commit_callbacks']:
                 callback()
 
     def start(self):

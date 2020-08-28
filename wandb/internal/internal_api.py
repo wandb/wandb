@@ -1411,6 +1411,13 @@ class Api(object):
                         artifactCollectionName
                         alias
                     }
+                    artifactSequence {
+                        id
+                        latestArtifact {
+                            id
+                            versionIndex
+                        }
+                    }
                 }
             }
         }
@@ -1439,7 +1446,8 @@ class Api(object):
         for alias in av["aliases"]:
             if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
                 av['version'] = alias["alias"]
-        return av
+        latest = response['createArtifact']['artifact']['artifactSequence'].get('latestArtifact')
+        return av, latest
 
     def commit_artifact(self, artifact_id):
         mutation = gql('''
@@ -1461,20 +1469,24 @@ class Api(object):
         })
         return response
 
-    def create_artifact_manifest(self, name, digest, artifact_id, entity=None, project=None, run=None):
+    def create_artifact_manifest(self, name, digest, artifact_id,
+                                 base_artifact_id=None,entity=None, project=None, run=None, include_upload=True):
         mutation = gql('''
         mutation CreateArtifactManifest(
             $name: String!,
             $digest: String!,
             $artifactID: ID!,
+            $baseArtifactID: ID,
             $entityName: String!,
             $projectName: String!,
-            $runName: String!
+            $runName: String!,
+            $includeUpload: Boolean!
         ) {
             createArtifactManifest(input: {
                 name: $name,
                 digest: $digest,
                 artifactID: $artifactID,
+                baseArtifactID: $baseArtifactID,
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName
@@ -1485,8 +1497,8 @@ class Api(object):
                         id
                         name
                         displayName
-                        uploadUrl
-                        uploadHeaders
+                        uploadUrl @include(if: $includeUpload)
+                        uploadHeaders @include(if: $includeUpload)
                     }
                 }
             }
@@ -1501,9 +1513,11 @@ class Api(object):
             'name': name,
             'digest': digest,
             'artifactID': artifact_id,
+            'baseArtifactID': base_artifact_id,
             'entityName': entity_name,
             'projectName': project_name,
             'runName': run_name,
+            'includeUpload': include_upload,
         })
 
         return response['createArtifactManifest']['artifactManifest']['file']
@@ -1512,10 +1526,12 @@ class Api(object):
     def create_artifact_files(self, artifact_files):
         mutation = gql('''
         mutation CreateArtifactFiles(
+            $storageLayout: ArtifactStorageLayout!
             $artifactFiles: [CreateArtifactFileSpecInput!]!
         ) {
             createArtifactFiles(input: {
-                artifactFiles: $artifactFiles
+                artifactFiles: $artifactFiles,
+                storageLayout: $storageLayout
             }) {
                 files {
                     edges {
@@ -1525,6 +1541,9 @@ class Api(object):
                             displayName
                             uploadUrl
                             uploadHeaders
+                            artifact {
+                                id
+                            }
                         }
                     }
                 }
@@ -1532,7 +1551,15 @@ class Api(object):
         }
         ''')
 
+        # TODO: we should use constants here from interface/artifacts.py
+        # but probably don't want the dependency. We're going to remove
+        # this setting in a future release, so I'm just hard-coding the strings.
+        storage_layout = 'V2'
+        if env.get_use_v1_artifacts():
+            storage_layout = 'V1'
+
         response = self.gql(mutation, variable_values={
+            'storageLayout': storage_layout,
             'artifactFiles': [af for af in artifact_files]
         })
 

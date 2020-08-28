@@ -258,6 +258,7 @@ message ArtifactManifestEntry {
   int64                 size = 4;
   string                mimetype = 5;
   string                local_path = 6;
+  string                birth_artifact_id = 7;
   repeated ExtraItem    extra = 16;
 }
 

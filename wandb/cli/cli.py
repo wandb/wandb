@@ -924,7 +924,7 @@ def put(path, name, description, type, alias):
         entity=entity, project=project, config={"path": path}, job_type="cli_put"
     )
     # We create the artifact manually to get the current version
-    res = api.create_artifact(
+    res, _ = api.create_artifact(
         type,
         artifact_name,
         artifact.digest,

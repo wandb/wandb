@@ -109,6 +109,9 @@ def artifact(ctx, collection_name="mnist"):
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
+        "artifactSequence": {
+            "name": collection_name,
+        }
     }
 
 
@@ -442,7 +445,11 @@ def create_app(user_ctx=None):
         if "mutation CreateArtifact(" in body["query"]:
             collection_name = body["variables"]["artifactCollectionNames"][0]
             return {
-                "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
+                "data": {
+                    "createArtifact": {
+                        "artifact": artifact(ctx, collection_name)
+                    }
+                }
             }
         if "mutation UseArtifact(" in body["query"]:
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}

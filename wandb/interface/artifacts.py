@@ -62,6 +62,11 @@ class ArtifactManifest(object):
         self.entries[entry.path] = entry
 
 
+class StorageLayout(object):
+    V1 = "V1"
+    V2 = "V2"
+
+
 class StoragePolicy(object):
     @classmethod
     def lookup_by_name(cls, name):

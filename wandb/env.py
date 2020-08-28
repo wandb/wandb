@@ -60,6 +60,9 @@ JUPYTER = 'WANDB_JUPYTER'
 CONFIG_DIR = 'WANDB_CONFIG_DIR'
 CACHE_DIR = 'WANDB_CACHE_DIR'
 
+# For testing, to be removed in future version
+USE_V1_ARTIFACTS = '_WANDB_USE_V1_ARTIFACTS'
+
 
 def immutable_keys():
     """These are env keys that shouldn't change within a single process.  We use this to maintain
@@ -67,7 +70,7 @@ def immutable_keys():
     return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
             ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
             ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            HOST, CACHE_DIR]
+            HOST, CACHE_DIR, USE_V1_ARTIFACTS]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -250,6 +253,13 @@ def get_cache_dir(env=None):
     if env is None:
         env = os.environ
     val = env.get(CACHE_DIR, default_dir)
+    return val
+
+
+def get_use_v1_artifacts(env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(USE_V1_ARTIFACTS, False)
     return val
 
 

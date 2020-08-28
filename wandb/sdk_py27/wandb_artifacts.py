@@ -60,7 +60,16 @@ class Artifact(object):
             )
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
-        self._storage_policy = WandbStoragePolicy()
+        storage_layout = StorageLayout.V2
+        if env.get_use_v1_artifacts():
+            storage_layout = StorageLayout.V1
+
+        self._storage_policy = WandbStoragePolicy(
+            config={
+                "storageLayout": storage_layout,
+                #  TODO: storage region
+            }
+        )
         self._api = InternalApi()
         self._final = False
         self._digest = None
@@ -252,10 +261,11 @@ class ArtifactManifestV1(ArtifactManifest):
             name: ArtifactManifestEntry(
                 path=name,
                 digest=val["digest"],
+                birth_artifact_id=val.get("birthArtifactID"),
                 ref=val.get("ref"),
                 size=val.get("size"),
-                local_path=val.get("local_path"),
                 extra=val.get("extra"),
+                local_path=val.get("local_path"),
             )
             for name, val in manifest_json["contents"].items()
         }
@@ -269,7 +279,7 @@ class ArtifactManifestV1(ArtifactManifest):
             artifact, storage_policy, entries=entries
         )
 
-    def to_manifest_json(self, include_local=False):
+    def to_manifest_json(self):
         """This is the JSON that's stored in wandb_manifest.json
 
         If include_local is True we also include the local paths to files. This is
@@ -282,14 +292,14 @@ class ArtifactManifestV1(ArtifactManifest):
             json_entry = {
                 "digest": entry.digest,
             }
-            if entry.ref is not None:
+            if entry.birth_artifact_id:
+                json_entry["birthArtifactID"] = entry.birth_artifact_id
+            if entry.ref:
                 json_entry["ref"] = entry.ref
             if entry.extra:
                 json_entry["extra"] = entry.extra
             if entry.size is not None:
                 json_entry["size"] = entry.size
-            if include_local and entry.local_path is not None:
-                json_entry["local_path"] = entry.local_path
             contents[entry.path] = json_entry
         return {
             "version": self.__class__.version(),
@@ -307,10 +317,24 @@ class ArtifactManifestV1(ArtifactManifest):
 
 
 class ArtifactManifestEntry(object):
-    def __init__(self, path, ref, digest, size=None, extra=None, local_path=None):
+    def __init__(
+        self,
+        path,
+        ref,
+        digest,
+        birth_artifact_id=None,
+        size=None,
+        extra=None,
+        local_path=None,
+    ):
+        if local_path is not None and size is None:
+            raise AssertionError(
+                "programming error, size required when local_path specified"
+            )
         self.path = path
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
+        self.birth_artifact_id = birth_artifact_id
         self.size = size
         self.extra = extra or {}
         # This is not stored in the manifest json, it's only used in the process
@@ -333,9 +357,9 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(cls, config):
-        return cls()
+        return cls(config=config)
 
-    def __init__(self):
+    def __init__(self, config=None):
         s3 = S3Handler()
         gcs = GCSHandler()
         file_handler = LocalFileHandler()
@@ -346,6 +370,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
 
         self._cache = get_artifacts_cache()
+        self._config = config or {}
 
         # I believe this makes the first sleep 1s, and then doubles it up to
         # total times, which makes for ~18 hours.
@@ -362,7 +387,7 @@ class WandbStoragePolicy(StoragePolicy):
         self._session.mount("https://", adapter)
 
     def config(self):
-        return None
+        return self._config
 
     def load_file(self, artifact, name, manifest_entry):
         path, hit = self._cache.check_md5_obj_path(
@@ -394,10 +419,16 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(self._cache, manifest_entry, local)
 
     def _file_url(self, api, entity_name, md5):
-        md5_hex = util.bytes_to_hex(base64.b64decode(md5))
-        return "{}/artifacts/{}/{}".format(
-            api.settings("base_url"), entity_name, md5_hex
-        )
+        storage_layout = self._config.get("storageLayout", StorageLayout.V1)
+        if storage_layout == StorageLayout.V1:
+            md5_hex = util.bytes_to_hex(base64.b64decode(md5))
+            return "{}/artifacts/{}/{}".format(
+                api.settings("base_url"), entity_name, md5_hex
+            )
+        elif storage_layout == StorageLayout.V2:
+            return  # TODO need to pull region info
+        else:
+            raise Exception("unrecognized storage layout: {}".format(storage_layout))
 
     def store_file(self, artifact_id, entry, preparer, progress_callback=None):
         # write-through cache
@@ -413,6 +444,7 @@ class WandbStoragePolicy(StoragePolicy):
             }
         )
 
+        entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None
         if not exists:
             with open(entry.local_path, "rb") as file:
@@ -804,6 +836,7 @@ class S3Handler(StorageHandler):
                 ref = os.path.join(path, relpath)
             else:
                 name = os.path.basename(obj.key)
+                ref = path
         elif multi:
             relpath = os.path.relpath(obj.key, start=prefix)
             name = os.path.join(name, relpath)

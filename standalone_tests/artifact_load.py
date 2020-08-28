@@ -56,6 +56,7 @@ parser.add_argument('--test_phase_seconds', type=int, required=True)
 parser.add_argument('--num_writers', type=int, required=True)
 parser.add_argument('--files_per_version_min', type=int, required=True)
 parser.add_argument('--files_per_version_max', type=int, required=True)
+parser.add_argument('--non_overlapping_writers', default=True, action='store_true')
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
@@ -199,8 +200,8 @@ def proc_bucket_garbage_collector(stop_queue, bucket_gc_period_max):
         # TODO: implement bucket gc
 
 def main(argv):
-    print('Load test starting')
     args = parser.parse_args()
+    print('Load test starting')
 
     project_name = args.project
     if project_name is None:
@@ -222,9 +223,11 @@ def main(argv):
     # set global entity and project before chdir'ing
     from wandb.apis import InternalApi
     api = InternalApi()
-    os.environ['WANDB_ENTITY'] = api.settings('entity')
+    settings_entity = api.settings('entity')
+    settings_base_url = api.settings('base_url')
+    os.environ['WANDB_ENTITY'] = (os.environ.get('LOAD_TEST_ENTITY') or settings_entity)
     os.environ['WANDB_PROJECT'] = project_name
-    os.environ['WANDB_BASE_URL'] = api.settings('base_url')
+    os.environ['WANDB_BASE_URL'] = (os.environ.get('LOAD_TEST_BASE_URL') or settings_base_url)
 
     # Change dir to avoid litering code directory
     pwd = os.getcwd()
@@ -247,13 +250,17 @@ def main(argv):
 
     # writers
     for i in range(args.num_writers):
+        file_names = source_file_names
+        if args.non_overlapping_writers:
+            chunk_size = int(len(source_file_names) / args.num_writers)
+            file_names = source_file_names[i * chunk_size: (i+1) * chunk_size]
         p = multiprocessing.Process(
             target=proc_version_writer,
             args=(
                 stop_queue,
                 stats_queue,
                 project_name,
-                source_file_names,
+                file_names,
                 artifact_name,
                 args.files_per_version_min,
                 args.files_per_version_max))
@@ -299,6 +306,9 @@ def main(argv):
         procs.append(p)
     
     # reset environment
+    os.environ['WANDB_ENTITY'] = settings_entity
+    os.environ['WANDB_BASE_URL'] = settings_base_url
+    os.environ
     if env_project is None:
         del os.environ['WANDB_PROJECT']
     else:
@@ -364,6 +374,9 @@ def main(argv):
 
     print('Starting verification phase')
     
+    os.environ['WANDB_ENTITY'] = (os.environ.get('LOAD_TEST_ENTITY') or settings_entity)
+    os.environ['WANDB_PROJECT'] = project_name
+    os.environ['WANDB_BASE_URL'] = (os.environ.get('LOAD_TEST_BASE_URL') or settings_base_url)
     data_api = wandb.Api()
     # we need list artifacts by walking runs, accessing via
     # project.artifactType.artifacts only returns committed artifacts
@@ -375,6 +388,7 @@ def main(argv):
                 sys.exit(1)
     
     print('Verification succeeded')
+
 
 if __name__ == '__main__':
     main(sys.argv)

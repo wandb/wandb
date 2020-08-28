@@ -12,7 +12,7 @@ RequestPrepare = collections.namedtuple(
 RequestFinish = collections.namedtuple('RequestFinish', ())
 
 ResponsePrepare = collections.namedtuple(
-    'ResponsePrepare', ('upload_url', 'upload_headers'))
+    'ResponsePrepare', ('upload_url', 'upload_headers', 'birth_artifact_id'))
 
     
 class StepPrepare(object):
@@ -42,10 +42,13 @@ class StepPrepare(object):
             for prepare_request in batch:
                 name = prepare_request.prepare_fn()['name']
                 response_file = prepare_response[name]
+                upload_url = response_file['uploadUrl']
+                upload_headers = response_file['uploadHeaders']
+                birth_artifact_id = response_file['artifact']['id']
                 if prepare_request.on_prepare:
-                    prepare_request.on_prepare(response_file['uploadUrl'], response_file['uploadHeaders'])
+                    prepare_request.on_prepare(upload_url, upload_headers, birth_artifact_id)
                 prepare_request.response_queue.put(
-                    ResponsePrepare(response_file['uploadUrl'], response_file['uploadHeaders']))
+                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id))
             if finish:
                 break
             

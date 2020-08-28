@@ -2109,6 +2109,32 @@ class Artifact(object):
         
         raise ValueError('Unexpected API result.')
 
+    @property
+    def aliases(self):
+        if ":" not in self.artifact_name:
+            # this is a digest lookup
+            return []
+        artifact_collection_name = self.artifact_name.split(':')[0]
+        return [a["alias"] for a in self._attrs["aliases"]
+            if not re.match(r"^v\d+$", a["alias"]) and
+                a["artifactCollectionName"] == artifact_collection_name]
+
+    def delete(self):
+        """Delete artifact and it's files."""
+        mutation = gql('''
+        mutation deleteArtifact($id: ID!) {
+            deleteArtifact(input: {artifactID: $id}) {
+                artifact {
+                    id
+                }
+            }
+        }
+        ''')
+        self.client.execute(mutation, variable_values={
+            "id": self.id,
+        })
+        return True
+
     def new_file(self, name, mode=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
 

@@ -196,7 +196,7 @@ class BackendSender(object):
         proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
-        for k, v in artifact_manifest.storage_policy.config() or {}:
+        for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
             cfg.value_json = json.dumps(v)
@@ -206,6 +206,8 @@ class BackendSender(object):
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
             proto_entry.size = entry.size
+            if entry.birth_artifact_id:
+                proto_entry.birth_artifact_id = entry.birth_artifact_id
             if entry.ref:
                 proto_entry.ref = entry.ref
             if entry.local_path:
