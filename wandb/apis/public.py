@@ -744,6 +744,8 @@ class Runs(Paginator):
 
     def convert_objects(self):
         objs = []
+        if self.last_response is None or self.last_response.get('project') is None:
+            raise ValueError("Could not find project %s" % self.project)
         for run_response in self.last_response['project']['runs']['edges']:
             run = Run(self.client, self.entity, self.project, run_response["node"]["name"], run_response["node"])
             objs.append(run)
@@ -756,6 +758,8 @@ class Runs(Paginator):
                                       run.sweep_name, withRuns=False)
                     self._sweeps[run.sweep_name] = sweep
 
+                if sweep is None:
+                    continue
                 run.sweep = sweep
                 if run.id not in sweep.runs_by_id:
                     sweep.runs_by_id[run.id] = run
@@ -2070,7 +2074,7 @@ class Artifact(object):
     @property
     def id(self):
         return self._attrs["id"]
-    
+
     @property
     def metadata(self):
         return self._metadata
@@ -2125,7 +2129,7 @@ class Artifact(object):
         for alias in self._attrs["aliases"]:
             if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
                 return '%s:%s' % (artifact_collection_name, alias["alias"])
-        
+
         raise ValueError('Unexpected API result.')
 
     def new_file(self, name, mode=None):
@@ -2157,7 +2161,7 @@ class Artifact(object):
                     target_path = head + tail.replace(":", "-")
 
                 need_copy = (not os.path.isfile(target_path)
-                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
+                             or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime)
                 if need_copy:
                     util.mkdir_exists_ok(os.path.dirname(target_path))
                     # We use copy2, which preserves file metadata including modified
@@ -2204,7 +2208,7 @@ class Artifact(object):
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
         log = False
-        if nfiles  > 5000 or size > 50 * 1024 * 1024:
+        if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
         if log:
             termlog('Downloading large artifact %s, %.2fMB. %s files... ' % (
@@ -2242,7 +2246,8 @@ class Artifact(object):
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         if nfiles > 1:
-            raise ValueError("This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
+            raise ValueError(
+                "This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
 
         return self._download_file(list(manifest.entries)[0], root)
 
@@ -2345,7 +2350,8 @@ class Artifact(object):
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
             if ':' not in self.artifact_name and len(self.artifact_name) != 32:
-                raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
+                raise ValueError(
+                    'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
@@ -2368,6 +2374,7 @@ class Artifact(object):
                     raise ValueError("Failed to download manifest file: {}".format(json_resp["error"]))
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json_resp)
         return self._manifest
+
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
@@ -2440,6 +2447,7 @@ class ArtifactVersions(Paginator):
             return []
         return [Artifact(self.client, self.entity, self.project, self.collection_name + ":" + a["version"], a["node"])
                 for a in self.last_response['project']['artifactType']['artifactSequence']['artifacts']['edges']]
+
 
 class ArtifactFiles(Paginator):
     QUERY = gql('''
