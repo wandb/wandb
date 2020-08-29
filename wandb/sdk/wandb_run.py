@@ -359,6 +359,9 @@ class RunManaged(Run):
             return
         return self._run_obj.project
 
+    def get_url(self):
+        return self._get_run_url()
+
     @property
     def entity(self):
         return self._entity
