@@ -700,6 +700,7 @@ class Settings(object):
             id="run_id",
             tags="run_tags",
             group="run_group",
+            notes="run_notes",
             dir="root_dir",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
