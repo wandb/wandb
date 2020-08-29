@@ -220,6 +220,14 @@ def test_artifact_get_path(runner, mock_server, api):
         assert res == path
 
 
+def test_artifact_get_path_download(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.get_path("digits.h5").download(os.getcwd())
+        assert os.path.exists("./digits.h5")
+        assert path == os.path.join(os.getcwd(), "digits.h5")
+
+
 def test_artifact_file(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
