@@ -449,10 +449,13 @@ class BackendSender(object):
         rec = self._make_request(resume=resume)
         self._publish(rec)
 
-    def publish_run(self, run_obj):
-        run = self._make_run(run_obj)
+    def _publish_run(self, run):
         rec = self._make_record(run=run)
         self._publish(rec)
+
+    def publish_run(self, run_obj):
+        run = self._make_run(run_obj)
+        self._publish_run(run)
 
     def publish_config(self, config_dict):
         cfg = self._make_config(config_dict)

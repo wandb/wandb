@@ -184,6 +184,7 @@ class RunManaged(Run):
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
+        self._run_obj_offline = None
 
         # Created when the run "starts".
         self._run_status_checker = None
@@ -197,7 +198,7 @@ class RunManaged(Run):
         wandb_data = dict()
         wandb_data["cli_version"] = wandb.__version__
         wandb_data["python_version"] = platform.python_version()
-        wandb_data["is_jupyter_run"] = settings.jupyter or False
+        wandb_data["is_jupyter_run"] = settings._jupyter or False
         wandb_data["is_kaggle_kernel"] = settings._kaggle or False
         hf_version = huggingface_version()
         if hf_version:
@@ -249,8 +250,8 @@ class RunManaged(Run):
             self._project = settings.project
         if settings.run_group is not None:
             self._group = settings.run_group
-        if settings.job_type is not None:
-            self._job_type = settings.job_type
+        if settings.run_job_type is not None:
+            self._job_type = settings.run_job_type
         if settings.run_name is not None:
             self._name = settings.run_name
         if settings.run_notes is not None:
@@ -354,12 +355,13 @@ class RunManaged(Run):
         return self.history._step
 
     def project_name(self, api=None):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.project
+
+    def get_url(self):
         if not self._run_obj:
             wandb.termwarn("Project name not available in offline run")
             return
-        return self._run_obj.project
-
-    def get_url(self):
         return self._get_run_url()
 
     @property
@@ -446,6 +448,9 @@ class RunManaged(Run):
         self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+
+    def _set_run_obj_offline(self, run_obj):
+        self._run_obj_offline = run_obj
 
     def _add_singleton(self, type, key, value):
         """Stores a singleton item to wandb config.
@@ -791,7 +796,7 @@ class RunManaged(Run):
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
-        if self._settings.jupyter:
+        if self._settings._jupyter:
             from IPython.core.display import display, HTML  # type: ignore
 
             sweep_line = (
@@ -842,14 +847,14 @@ class RunManaged(Run):
                     click.style(run_url, underline=True, fg="blue"),
                 )
             )
-            if not self._settings.offline:
+            if not self._settings._offline:
                 wandb.termlog("Run `wandb off` to turn off syncing.")
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd):
-        console = self._settings.console
+        console = self._settings._console
         logger.info("redirect: %s", console)
 
-        if console == "redirect":
+        if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
             out_cap = redirect.Capture(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
@@ -863,7 +868,7 @@ class RunManaged(Run):
             err_redir = redirect.Redirect(
                 src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
-        elif console == "notebook":
+        elif console == self._settings.Console.NOTEBOOK:
             logger.info("Redirecting notebook output.")
             out_redir = redirect.StreamWrapper(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
@@ -871,8 +876,10 @@ class RunManaged(Run):
             err_redir = redirect.StreamWrapper(
                 name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
-        else:
+        elif console == self._settings.Console.OFF:
             return
+        else:
+            raise ValueError("unhandled console")
         try:
             out_redir.install()
             err_redir.install()
@@ -975,10 +982,10 @@ class RunManaged(Run):
         self._output_writer = None
 
     def _on_start(self):
-        if self._settings.offline:
+        if self._settings._offline:
             wandb.termlog("Offline run mode, not syncing to the cloud.")
         wandb.termlog("Tracking run with wandb version {}".format(wandb.__version__))
-        if self._settings.offline:
+        if self._settings._offline:
             wandb.termlog(
                 (
                     "W&B is disabled in this directory.  "
@@ -999,7 +1006,7 @@ class RunManaged(Run):
             )
             self._display_run()
         print("")
-        if self._backend and not self._settings.offline:
+        if self._backend and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
@@ -1064,11 +1071,11 @@ class RunManaged(Run):
             wandb.termlog("Program ended successfully.")
         else:
             msg = "Program failed with code {}. ".format(self._exit_code)
-            if not self._settings.offline:
+            if not self._settings._offline:
                 msg += " Press ctrl-c to abort syncing."
             wandb.termlog(msg)
 
-        if self._settings.offline:
+        if self._settings._offline:
             self._backend.interface.publish_exit(self._exit_code)
         else:
             # TODO: we need to handle catastrophic failure better
@@ -1123,7 +1130,7 @@ class RunManaged(Run):
                     self._settings.log_internal
                 )
             )
-        if self._settings.offline:
+        if self._settings._offline:
             wandb.termlog("You can sync this run to the cloud by running:")
             wandb.termlog(
                 click.style(

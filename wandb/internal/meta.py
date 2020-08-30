@@ -180,7 +180,7 @@ class Meta(object):
                 self.data["program"] = self._settings.program
             else:
                 self.data["program"] = "<python with no main file>"
-                if self._settings.jupyter:
+                if self._settings._jupyter:
                     if self._settings.notebook_name:
                         self.data["program"] = self._settings.notebook_name
                     else:

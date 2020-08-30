@@ -70,7 +70,7 @@ def _login(
     wl = wandb.setup()
     settings = _settings or wl.settings()
 
-    if settings.offline:
+    if settings._offline:
         return
 
     active_entity = None
@@ -93,7 +93,7 @@ def _login(
         )
         return
 
-    jupyter = settings.jupyter or False
+    jupyter = settings._jupyter or False
     if key:
         if jupyter:
             wandb.termwarn(

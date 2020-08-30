@@ -58,7 +58,7 @@ class HandleManager(object):
         handler(record)
 
     def _dispatch_record(self, record):
-        if not self._settings.offline:
+        if not self._settings._offline:
             self._sender_q.put(record)
         self._writer_q.put(record)
 
@@ -104,7 +104,7 @@ class HandleManager(object):
             update.key = k
             update.value_json = json.dumps(v)
         record = wandb_internal_pb2.Record(summary=summary)
-        if not self._settings.offline:
+        if not self._settings._offline:
             self._sender_q.put(record)
 
     def _save_history(self, record):
@@ -182,12 +182,12 @@ class HandleManager(object):
         assert run_start
         assert run_start.run
 
-        if not self._settings._disable_stats and not self._settings.offline:
+        if not self._settings._disable_stats and not self._settings._offline:
             pid = os.getpid()
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface,)
             self._system_stats.start()
 
-        if not self._settings._disable_meta and not self._settings.offline:
+        if not self._settings._disable_meta and not self._settings._offline:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface,)
             run_meta.probe()
             run_meta.write()

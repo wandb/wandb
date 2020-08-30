@@ -18,9 +18,7 @@ from wandb import trigger
 from wandb.backend.backend import Backend
 from wandb.errors.error import UsageError
 from wandb.integration.magic import magic_install
-from wandb.lib import console as lib_console
 from wandb.lib import filesystem, module, reporting
-from wandb.old import io_wrap
 from wandb.util import sentry_exc
 
 from . import wandb_login
@@ -158,7 +156,7 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
-        if settings.jupyter:
+        if settings._jupyter:
             self._jupyter_setup(settings)
 
         self._log_setup(settings)
@@ -316,7 +314,7 @@ class _WandbInit(object):
         s = self.settings
         config = self.config
 
-        if s.reinit or (s.jupyter and s.reinit is not False):
+        if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
@@ -327,17 +325,9 @@ class _WandbInit(object):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
-        console = s.console
         use_redirect = True
         stdout_master_fd, stderr_master_fd = None, None
         stdout_slave_fd, stderr_slave_fd = None, None
-        if console == "iowrap":
-            stdout_master_fd, stdout_slave_fd = io_wrap.wandb_pty(resize=False)
-            stderr_master_fd, stderr_slave_fd = io_wrap.wandb_pty(resize=False)
-        elif console == "_win32":
-            # Not used right now
-            stdout_master_fd, stdout_slave_fd = lib_console.win32_create_pipe()
-            stderr_master_fd, stderr_slave_fd = lib_console.win32_create_pipe()
 
         backend = Backend()
         backend.ensure_launched(
@@ -369,8 +359,10 @@ class _WandbInit(object):
 
         backend._hack_set_run(run)
 
-        if s.offline:
-            backend.interface.publish_run(run)
+        if s._offline:
+            run_proto = backend.interface._make_run(run)
+            backend.interface._publish_run(run_proto)
+            run._set_run_obj_offline(run_proto)
         else:
             ret = backend.interface.communicate_check_version()
             message = ret.response.check_version_response.message

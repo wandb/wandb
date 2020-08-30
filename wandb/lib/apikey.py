@@ -61,7 +61,7 @@ def prompt_api_key(
     input_callback = input_callback or getpass.getpass
     api = api or InternalApi()
     anon_mode = _fixup_anon_mode(settings.anonymous)
-    jupyter = settings.jupyter or False
+    jupyter = settings._jupyter or False
     app_url = settings.base_url.replace("//api.", "//app.")
 
     choices = [choice for choice in LOGIN_CHOICES]

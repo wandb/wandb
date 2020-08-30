@@ -120,7 +120,7 @@ class Config(object):
 
     def _sanitize(self, key, val, allow_val_change=None):
         # Let jupyter change config freely by default
-        if self._settings and self._settings.jupyter and allow_val_change is None:
+        if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")

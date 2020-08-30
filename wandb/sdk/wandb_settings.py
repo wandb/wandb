@@ -24,7 +24,8 @@ Override priorities are in the reverse order of non-override settings
 
 import configparser
 import copy
-import datetime
+from datetime import datetime
+import enum
 import getpass
 import itertools
 import json
@@ -34,6 +35,7 @@ import platform
 import socket
 import sys
 import tempfile
+import time
 
 import six
 import wandb
@@ -50,6 +52,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Tuple,
         Callable,
         Set,
+        Type,
     )
 
 logger = logging.getLogger("wandb")
@@ -58,7 +61,6 @@ defaults: Dict[str, Union[str, int, Tuple]] = dict(
     base_url="https://api.wandb.ai",
     show_warnings=2,
     summary_warnings=5,
-    console="auto",
     git_remote="origin",
     ignore_globs=(),
 )
@@ -74,7 +76,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     sweep_id=None,
     mode=None,
     run_group=None,
-    job_type=None,
     problem=None,
     console=None,
     config_paths=None,
@@ -90,6 +91,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
+    run_job_type="WANDB_JOB_TYPE",
 )
 
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(
@@ -166,6 +168,13 @@ def get_wandb_dir(root_dir: str):
     return path
 
 
+@enum.unique
+class SettingsConsole(enum.Enum):
+    OFF = 0
+    NOTEBOOK = 1
+    REDIRECT = 2
+
+
 class Settings(object):
     """Settings Constructor
 
@@ -178,9 +187,10 @@ class Settings(object):
 
     """
 
-    mode: Optional[str] = None
-    console: Optional[str] = None
-    disabled: Optional[bool] = None
+    mode: str = "online"
+    console: str = "auto"
+    disabled: bool = False
+
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None
@@ -195,13 +205,19 @@ class Settings(object):
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
 
+    # Private attributes
+    __start_time: Optional[float]
+    __start_datetime: Optional[datetime]
+
+    # Internal attributes
     __frozen: bool
     __defaults_dict: Dict[str, int]
     __override_dict: Dict[str, int]
     __defaults_dict_set: Dict[str, Set[int]]
     __override_dict_set: Dict[str, Set[int]]
 
-    class Source(object):
+    @enum.unique
+    class Source(enum.IntEnum):
         BASE: int = 0
         ORG: int = 1
         ENTITY: int = 2
@@ -215,32 +231,18 @@ class Settings(object):
         SETTINGS: int = 10
         ARGS: int = 11
 
-    source_str: Tuple[str, ...] = (
-        "base",
-        "org",
-        "entity",
-        "project",
-        "user",
-        "system",
-        "workspace",
-        "env",
-        "setup",
-        "init",
-        "settings",
-        "args",
-    )
+    Console: Type[SettingsConsole] = SettingsConsole
 
     def __init__(  # pylint: disable=unused-argument
         self,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        base_url: str = None,
+        api_key: str = None,
         anonymous=None,
-        # how do we annotate that: dryrun==offline?
-        mode: Optional[str] = "online",
+        mode: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
-        job_type: str = None,
+        run_job_type: str = None,
         run_id: str = None,
         run_name: str = None,
         run_notes: str = None,
@@ -301,8 +303,6 @@ class Settings(object):
         reinit=None,
         _save_requirements=True,
         # compute environment
-        jupyter=None,
-        windows=None,
         show_colors=None,
         show_emoji=None,
         show_console=None,
@@ -336,17 +336,51 @@ class Settings(object):
         object.__setattr__(self, "_Settings__override_dict", dict())
         object.__setattr__(self, "_Settings__defaults_dict_set", dict())
         object.__setattr__(self, "_Settings__override_dict_set", dict())
+        object.__setattr__(self, "_Settings__start_datetime", None)
+        object.__setattr__(self, "_Settings__start_time", None)
+        class_defaults = self._get_class_defaults()
+        self._apply_defaults(class_defaults)
         self._apply_defaults(defaults)
         self._update(kwargs, _source=self.Source.SETTINGS)
 
     @property
-    def offline(self) -> bool:
+    def _offline(self) -> bool:
         ret = False
         if self.disabled:
             ret = True
         if self.mode in ("dryrun", "offline"):
             ret = True
         return ret
+
+    @property
+    def _jupyter(self) -> bool:
+        return _get_python_type() != "python"
+
+    @property
+    def _kaggle(self) -> bool:
+        return _is_kaggle()
+
+    @property
+    def _windows(self) -> bool:
+        return platform.system() == "Windows"
+
+    @property
+    def _console(self) -> SettingsConsole:
+        convert_dict: Dict[str, SettingsConsole] = dict(
+            off=SettingsConsole.OFF,
+            notebook=SettingsConsole.NOTEBOOK,
+            redirect=SettingsConsole.REDIRECT,
+        )
+        console: str = self.console
+        if console == "auto":
+            if self._jupyter:
+                console = "notebook"
+            elif self._windows:
+                console = "notebook"
+            else:
+                console = "redirect"
+        convert: SettingsConsole = convert_dict[console]
+        return convert
 
     @property
     def resume_fname(self) -> str:
@@ -403,7 +437,13 @@ class Settings(object):
         return _error_choices(value, choices)
 
     def _validate_console(self, value):
-        choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
+        # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
+        choices = {
+            "auto",
+            "redirect",
+            "off",
+            "notebook",
+        }
         if value in choices:
             return
         return _error_choices(value, choices)
@@ -419,6 +459,12 @@ class Settings(object):
         if value in choices:
             return
         return _error_choices(value, choices)
+
+    def _start_run(self):
+        datetime_now: datetime = datetime.now()
+        time_now: float = time.time()
+        object.__setattr__(self, "_Settings__start_datetime", datetime_now)
+        object.__setattr__(self, "_Settings__start_time", time_now)
 
     def _apply_settings(self, settings, _logger=None):
         # TODO(jhr): make a more efficient version of this
@@ -459,7 +505,10 @@ class Settings(object):
 
         path_parts = path_part.split(os.sep if os.sep in path_part else "/")
         for i in range(len(path_parts)):
-            path_parts[i] = path_parts[i].format(**format_dict)
+            try:
+                path_parts[i] = path_parts[i].format(**format_dict)
+            except KeyError:
+                return None
         return path_parts
 
     def _path_convert(self, *path):
@@ -467,12 +516,12 @@ class Settings(object):
 
         format_dict = dict()
         if self._start_time:
-            format_dict["timespec"] = datetime.datetime.strftime(
+            format_dict["timespec"] = datetime.strftime(
                 self._start_datetime, "%Y%m%d_%H%M%S"
             )
         if self.run_id:
             format_dict["run_id"] = self.run_id
-        format_dict["run_mode"] = "offline-run" if self.offline else "run"
+        format_dict["run_mode"] = "offline-run" if self._offline else "run"
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later
@@ -480,7 +529,10 @@ class Settings(object):
 
         path_items = []
         for p in path:
-            path_items += self._path_convert_part(p, format_dict)
+            part = self._path_convert_part(p, format_dict)
+            if part is None:
+                return None
+            path_items += part
         path = os.path.join(*path_items)
         path = os.path.expanduser(path)
         return path
@@ -560,24 +612,14 @@ class Settings(object):
         """Modify settings based on environment (for runs and cli)."""
 
         d = {}
-        d["jupyter"] = _get_python_type() != "python"
-        d["_kaggle"] = _is_kaggle()
-        d["windows"] = platform.system() == "Windows"
         # disable symlinks if on windows (requires admin or developer setup)
         d["symlink"] = True
-        if d["windows"]:
+        if self._windows:
             d["symlink"] = False
         self.setdefaults(d)
 
         # TODO(jhr): this needs to be moved last in setting up settings
         u = {}
-        if self.console == "auto":
-            console = "redirect"
-            if self.jupyter:
-                console = "notebook"
-            # if self.windows:
-            #     console = "off"
-            u["console"] = console
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
@@ -586,7 +628,7 @@ class Settings(object):
         ) is not None:
             u["save_code"] = wandb.env.should_save_code()
 
-        if self.jupyter:
+        if self._jupyter:
             meta = wandb.jupyter.notebook_metadata()
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
@@ -617,7 +659,7 @@ class Settings(object):
         u["_os"] = platform.platform(aliased=True)
         u["_python"] = platform.python_version()
         # hack to make sure we don't hang on windows
-        if self.windows and self._except_exit is None:
+        if self._windows and self._except_exit is None:
             u["_except_exit"] = True
 
         self.update(u)
@@ -661,6 +703,21 @@ class Settings(object):
     def _property_keys(cls):
         return (k for k, v in vars(cls).items() if isinstance(v, property))
 
+    @classmethod
+    def _class_keys(cls):
+        return (
+            k
+            for k, v in vars(cls).items()
+            if not k.startswith("_") and not callable(v) and not isinstance(v, property)
+        )
+
+    @classmethod
+    def _get_class_defaults(cls):
+        class_keys = set(cls._class_keys())
+        return dict(
+            (k, v) for k, v in vars(cls).items() if k in class_keys and v is not None
+        )
+
     def _public_keys(self):
         return filter(lambda x: not x.startswith("_Settings__"), self.__dict__)
 
@@ -700,6 +757,7 @@ class Settings(object):
             id="run_id",
             tags="run_tags",
             group="run_group",
+            job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
         )
