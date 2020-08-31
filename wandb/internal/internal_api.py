@@ -223,9 +223,8 @@ class Api(object):
             key = auth[-1]
         # Environment should take precedence
         env_key = self._environ.get(env.API_KEY)
-        if env_key is not None:
-            key = env_key
-        return key
+        default_key = self.default_settings.get("api_key")
+        return env_key or key or default_key
 
     @property
     def api_url(self):

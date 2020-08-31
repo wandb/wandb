@@ -133,7 +133,8 @@ class SendManager(object):
         login_entity = viewer.get("entity")
         if record.control.req_resp:
             result = wandb_internal_pb2.Result(uuid=record.uuid)
-            result.response.login_response.active_entity = login_entity
+            if login_entity:
+                result.response.login_response.active_entity = login_entity
             self._result_q.put(result)
 
     def send_exit(self, data):

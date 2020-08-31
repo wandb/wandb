@@ -12,11 +12,12 @@ import os
 import time
 import traceback
 
-from six import iteritems, raise_from
+import six
 import wandb
 from wandb import trigger
 from wandb.backend.backend import Backend
 from wandb.errors.error import UsageError
+from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.lib import filesystem, module, reporting
 from wandb.util import sentry_exc
@@ -79,41 +80,36 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
+        sm_config = sagemaker.parse_sm_config()
+        if sm_config:
+            sm_api_key = sm_config.get("wandb_api_key", None)
+            sm_run, sm_env = sagemaker.parse_sm_resources()
+            if sm_env:
+                if sm_api_key:
+                    sm_env["WANDB_API_KEY"] = sm_api_key
+                settings._apply_environ(sm_env)
+            for k, v in six.iteritems(sm_run):
+                kwargs.setdefault(k, v)
+
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
-        if config_include_keys or config_exclude_keys:
-            wandb.termwarn(
-                "config_include_keys and config_exclude_keys are deprecated -- instead,"
-                " use config=wandb.helper.parse_config(config_object, include=('key',))"
-                " or config=wandb.helper.parse_config(config_object, exclude=('key',))"
-            )
+        # Add deprecation message once we can better track it and document alternatives
+        # if config_include_keys or config_exclude_keys:
+        #     wandb.termwarn(
+        #       "config_include_keys and config_exclude_keys are deprecated:"
+        #       " use config=wandb.helper.parse_config(config_object, include=('key',))"
+        #       " or config=wandb.helper.parse_config(config_object, exclude=('key',))"
+        #     )
 
-        if config_exclude_keys and config_include_keys:
-            raise UsageError(
-                "Expected at most only one of config_exclude_keys or "
-                "config_include_keys"
-            )
         init_config = parse_config(
             init_config, include=config_include_keys, exclude=config_exclude_keys
         )
-        if config_include_keys:
-            init_config = {
-                key: value
-                for key, value in iteritems(init_config)
-                if key in config_include_keys
-            }
-        if config_exclude_keys:
-            init_config = {
-                key: value
-                for key, value in iteritems(init_config)
-                if key not in config_exclude_keys
-            }
 
-        # merge config with sweep (or config file)
-        self.config = self._wl._config or dict()
+        # merge config with sweep or sm (or config file)
+        self.config = sm_config or self._wl._config or dict()
         for k, v in init_config.items():
             self.config.setdefault(k, v)
 
@@ -475,7 +471,7 @@ def init(
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
-        raise_from(Exception("interrupted"), e)
+        six.raise_from(Exception("interrupted"), e)
     except Exception as e:
         error_seen = e
         traceback.print_exc()
@@ -485,11 +481,11 @@ def init(
         # mess with sentry's ability to send out errors before the program ends.
         sentry_exc(e, delay=True)
         # reraise(*sys.exc_info())
-        # raise_from(Exception("problem"), e)
+        # six.raise_from(Exception("problem"), e)
     finally:
         if error_seen:
             wandb.termerror("Abnormal program exit")
             if except_exit:
                 os._exit(-1)
-            raise_from(Exception("problem"), error_seen)
+            six.raise_from(Exception("problem"), error_seen)
     return run

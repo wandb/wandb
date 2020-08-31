@@ -77,6 +77,7 @@ from wandb import superagent
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plots
+from wandb.integration.sagemaker import sagemaker_auth
 
 
 # Used to make sure we don't use some code in the incorrect process context
