@@ -124,6 +124,17 @@ class Redirect(object):
             setattr(sys, self._stream, Unbuffered(getattr(sys, self._stream)))
 
     def install(self):
+        if self._installed:
+            return
+
+        if os.name == 'nt' and sys.version_info >= (3, 6):
+            legacy_env_var = 'PYTHONLEGACYWINDOWSSTDIO'
+            if legacy_env_var not in os.environ:
+                msg = "Set %s environment variable to enable"\
+                    " console logging on Windows." % legacy_env_var
+                logger.error(msg)
+                raise Exception(msg)
+
         logger.info("install start")
 
         fp = getattr(sys, self._stream)
@@ -142,10 +153,12 @@ class Redirect(object):
         logger.info("install stop")
 
     def uninstall(self):
-        logger.info("uninstall start")
-        self._redirect(to_fd=self._old_fp.fileno(), close=True)
-        self._dest._stop()
-        logger.info("uninstall done")
+        if self._installed:
+            logger.info("uninstall start")
+            self._redirect(to_fd=self._old_fp.fileno(), close=True)
+            self._dest._stop()
+            self._installed = False
+            logger.info("uninstall done")
 
 
 class Capture(object):

@@ -886,7 +886,7 @@ class RunManaged(Run):
             self._out_redir = out_redir
             self._err_redir = err_redir
             logger.info("Redirects installed.")
-        except (OSError, AttributeError) as e:
+        except Exception as e:
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
