@@ -1289,6 +1289,10 @@ class Plotly(Media):
             tools = util.get_module(
                 "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
             val = tools.mpl_to_plotly(val)
+            for p in val.data:
+                if '_line' not in p.name:
+                    val.update_layout(showlegend=True)
+                    break
         return cls(val)
 
     def __init__(self, val, **kwargs):
