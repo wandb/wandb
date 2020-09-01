@@ -1,6 +1,8 @@
 # vim: set fileencoding=utf-8 :
 # From pysparklines (BSD License): https://pypi.python.org/pypi/pysparklines
 
+import math
+
 spark_chars = u"▁▂▃▄▅▆▇█"
 
 
@@ -18,7 +20,9 @@ def sparkify(series):
     Raises ValueError if input data cannot be converted to float.
     Raises TypeError if series is not an iterable.
     """
-    series = [float(i) for i in series]
+    series = [float(i) for i in series if not math.isnan(i)]
+    if not series:
+        return u''
     minimum = min(series)
     maximum = max(series)
     data_range = maximum - minimum
