@@ -1,3 +1,16 @@
+## 0.9.6 (August 28, 2020)
+
+#### :nail_care: Enhancement
+
+-  Sub paths of artifacts now expose an optional root directory argument to download()
+-  Artifact.new_file accepts an optional mode argument
+-  Removed legacy fastai docs as we're now packaged with fastai v2!
+
+#### :bug: Bug Fix
+
+-  Fix yaml parsing error handling logic
+-  Bad spelling in torch docstring, thanks @mkkb473
+
 ## 0.9.5 (August 17, 2020)
 
 #### :nail_care: Enhancement

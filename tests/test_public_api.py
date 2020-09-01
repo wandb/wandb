@@ -353,6 +353,13 @@ def test_artifact_download(runner, mock_server):
         path = art.download()
         assert path == "./artifacts/mnist:v0"
 
+def test_artifact_get_path_download(runner, mock_server):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.get_path("digits.h5").download(os.getcwd())
+        assert os.path.exists("./digits.h5")
+        assert path == os.path.join(os.getcwd(), "digits.h5")
+
 def test_artifact_run_used(runner, mock_server):
     api.flush()
     run = api.run("test/test/test")
