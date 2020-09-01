@@ -3,7 +3,7 @@
 from flask import Flask, request, g
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import yaml
 import wandb
@@ -44,7 +44,7 @@ def mock_server(mocker):
 def run(ctx):
     if ctx["resume"]:
         now = datetime.now()
-        created_at = now.replace(day=now.day - 1).isoformat()
+        created_at = (now - timedelta(days=1)).isoformat()
     else:
         created_at = datetime.now().isoformat()
 
