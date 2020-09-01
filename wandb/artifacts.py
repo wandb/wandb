@@ -1078,10 +1078,13 @@ class HTTPHandler(StorageHandler):
         if not checksum:
             return [ArtifactManifestEntry(name, path, digest=path)]
 
+        # Not all servers might support HEAD requests, so go a streaming GET.
+        # Since we only use the response headers and never open the body, we
+        # won't fetch a single byte.
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
             digest, size, extra = self._entry_from_headers(response.headers)
-        return [ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)]
+        return [ArtifactManifestEntry(name, path, digest=digest or path, size=size, extra=extra)]
 
     def _entry_from_headers(self, headers):
         response_headers = {k.lower(): v for k, v in headers.items()}
@@ -1089,8 +1092,10 @@ class HTTPHandler(StorageHandler):
         if size:
             size = int(size)
 
-        digest = response_headers.get("etag", None)  #
         extra = {}
+        digest = response_headers.get("digest", None)
+        if not digest:
+            digest = response_headers.get("etag", None)  #
         if digest:
             extra["etag"] = digest
         if digest and digest[:1] == '"' and digest[-1:] == '"':
