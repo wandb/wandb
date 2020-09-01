@@ -72,6 +72,33 @@ def mock_gcs(artifact, path=False):
     return mock
 
 
+def mock_http(artifact, path=False, headers={}):
+    class Response(object):
+        def __init__(self, headers):
+            self.headers = headers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+    class Session(object):
+        def __init__(self, name='file1.txt', headers=headers):
+            self.headers = headers
+
+        def get(self, path, *args, **kwargs):
+            return Response(self.headers)
+
+
+    mock = Session()
+    handler = artifact._storage_policy._handler._handlers["http"]
+    handler._session = mock
+    return mock
+
 def test_add_one_file(runner):
     with runner.isolated_filesystem():
         with open('file1.txt', 'w') as f:
@@ -279,6 +306,25 @@ def test_add_gs_reference_path(runner, mocker, capsys):
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
 
+def test_add_http_reference_path(runner):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type='dataset', name='my-arty')
+        mock_http(artifact, headers={
+            'ETag': '"abc"',
+            'Content-Length': "256",
+        })
+        artifact.add_reference("http://example.com/file1.txt")
+
+        assert artifact.digest == '48237ccc050a88af9dcd869dd5a7e9f4'
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest['contents']['file1.txt'] == {
+            'digest': 'abc',
+            'ref': 'http://example.com/file1.txt',
+            'size': 256,
+            'extra': {
+                'etag': '"abc"',
+            },
+        }
 
 def test_add_reference_named_local_file(runner):
     with runner.isolated_filesystem():
@@ -295,10 +341,10 @@ def test_add_reference_named_local_file(runner):
 def test_add_reference_unknown_handler(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type='dataset', name='my-arty')
-        artifact.add_reference('http://example.com/somefile.txt', name='ref')
+        artifact.add_reference('ref://example.com/somefile.txt', name='ref')
 
-        assert artifact.digest == '5b8876252f3ca922c164de380089c9ae'
+        assert artifact.digest == '410ade94865e89ebe1f593f4379ac228'
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest['contents']['ref'] == {
-            'digest': 'http://example.com/somefile.txt', 'ref': 'http://example.com/somefile.txt'}
+            'digest': 'ref://example.com/somefile.txt', 'ref': 'ref://example.com/somefile.txt'}

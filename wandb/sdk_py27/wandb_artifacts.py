@@ -15,6 +15,18 @@ from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 
+# This makes the first sleep 1s, and then doubles it up to total times,
+# which makes for ~18 hours.
+_REQUEST_RETRY_STRATEGY = requests.packages.urllib3.util.retry.Retry(
+    backoff_factor=1,
+    total=16,
+    status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
+)
+
+_REQUEST_POOL_CONNECTIONS = 64
+
+_REQUEST_POOL_MAXSIZE = 64
+
 
 class ArtifactsCache(object):
     def __init__(self, cache_dir):
@@ -361,31 +373,28 @@ class WandbStoragePolicy(StoragePolicy):
         return cls(config=config)
 
     def __init__(self, config=None):
+        self._cache = get_artifacts_cache()
+        self._config = config or {}
+        self._session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            max_retries=_REQUEST_RETRY_STRATEGY,
+            pool_connections=_REQUEST_POOL_CONNECTIONS,
+            pool_maxsize=_REQUEST_POOL_MAXSIZE,
+        )
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+
         s3 = S3Handler()
         gcs = GCSHandler()
+        http = HTTPHandler(self._session)
+        https = HTTPHandler(self._session, scheme="https")
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, file_handler,], default_handler=TrackingHandler()
+            handlers=[s3, gcs, http, https, file_handler,],
+            default_handler=TrackingHandler(),
         )
-
-        self._cache = get_artifacts_cache()
-        self._config = config or {}
-
-        # I believe this makes the first sleep 1s, and then doubles it up to
-        # total times, which makes for ~18 hours.
-        retry_strategy = requests.packages.urllib3.util.retry.Retry(
-            backoff_factor=1,
-            total=16,
-            status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
-        )
-        self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            max_retries=retry_strategy, pool_connections=64, pool_maxsize=64
-        )
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
 
     def config(self):
         return self._config
@@ -1012,3 +1021,65 @@ class GCSHandler(StorageHandler):
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
         return "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
+
+
+class HTTPHandler(StorageHandler):
+    def __init__(self, session, scheme=None):
+        self._scheme = scheme or "http"
+        self._cache = get_artifacts_cache()
+        self._session = session
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
+        path, hit = self._cache.check_etag_obj_path(
+            manifest_entry.digest, manifest_entry.size
+        )
+        if hit:
+            return path
+
+        response = self._session.get(manifest_entry.ref, stream=True)
+        response.raise_for_status()
+
+        digest, size, extra = self._entry_from_headers(response.headers)
+        if manifest_entry.digest != digest:
+            raise ValueError(
+                "Digest mismatch for url %s: expected %s but found %s"
+                % (manifest_entry.ref, manifest_entry.digest, digest)
+            )
+
+        with open(path, "wb") as file:
+            for data in response.iter_content(chunk_size=16 * 1024):
+                file.write(data)
+        return path
+
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        name = name or os.path.basename(path)
+        if not checksum:
+            return [ArtifactManifestEntry(name, path, digest=path)]
+
+        with self._session.get(path, stream=True) as response:
+            response.raise_for_status()
+            digest, size, extra = self._entry_from_headers(response.headers)
+        return [
+            ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)
+        ]
+
+    def _entry_from_headers(self, headers):
+        response_headers = {k.lower(): v for k, v in headers.items()}
+        size = response_headers.get("content-length", None)
+        if size:
+            size = int(size)
+
+        digest = response_headers.get("etag", None)  #
+        extra = {}
+        if digest:
+            extra["etag"] = digest
+        if digest and digest[:1] == '"' and digest[-1:] == '"':
+            digest = digest[1:-1]  # trim leading and trailing quotes around etag
+        return digest, size, extra
