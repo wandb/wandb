@@ -289,7 +289,7 @@ def test_add_gs_reference_path(runner, mocker, capsys):
 def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = artifacts.Artifact(type='dataset', name='my-arty')
-        mock_http(artifact, headers= {
+        mock_http(artifact, headers={
             'ETag': '"abc"',
             'Content-Length': "256",
         })
