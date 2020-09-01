@@ -271,7 +271,7 @@ def create_app(user_ctx=None):
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
                                     "historyTail": hist_tail,
-                                    "eventsTail": '["{\\"_runtime\\": 70}"}"]',
+                                    "eventsTail": '["{\\"_runtime\\": 70}"]',
                                 }
                             }
                         }
