@@ -57,6 +57,12 @@ class BackendMock(object):
 
     def _communicate(self, rec, timeout=5, local=False):
         resp = wandb_internal_pb2.Result()
+        record_type = rec.WhichOneof("record_type")
+        if record_type == "request":
+            req = rec.request
+            req_type = req.WhichOneof("request_type")
+            if req_type == "poll_exit":
+                resp.response.poll_exit_response.done = True
         return resp
 
     def _proto_to_dict(self, obj_list):

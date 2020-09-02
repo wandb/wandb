@@ -57,10 +57,11 @@ class HandleManager(object):
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
-    def _dispatch_record(self, record):
-        if not self._settings._offline:
+    def _dispatch_record(self, record, always_send=False):
+        if not self._settings._offline or always_send:
             self._sender_q.put(record)
-        self._writer_q.put(record)
+        if not record.control.local:
+            self._writer_q.put(record)
 
     def handle_request_defer(self, record):
         defer = record.request.defer
@@ -73,8 +74,11 @@ class HandleManager(object):
                 # shutdown tensorboard workers so we get all metrics flushed
                 self._tb_watcher.finish()
                 self._tb_watcher = None
+        elif state == defer.FLUSH_SUM:
+            self._save_summary(self._consolidated_summary, flush=True)
 
-        self._dispatch_record(record)
+        # defer is used to drive the sender finish state machine
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_login(self, record):
         self._dispatch_record(record)
@@ -97,14 +101,16 @@ class HandleManager(object):
     def handle_artifact(self, record):
         self._dispatch_record(record)
 
-    def _save_summary(self, summary_dict):
+    def _save_summary(self, summary_dict, flush=False):
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
         record = wandb_internal_pb2.Record(summary=summary)
-        if not self._settings._offline:
+        if flush:
+            self._dispatch_record(record)
+        elif not self._settings._offline:
             self._sender_q.put(record)
 
     def _save_history(self, record):
@@ -167,6 +173,15 @@ class HandleManager(object):
         self._save_summary(self._consolidated_summary)
 
     def handle_exit(self, record):
+        self._dispatch_record(record, always_send=True)
+
+    def handle_final(self, record):
+        self._dispatch_record(record, always_send=True)
+
+    def handle_header(self, record):
+        self._dispatch_record(record)
+
+    def handle_footer(self, record):
         self._dispatch_record(record)
 
     def handle_request_check_version(self, record):
@@ -182,12 +197,12 @@ class HandleManager(object):
         assert run_start
         assert run_start.run
 
-        if not self._settings._disable_stats and not self._settings._offline:
+        if not self._settings._disable_stats:
             pid = os.getpid()
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface,)
             self._system_stats.start()
 
-        if not self._settings._disable_meta and not self._settings._offline:
+        if not self._settings._disable_meta:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface,)
             run_meta.probe()
             run_meta.write()
@@ -210,7 +225,7 @@ class HandleManager(object):
             self._system_stats.shutdown()
 
     def handle_request_poll_exit(self, record):
-        self._dispatch_record(record)
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_status(self, record):
         self._dispatch_record(record)

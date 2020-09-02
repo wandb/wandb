@@ -188,7 +188,8 @@ def projects(entity, display=True):
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @display_error
-def login(key, host, cloud, relogin, anonymously):
+def login(key, host, cloud, relogin, anonymously, no_offline=False):
+    # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
     wandb.setup(settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode))
     api = _get_cling_api()
@@ -364,18 +365,84 @@ def init(ctx, project, entity, reset):
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
-@click.option("--id", help="The run you want to upload to.")
+@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
+@click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--include-globs", help="Comma seperated list of globs to include.")
+@click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
-    "--ignore", help="A comma seperated list of globs to ignore syncing with wandb."
+    "--include-online/--no-include-online",
+    is_flag=True,
+    default=False,
+    help="Include online runs",
 )
-@click.option("--all", is_flag=True, default=False, help="Sync all runs")
+@click.option(
+    "--include-offline/--no-include-offline",
+    is_flag=True,
+    default=True,
+    help="Include offline runs",
+)
+@click.option(
+    "--include-synced/--no-include-synced",
+    is_flag=True,
+    default=False,
+    help="Include synced runs",
+)
+@click.option(
+    "--mark-synced/--no-mark-synced",
+    is_flag=True,
+    default=True,
+    help="Mark runs as synced",
+)
+@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
+@click.option("--ignore", hidden=True)
+@click.option("--show", default=5, help="Number of runs to show")
 @display_error
-def sync(ctx, path, id, project, entity, ignore, all):
+def sync(
+    ctx,
+    path=None,
+    view=None,
+    verbose=None,
+    run_id=None,
+    project=None,
+    entity=None,
+    include_globs=None,
+    exclude_globs=None,
+    include_online=None,
+    include_offline=None,
+    include_synced=None,
+    mark_synced=None,
+    sync_all=None,
+    ignore=None,
+    show=None,
+):
+    api = InternalApi()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to sync offline runs")
+        ctx.invoke(login, no_offline=True)
+
     if ignore:
-        ignore = ignore.split(",")
-    sm = SyncManager(project=project, entity=entity, run_id=id, ignore=ignore)
+        exclude_globs = ignore
+    if include_globs:
+        include_globs = include_globs.split(",")
+    if exclude_globs:
+        exclude_globs = exclude_globs.split(",")
+    sm = SyncManager(
+        project=project,
+        entity=entity,
+        run_id=run_id,
+        include_globs=include_globs,
+        exclude_globs=exclude_globs,
+        include_online=include_online,
+        include_offline=include_offline,
+        include_synced=include_synced,
+        mark_synced=mark_synced,
+        app_url=api.app_url,
+        view=view,
+        verbose=verbose,
+    )
     if not path:
         # Show listing of possible paths to sync
         # (if interactive, allow user to pick run to sync)
@@ -383,17 +450,16 @@ def sync(ctx, path, id, project, entity, ignore, all):
         if not sync_items:
             wandb.termerror("Nothing to sync")
             return
-        if not all:
-            wandb.termlog("NOTE: use sync --all to sync all unsynced runs")
+        if not sync_all:
+            wandb.termlog("NOTE: use sync --sync-all to sync all unsynced runs")
             wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
-            some_runs = 5
-            if some_runs < len(sync_items):
-                wandb.termlog("Showing {} runs".format(some_runs))
-            for item in sync_items[:some_runs]:
+            if show and show < len(sync_items):
+                wandb.termlog("Showing {} runs:".format(show))
+            for item in sync_items[: show or len(sync_items)]:
                 wandb.termlog("  {}".format(item))
             return
         path = sync_items
-    if id and len(path) > 1:
+    if run_id and len(path) > 1:
         wandb.termerror("id can only be set for a single run")
         sys.exit(1)
     for p in path:

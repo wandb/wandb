@@ -34,6 +34,9 @@ message Record {
     // Higher numbers for less frequent data
     RunRecord      run = 17;
     RunExitRecord  exit = 18;
+    FinalRecord    final = 20;
+    HeaderRecord   header = 21;
+    FooterRecord   footer = 22;
     // request field does not belong here longterm
     Request        request = 100;
   }
@@ -61,6 +64,24 @@ message Result {
     Response          response = 100;
   }
   string              uuid = 24;
+}
+
+/*
+ * FinalRecord
+ */
+message FinalRecord {
+}
+
+/*
+ * HeaderRecord
+ */
+message HeaderRecord {
+}
+
+/*
+ * FooterRecord
+ */
+message FooterRecord {
 }
 
 /*
@@ -326,10 +347,12 @@ message DeferRequest {
   enum DeferState {
     BEGIN = 0;
     FLUSH_TB = 1;
-    FLUSH_DIR = 2;
-    FLUSH_FP = 3;
-    FLUSH_FS = 4;
-    END = 5;
+    FLUSH_SUM = 2;
+    FLUSH_DIR = 3;
+    FLUSH_FP = 4;
+    FLUSH_FS = 5;
+    FLUSH_FINAL = 6;
+    END = 7;
   }
   DeferState state = 1;
 }

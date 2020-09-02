@@ -1011,6 +1011,8 @@ class RunManaged(Run):
         self._console_start()
 
     def _pusher_print_status(self, progress, prefix=True, done=False):
+        if self._settings._offline:
+            return
         spinner_states = ["-", "\\", "|", "/"]
         line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
             progress.uploaded_bytes / 1048576.0,
@@ -1075,24 +1077,21 @@ class RunManaged(Run):
                 msg += " Press ctrl-c to abort syncing."
             wandb.termlog(msg)
 
-        if self._settings._offline:
-            self._backend.interface.publish_exit(self._exit_code)
-        else:
-            # TODO: we need to handle catastrophic failure better
-            # some tests were timing out on sending exit for reasons not clear to me
-            self._backend.interface.publish_exit(self._exit_code)
+        # TODO: we need to handle catastrophic failure better
+        # some tests were timing out on sending exit for reasons not clear to me
+        self._backend.interface.publish_exit(self._exit_code)
 
-            # Wait for data to be synced
-            ret = self._wait_for_finish()
+        # Wait for data to be synced
+        ret = self._wait_for_finish()
 
-            self._poll_exit_response = ret.response.poll_exit_response
+        self._poll_exit_response = ret.response.poll_exit_response
 
-            ret = self._backend.interface.communicate_summary()
-            self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        ret = self._backend.interface.communicate_summary()
+        self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-            ret = self._backend.interface.communicate_sampled_history()
-            d = {item.key: item.values_float or item.values_int for item in ret.item}
-            self._sampled_history = d
+        ret = self._backend.interface.communicate_sampled_history()
+        d = {item.key: item.values_float or item.values_int for item in ret.item}
+        self._sampled_history = d
 
         self._backend.cleanup()
 
@@ -1130,14 +1129,6 @@ class RunManaged(Run):
                     self._settings.log_internal
                 )
             )
-        if self._settings._offline:
-            wandb.termlog("You can sync this run to the cloud by running:")
-            wandb.termlog(
-                click.style(
-                    "wandb sync {}".format(self._settings.sync_file), fg="yellow"
-                )
-            )
-
         self._show_summary()
         self._show_history()
         self._show_files()
@@ -1148,6 +1139,14 @@ class RunManaged(Run):
             wandb.termlog(
                 "\nSynced {}: {}".format(
                     click.style(run_name, fg="yellow"), click.style(run_url, fg="blue")
+                )
+            )
+
+        if self._settings._offline:
+            wandb.termlog("You can sync this run to the cloud by running:")
+            wandb.termlog(
+                click.style(
+                    "wandb sync {}".format(self._settings._sync_dir), fg="yellow"
                 )
             )
 
@@ -1191,6 +1190,8 @@ class RunManaged(Run):
 
     def _show_files(self):
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
+            return
+        if self._settings._offline:
             return
         logger.info("logging synced files")
         wandb.termlog(

@@ -354,6 +354,7 @@ class _WandbInit(object):
         # run_synced = None
 
         backend._hack_set_run(run)
+        backend.interface.publish_header()
 
         if s._offline:
             run_proto = backend.interface._make_run(run)
@@ -364,7 +365,6 @@ class _WandbInit(object):
             message = ret.response.check_version_response.message
             if message:
                 wandb.termlog(message)
-
             ret = backend.interface.communicate_run(run, timeout=30)
             # TODO: fail on more errors, check return type
             # TODO: make the backend log stacktraces on catostrophic failure

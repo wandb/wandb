@@ -152,6 +152,9 @@ class SendManager(object):
         logger.info("send defer")
         self._interface.publish_defer()
 
+    def send_final(self, data):
+        pass
+
     def send_request_defer(self, data):
         defer = data.request.defer
         state = defer.state
@@ -161,6 +164,9 @@ class SendManager(object):
         if state == defer.BEGIN:
             pass
         elif state == defer.FLUSH_TB:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            pass
+        elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
         elif state == defer.FLUSH_DIR:
@@ -175,6 +181,9 @@ class SendManager(object):
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
+        elif state == defer.FLUSH_FINAL:
+            self._interface.publish_final()
+            self._interface.publish_footer()
         elif state == defer.END:
             done = True
         else:
@@ -225,7 +234,8 @@ class SendManager(object):
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
-            self._pusher.join()
+            if self._pusher:
+                self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
@@ -414,7 +424,7 @@ class SendManager(object):
         summary_path = os.path.join(self._settings.files_dir, filenames.SUMMARY_FNAME)
         with open(summary_path, "w") as f:
             f.write(json_summary)
-            self._save_file(filenames.SUMMARY_FNAME)
+        self._save_file(filenames.SUMMARY_FNAME)
 
     def send_stats(self, data):
         stats = data.stats
@@ -472,13 +482,20 @@ class SendManager(object):
 
     def _save_file(self, fname, policy="end"):
         logger.info("saving file %s with policy %s", fname, policy)
-        self._dir_watcher.update_policy(fname, policy)
+        if self._dir_watcher:
+            self._dir_watcher.update_policy(fname, policy)
 
     def send_files(self, data):
         files = data.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(k.path, interface.file_enum_to_policy(k.policy))
+
+    def send_header(self, data):
+        pass
+
+    def send_footer(self, data):
+        pass
 
     def send_tbrecord(self, data):
         # tbrecord watching threads are handled by handler.py
