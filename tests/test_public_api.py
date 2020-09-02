@@ -86,7 +86,7 @@ def test_run_from_path(mock_server, api):
 
 
 def test_run_retry(mock_server, api):
-    mock_server.set_context("fail_times", 2)
+    mock_server.set_context("fail_graphql_times", 2)
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
 

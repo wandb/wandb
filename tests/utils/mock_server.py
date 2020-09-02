@@ -15,7 +15,8 @@ from tests.utils.mock_requests import RequestsMock
 
 def default_ctx():
     return {
-        "fail_count": 0,
+        "fail_graphql_count": 0,  # used via "fail_graphql_times"
+        "fail_storage_count": 0,  # used via "fail_storage_times"
         "page_count": 0,
         "page_times": 2,
         "files": {},
@@ -232,9 +233,9 @@ def create_app(user_ctx=None):
         ctx = get_ctx()
         test_name = request.headers.get("X-WANDB-USERNAME")
         app.logger.info("Test request from: %s", test_name)
-        if "fail_times" in ctx:
-            if ctx["fail_count"] < ctx["fail_times"]:
-                ctx["fail_count"] += 1
+        if "fail_graphql_times" in ctx:
+            if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
+                ctx["fail_graphql_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
         body = request.get_json()
         if body["variables"].get("files"):
@@ -552,7 +553,13 @@ def create_app(user_ctx=None):
     @app.route("/storage", methods=["PUT", "GET"])
     def storage():
         ctx = get_ctx()
+        if "fail_storage_times" in ctx:
+            if ctx["fail_storage_count"] < ctx["fail_storage_times"]:
+                ctx["fail_storage_count"] += 1
+                return json.dumps({"errors": ["Server down"]}), 500
         file = request.args.get("file")
+        ctx["storage"] = ctx.get("storage", [])
+        ctx["storage"].append(request.args.get("file"))
         size = ctx["files"].get(request.args.get("file"))
         if request.method == "GET" and size:
             return os.urandom(size), 200

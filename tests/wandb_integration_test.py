@@ -108,3 +108,24 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
             config_exclude_keys=("bar",),
             config_include_keys=("bar",),
         )
+
+
+def test_network_fault_files(live_mock_server, test_settings):
+    live_mock_server.set_ctx({"fail_storage_times": 5})
+    run = wandb.init(settings=test_settings)
+    run.join()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [f for f in sorted(ctx["storage"]) if not f.endswith(".patch")] == sorted(
+        ['wandb-metadata.json', 'requirements.txt', 'config.yaml'])
+
+
+def test_network_fault_graphql(live_mock_server, test_settings):
+    # TODO: Initial login fails within 5 seconds so we fail after boot.
+    run = wandb.init(settings=test_settings)
+    live_mock_server.set_ctx({"fail_graphql_times": 5})
+    run.join()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [f for f in sorted(ctx["storage"]) if not f.endswith(".patch")] == sorted(
+        ['wandb-metadata.json', 'requirements.txt', 'config.yaml'])

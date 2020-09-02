@@ -6,6 +6,7 @@ import random
 import time
 import traceback
 import weakref
+import sys
 
 import wandb
 from wandb import env
@@ -46,6 +47,7 @@ class Retry(object):
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
         self._error_prefix = error_prefix
+        self._last_print = datetime.datetime.now() - datetime.timedelta(minutes=1)
         self._retry_timedelta = retry_timedelta
         self._num_retries = num_retries
         self._retryable_exceptions = retryable_exceptions
@@ -69,7 +71,7 @@ class Retry(object):
 
         retry_timedelta = kwargs.pop('retry_timedelta', self._retry_timedelta)
         if retry_timedelta is None:
-            retry_timedelta = datetime.timedelta(days=1000000)
+            retry_timedelta = datetime.timedelta(days=365)
 
         num_retries = kwargs.pop('num_retries', self._num_retries)
         if num_retries is None:
@@ -83,7 +85,6 @@ class Retry(object):
         # an extra function to allow performing more logic on the filtered exceptiosn
         check_retry_fn = kwargs.pop('check_retry_fn', self._check_retry_fn)
 
-        first = True
         sleep = sleep_base
         start_time = datetime.datetime.now()
         now = start_time
@@ -93,7 +94,9 @@ class Retry(object):
         while True:
             try:
                 result = self._call_fn(*args, **kwargs)
-                if not first:
+                # Only print resolved attempts once every minute
+                if self._num_iter > 2 and now - self._last_print > datetime.timedelta(minutes=1):
+                    self._last_print = datetime.datetime.now()
                     wandb.termlog('{} resolved after {}, resuming normal operation.'.format(
                         self._error_prefix, datetime.datetime.now() - start_time))
                 return result
@@ -111,7 +114,6 @@ class Retry(object):
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
-            first = False
             time.sleep(sleep + random.random() * 0.25 * sleep)
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
