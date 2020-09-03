@@ -120,12 +120,13 @@ class Backend:
             entity=None,
             project=None,
             run_group=None,
-            job_type=None,
+            run_job_type=None,
             run_tags=None,
             run_name=None,
             run_notes=None,
-            jupyter=None,
+            _jupyter=None,
             _kaggle=None,
+            _offline=None,
         )
 
         mp = multiprocessing
