@@ -90,6 +90,7 @@ class SyncThread(threading.Thread):
 
             # save exit for final send
             exit_pb = None
+            shown = False
 
             while True:
                 data = ds.scan_data()
@@ -128,7 +129,7 @@ class SyncThread(threading.Thread):
                 if pb.control.req_resp:
                     result = result_q.get(block=True)
                     result_type = result.WhichOneof("result_type")
-                    if result_type == "run_result":
+                    if not shown and result_type == "run_result":
                         r = result.run_result.run
                         # TODO(jhr): hardcode until we have settings in sync
                         url = "{}/{}/{}/runs/{}".format(
@@ -139,6 +140,7 @@ class SyncThread(threading.Thread):
                         )
                         print("Syncing: %s ..." % url, end="")
                         sys.stdout.flush()
+                        shown = True
             sm.finish()
             if self._mark_synced:
                 synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)

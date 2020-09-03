@@ -298,6 +298,8 @@ class RunManaged(Run):
 
     @property
     def name(self):
+        if self._name:
+            return self._name
         if not self._run_obj:
             return None
         return self._run_obj.display_name
@@ -310,6 +312,8 @@ class RunManaged(Run):
 
     @property
     def notes(self):
+        if self._notes:
+            return self._notes
         if not self._run_obj:
             return None
         return self._run_obj.notes
@@ -317,6 +321,20 @@ class RunManaged(Run):
     @notes.setter
     def notes(self, notes):
         self._notes = notes
+        if self._backend:
+            self._backend.interface.publish_run(self)
+
+    @property
+    def tags(self):
+        if self._tags:
+            return self._tags
+        if not self._run_obj:
+            return None
+        return self._run_obj.tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
         if self._backend:
             self._backend.interface.publish_run(self)
 
@@ -360,9 +378,13 @@ class RunManaged(Run):
 
     def get_url(self):
         if not self._run_obj:
-            wandb.termwarn("Project name not available in offline run")
+            wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
+
+    @property
+    def url(self):
+        return self.get_url()
 
     @property
     def entity(self):
