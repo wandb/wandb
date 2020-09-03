@@ -66,3 +66,32 @@ callbacks=[WandbCallback()])
 - `log_batch_frequency` _integer_ - if None, callback will log every epoch. If set to integer, callback will log training metrics every log_batch_frequency batches.
 - `log_best_prefix` _string_ - if None, no extra summary metrics will be saved. If set to a string, the monitored metric and epoch will be prepended with this value and stored as summary metrics.
  
+
+## WandbClassificationCallback
+[source](https://github.com/wandb/client/blob/master/wandb/keras/__init__.py#L624)
+```python
+WandbClassificationCallback(self,
+                            log_confusion_matrix=False,
+                            confusion_examples=0,
+                            confusion_classes=1,
+                            **kwargs)
+```
+WandbClassificationCallback is an extantion of WandbCallback than automatically integrates keras with wandb.
+
+**Examples**:
+
+```python
+model.fit(X_train, y_train,  validation_data=(X_test, y_test),
+callbacks=[WandbClassificationCallback()])
+```
+ 
+ WandbClassificationCallback add features specific to classification tasks. All parameters from :class:`WandbCallback` are valid in WandbClassificationCallback.
+ 
+
+**Arguments**:
+
+- `log_confusion_matrix` _bool_ - If True, the confusion matrix will be logged.
+- `confusion_classes` _int_ - The top confusion_classes classes will be logged.
+- `confusion_examples` _int_ - The maximum number of confusion examples to log per class.
+ 
+ 
