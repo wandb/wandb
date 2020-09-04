@@ -52,7 +52,7 @@ We use protocol buffers to communicate from the user process to the wandb backen
 If you update any of the *.proto files in wandb/proto, you'll need to run:
 
 ```
-cd wandb/proto && python wandb_internal_codegen.py
+make proto
 ```
 
 ## Code checks

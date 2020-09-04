@@ -25,11 +25,11 @@ from wandb.util import sentry_exc
 from . import wandb_login
 from . import wandb_setup
 from .wandb_helper import parse_config
-from .wandb_run import Run, RunDummy, RunManaged
+from .wandb_run import Run, RunBase, RunDummy
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, List, Dict, Any  # noqa: F401
+    from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
 
 logger = None  # logger configured during wandb.init()
 
@@ -231,7 +231,7 @@ class _WandbInit(object):
             self.backend.interface.publish_resume()
 
     def _jupyter_teardown(self):
-        """Teardown hooks and display saving, called with wandb.join"""
+        """Teardown hooks and display saving, called with wandb.finish"""
         logger.info("cleaning up jupyter logic")
         ipython = self.notebook.shell
         self.notebook.save_history()
@@ -310,13 +310,29 @@ class _WandbInit(object):
         s = self.settings
         config = self.config
 
+        if s._noop:
+            run = RunDummy()
+            module.set_global(
+                run=run,
+                config=run.config,
+                log=run.log,
+                join=run.join,
+                finish=run.finish,
+                summary=run.summary,
+                save=run.save,
+                restore=run.restore,
+                use_artifact=run.use_artifact,
+                log_artifact=run.log_artifact,
+            )
+            return run
+
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
-                self._wl._global_run_stack[-1].join()
+                self._wl._global_run_stack[-1].finish()
         elif wandb.run:
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
@@ -340,7 +356,7 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = RunManaged(config=config, settings=s)
+        run = Run(config=config, settings=s)
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,
@@ -387,6 +403,7 @@ class _WandbInit(object):
             config=run.config,
             log=run.log,
             join=run.join,
+            finish=run.finish,
             summary=run.summary,
             save=run.save,
             restore=run.restore,
@@ -396,6 +413,7 @@ class _WandbInit(object):
         self._reporter.set_context(run=run)
         run._on_start()
 
+        run._freeze()
         return run
 
 
@@ -465,7 +483,8 @@ def init(
                 raise
             if wi.settings.problem == "warn":
                 pass
-            run = RunDummy()
+            # TODO(jhr): figure out how to make this RunDummy
+            run = None
     except UsageError:
         raise
     except KeyboardInterrupt as e:

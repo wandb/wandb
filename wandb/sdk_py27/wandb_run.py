@@ -40,20 +40,10 @@ from . import wandb_history
 from . import wandb_summary
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import Optional, Sequence, Tuple
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
-
-
-class Run(object):
-    def __init__(self):
-        pass
-
-
-class RunDummy(Run):
-    def __init__(self):
-        pass
 
 
 class ExitHooks(object):
@@ -126,7 +116,102 @@ class RunStatusChecker(object):
         self._thread.join()
 
 
-class RunManaged(Run):
+class RunBase(object):
+    pass
+
+
+class ConfigDummy(object):
+    def __init__(self):
+        pass
+
+    def __getitem__(self, key):
+        pass
+
+    def __setitem__(self, key, val):
+        pass
+
+    __setattr__ = __setitem__
+
+    def __getattr__(self, key):
+        pass
+
+
+class SummaryDummy(object):
+    def __init__(self):
+        pass
+
+    def __getitem__(self, key):
+        pass
+
+    def __setitem__(self, key, val):
+        pass
+
+
+class RunDummy(RunBase):
+    def __init__(self):
+        self._config = ConfigDummy()
+        self.summary = SummaryDummy()
+
+    @property
+    def id(self):
+        pass
+
+    def get_url(self):
+        pass
+
+    def project_name(self):
+        pass
+
+    @property
+    def config(self):
+        return self._config
+
+    @property
+    def dir(self):
+        return ""
+
+    @property
+    def resumed(self):
+        pass
+
+    @property
+    def step(self):
+        pass
+
+    def log(self, data, step=None, commit=None, sync=None):
+        pass
+
+    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+        pass
+
+    def join(self, exit_code=None):
+        pass
+
+    def finish(self, exit_code=None):
+        pass
+
+    def save(
+        self,
+        glob_str = None,
+        base_path = None,
+        policy = "live",
+    ):
+        pass
+
+    def restore(
+        self,
+        name,
+        run_path = None,
+        replace = False,
+        root = None,
+    ):
+        pass
+
+    def use_artifact(self, artifact_or_name, type=None, aliases=None):
+        pass
+
+
+class Run(RunBase):
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
@@ -216,6 +301,14 @@ class RunManaged(Run):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+
+    def _freeze(self):
+        self._frozen = True
+
+    def __setattr__(self, attr, value):
+        if getattr(self, "_frozen", None) and not hasattr(self, attr):
+            raise Exception("Attribute {} is not supported on Run object.".format(attr))
+        super(Run, self).__setattr__(attr, value)
 
     def _telemetry_get_framework(self):
         """Get telemetry data for internal config structure."""
@@ -334,7 +427,7 @@ class RunManaged(Run):
 
     @tags.setter
     def tags(self, tags):
-        self._tags = tags
+        self._tags = tuple(tags)
         if self._backend:
             self._backend.interface.publish_run(self)
 
@@ -758,19 +851,22 @@ class RunManaged(Run):
             return None
         return files[0].download(root=root, replace=True)
 
-    def join(self, exit_code=None):
+    def finish(self, exit_code=None):
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
         # detach logger, other setup cleanup
-        logger.info("joining run %s", self.path)
+        logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
         self._atexit_cleanup(exit_code=exit_code)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
+
+    def join(self, exit_code=None):
+        self.finish(exit_code=exit_code)
 
     def _get_project_url(self):
         s = self._settings
@@ -1377,7 +1473,7 @@ class RunManaged(Run):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         exit_code = 0 if exc_type is None else 1
-        self.join(exit_code)
+        self.finish(exit_code)
         return exc_type is None
 
 

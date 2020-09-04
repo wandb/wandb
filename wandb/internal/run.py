@@ -13,13 +13,13 @@ else:
     from wandb.sdk_py27 import wandb_run
 
 
-class InternalRun(wandb_run.RunManaged):
+class InternalRun(wandb_run.Run):
     def __init__(self, run_obj, settings):
         super(InternalRun, self).__init__(settings=settings)
         self._run_obj = run_obj
 
-        # TODO: This undoes what's done in the constructor of RunManaged. Probably what
-        # really want is a common interface for RunManaged and InternalRun.
+        # TODO: This undoes what's done in the constructor of wandb_run.Run.
+        # We really want a common interface for wandb_run.Run and InternalRun.
         data_types._datatypes_set_callback(None)
 
     def _set_backend(self, backend):

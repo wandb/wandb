@@ -109,22 +109,25 @@ run = None
 config = _preinit.PreInitObject("wandb.config")
 summary = _preinit.PreInitObject("wandb.summary")
 log = _preinit.PreInitCallable(
-    "wandb.log", wandb_sdk.wandb_run.RunManaged.log
+    "wandb.log", wandb_sdk.wandb_run.Run.log
 )
 join = _preinit.PreInitCallable(
-    "wandb.join", wandb_sdk.wandb_run.RunManaged.join
+    "wandb.join", wandb_sdk.wandb_run.Run.join
+)
+finish = _preinit.PreInitCallable(
+    "wandb.finish", wandb_sdk.wandb_run.Run.finish
 )
 save = _preinit.PreInitCallable(
-    "wandb.save", wandb_sdk.wandb_run.RunManaged.save
+    "wandb.save", wandb_sdk.wandb_run.Run.save
 )
 restore = _preinit.PreInitCallable(
-    "wandb.restore", wandb_sdk.wandb_run.RunManaged.restore
+    "wandb.restore", wandb_sdk.wandb_run.Run.restore
 )
 use_artifact = _preinit.PreInitCallable(
-    "wandb.use_artifact", wandb_sdk.wandb_run.RunManaged.use_artifact
+    "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact
 )
 log_artifact = _preinit.PreInitCallable(
-    "wandb.log_artifact", wandb_sdk.wandb_run.RunManaged.log_artifact
+    "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}

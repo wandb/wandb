@@ -63,6 +63,9 @@ test-short:
 format:
 	tox -e format
 
+proto:
+	cd wandb/proto && python wandb_internal_codegen.py
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +

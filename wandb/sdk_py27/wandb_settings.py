@@ -53,6 +53,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Callable,
         Set,
         Type,
+        Sequence,
     )
 
 logger = logging.getLogger("wandb")
@@ -190,6 +191,7 @@ class Settings(object):
     mode = "online"
     console = "auto"
     disabled = False
+    run_tags = None
 
     resume_fname_spec = None
     root_dir = None
@@ -248,7 +250,7 @@ class Settings(object):
         run_notes = None,
         resume = None,
         magic = False,
-        run_tags=None,
+        run_tags = None,
         sweep_id=None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
@@ -353,6 +355,10 @@ class Settings(object):
         return ret
 
     @property
+    def _noop(self):
+        return self.mode == "noop"
+
+    @property
     def _jupyter(self):
         return _get_python_type() != "python"
 
@@ -441,7 +447,13 @@ class Settings(object):
         return self._path_convert(self.settings_workspace_spec)
 
     def _validate_mode(self, value):
-        choices = {"dryrun", "run", "offline", "online"}
+        choices = {
+            "dryrun",
+            "run",
+            "offline",
+            "online",
+            "noop",
+        }
         if value in choices:
             return
         return _error_choices(value, choices)

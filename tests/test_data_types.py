@@ -124,7 +124,7 @@ def test_image_accepts_masks_without_class_labels(mocked_run):
 def test_cant_serialize_to_other_run(mocked_run, test_settings):
     """This isn't implemented yet. Should work eventually.
     """
-    other_run = wandb.wandb_sdk.wandb_run.RunManaged(settings=test_settings)
+    other_run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     other_run._set_backend(mocked_run._backend)
     wb_image = wandb.Image(image)
 
