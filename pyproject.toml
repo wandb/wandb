@@ -21,4 +21,5 @@ include = '''
 | wandb/integration/keras/
 | wandb/integration/sagemaker/
 | wandb/sync/
+| wandb/secretagent/
 '''

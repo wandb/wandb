@@ -227,5 +227,9 @@ def _setup(settings=None, _warn=True):
     return wl
 
 
-def setup(settings=None):
-    return _setup(settings=settings)
+def setup(settings=None, _reset=None):
+    if _reset:
+        _WandbSetup._instance = None
+        return
+    ret = _setup(settings=settings)
+    return ret

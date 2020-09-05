@@ -73,6 +73,7 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
+from wandb.secretagent import secretagent
 
 # from wandb.core import *
 from wandb.viz import visualize
