@@ -51,6 +51,28 @@ def run(ctx):
 
     stopped = ctx.get("stopped", False)
 
+    # for wandb_tests::wandb_restore_name_not_found
+    # if there is a fileName query, and this query is for nofile.h5
+    # return an empty file. otherwise, return the usual weights.h5
+    if ctx.get('graphql'):
+        fileNames = ctx['graphql'][-1]['variables'].get('fileNames')
+    else:
+        fileNames = None
+    if fileNames == ["nofile.h5"]:
+        fileNode = {
+            "name": "nofile.h5",
+            "sizeBytes": 0,
+            "md5": "0",
+            "url": request.url_root + "/storage?file=nofile.h5",
+        }
+    else:
+        fileNode = {
+            "name": "weights.h5",
+            "sizeBytes": 20,
+            "md5": "XXX",
+            "url": request.url_root + "/storage?file=weights.h5",
+        }
+      
     return {
         "id": "test",
         "name": "wild-test",
@@ -71,12 +93,7 @@ def run(ctx):
             # Special weights url meant to be used with api_mocks#download_url
             "edges": [
                 {
-                    "node": {
-                        "name": "weights.h5",
-                        "sizeBytes": 20,
-                        "md5": "XXX",
-                        "url": request.url_root + "/storage?file=weights.h5",
-                    }
+                    "node": fileNode,
                 }
             ]
         },

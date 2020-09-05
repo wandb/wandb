@@ -836,6 +836,7 @@ class Run(RunBase):
 
         Raises:
             wandb.CommError if it can't find the run
+            ValueError if the file is not found
         """
 
         #  TODO: handle restore outside of a run context?
@@ -849,6 +850,9 @@ class Run(RunBase):
         files = api_run.files([name])
         if len(files) == 0:
             return None
+        # if the file does not exist, the file has an md5 of 0
+        if files[0].md5 == "0":
+            raise ValueError("File {} not found.".format(path))
         return files[0].download(root=root, replace=True)
 
     def finish(self, exit_code=None):

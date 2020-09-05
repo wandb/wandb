@@ -265,6 +265,12 @@ def test_restore(runner, mock_server, wandb_init_run):
         assert os.path.getsize(res.name) == 10000
 
 
+def test_restore_name_not_found(runner, mock_server, wandb_init_run):
+    with runner.isolated_filesystem():
+        with pytest.raises(ValueError):
+            wandb.restore("nofile.h5")
+
+
 @pytest.mark.wandb_args(env={"WANDB_RUN_ID": "123456"})
 def test_run_id(wandb_init_run):
     assert wandb.run.id == "123456"
