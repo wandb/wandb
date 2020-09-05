@@ -990,8 +990,8 @@ class Run(RunBase):
             err_redir = redirect.Redirect(
                 src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
-        elif console == self._settings.Console.WRAP:
-            logger.info("Wrapping output streams.")
+        elif console == self._settings.Console.NOTEBOOK:
+            logger.info("Redirecting notebook output.")
             out_redir = redirect.StreamWrapper(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )

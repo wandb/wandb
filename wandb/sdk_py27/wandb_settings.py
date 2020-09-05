@@ -172,7 +172,7 @@ def get_wandb_dir(root_dir):
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
-    WRAP = 1
+    NOTEBOOK = 1
     REDIRECT = 2
 
 
@@ -374,12 +374,14 @@ class Settings(object):
     def _console(self):
         convert_dict = dict(
             off=SettingsConsole.OFF,
-            wrap=SettingsConsole.WRAP,
+            notebook=SettingsConsole.NOTEBOOK,
             redirect=SettingsConsole.REDIRECT,
         )
         console = self.console
         if console == "auto":
-            if self._windows:
+            if self._jupyter:
+                console = "notebook"
+            elif self._windows:
                 legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
                 if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
                     msg = (
@@ -388,7 +390,7 @@ class Settings(object):
                         "back to monkey patching stdout/err." % legacy_env_var
                     )
                     logger.info(msg)
-                    console = "wrap"
+                    console = "notebook"
                 else:
                     console = "redirect"
             else:
@@ -462,7 +464,7 @@ class Settings(object):
             "auto",
             "redirect",
             "off",
-            "wrap",
+            "notebook",
         }
         if value in choices:
             return
