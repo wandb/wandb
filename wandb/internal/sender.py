@@ -346,6 +346,9 @@ class SendManager(object):
         storage_id = ups.get("id")
         if storage_id:
             self._run.storage_id = storage_id
+        id = ups.get("name")
+        if id:
+            self._api.set_current_run_id(id)
         display_name = ups.get("displayName")
         if display_name:
             self._run.display_name = display_name
@@ -355,12 +358,14 @@ class SendManager(object):
             if project_name:
                 self._run.project = project_name
                 self._project = project_name
+                self._api.set_setting("project", project_name)
             entity = project.get("entity")
             if entity:
                 entity_name = entity.get("name")
                 if entity_name:
                     self._run.entity = entity_name
                     self._entity = entity_name
+                    self._api.set_setting("entity", entity_name)
         sweep_id = ups.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
