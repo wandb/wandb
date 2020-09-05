@@ -30,6 +30,33 @@ class Unbuffered(object):
         return getattr(self.stream, attr)
 
 
+class StreamFork(object):
+
+    def __init__(self, output_streams, unbuffered=False):
+        self.output_streams = output_streams
+        self.unbuffered = unbuffered
+
+    def write(self, data):
+        output_streams = object.__getattribute__(self, 'output_streams')
+        unbuffered = object.__getattribute__(self, 'unbuffered')
+        for stream in output_streams:
+            stream.write(data)
+            if unbuffered:
+                stream.flush()
+
+    def writelines(self, datas):
+        output_streams = object.__getattribute__(self, 'output_streams')
+        unbuffered = object.__getattribute__(self, 'unbuffered')
+        for stream in output_streams:
+            stream.writelines(datas)
+            if unbuffered:
+                stream.flush()
+
+    def __getattr__(self, attr):
+        output_streams = object.__getattribute__(self, 'output_streams')
+        return getattr(output_streams[0], attr)
+
+
 class StreamWrapper(object):
     def __init__(self, name, cb, output_writer=None):
         self.name = name
@@ -119,9 +146,17 @@ class Redirect(object):
             # Do not close old filedescriptor as others might be using it
             fp.close()
         os.dup2(to_fd, self._old_fd)
-        setattr(sys, self._stream, os.fdopen(self._old_fd, "w"))
-        if unbuffered:
-            setattr(sys, self._stream, Unbuffered(getattr(sys, self._stream)))
+        if getattr(sys, self._stream) == getattr(sys, "__%s__" % self._stream):
+            setattr(sys, self._stream, os.fdopen(self._old_fd, "w"))
+            if unbuffered:
+                setattr(sys, self._stream, Unbuffered(getattr(sys, self._stream)))
+        else:
+            if close:
+                setattr(sys, self._stream, getattr(sys, self._stream).output_streams[0])
+            else:
+                setattr(sys, self._stream, StreamFork([getattr(sys, self._stream),
+                                                      os.fdopen(self._old_fd, "w")],
+                                                      unbuffered=unbuffered))
 
     def install(self):
         if self._installed:
@@ -137,7 +172,7 @@ class Redirect(object):
 
         logger.info("install start")
 
-        fp = getattr(sys, self._stream)
+        fp = getattr(sys, "__%s__" % self._stream)
         fd = fp.fileno()
         old_fp = os.fdopen(os.dup(fd), "w")
 
