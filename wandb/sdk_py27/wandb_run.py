@@ -32,7 +32,7 @@ from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.interface.summary_record import SummaryRecord
 from wandb.lib import filenames, module, proto_util, redirect, sparkline
-from wandb.util import sentry_set_scope, to_forward_slash_path
+from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
 from . import wandb_config
@@ -972,8 +972,9 @@ class Run(RunBase):
             if not self._settings._offline:
                 wandb.termlog("Run `wandb off` to turn off syncing.")
 
-    def _redirect(self, stdout_slave_fd, stderr_slave_fd):
-        console = self._settings._console
+    def _redirect(self, stdout_slave_fd, stderr_slave_fd, console=None):
+        if console is None:
+            console = self._settings._console
         logger.info("redirect: %s", console)
 
         if console == self._settings.Console.REDIRECT:
@@ -990,8 +991,22 @@ class Run(RunBase):
             err_redir = redirect.Redirect(
                 src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
-        elif console == self._settings.Console.NOTEBOOK:
-            logger.info("Redirecting notebook output.")
+            if os.name == "nt":
+
+                def wrap_fallback():
+                    self._out_redir.uninstall()
+                    self._err_redir.uninstall()
+                    msg = (
+                        "Tensorflow detected. Stream redirection is not supported "
+                        "on Windows when tensorflow is imported. Falling back to "
+                        "wrapping stdout/err."
+                    )
+                    wandb.termlog(msg)
+                    self._redirect(None, None, console=self._settings.Console.WRAP)
+
+                add_import_hook("tensorflow", wrap_fallback)
+        elif console == self._settings.Console.WRAP:
+            logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )

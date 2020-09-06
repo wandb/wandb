@@ -172,7 +172,7 @@ def get_wandb_dir(root_dir):
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
-    NOTEBOOK = 1
+    WRAP = 1
     REDIRECT = 2
 
 
@@ -374,23 +374,31 @@ class Settings(object):
     def _console(self):
         convert_dict = dict(
             off=SettingsConsole.OFF,
-            notebook=SettingsConsole.NOTEBOOK,
+            wrap=SettingsConsole.WRAP,
             redirect=SettingsConsole.REDIRECT,
         )
         console = self.console
         if console == "auto":
-            if self._jupyter:
-                console = "notebook"
-            elif self._windows:
+            if self._windows:
                 legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
                 if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
                     msg = (
                         "Set %s environment variable to enable"
                         " proper console logging on Windows. Falling "
-                        "back to monkey patching stdout/err." % legacy_env_var
+                        "back to wrapping stdout/err." % legacy_env_var
                     )
+                    wandb.termwarn(msg)
                     logger.info(msg)
-                    console = "notebook"
+                    console = "wrap"
+                if "tensorflow" in sys.modules:
+                    msg = (
+                        "Tensorflow detected. Stream redirection is not supported "
+                        "on Windows when tensorflow is imported. Falling back to "
+                        "wrapping stdout/err."
+                    )
+                    wandb.termlog(msg)
+                    logger.info(msg)
+                    console = "wrap"
                 else:
                     console = "redirect"
             else:
@@ -464,7 +472,7 @@ class Settings(object):
             "auto",
             "redirect",
             "off",
-            "notebook",
+            "wrap",
         }
         if value in choices:
             return
