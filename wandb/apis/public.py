@@ -772,9 +772,9 @@ class Runs(Paginator):
             return super()._load_page()
         except requests.HTTPError as e:
             if e.response.status_code == 400:
-                print("Bad request")
+                print("\nBad request")
                 if self._filters_include_key(lambda k: k.startswith("summary.")):
-                    print("You included a 'summary' key in your filters, which should probably be 'summary_metrics' instead.")
+                    print("\nYou included a 'summary' key in your filters, which should probably be 'summary_metrics' instead.\n")
 
     def _filters_include_key(self, checkFn):
         def traverse(o):
