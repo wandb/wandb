@@ -767,6 +767,29 @@ class Runs(Paginator):
 
         return objs
 
+    def _load_page(self):
+        try:
+            return super()._load_page()
+        except requests.HTTPError as e:
+            if e.response.status_code == 400:
+                print("Bad request")
+                if self._filters_include_key(lambda k: k.startswith("summary.")):
+                    print("You included a 'summary' key in your filters, which should probably be 'summary_metrics' instead.")
+
+    def _filters_include_key(self, checkFn):
+        def traverse(o):
+            if isinstance(o, list):
+                for v in o:
+                    if traverse(v):
+                        return True
+            elif isinstance(o, dict):
+                for k, v in o.items():
+                    if checkFn(k) or traverse(v):
+                        return True
+            return False
+
+        return traverse(self.filters)
+
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
 
