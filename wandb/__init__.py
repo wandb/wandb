@@ -1322,9 +1322,8 @@ catboost = util.LazyLoader('catboost', globals(), 'wandb.catboost')
 gym = util.LazyLoader('gym', globals(), 'wandb.gym')
 ray = util.LazyLoader('ray', globals(), 'wandb.ray')
 sklearn = util.LazyLoader('sklearn', globals(), 'wandb.sklearn')
-
-
+sacred =  util.LazyLoader('sacred', globals(), 'wandb.sacred')
 __all__ = ['init', 'config', 'summary', 'join', 'login', 'log', 'save', 'restore',
     'tensorflow', 'watch', 'types', 'tensorboard', 'jupyter', 'keras', 'fastai',
     'docker', 'lightgbm', 'catboost', 'xgboost', 'gym', 'ray', 'run', 'join', 'Image', 'Video',
-    'Audio',  'Table', 'Html', 'Object3D', 'Molecule', 'Histogram', 'Graph', 'Api']
+    'Audio',  'Table', 'Html', 'Object3D', 'Molecule', 'Histogram', 'Graph', 'Api', 'sacred']
