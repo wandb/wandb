@@ -769,7 +769,7 @@ class Runs(Paginator):
 
     def _load_page(self):
         try:
-            return super()._load_page()
+            return super(Runs, self)._load_page()
         except requests.HTTPError as e:
             if e.response.status_code == 400:
                 print("\nBad request")
