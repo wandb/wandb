@@ -1,3 +1,14 @@
+## 0.9.7 (September 8, 2020)
+
+#### :nail_care: Enhancement
+
+-  New sacred observer available at wandb.sacred.WandbObserver
+-  Improved artifact reference tracking for HTTP urls
+
+#### :bug: Bug Fix
+
+-  Print meaningful error message when runs are queried with `summary` instead of `summary_metrics`
+
 ## 0.9.6 (August 28, 2020)
 
 #### :nail_care: Enhancement
