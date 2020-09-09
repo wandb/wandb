@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Agent - Agent object.
 
-Manage wandb secret agent.
+Manage wandb jupyter agent.
 
 """
 
@@ -79,7 +79,8 @@ class Agent(object):
         )
         try:
             self._function()
-            wandb.join()
+            if wandb.run:
+                wandb.join()
         except KeyboardInterrupt as e:
             print("Keyboard interrupt", e)
             return True
