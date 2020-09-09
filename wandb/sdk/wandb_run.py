@@ -510,7 +510,7 @@ class Run(RunBase):
         self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self):
-        ret = self._backend.interface.request_summary()
+        ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
 
     def _datatypes_callback(self, fname):
