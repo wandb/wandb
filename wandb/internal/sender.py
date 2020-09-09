@@ -164,6 +164,9 @@ class SendManager(object):
         done = False
         if state == defer.BEGIN:
             pass
+        elif state == defer.FLUSH_STATS:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            pass
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass

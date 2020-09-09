@@ -116,7 +116,8 @@ class SystemStats(object):
                 time.sleep(0.1)
                 seconds += 0.1
                 if self._shutdown:
-                    break
+                    self.flush()
+                    return
 
     def shutdown(self):
         self._shutdown = True
