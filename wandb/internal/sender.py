@@ -127,9 +127,10 @@ class SendManager(object):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
-        viewer = self._api.viewer()
+        viewer_tuple = self._api.viewer_server_info()
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
+        viewer, server_info = viewer_tuple
         login_entity = viewer.get("entity")
         if record.control.req_resp:
             result = wandb_internal_pb2.Result(uuid=record.uuid)

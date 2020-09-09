@@ -35,6 +35,9 @@ class Api(object):
     def viewer(self):
         return self.api.viewer()
 
+    def viewer_server_info(self):
+        return self.api.viewer_server_info()
+
     def list_projects(self, entity=None):
         return self.api.list_projects(entity=entity)
 

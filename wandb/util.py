@@ -104,19 +104,19 @@ def sentry_set_scope(process_context, entity, project, url=None):
             scope.set_tag("url", url)
 
 
-def vendor_import(name):
+def vendor_setup():
     """This enables us to use the vendor directory for packages we don't depend on"""
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, 'vendor')
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", )
+    package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
+    for p in [vendor_dir] + package_dirs:
+        if p not in sys.path:
+            sys.path.insert(1, p)
 
-    # TODO: this really needs to go, was added for CI
-    if sys.modules.get("prompt_toolkit"):
-        for k in list(sys.modules.keys()):
-            if k.startswith("prompt_toolkit"):
-                del sys.modules[k]
 
-    # TODO(jhr): dont add if already there
-    sys.path.insert(1, vendor_dir)
+def vendor_import(name):
+    vendor_setup()
     return import_module(name)
 
 
