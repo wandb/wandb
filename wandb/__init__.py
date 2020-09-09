@@ -1293,7 +1293,7 @@ def init(job_type=None, dir=None, config=None, project=None, entity=None, reinit
     telemetry_updated = run.config._telemetry_update()
 
     if sagemaker_config:
-        run.config._update(sagemaker_config)
+        run.config._update(sagemaker_config, allow_val_change=allow_val_change)
         allow_val_change = True
     if config or telemetry_updated:
         run.config._update(config,
