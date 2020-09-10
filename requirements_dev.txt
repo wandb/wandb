@@ -57,3 +57,7 @@ scipy
 eli5
 spacy
 boto3
+gql
+shortuuid
+sentry_sdk
+GitPython
