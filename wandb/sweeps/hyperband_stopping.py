@@ -102,7 +102,12 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             band_values = [h[band] for h in all_run_histories if len(h) > band]
 
             if len(band_values) == 0:
-                threshold = np.inf
+                # If no run has gotten to this band yet, set the threshold impossibly low.
+                # So the first run to reach any new band's number of iters will always stop.
+                # Importantly this stops the first run in the sweep from going forever, which 
+                # is very wasteful as it's probably a pretty bad config because it's the first
+                # guess.
+                threshold = np.NINF
             else:
                 threshold = sorted(band_values)[
                     int((self.r) * len(band_values))]
@@ -110,7 +115,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             self.thresholds.append(threshold)
 
         info = {}
-        info['lines'] = []
+        info['lines'] = []  # This acts as an output log for `wandb sweep --controller --verbose`
         info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (
             band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
 
