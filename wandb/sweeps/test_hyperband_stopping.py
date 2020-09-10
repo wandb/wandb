@@ -24,8 +24,9 @@ def test_init_from_max_iter():
     assert et.bands == [2, 6]
 
 
-def test_single_run():
+def test_first_run():
     et = search.HyperbandEarlyTerminate.init_from_max_iter(18, 3, 2)
+    # bands are at 2,6
     stopped, lines = et.stop_runs({'metric': {
         'name': 'loss',
         'goal': 'minimize',
@@ -34,16 +35,60 @@ def test_single_run():
              [{'loss': 10},
               {'loss': 9},
               {'loss': 8},
+              ])]
+    )
+    # First run should stop.
+    assert stopped == ['a']
+
+
+def test_second_run_band1():
+    et = search.HyperbandEarlyTerminate.init_from_max_iter(18, 3, 2)
+    # bands are at 2,6
+    stopped, lines = et.stop_runs({'metric': {
+        'name': 'loss',
+        'goal': 'minimize',
+    }},
+        [Run('a', 'stopped',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
+              ]),
+         Run('b', 'running',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
+              ]),
+         ]
+    )
+    # Second to reach first band should keep going.
+    assert stopped == []
+
+
+def test_second_run_band2():
+    et = search.HyperbandEarlyTerminate.init_from_max_iter(18, 3, 2)
+    # bands are at 2,6
+    stopped, lines = et.stop_runs({'metric': {
+        'name': 'loss',
+        'goal': 'minimize',
+    }},
+        [Run('a', 'stopped',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
+              ]),
+         Run('b', 'running',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
               {'loss': 7},
               {'loss': 6},
               {'loss': 5},
               {'loss': 4},
-              {'loss': 3},
-              {'loss': 2},
-              {'loss': 1},
-              ])]
+              ]),
+         ]
     )
-    assert stopped == []
+    # First to reach second band should stop
+    assert stopped == ['b']
 
 
 def test_2runs_band1_stop():
@@ -99,7 +144,7 @@ def test_2runs_band1_pass():
               ]),
          ]
     )
-    assert stopped == []
+    assert stopped == []  # should really pass.
 
 
 def test_skipped_steps():
