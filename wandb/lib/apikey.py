@@ -81,7 +81,7 @@ def prompt_api_key(
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
-    elif not isatty(sys.stdout) or not isatty(sys.stdin):
+    elif not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin)):
         result = LOGIN_CHOICE_DRYRUN
     elif local:
         result = LOGIN_CHOICE_EXISTS
