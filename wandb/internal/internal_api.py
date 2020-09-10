@@ -1477,6 +1477,8 @@ class Api(object):
         if not is_user_created:
             run_name = run_name or self.current_run_id
 
+        if aliases is None:
+            aliases = []
         response = self.gql(mutation, variable_values={
             'entityName': entity_name,
             'projectName': project_name,

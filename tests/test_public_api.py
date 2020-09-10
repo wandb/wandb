@@ -96,6 +96,12 @@ def test_run_history(mock_server, api):
     assert run.history(pandas=False)[0] == {'acc': 10, 'loss': 90}
 
 
+def test_run_history_keys(mock_server, api):
+    run = api.run("test/test/test")
+    assert run.history(keys=["acc", "loss"], pandas=False) == [
+           {"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]
+
+
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
     assert run.config == {'epochs': 10}
@@ -262,6 +268,33 @@ def test_artifact_run_logged(runner, mock_server, api):
     arts = run.logged_artifacts()
     assert len(arts) == 2
     assert arts[0].name == "abc123"
+
+
+def test_artifact_manual_use(runner, mock_server, api):
+    run = api.run("test/test/test")
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    run.use_artifact(art)
+    assert True
+
+
+def test_artifact_manual_log(runner, mock_server, api):
+    run = api.run("test/test/test")
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    run.log_artifact(art)
+    assert True
+
+
+def test_artifact_manual_error(runner, mock_server, api):
+    run = api.run("test/test/test")
+    art = wandb.Artifact("test", type="dataset")
+    with pytest.raises(wandb.CommError):
+        run.log_artifact(art)
+    with pytest.raises(wandb.CommError):
+        run.use_artifact(art)
+    with pytest.raises(wandb.CommError):
+        run.use_artifact("entity/project/mnist:v0")
+    with pytest.raises(wandb.CommError):
+        run.log_artifact("entity/project/mnist:v0")
 
 
 @pytest.mark.skipif(platform.system() == "Windows",

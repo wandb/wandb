@@ -100,7 +100,7 @@ def run(ctx):
                 }
             ]
         },
-        "sampledHistory": ['{"loss": 0, "acc": 100}'],
+        "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
         "failed": False,
         "stopped": stopped,
