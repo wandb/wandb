@@ -379,7 +379,9 @@ class Settings(object):
         )
         console = self.console
         if console == "auto":
-            if self._windows:
+            if self._jupyter:
+                console = "wrap"
+            elif self._windows:
                 legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
                 if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
                     msg = (
