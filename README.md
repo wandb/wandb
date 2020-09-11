@@ -2,7 +2,7 @@
   <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client-ng.svg?style=svg)](https://circleci.com/gh/wandb/client-ng) [![pypi](https://img.shields.io/pypi/v/wandb-ng.svg)](https://pypi.python.org/pypi/wandb-ng) [![Coverage Status](https://coveralls.io/repos/github/wandb/client-ng/badge.svg)](https://coveralls.io/github/wandb/client-ng)
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client-ng.svg?style=svg)](https://circleci.com/gh/wandb/client-ng) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![Coverage Status](https://coveralls.io/repos/github/wandb/client-ng/badge.svg)](https://coveralls.io/github/wandb/client-ng)
 
 Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
 
