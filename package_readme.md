@@ -2,7 +2,7 @@
   <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb)
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client-ng.svg?style=svg)](https://circleci.com/gh/wandb/client-ng) [![pypi](https://img.shields.io/pypi/v/wandb-ng.svg)](https://pypi.python.org/pypi/wandb-ng) [![Coverage Status](https://coveralls.io/repos/github/wandb/client-ng/badge.svg)](https://coveralls.io/github/wandb/client-ng)
 
 Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
 
@@ -23,7 +23,7 @@ Use W&B to organize and analyze machine learning experiments. It's framework-agn
 ## Quickstart
 
 ```shell
-pip install wandb-ng
+pip install wandb
 ```
 
 In your training script:
@@ -70,10 +70,9 @@ Framework specific and detailed usage can be found in our [documentation](http:/
 
 ## Testing
 
-To run the tests we use `pytest tests`. If you want a simple mock of the wandb backend and cloud storage you can use the mock_server fixture, see tests/test_cli.py for examples.
-To run the tests with coverage use `make coverage`, a html report is created in the `htmlcov` folder, if all tests pass. 
+To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
 
-We use [circleci](https://circleci.com) and [appveyor](https://appveyor.com) for CI.
+We use [circleci](https://circleci.com) for CI.
 
 # Academic Researchers
 If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
@@ -84,6 +83,6 @@ We make it easy to cite W&B in your published paper. [Learn more →](https://ww
 ## Community
 Got questions, feedback or want to join a community of ML engineers working on exciting projects?
 
-[![Slack](https://i.imgur.com/fSP5ro7.png)](http://bit.ly/wandb-forum) Join our community [slack](http://bit.ly/wandb-forum).
+<a href="https://bit.ly/wb-slack"><img src="https://svgshare.com/i/M93.svg" alt="slack" width="55"/></a> Join our [slack](https://bit.ly/wb-slack) community.
 
-[![Twitter](https://i.imgur.com/efGJdm6.png)](https://twitter.com/weights_biases) Find us on [twitter](https://twitter.com/weights_biases).
+[![Twitter](https://img.shields.io/twitter/follow/weights_biases?style=social)](https://twitter.com/weights_biases) Follow us on [Twitter](https://twitter.com/weights_biases).
