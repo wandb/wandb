@@ -89,7 +89,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         _set_logger(self._early_logger)
 
         # Have to load viewer before setting up settings.
-        self._load_viewer()
+        self._load_viewer(settings=settings)
 
         self._settings_setup(settings, self._early_logger)
         self._settings.freeze()
@@ -150,8 +150,8 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _get_user_flags(self):
         return self._server._flags
 
-    def _load_viewer(self):
-        s = server.Server()
+    def _load_viewer(self, settings=None):
+        s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
         # if self.mode != "dryrun" and not self._api.disabled() and self._api.api_key:

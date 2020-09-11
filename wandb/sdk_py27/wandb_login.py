@@ -16,6 +16,9 @@ from wandb.lib import apikey
 
 logger = logging.getLogger("wandb")
 
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Dict  # noqa: F401 pylint: disable=unused-import
+
 
 def _validate_anonymous_setting(anon_str):
     return anon_str in ["must", "allow", "never"]
@@ -55,7 +58,7 @@ def _login(
             wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
         return True
 
-    settings = {}
+    settings_dict = {}
     api = Api()
 
     if anonymous is not None:
@@ -66,14 +69,20 @@ def _login(
                 "wandb.login(). Can be 'must', 'allow', or 'never'."
             )
             return False
-        settings.update({"anonymous": anonymous})
+        settings_dict.update({"anonymous": anonymous})
+
+    if key:
+        settings_dict.update({"api_key": key})
 
     # Note: This won't actually do anything if called from a codepath where
     # wandb.setup was previously called. If wandb.setup is called further up,
     # you must make sure the anonymous setting (and any other settings) are
     # already properly set up there.
-    wl = wandb.setup()
-    settings = _settings or wl.settings()
+    wl = wandb.setup(settings=wandb.Settings(**settings_dict))
+    wl_settings = wl.settings()
+    if _settings:
+        wl_settings._apply_settings(settings=_settings)
+    settings = wl_settings
 
     if settings._offline:
         return False
