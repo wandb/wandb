@@ -9,10 +9,6 @@ Try the latest version of W&B for machine learning experiment tracking. Install 
 pip install wandb --upgrade --pre
 ```
 
-Why should I switch to the new CLI?
-- Better support for Windows and Jupyter notebooks
-- Preview the upcoming release and share feedback
-
 ## Support
 
 This package is considered experimental but it is *Actively Supported*.  Issues will be responded to within 1
@@ -21,24 +17,6 @@ working day.
 File issues [in this repository](https://github.com/wandb/client-ng/issues). Please specify the version when reporting issues: `wandb --version`
 
 Alternatively you can discuss problems in the [Public Slack Forum](http://bit.ly/wandb-forum) in channel `#wandb-cling`.
-
-## Compatibility status
-
-- Only online mode is supported.  Only use this on a machine with a stable internet connection.
-- No `tensorboard_sync` option, no `from wandb import magic`
-- No wandb.init() context manager
-- Only supported commandline options: login, sweep, agent, controller
-- No code saving support for jupyter
-- No resume support
-
-All these compatibility issues will be addressed in upcoming releases.
-
-## Known issues
-
-| Problem | Bug | Estimated fix date |
-| - | - | - |
-| Console logs have extra linefeed | | |
-| python2 occasionally throws spurious exception at end of script execution | | |
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client-ng.svg?style=svg)](https://circleci.com/gh/wandb/client-ng) [![pypi](https://img.shields.io/pypi/v/wandb-ng.svg)](https://pypi.python.org/pypi/wandb-ng) [![Coverage Status](https://coveralls.io/repos/github/wandb/client-ng/badge.svg)](https://coveralls.io/github/wandb/client-ng)
 
