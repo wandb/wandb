@@ -1,9 +1,8 @@
 import logging
 import time
-import sys
 import os
-import json
 import re
+import json
 import six
 import yaml
 import tempfile
@@ -14,21 +13,19 @@ from gql.transport.requests import RequestsHTTPTransport
 from six.moves import urllib
 from functools import partial
 import shutil
-import hashlib
-import base64
 import requests
 import platform
 
 import wandb
-from wandb.core import termlog
-from wandb import Error, __version__
-from wandb import artifacts
+from wandb.errors.term import termlog
+from wandb import __version__
 from wandb import util
-from wandb.retry import retriable
-from wandb.summary import HTTPSummary
+from wandb.old.retry import retriable
+from wandb.old.summary import HTTPSummary
 from wandb import env
+from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.internal import Api as InternalApi
-from wandb.apis import normalize_exceptions
+from wandb.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -268,23 +265,15 @@ class Api(object):
         self._runs = {}
 
     def _parse_project_path(self, path):
-        """Parses paths in the following formats:
-
-        entity/project
-        project
-
-        entity is optional and will fall back to the current logged in user
-        """
-        parts = path.split("/")
-        entity = self.settings['entity'] or self.default_entity
+        """Returns project and entity for project specified by path"""
         project = self.settings['project']
+        entity = self.settings['entity'] or self.default_entity
+        if path is None:
+            return entity, project
+        parts = path.split('/', 1)
         if len(parts) == 1:
-            project = parts[1]
-        elif len(parts) == 2:
-            entity, project = parts[0], parts[1]
-        else:
-            raise ValueError('Invalid project path: %s' % path)
-        return entity, project
+            return entity, path
+        return parts
 
     def _parse_path(self, path):
         """Parses paths in the following formats:
@@ -293,8 +282,9 @@ class Api(object):
         path: entity/project/run_id
         docker: entity/project:run_id
 
-        entity is optional and will fall back to the current logged in user.
+        entity is optional and will fallback to the current logged in user.
         """
+        run = self.settings['run']
         project = self.settings['project']
         entity = self.settings['entity'] or self.default_entity
         parts = path.replace("/runs/", "/").strip("/ ").split("/")
@@ -328,17 +318,6 @@ class Api(object):
             return entity, project, path
         elif len(parts) == 2:
             return entity, parts[0], parts[1]
-        return parts
-
-    def _parse_project_path(self, path):
-        """Returns project and entity for project specified by path"""
-        project = self.settings['project']
-        entity = self.settings['entity'] or self.default_entity
-        if path is None:
-            return entity, project
-        parts = path.split('/', 1)
-        if len(parts) == 1:
-            return entity, path
         return parts
 
     def projects(self, entity=None, per_page=200):
@@ -500,7 +479,6 @@ class Api(object):
         """
         if name is None:
             raise ValueError('You must specify name= to fetch an artifact.')
-
         entity, project, artifact_name = self._parse_artifact_path(name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
@@ -767,29 +745,6 @@ class Runs(Paginator):
 
         return objs
 
-    def _load_page(self):
-        try:
-            return super(Runs, self)._load_page()
-        except requests.HTTPError as e:
-            if e.response.status_code == 400:
-                print("\nBad request")
-                if self._filters_include_key(lambda k: k.startswith("summary.")):
-                    print("\nYou included a 'summary' key in your filters, which should probably be 'summary_metrics' instead.\n")
-
-    def _filters_include_key(self, checkFn):
-        def traverse(o):
-            if isinstance(o, list):
-                for v in o:
-                    if traverse(v):
-                        return True
-            elif isinstance(o, dict):
-                for k, v in o.items():
-                    if checkFn(k) or traverse(v):
-                        return True
-            return False
-
-        return traverse(self.filters)
-
     def __repr__(self):
         return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
 
@@ -1005,7 +960,8 @@ class Run(Attrs):
         ''')
 
         response = self._exec(query, specs=[json.dumps(spec)])
-        return [line for line in response['project']['run']['sampledHistory']]
+        # sampledHistory returns one list per spec, we only send one spec
+        return response['project']['run']['sampledHistory'][0]
 
     def _full_history(self, samples=500, stream="default"):
         node = "history" if stream == "default" else "events"
@@ -1118,6 +1074,55 @@ class Run(Attrs):
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
+
+    @normalize_exceptions
+    def use_artifact(self, artifact):
+        """ Declare an artifact as an input to a run.
+
+        Args:
+            artifact (:obj:`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        api = InternalApi(default_settings={
+            "entity": self.entity, "project": self.project})
+        api.set_current_run_id(self.id)
+
+        if isinstance(artifact, Artifact):
+            api.use_artifact(artifact.id)
+            return artifact
+        elif isinstance(artifact, wandb.Artifact):
+            raise ValueError("Only existing artifacts are accepted by this api. "
+                             "Manually create one with `wandb artifacts put`")
+        else:
+            raise ValueError('You must pass a wandb.Api().artifact() to use_artifact')
+
+    @normalize_exceptions
+    def log_artifact(self, artifact, aliases=None):
+        """ Declare an artifact as output of a run.
+
+        Args:
+            artifact (:obj:`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A :obj:`Artifact` object.
+        """
+        api = InternalApi(default_settings={
+            "entity": self.entity, "project": self.project})
+        api.set_current_run_id(self.id)
+
+        if isinstance(artifact, Artifact):
+            artifact_collection_name = artifact.name.split(':')[0]
+            api.create_artifact(artifact.type, artifact_collection_name,
+                                artifact.digest, aliases=aliases)
+            return artifact
+        elif isinstance(artifact, wandb.Artifact):
+            raise ValueError("Only existing artifacts are accepted by this api. "
+                             "Manually create one with `wandb artifacts put`")
+        else:
+            raise ValueError('You must pass a wandb.Api().artifact() to use_artifact')
 
     @property
     def summary(self):
@@ -1822,6 +1827,8 @@ class ProjectArtifactTypes(Paginator):
         self.variables.update({'cursor': self.cursor})
 
     def convert_objects(self):
+        if self.last_response['project'] is None:
+            return []
         return [ArtifactType(self.client, self.entity, self.project, r["node"]["name"], r["node"])
                 for r in self.last_response['project']['artifactTypes']['edges']]
 
@@ -2078,7 +2085,6 @@ class ArtifactCollection(object):
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
-
 class Artifact(object):
 
     def __init__(self, client, entity, project, name, attrs=None):
@@ -2097,7 +2103,7 @@ class Artifact(object):
     @property
     def id(self):
         return self._attrs["id"]
-
+    
     @property
     def metadata(self):
         return self._metadata
@@ -2108,6 +2114,10 @@ class Artifact(object):
     #     # paths don't include the object type (which makes them hard to distinguish).
     #     # We should maybe use URIs here.
     #     return '%s/%s/artifact/%s/%s' % (self.entity, self.project, self.artifact_type_name, self.artifact_name)
+
+    @property
+    def manifest(self):
+        return self._load_manifest()
 
     @property
     def digest(self):
@@ -2152,8 +2162,34 @@ class Artifact(object):
         for alias in self._attrs["aliases"]:
             if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
                 return '%s:%s' % (artifact_collection_name, alias["alias"])
-
+        
         raise ValueError('Unexpected API result.')
+
+    @property
+    def aliases(self):
+        if ":" not in self.artifact_name:
+            # this is a digest lookup
+            return []
+        artifact_collection_name = self.artifact_name.split(':')[0]
+        return [a["alias"] for a in self._attrs["aliases"]
+            if not re.match(r"^v\d+$", a["alias"]) and
+                a["artifactCollectionName"] == artifact_collection_name]
+
+    def delete(self):
+        """Delete artifact and it's files."""
+        mutation = gql('''
+        mutation deleteArtifact($id: ID!) {
+            deleteArtifact(input: {artifactID: $id}) {
+                artifact {
+                    id
+                }
+            }
+        }
+        ''')
+        self.client.execute(mutation, variable_values={
+            "id": self.id,
+        })
+        return True
 
     def new_file(self, name, mode=None):
         raise ValueError('Cannot add files to an artifact once it has been saved')
@@ -2269,16 +2305,13 @@ class Artifact(object):
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         if nfiles > 1:
-            raise ValueError(
-                "This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
+            raise ValueError("This artifact contains more than one file, call `.download()` to get all files or call .get_path(\"filename\").download()")
 
         return self._download_file(list(manifest.entries)[0], root)
 
     def _download_file(self, name, dirpath):
-        # download file into cache
-        artifact_entry = self.get_path(name)
-        # copy file into target dir
-        return artifact_entry.download(dirpath)
+        # download file into cache and copy to target dir
+        return self.get_path(name).download(dirpath)
 
     @normalize_exceptions
     def save(self):
@@ -2371,15 +2404,12 @@ class Artifact(object):
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
             if ':' not in self.artifact_name and len(self.artifact_name) != 32:
-                raise ValueError(
-                    'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
+                raise ValueError('Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")')
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
-        if 'metadata' in response['project']['artifact']:
-            metadata = response['project']['artifact']['metadata']
-            if metadata is not None:
-                self._metadata = json.loads(metadata)
+        if 'metadata' in response['project']['artifact'] and response['project']['artifact']['metadata']:
+            self._metadata = json.loads(response['project']['artifact']['metadata'])
         return self._attrs
 
     # The only file should be wandb_manifest.json
@@ -2389,13 +2419,9 @@ class Artifact(object):
     def _load_manifest(self):
         if self._manifest is None:
             index_file_url = self._attrs['currentManifest']['file']['url']
-            with requests.get(index_file_url, auth=("api", Api().api_key)) as req:
-                json_resp = json.loads(req.content)
-                if "error" in json_resp:
-                    raise ValueError("Failed to download manifest file: {}".format(json_resp["error"]))
-                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json_resp)
+            with requests.get(index_file_url) as req:
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(self, json.loads(req.content))
         return self._manifest
-
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
@@ -2468,7 +2494,6 @@ class ArtifactVersions(Paginator):
             return []
         return [Artifact(self.client, self.entity, self.project, self.collection_name + ":" + a["version"], a["node"])
                 for a in self.last_response['project']['artifactType']['artifactSequence']['artifacts']['edges']]
-
 
 class ArtifactFiles(Paginator):
     QUERY = gql('''

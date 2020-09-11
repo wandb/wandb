@@ -1,0 +1,25 @@
+[tool.black]
+line-length = 88
+exclude = '''
+  wandb/internal/internal_api.py
+| wandb/internal/file_pusher.py
+| wandb/internal/file_stream.py
+| wandb/internal/stats.py
+| wandb/internal/git_repo.py
+'''
+include = '''
+  wandb/sdk/
+| wandb/backend/
+| wandb/interface/
+| wandb/internal/
+| wandb/util/
+| wandb/server/
+| wandb/integration/gym/
+| wandb/integration/tensorboard/
+| wandb/cli/
+| wandb/integration/magic.py
+| wandb/integration/keras/
+| wandb/integration/sagemaker/
+| wandb/sync/
+| wandb/secretagent/
+'''

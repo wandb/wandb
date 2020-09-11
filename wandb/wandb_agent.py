@@ -17,10 +17,8 @@ import yaml
 
 import wandb
 from wandb.apis import InternalApi
-from wandb.wandb_config import Config
+from wandb.lib import config_util
 from wandb import util
-from wandb import wandb_run
-from wandb import env
 
 
 logger = logging.getLogger(__name__)
@@ -157,7 +155,7 @@ class Agent(object):
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
             exit codes in the first FLAPPING_MAX_SECONDS"""
-        if os.getenv(env.AGENT_DISABLE_FLAPPING) == "true":
+        if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
@@ -288,27 +286,22 @@ class Agent(object):
             print('wandb: Agent Starting Run: {} with config:\n'.format(command.get('run_id'))  +
                     '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
 
-        run = wandb_run.Run(mode='run',
-                            sweep_id=self._sweep_id,
-                            storage_id=command.get('run_storage_id'),
-                            run_id=command.get('run_id'))
-
-        # save the the wandb config to reflect the state of the run that the
-        # the server generated.
-        run.config.set_run_dir(run.dir)
-        run.config.update({k: v['value'] for k, v in command['args'].items()})
+        run_id = command.get('run_id')
+        sweep_id = os.environ.get(wandb.env.SWEEP_ID)
+        # TODO(jhr): move into settings
+        config_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
+        config_util.save_config_file_from_dict(config_file, command['args'])
+        os.environ[wandb.env.RUN_ID] = run_id
+        os.environ[wandb.env.CONFIG_PATHS] = config_file
 
         env = dict(os.environ)
-        sweep_env = command.get('env', {})
-        env.update(sweep_env)
-        run.set_environment(env)
 
         flags = ["--{}={}".format(name, config['value'])
                  for name, config in command['args'].items()]
 
         if self._function:
             proc = AgentProcess(function=self._function, env=env,
-                    run_id=command.get('run_id'), in_jupyter=self._in_jupyter)
+                    run_id=run_id, in_jupyter=self._in_jupyter)
         else:
             sweep_vars = dict(interpreter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
             if platform.system() == "Windows":
@@ -322,13 +315,14 @@ class Agent(object):
                     command_list += replace_list or []
                 else:
                     command_list += [c]
-            logger.info('About to run command: {}'.format(' '.join(command_list)))
+            logger.info('About to run command: {}'.format(' '.join(
+                '"%s"' % c if ' ' in c else c for c in command_list)))
             proc = AgentProcess(command=command_list, env=env)
-        self._run_processes[run.id] = proc
+        self._run_processes[run_id] = proc
 
         # we keep track of when we sent the sigterm to give processes a chance
         # to handle the signal before sending sigkill every heartbeat
-        self._run_processes[run.id].last_sigterm_time = None
+        self._run_processes[run_id].last_sigterm_time = None
         self._last_report_time = None
 
     def _command_stop(self, command):
@@ -395,9 +389,12 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
     sweep_id = parts.get("name") or sweep_id
 
     if entity:
-        env.set_entity(entity)
+        wandb.env.set_entity(entity)
     if project:
-        env.set_project(project)
+        wandb.env.set_project(project)
+    if sweep_id:
+        # TODO(jhr): remove when jobspec is merged
+        os.environ[wandb.env.SWEEP_ID] = sweep_id
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     log_level = logging.DEBUG
@@ -427,12 +424,14 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         function (func, optional): A function to call instead of the "program" specifed in the config
         entity (str, optional): W&B Entity
         project (str, optional): W&B Project
-        count (ing, optional): the number of trials to run.
+        count (int, optional): the number of trials to run.
     """
     in_jupyter = wandb._get_python_type() != "python"
     if in_jupyter:
-        os.environ[env.JUPYTER] = "true"
+        os.environ[wandb.env.JUPYTER] = "true"
         _api0 = InternalApi()
         if not _api0.api_key:
             wandb._jupyter_login(api=_api0)
+
+    settings = wandb.Settings()
     return run_agent(sweep_id, function=function, in_jupyter=in_jupyter, entity=entity, project=project, count=count)

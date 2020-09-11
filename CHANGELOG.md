@@ -1,3 +1,19 @@
+## 0.10.0 (September 11, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added history sparklines at end of run
+-  Artifact improvements and API for linking
+-  Improved offline support and syncing
+-  Basic noop mode support to simplify testing
+-  Improved windows/pycharm support 
+-  Run object has more modifiable properties
+-  Public API supports attaching artifacts to historic runs
+
+#### :bug: Bug Fix
+
+-  Many bugs fixed due to simplifying logic
+
 ## 0.9.7 (September 8, 2020)
 
 #### :nail_care: Enhancement

@@ -80,7 +80,7 @@ class TorchHistory(object):
         self._jupyter_run = None
 
     def add_log_hooks_to_pytorch_module(self, module, name=None, prefix='', log_parameters=True, log_gradients=True, log_freq=0, jupyter_run=None):
-        """ This instruments hooks into the pytorch module
+        """ This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
@@ -162,12 +162,12 @@ class TorchHistory(object):
             sparse_zeros = all_values - non_zero_values
             tensor = backing_values
 
-        flat = tensor.contiguous().view(-1)
+        flat = tensor.view(-1)
 
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            history.row.update({
+            history._row_update({
                 name: wandb.Histogram(tensor)
             })
             return
@@ -239,7 +239,7 @@ class TorchHistory(object):
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        history.row.update({
+        history._row_update({
             name: wandb.Histogram(np_histogram=(
                 tensor.tolist(), bins.tolist()))
         })
