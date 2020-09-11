@@ -187,11 +187,11 @@ def test_login_key(capsys):
     assert wandb.api.api_key == "A" * 40
 
 
-def test_login_existing_key():
+def test_login_invalid_key():
     os.environ["WANDB_API_KEY"] = "B" * 40
     wandb.ensure_configured()
-    wandb.login()
-    assert wandb.api.api_key == "B" * 40
+    with pytest.raises(wandb.UsageError):
+        wandb.login()
     del os.environ["WANDB_API_KEY"]
 
 

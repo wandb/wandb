@@ -145,6 +145,7 @@ def test_settings(test_dir, mocker):
                               project="test",
                               console="off",
                               host="test",
+                              api_key=DUMMY_API_KEY,
                               run_id=wandb.util.generate_id(),
                               _start_datetime=datetime.datetime.now())
     settings.setdefaults()
@@ -172,6 +173,7 @@ def runner(monkeypatch, mocker):
                         'project_name': 'test_model', 'files': ['weights.h5'],
                         'attach': False, 'team_name': 'Manual Entry'})
     monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
+    mocker.patch("wandb.lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.lib.apikey.input", lambda x: 1)
     mocker.patch("wandb.lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()

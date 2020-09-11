@@ -19,6 +19,11 @@ def api(runner):
     return Api()
 
 
+def test_api_auto_login_no_tty(mocker):
+    with pytest.raises(wandb.UsageError):
+        Api()
+
+
 def test_parse_project_path(api):
     e, p = api._parse_project_path("user/proj")
     assert e == "user"

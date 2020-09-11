@@ -148,6 +148,10 @@ class _WandbInit(object):
                     print("Ignored wandb.init() arg %s when running a sweep" % key)
         settings.apply_init(kwargs)
 
+        login_key = wandb_login._login(_disable_warning=True, _settings=settings)
+        if not login_key:
+            settings.mode = "offline"
+
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)

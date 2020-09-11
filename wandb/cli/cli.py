@@ -205,7 +205,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
 
-    wandb.login(relogin=relogin, key=key, anonymous=anon_mode)
+    wandb.login(relogin=relogin, key=key, anonymous=anon_mode, force=True)
 
 
 @cli.command(

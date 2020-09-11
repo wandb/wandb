@@ -50,7 +50,7 @@ Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors.error import CommError
+from wandb.errors.error import CommError, UsageError
 
 from wandb.lib import preinit as _preinit
 from wandb.lib import lazyloader as _lazyloader
