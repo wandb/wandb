@@ -138,7 +138,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                     if min(history) > closest_threshold:
                         terminate_run_names.append(run.name)
                         termstr = " STOP"
-                    elif (min(history) == closest_threshold) and (closest_cnt == 1):
+                    elif closest_cnt == 1:
                         # This is the first run to reach this band.  Stop it.
                         # This means early runs are always short, and don't run their full length.
                         # Letting early runs go to completion can be very wasteful with bayes or

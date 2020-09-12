@@ -91,13 +91,40 @@ def test_second_run_band2():
     assert stopped == ['b']
 
 
+def test_second_run_band2_noisymetric():
+    et = search.HyperbandEarlyTerminate.init_from_max_iter(18, 3, 2)
+    # bands are at 2,6
+    stopped, lines = et.stop_runs({'metric': {
+        'name': 'loss',
+        'goal': 'minimize',
+    }},
+        [Run('a', 'stopped',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
+              ]),
+         Run('b', 'running',
+             [{'loss': 10},
+              {'loss': 9},
+              {'loss': 8},
+              {'loss': 7},
+              {'loss': 6},
+              {'loss': 3.5},
+              {'loss': 4},
+              ]),
+         ]
+    )
+    # First to reach second band should stop
+    assert stopped == ['b']
+
+
 def test_2runs_band1_stop():
     et = search.HyperbandEarlyTerminate.init_from_max_iter(18, 3, 2)
     stopped, lines = et.stop_runs({'metric': {
         'name': 'loss',
         'goal': 'minimize',
     }},
-        [Run('a', 'running',
+        [Run('a', 'stopped',
              [{'loss': 10},
               {'loss': 9},
               {'loss': 8},
@@ -125,7 +152,7 @@ def test_2runs_band1_pass():
         'name': 'loss',
         'goal': 'minimize',
     }},
-        [Run('a', 'running',
+        [Run('a', 'stopped',
              [{'loss': 10},
               {'loss': 9},
               {'loss': 8},
@@ -144,7 +171,7 @@ def test_2runs_band1_pass():
               ]),
          ]
     )
-    assert stopped == []  # should really pass.
+    assert stopped == []
 
 
 def test_skipped_steps():
