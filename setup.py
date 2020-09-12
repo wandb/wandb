@@ -22,8 +22,8 @@ grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
-    name='wandb-ng',
-    version='0.0.44',
+    name='wandb',
+    version='0.10.1.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
