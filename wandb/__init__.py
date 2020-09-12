@@ -22,7 +22,7 @@ from __future__ import unicode_literals
 __version__ = '0.0.43'
 
 # Used with pypi checks and other messages related to pip
-_wandb_module = 'wandb-ng'
+_wandb_module = 'wandb'
 
 import sys
 
