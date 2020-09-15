@@ -98,22 +98,17 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._setup()
 
     def _settings_setup(self, settings=None, early_logger=None):
-        kwargs = dict(
-            _environ=self._environ,
-            _files=True,
-            _early_logger=early_logger,
-            _settings=settings,
-        )
-
         # TODO: Do a more formal merge of user settings from the backend.
         flags = self._get_user_flags()
+        user_settings = {}
         if "code_saving_enabled" in flags:
             logger.info("enabling code saving by default")
-            kwargs["save_code"] = flags["code_saving_enabled"]
+            user_settings["save_code"] = flags["code_saving_enabled"]
 
         s = wandb_settings.Settings()
         s._apply_configfiles(_logger=early_logger)
         s._apply_environ(self._environ, _logger=early_logger)
+        s._apply_user(user_settings, _logger=early_logger)
         if settings:
             s._apply_settings(settings, _logger=early_logger)
 

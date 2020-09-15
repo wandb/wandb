@@ -532,6 +532,10 @@ class Settings(object):
         _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
+    def _apply_user(self, user_settings, _logger=None):
+        _logger.info("setting user settings: {}", user_settings)
+        self._update(user_settings, _source=self.Source.USER)
+
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
 
