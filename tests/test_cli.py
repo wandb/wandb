@@ -2,6 +2,7 @@ import wandb
 from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 import contextlib
+import datetime
 import traceback
 import platform
 import getpass
@@ -721,3 +722,30 @@ def test_restore_not_git(runner, mock_server, docker, monkeypatch):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "Original run has no git history" in result.output
+
+
+def test_gc(runner):
+    with runner.isolated_filesystem():
+        if not os.path.isdir("wandb"):
+            os.mkdir("wandb")
+        d1 = datetime.datetime.now()
+        d2 = d1 - datetime.timedelta(hours=3)
+        run1 = d1.strftime("run-%Y%m%d_%H%M%S-abcd")
+        run2 = d2.strftime("run-%Y%m%d_%H%M%S-efgh")
+        run1_dir = os.path.join("wandb", run1)
+        run2_dir = os.path.join("wandb", run2)
+        os.mkdir(run1_dir)
+        with open(os.path.join(run1_dir, "run-abcd.wandb"), 'w') as f:
+            f.write('')
+        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), 'w') as f:
+            f.write('')
+        os.mkdir(run2_dir)
+        with open(os.path.join(run2_dir, "run-efgh.wandb"), 'w') as f:
+            f.write('')
+        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), 'w') as f:
+            f.write('')
+        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "2"], input='y\n').exit_code == 0
+        assert os.path.exists(run1_dir)
+        assert not os.path.exists(run2_dir)
+        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "0"], input='y\n').exit_code == 0
+        assert not os.path.exists(run1_dir)
