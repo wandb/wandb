@@ -44,7 +44,6 @@ class HandleManager(object):
         assert record_type
         handler_str = "handle_" + record_type
         handler = getattr(self, handler_str, None)
-        logger.debug("handle: {}".format(record_type))
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 

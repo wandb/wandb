@@ -81,7 +81,8 @@ class SystemStats(object):
             self._shutdown = False
             self._thread = threading.Thread(target=self._thread_body)
             self._thread.daemon = True
-        self._thread.start()
+        if not self._thread.is_alive():
+            self._thread.start()
 
     @property
     def proc(self):
