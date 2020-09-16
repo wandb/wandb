@@ -1521,4 +1521,8 @@ class WriteSerializingFile(object):
             self.lock.release()
 
     def close(self):
-        self.f.close()
+        self.lock.acquire()  # wait for pending writes
+        try:
+            self.f.close()
+        finally:
+            self.lock.release()
