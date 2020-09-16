@@ -193,7 +193,9 @@ def projects(entity, display=True):
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
-    wandb.setup(settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode))
+    wandb.setup(
+        settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode, base_url=host)
+    )
     api = _get_cling_api()
 
     if host == "https://api.wandb.ai" or (host is None and cloud):
@@ -207,7 +209,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
 
-    wandb.login(relogin=relogin, key=key, anonymous=anon_mode, force=True)
+    wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 
 @cli.command(

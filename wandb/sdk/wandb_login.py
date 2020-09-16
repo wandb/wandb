@@ -24,8 +24,10 @@ def _validate_anonymous_setting(anon_str):
     return anon_str in ["must", "allow", "never"]
 
 
-def login(anonymous=None, key=None, relogin=None, force=None):
-    configured = _login(anonymous=anonymous, key=key, relogin=relogin, force=force)
+def login(anonymous=None, key=None, relogin=None, host=None, force=None):
+    configured = _login(
+        anonymous=anonymous, key=key, relogin=relogin, host=host, force=force
+    )
     return True if configured else False
 
 
@@ -34,6 +36,7 @@ def _login(
     key=None,
     relogin=None,
     force=None,
+    host=None,
     _backend=None,
     _disable_warning=None,
     _settings=None,
@@ -43,6 +46,7 @@ def _login(
     Args:
         settings (dict, optional): Override settings.
         relogin (bool, optional): If true, will re-prompt for API key.
+        host (string, optional): The host to connect to
         anonymous (string, optional): Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
@@ -70,6 +74,9 @@ def _login(
             )
             return False
         settings_dict.update({"anonymous": anonymous})
+
+    if host is not None:
+        settings_dict.update({"base_url": host})
 
     if key:
         settings_dict.update({"api_key": key})
