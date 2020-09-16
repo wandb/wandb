@@ -407,7 +407,7 @@ class WandbStoragePolicy(StoragePolicy):
             return path
 
         response = self._session.get(
-            self._file_url(self._api, artifact.entity, manifest_entry.digest),
+            self._file_url(self._api, artifact.entity, manifest_entry),
             auth=("api", self._api.api_key),
             stream=True,
         )
@@ -428,15 +428,23 @@ class WandbStoragePolicy(StoragePolicy):
     def load_reference(self, artifact, name, manifest_entry, local=False):
         return self._handler.load_path(self._cache, manifest_entry, local)
 
-    def _file_url(self, api, entity_name, md5):
+    def _file_url(self, api, entity_name, manifest_entry):
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
+        storage_region = self._config.get("storageRegion", "default")
+
         if storage_layout == StorageLayout.V1:
-            md5_hex = util.bytes_to_hex(base64.b64decode(md5))
+            md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
             return "{}/artifacts/{}/{}".format(
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
-            return  # TODO need to pull region info
+            return "{}/artifactsV2/{}/{}/{}/{}".format(
+                api.settings("base_url"),
+                storage_region,
+                entity_name,
+                manifest_entry.birth_artifact_id,
+                manifest_entry.digest,
+            )
         else:
             raise Exception("unrecognized storage layout: {}".format(storage_layout))
 

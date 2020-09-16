@@ -552,7 +552,7 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "url": request.url_root + "/storage?file=wandb_manifest.json",
+                    "directUrl": request.url_root + "/storage?file=wandb_manifest.json",
                 },
             }
             return {"data": {"project": {"artifact": art}}}
