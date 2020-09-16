@@ -4,10 +4,14 @@ import wandb
 
 
 def _find_available(current_version):
-    timeout = 2  # Two seconds.
     pypi_url = "https://pypi.org/pypi/%s/json" % wandb._wandb_module
+
     try:
-        data = requests.get(pypi_url, timeout=timeout).json()
+        async_requests_get = wandb.util.async_call(requests.get, timeout=5)
+        data, thread = async_requests_get(pypi_url, timeout=3)
+        if not data or isinstance(data, Exception):
+            return
+        data = data.json()
         latest_version = data["info"]["version"]
         release_list = data["releases"].keys()
     except Exception:

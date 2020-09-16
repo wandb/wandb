@@ -515,10 +515,8 @@ class BackendSender(object):
         req = self._make_record(run=run)
         resp = self._communicate(req, timeout=timeout)
         if resp is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
-            )
+            # Note: timeouts handled by callers: wandb_init.py
+            return
         assert resp.run_result
         return resp.run_result
 
@@ -587,7 +585,10 @@ class BackendSender(object):
         check_version = wandb_internal_pb2.CheckVersionRequest()
         rec = self._make_request(check_version=check_version)
         result = self._communicate(rec)
-        return result
+        if result is None:
+            # Note: timeouts handled by callers: wandb_init.py
+            return
+        return result.response.check_version_response
 
     def communicate_run_start(self):
         run_start = wandb_internal_pb2.RunStartRequest()
