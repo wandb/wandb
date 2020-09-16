@@ -265,14 +265,14 @@ def test_artifact_run_used(runner, mock_server, api):
     run = api.run("test/test/test")
     arts = run.used_artifacts()
     assert len(arts) == 2
-    assert arts[0].name == "abc123"
+    assert arts[0].name == "mnist:v0"
 
 
 def test_artifact_run_logged(runner, mock_server, api):
     run = api.run("test/test/test")
     arts = run.logged_artifacts()
     assert len(arts) == 2
-    assert arts[0].name == "abc123"
+    assert arts[0].name == "mnist:v0"
 
 
 def test_artifact_manual_use(runner, mock_server, api):

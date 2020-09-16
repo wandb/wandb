@@ -122,6 +122,7 @@ def artifact(ctx, collection_name="mnist"):
         "size": 10000,
         "createdAt": datetime.now().isoformat(),
         "updatedAt": datetime.now().isoformat(),
+        "versionIndex": ctx["page_count"],
         "labels": [],
         "metadata": "{}",
         "aliases": [
@@ -132,7 +133,7 @@ def artifact(ctx, collection_name="mnist"):
         ],
         "artifactSequence": {
             "name": collection_name,
-        }
+        },
     }
 
 
