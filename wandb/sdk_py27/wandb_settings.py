@@ -220,18 +220,18 @@ class Settings(object):
 
     @enum.unique
     class Source(enum.IntEnum):
-        BASE = 0
-        ORG = 1
-        ENTITY = 2
-        PROJECT = 3
-        USER = 4
-        SYSTEM = 5
-        WORKSPACE = 6
-        ENV = 7
-        SETUP = 8
-        INIT = 9
-        SETTINGS = 10
-        ARGS = 11
+        BASE = 1
+        ORG = 2
+        ENTITY = 3
+        PROJECT = 4
+        USER = 5
+        SYSTEM = 6
+        WORKSPACE = 7
+        ENV = 8
+        SETUP = 9
+        INIT = 10
+        SETTINGS = 11
+        ARGS = 12
 
     Console = SettingsConsole
 
