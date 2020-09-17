@@ -214,6 +214,13 @@ MAX_SLEEP_SECONDS = 60 * 5
 VALUE_BYTES_LIMIT = 100000
 
 
+def app_url(api_url):
+    if "wandb." in api_url and api_url.startswith('https://api.'):
+        return api_url.replace('api.', '')
+    # wandb/local
+    return api_url
+
+
 def get_full_typename(o):
     """We determine types based on type names so we don't have to import
     (and therefore depend on) PyTorch, TensorFlow, etc.

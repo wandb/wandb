@@ -235,18 +235,7 @@ class Api(object):
 
     @property
     def app_url(self):
-        api_url = self.api_url
-        # Development
-        if api_url.endswith('.test') or self.settings().get("dev_prod"):
-            return 'http://app.wandb.test'
-        # On-prem VM
-        if api_url.endswith(':11001'):
-            return api_url.replace(':11001', ':11000')
-        # Normal
-        if api_url.startswith('https://api.'):
-            return api_url.replace('api.', 'app.')
-        # Unexpected
-        return api_url
+        return wandb.util.app_url(self.api_url)
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.

@@ -73,7 +73,7 @@ def prompt_api_key(  # noqa: C901
     api = api or InternalApi()
     anon_mode = _fixup_anon_mode(settings.anonymous)
     jupyter = settings._jupyter or False
-    app_url = settings.base_url.replace("//api.", "//app.")
+    app_url = api.app_url
 
     choices = [choice for choice in LOGIN_CHOICES]
     if anon_mode == "never":
@@ -86,7 +86,7 @@ def prompt_api_key(  # noqa: C901
 
     if jupyter and 'google.colab' in sys.modules:
         log_string = term.LOG_STRING_NOCOLOR
-        key = wandb.jupyter.attempt_colab_login(api.app_url)
+        key = wandb.jupyter.attempt_colab_login(app_url)
         if key is not None:
             write_key(settings, key)
             return key

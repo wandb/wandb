@@ -875,14 +875,14 @@ class Run(RunBase):
     def _get_project_url(self):
         s = self._settings
         r = self._run_obj
-        app_url = s.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(s.base_url)
         url = "{}/{}/{}".format(app_url, url_quote(r.entity), url_quote(r.project))
         return url
 
     def _get_run_url(self):
         s = self._settings
         r = self._run_obj
-        app_url = s.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(s.base_url)
         url = "{}/{}/{}/runs/{}".format(
             app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id)
         )
@@ -901,7 +901,7 @@ class Run(RunBase):
         if not sweep_id:
             return
 
-        app_url = self._settings.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(self._settings.base_url)
 
         return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
             base=app_url,

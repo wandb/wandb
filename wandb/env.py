@@ -13,6 +13,7 @@ these values in many cases.
 import os
 import sys
 import json
+import wandb
 from distutils.util import strtobool
 
 CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
