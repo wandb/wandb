@@ -2101,7 +2101,7 @@ class Artifact(object):
         self._attrs = attrs
         if self._attrs is None:
             self._load()
-        self._metadata = self._attrs.get("metadata", None)
+        self._metadata = json.loads(self._attrs.get("metadata") or "{}")
         self._description = self._attrs.get("description", None)
         self._sequence_name = self._attrs["artifactSequence"]["name"]
         self._version_index = self._attrs.get("versionIndex", None)
@@ -2415,8 +2415,6 @@ class Artifact(object):
             raise ValueError('Project %s/%s does not contain artifact: "%s"' % (
                 self.entity, self.project, self.artifact_name))
         self._attrs = response['project']['artifact']
-        if 'metadata' in response['project']['artifact'] and response['project']['artifact']['metadata']:
-            self._metadata = json.loads(response['project']['artifact']['metadata'])
         return self._attrs
 
     # The only file should be wandb_manifest.json
