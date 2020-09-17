@@ -286,28 +286,46 @@ class Agent(object):
             print('wandb: Agent Starting Run: {} with config:\n'.format(command.get('run_id'))  +
                     '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
 
+        # setup default sweep command if not configured
+        sweep_command = self._sweep_command or ["${env}", "${interpreter}", "${program}", "${args}"]
+
         run_id = command.get('run_id')
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
         config_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
+        json_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".json")
         config_util.save_config_file_from_dict(config_file, command['args'])
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
 
         env = dict(os.environ)
 
-        flags = ["--{}={}".format(name, config['value'])
-                 for name, config in command['args'].items()]
+        flags_list = [(param, config['value']) for param, config in command['args'].items()]
+        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
+        flags = ["--" + flag for flag in flags_no_hyphens]
+        flags_dict = dict(flags_list)
+        flags_json = json.dumps(flags_dict)
+
+        if "${args_json_file}" in sweep_command:
+            with open(json_file, "w") as fp:
+                fp.write(flags_json)
 
         if self._function:
             proc = AgentProcess(function=self._function, env=env,
                     run_id=run_id, in_jupyter=self._in_jupyter)
         else:
-            sweep_vars = dict(interpreter=["python"], program=[command['program']], args=flags, env=["/usr/bin/env"])
+            sweep_vars = dict(
+                    interpreter=["python"],
+                    program=[command['program']],
+                    args=flags,
+                    args_no_hyphens=flags_no_hyphens,
+                    args_json=[flags_json],
+                    args_json_file=[json_file],
+                    env=["/usr/bin/env"],
+                    )
             if platform.system() == "Windows":
                 del sweep_vars["env"]
             command_list = []
-            sweep_command = self._sweep_command or ["${env}", "${interpreter}", "${program}", "${args}"]
             for c in sweep_command:
                 c = str(c)
                 if c.startswith("${") and c.endswith("}"):
