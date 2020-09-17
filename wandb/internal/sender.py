@@ -11,6 +11,7 @@ import logging
 import os
 import time
 
+import wandb
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.interface import interface
 from wandb.lib import config_util, filenames, proto_util
@@ -24,6 +25,7 @@ from wandb.util import sentry_set_scope
 from . import artifacts
 from . import file_stream
 from . import internal_api
+from . import update
 from .file_pusher import FilePusher
 
 
@@ -95,6 +97,7 @@ class SendManager(object):
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
+        logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
@@ -106,6 +109,15 @@ class SendManager(object):
                     dictionary.pop(k)
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
+
+    def send_request_check_version(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        current_version = wandb.__version__
+        message = update.check_available(current_version)
+        if message:
+            result.response.check_version_response.message = message
+        self._result_q.put(result)
 
     def send_request_status(self, record):
         assert record.control.req_resp

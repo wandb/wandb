@@ -122,6 +122,7 @@ def artifact(ctx, collection_name="mnist"):
         "size": 10000,
         "createdAt": datetime.now().isoformat(),
         "updatedAt": datetime.now().isoformat(),
+        "versionIndex": ctx["page_count"],
         "labels": [],
         "metadata": "{}",
         "aliases": [
@@ -132,7 +133,7 @@ def artifact(ctx, collection_name="mnist"):
         ],
         "artifactSequence": {
             "name": collection_name,
-        }
+        },
     }
 
 
@@ -552,7 +553,7 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "url": request.url_root + "/storage?file=wandb_manifest.json",
+                    "directUrl": request.url_root + "/storage?file=wandb_manifest.json",
                 },
             }
             return {"data": {"project": {"artifact": art}}}

@@ -49,8 +49,15 @@ def patch_tf_keras():
     import tensorflow as tf
     from tensorflow.python.eager import context
     from tensorflow.python.keras.engine import training
-    from tensorflow.python.keras.engine import training_arrays
-    from tensorflow.python.keras.engine import training_generator
+
+    try:
+        from tensorflow.python.keras.engine import training_arrays
+        from tensorflow.python.keras.engine import training_generator
+    except ImportError:
+        from tensorflow.python.keras.engine import training_arrays_v1 as training_arrays
+        from tensorflow.python.keras.engine import (
+            training_generator_v1 as training_generator,
+        )
 
     # Tensorflow 2.1
     training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")

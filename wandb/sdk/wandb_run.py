@@ -1369,10 +1369,8 @@ class Run(RunBase):
             print(s, file=f)
         self.save(spec_filename)
 
-    # NB: there is a copy of this in wandb_watch.py with the same signature
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):
-        logger.info("Watching")
-        # wandb.run.watch(watch)
+        wandb.watch(models, criterion, log, log_freq, idx)
 
     def use_artifact(self, artifact_or_name, type=None, aliases=None):
         """ Declare an artifact as an input to a run, call `download` or `file` on \
@@ -1521,4 +1519,8 @@ class WriteSerializingFile(object):
             self.lock.release()
 
     def close(self):
-        self.f.close()
+        self.lock.acquire()  # wait for pending writes
+        try:
+            self.f.close()
+        finally:
+            self.lock.release()

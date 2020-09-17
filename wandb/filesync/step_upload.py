@@ -77,6 +77,8 @@ class StepUpload(object):
                 event = self._pending_jobs.pop(0)
                 self._start_upload_job(event)
         elif isinstance(event, RequestCommitArtifact):
+            if event.artifact_id not in self._artifacts:
+                self._init_artifact(event.artifact_id)
             self._artifacts[event.artifact_id]['commit_requested'] = True
             if event.before_commit:
                 self._artifacts[event.artifact_id]['pre_commit_callbacks'].add(event.before_commit)
@@ -86,12 +88,7 @@ class StepUpload(object):
         elif isinstance(event, RequestUpload):
             if event.artifact_id is not None:
                 if event.artifact_id not in self._artifacts:
-                    self._artifacts[event.artifact_id] = {
-                        'pending_count': 0,
-                        'commit_requested': False,
-                        'pre_commit_callbacks': set(),
-                        'post_commit_callbacks': set(),
-                    }
+                    self._init_artifact(event.artifact_id)
                 self._artifacts[event.artifact_id]['pending_count'] += 1
             if len(self._running_jobs) == self._max_jobs:
                 self._pending_jobs.append(event)
@@ -118,6 +115,14 @@ class StepUpload(object):
             event.save_fn, event.digest)
         self._running_jobs[event.save_name] = job
         job.start()
+
+    def _init_artifact(self, artifact_id):
+        self._artifacts[artifact_id] = {
+            'pending_count': 0,
+            'commit_requested': False,
+            'pre_commit_callbacks': set(),
+            'post_commit_callbacks': set(),
+        }
 
     def _maybe_commit_artifact(self, artifact_id):
         artifact_status = self._artifacts[artifact_id]

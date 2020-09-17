@@ -220,18 +220,18 @@ class Settings(object):
 
     @enum.unique
     class Source(enum.IntEnum):
-        BASE: int = 0
-        ORG: int = 1
-        ENTITY: int = 2
-        PROJECT: int = 3
-        USER: int = 4
-        SYSTEM: int = 5
-        WORKSPACE: int = 6
-        ENV: int = 7
-        SETUP: int = 8
-        INIT: int = 9
-        SETTINGS: int = 10
-        ARGS: int = 11
+        BASE: int = 1
+        ORG: int = 2
+        ENTITY: int = 3
+        PROJECT: int = 4
+        USER: int = 5
+        SYSTEM: int = 6
+        WORKSPACE: int = 7
+        ENV: int = 8
+        SETUP: int = 9
+        INIT: int = 10
+        SETTINGS: int = 11
+        ARGS: int = 12
 
     Console: Type[SettingsConsole] = SettingsConsole
 
@@ -531,6 +531,10 @@ class Settings(object):
 
         _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
+
+    def _apply_user(self, user_settings, _logger=None):
+        _logger.info("setting user settings: {}".format(user_settings))
+        self._update(user_settings, _source=self.Source.USER)
 
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
