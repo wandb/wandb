@@ -33,7 +33,7 @@ setup(
     packages=[
         'wandb'
     ],
-    package_dir={'wandb-ng': 'wandb'},
+    package_dir={'wandb': 'wandb'},
     package_data={
         'wandb': [
             'py.typed',

@@ -538,8 +538,6 @@ def sync(
                     len(runs), len(old_runs), clean_old_hours
                 )
             )
-            if show and show < len(old_runs):
-                click.echo("Showing {} old runs:".format(show))
             for run in old_runs:
                 click.echo(run.path)
             if not clean_force:

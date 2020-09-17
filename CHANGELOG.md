@@ -1,3 +1,18 @@
+## 0.10.1 (September 16, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added sync_tensorboard ability to handle S3 and GCS files
+-  Added ability to specify host with login
+-  Improved artifact API to allow modifying attributes
+
+#### :bug: Bug Fix
+
+-  Fix codesaving to respect the server settings
+-  Fix issue runing wandb.init() on restricted networks
+-  Fix issue where we were ignoring settings changes
+-  Fix artifact download issues
+
 ## 0.10.0 (September 11, 2020)
 
 #### :nail_care: Enhancement
