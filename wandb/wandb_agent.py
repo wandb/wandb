@@ -1,25 +1,22 @@
-import collections
 import json
 import logging
 import multiprocessing
 import os
+import platform
+import signal
 import socket
 import subprocess
 import sys
-import traceback
 import time
-import signal
-import platform
+import traceback
 
 import six
 from six.moves import queue
-import yaml
-
 import wandb
+from wandb import util
 from wandb.apis import InternalApi
 from wandb.lib import config_util
-from wandb import util
-
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +28,9 @@ class AgentError(Exception):
 class AgentProcess(object):
     """Launch and manage a process."""
 
-    def __init__(self, env=None, command=None, function=None, run_id=None, in_jupyter=None):
+    def __init__(
+        self, env=None, command=None, function=None, run_id=None, in_jupyter=None
+    ):
         self._popen = None
         self._proc = None
         self._finished_q = multiprocessing.Queue()
@@ -42,11 +41,12 @@ class AgentProcess(object):
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
                 kwargs = dict(preexec_fn=os.setpgrp)
-            self._popen = subprocess.Popen(command,
-                env=env, **kwargs)
+            self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
-            self._proc = multiprocessing.Process(target=self._start,
-                    args=(self._finished_q, env, function, run_id, in_jupyter))
+            self._proc = multiprocessing.Process(
+                target=self._start,
+                args=(self._finished_q, env, function, run_id, in_jupyter),
+            )
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
@@ -72,7 +72,6 @@ class AgentProcess(object):
 
         # signal that the process is finished
         finished_q.put(True)
-
 
     def poll(self):
         if self._popen:
@@ -130,7 +129,9 @@ class Agent(object):
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
 
-    def __init__(self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None):
+    def __init__(
+        self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
+    ):
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
@@ -141,7 +142,9 @@ class Agent(object):
         self._running = True
         self._last_report_time = None
         self._function = function
-        self._report_interval = wandb.env.get_agent_report_interval(self.REPORT_INTERVAL)
+        self._report_interval = wandb.env.get_agent_report_interval(
+            self.REPORT_INTERVAL
+        )
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
         self._failed = 0
@@ -160,36 +163,37 @@ class Agent(object):
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
-    def run(self):
+    def run(self):  # noqa: C901
 
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
-            sweep_yaml = sweep_obj.get('config')
+            sweep_yaml = sweep_obj.get("config")
             if sweep_yaml:
                 sweep_config = yaml.safe_load(sweep_yaml)
                 if sweep_config:
-                    sweep_command = sweep_config.get('command')
+                    sweep_command = sweep_config.get("command")
                     if sweep_command and isinstance(sweep_command, list):
                         self._sweep_command = sweep_command
 
         # TODO: include sweep ID
-        agent = self._api.register_agent(
-            socket.gethostname(), sweep_id=self._sweep_id)
-        agent_id = agent['id']
+        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
+        agent_id = agent["id"]
 
         try:
             while self._running:
                 commands = util.read_many_from_queue(
-                    self._queue, 100, self.POLL_INTERVAL)
+                    self._queue, 100, self.POLL_INTERVAL
+                )
                 for command in commands:
-                    command['resp_queue'].put(self._process_command(command))
+                    command["resp_queue"].put(self._process_command(command))
 
                 now = util.stopwatch_now()
-                if self._last_report_time is None or (self._report_interval != 0 and
-                                                      now > self._last_report_time + self._report_interval):
-                    logger.info('Running runs: %s', list(
-                        self._run_processes.keys()))
+                if self._last_report_time is None or (
+                    self._report_interval != 0
+                    and now > self._last_report_time + self._report_interval
+                ):
+                    logger.info("Running runs: %s", list(self._run_processes.keys()))
                     self._last_report_time = now
                 run_status = {}
                 for run_id, run_process in list(six.iteritems(self._run_processes)):
@@ -197,14 +201,24 @@ class Agent(object):
                     if poll_result is None:
                         run_status[run_id] = True
                         continue
-                    elif not isinstance(poll_result, bool) and isinstance(poll_result, int) and poll_result > 0:
+                    elif (
+                        not isinstance(poll_result, bool)
+                        and isinstance(poll_result, int)
+                        and poll_result > 0
+                    ):
                         self._failed += 1
                         if self.is_flapping():
-                            logger.error("Detected %i failed runs in the first %i seconds, shutting down.", self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
-                            logger.info("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+                            logger.error(
+                                "Detected %i failed runs in the first %i seconds, shutting down.",
+                                self.FLAPPING_MAX_FAILURES,
+                                self.FLAPPING_MAX_SECONDS,
+                            )
+                            logger.info(
+                                "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                            )
                             self._running = False
                             break
-                    logger.info('Cleaning up finished run: %s', run_id)
+                    logger.info("Cleaning up finished run: %s", run_id)
                     del self._run_processes[run_id]
                     self._last_report_time = None
                     self._finished += 1
@@ -218,61 +232,62 @@ class Agent(object):
                 # TODO: send _server_responses
                 self._server_responses = []
                 for command in commands:
-                    self._server_responses.append(
-                        self._process_command(command))
+                    self._server_responses.append(self._process_command(command))
 
         except KeyboardInterrupt:
             try:
                 wandb.termlog(
-                    'Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them.')
-                for run_id, run_process in six.iteritems(self._run_processes):
+                    "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
+                )
+                for _, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
             except KeyboardInterrupt:
                 pass
         finally:
             try:
                 if not self._in_jupyter:
-                    wandb.termlog(
-                        'Terminating and syncing runs. Press ctrl-c to kill.')
-                for run_id, run_process in six.iteritems(self._run_processes):
+                    wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
+                for _, run_process in six.iteritems(self._run_processes):
                     try:
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                for run_id, run_process in six.iteritems(self._run_processes):
+                for _, run_process in six.iteritems(self._run_processes):
                     run_process.wait()
             except KeyboardInterrupt:
-                wandb.termlog('Killing runs and quitting.')
-                for run_id, run_process in six.iteritems(self._run_processes):
+                wandb.termlog("Killing runs and quitting.")
+                for _, run_process in six.iteritems(self._run_processes):
                     try:
                         run_process.kill()
                     except OSError:
                         pass  # if process is already dead
 
     def _process_command(self, command):
-        logger.info('Agent received command: %s' %
-                    (command['type'] if 'type' in command else 'Unknown'))
+        logger.info(
+            "Agent received command: %s"
+            % (command["type"] if "type" in command else "Unknown")
+        )
         response = {
-            'id': command.get('id'),
-            'result': None,
+            "id": command.get("id"),
+            "result": None,
         }
         try:
-            command_type = command['type']
+            command_type = command["type"]
             result = None
-            if command_type == 'run':
+            if command_type == "run":
                 result = self._command_run(command)
-            elif command_type == 'stop':
+            elif command_type == "stop":
                 result = self._command_stop(command)
-            elif command_type == 'exit':
+            elif command_type == "exit":
                 result = self._command_exit(command)
             else:
-                raise AgentError('No such command: %s' % command_type)
-            response['result'] = result
-        except:
-            logger.exception('Exception while processing command: %s', command)
+                raise AgentError("No such command: %s" % command_type)
+            response["result"] = result
+        except Exception:
+            logger.exception("Exception while processing command: %s", command)
             ex_type, ex, tb = sys.exc_info()
-            response['exception'] = '{}: {}'.format(ex_type.__name__, str(ex))
-            response['traceback'] = traceback.format_tb(tb)
+            response["exception"] = "{}: {}".format(ex_type.__name__, str(ex))
+            response["traceback"] = traceback.format_tb(tb)
             del tb
 
         self._log.append((command, response))
@@ -280,27 +295,51 @@ class Agent(object):
         return response
 
     def _command_run(self, command):
-        logger.info('Agent starting run with config:\n' +
-                    '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
+        logger.info(
+            "Agent starting run with config:\n"
+            + "\n".join(
+                ["\t{}: {}".format(k, v["value"]) for k, v in command["args"].items()]
+            )
+        )
         if self._in_jupyter:
-            print('wandb: Agent Starting Run: {} with config:\n'.format(command.get('run_id'))  +
-                    '\n'.join(['\t{}: {}'.format(k, v['value']) for k, v in command['args'].items()]))
+            print(
+                "wandb: Agent Starting Run: {} with config:\n".format(
+                    command.get("run_id")
+                )
+                + "\n".join(
+                    [
+                        "\t{}: {}".format(k, v["value"])
+                        for k, v in command["args"].items()
+                    ]
+                )
+            )
 
         # setup default sweep command if not configured
-        sweep_command = self._sweep_command or ["${env}", "${interpreter}", "${program}", "${args}"]
+        sweep_command = self._sweep_command or [
+            "${env}",
+            "${interpreter}",
+            "${program}",
+            "${args}",
+        ]
 
-        run_id = command.get('run_id')
+        run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
-        config_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml")
-        json_file = os.path.join("wandb", "sweep-" + sweep_id, "config-" + run_id + ".json")
-        config_util.save_config_file_from_dict(config_file, command['args'])
+        config_file = os.path.join(
+            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
+        )
+        json_file = os.path.join(
+            "wandb", "sweep-" + sweep_id, "config-" + run_id + ".json"
+        )
+        config_util.save_config_file_from_dict(config_file, command["args"])
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
 
         env = dict(os.environ)
 
-        flags_list = [(param, config['value']) for param, config in command['args'].items()]
+        flags_list = [
+            (param, config["value"]) for param, config in command["args"].items()
+        ]
         flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
         flags = ["--" + flag for flag in flags_no_hyphens]
         flags_dict = dict(flags_list)
@@ -311,18 +350,22 @@ class Agent(object):
                 fp.write(flags_json)
 
         if self._function:
-            proc = AgentProcess(function=self._function, env=env,
-                    run_id=run_id, in_jupyter=self._in_jupyter)
+            proc = AgentProcess(
+                function=self._function,
+                env=env,
+                run_id=run_id,
+                in_jupyter=self._in_jupyter,
+            )
         else:
             sweep_vars = dict(
-                    interpreter=["python"],
-                    program=[command['program']],
-                    args=flags,
-                    args_no_hyphens=flags_no_hyphens,
-                    args_json=[flags_json],
-                    args_json_file=[json_file],
-                    env=["/usr/bin/env"],
-                    )
+                interpreter=["python"],
+                program=[command["program"]],
+                args=flags,
+                args_no_hyphens=flags_no_hyphens,
+                args_json=[flags_json],
+                args_json_file=[json_file],
+                env=["/usr/bin/env"],
+            )
             if platform.system() == "Windows":
                 del sweep_vars["env"]
             command_list = []
@@ -333,8 +376,11 @@ class Agent(object):
                     command_list += replace_list or []
                 else:
                     command_list += [c]
-            logger.info('About to run command: {}'.format(' '.join(
-                '"%s"' % c if ' ' in c else c for c in command_list)))
+            logger.info(
+                "About to run command: {}".format(
+                    " ".join('"%s"' % c if " " in c else c for c in command_list)
+                )
+            )
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run_id] = proc
 
@@ -344,35 +390,36 @@ class Agent(object):
         self._last_report_time = None
 
     def _command_stop(self, command):
-        run_id = command['run_id']
+        run_id = command["run_id"]
         if run_id in self._run_processes:
             proc = self._run_processes[run_id]
             now = util.stopwatch_now()
             if proc.last_sigterm_time is None:
                 proc.last_sigterm_time = now
-                logger.info('Stop: %s', run_id)
+                logger.info("Stop: %s", run_id)
                 try:
                     proc.terminate()
                 except OSError:  # if process is already dead
                     pass
             elif now > proc.last_sigterm_time + self._kill_delay:
-                logger.info('Kill: %s', run_id)
+                logger.info("Kill: %s", run_id)
                 try:
                     proc.kill()
                 except OSError:  # if process is already dead
                     pass
         else:
-            logger.error('Run %s not running', run_id)
+            logger.error("Run %s not running", run_id)
 
     def _command_exit(self, command):
-        logger.info('Received exit command. Killing runs and quitting.')
-        for run_id, proc in six.iteritems(self._run_processes):
+        logger.info("Received exit command. Killing runs and quitting.")
+        for _, proc in six.iteritems(self._run_processes):
             try:
                 proc.kill()
             except OSError:
                 # process is already dead
                 pass
         self._running = False
+
 
 class AgentApi(object):
     def __init__(self, queue):
@@ -381,22 +428,25 @@ class AgentApi(object):
         self._multiproc_manager = multiprocessing.Manager()
 
     def command(self, command):
-        command['origin'] = 'local'
-        command['id'] = 'local-%s' % self._command_id
+        command["origin"] = "local"
+        command["id"] = "local-%s" % self._command_id
         self._command_id += 1
         resp_queue = self._multiproc_manager.Queue()
-        command['resp_queue'] = resp_queue
+        command["resp_queue"] = resp_queue
         self._queue.put(command)
         result = resp_queue.get()
-        print('result:', result)
-        if 'exception' in result:
-            print('Exception occurred while running command')
-            for line in result['traceback']:
+        print("result:", result)
+        if "exception" in result:
+            print("Exception occurred while running command")
+            for line in result["traceback"]:
                 print(line.strip())
-            print(result['exception'])
+            print(result["exception"])
         return result
 
-def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None):
+
+def run_agent(
+    sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
+):
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = util.parse_sweep_id(parts)
     if err:
@@ -420,14 +470,22 @@ def run_agent(sweep_id, function=None, in_jupyter=None, entity=None, project=Non
         log_level = logging.ERROR
     ch.setLevel(log_level)
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     ch.setFormatter(formatter)
     try:
         logger.addHandler(ch)
 
         api = InternalApi()
         queue = multiprocessing.Queue()
-        agent = Agent(api, queue, sweep_id=sweep_id, function=function, in_jupyter=in_jupyter, count=count)
+        agent = Agent(
+            api,
+            queue,
+            sweep_id=sweep_id,
+            function=function,
+            in_jupyter=in_jupyter,
+            count=count,
+        )
         agent.run()
     finally:
         # make sure we remove the logging handler (important for jupyter notebooks)
@@ -451,5 +509,12 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         if not _api0.api_key:
             wandb._jupyter_login(api=_api0)
 
-    settings = wandb.Settings()
-    return run_agent(sweep_id, function=function, in_jupyter=in_jupyter, entity=entity, project=project, count=count)
+    _ = wandb.Settings()
+    return run_agent(
+        sweep_id,
+        function=function,
+        in_jupyter=in_jupyter,
+        entity=entity,
+        project=project,
+        count=count,
+    )

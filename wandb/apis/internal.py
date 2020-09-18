@@ -4,6 +4,7 @@ from wandb.internal.internal_api import Api as InternalApi
 class Api(object):
     """Internal proxy to the official internal API.  Eventually these methods
     should likely be moved to PublicApi"""
+
     def __init__(self, *args, **kwargs):
         self.api = InternalApi(*args, **kwargs)
 
@@ -45,8 +46,9 @@ class Api(object):
         return self.api.format_project(project)
 
     def upsert_project(self, project, id=None, description=None, entity=None):
-        return self.api.upsert_project(project, id=id, description=description,
-                                       entity=entity)
+        return self.api.upsert_project(
+            project, id=id, description=description, entity=entity
+        )
 
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)

@@ -17,6 +17,7 @@ from wandb.filesync import step_upload
 def resolve_path(path):
     try:
         from pathlib import Path
+
         return str(Path(path).resolve())
     except:
         # Pathlib isn't present for python versions earlier than 3.3
@@ -24,13 +25,15 @@ def resolve_path(path):
 
 
 # Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings('ignore', 'Implicitly cleaning up', RuntimeWarning, 'wandb.compat.tempfile')
+warnings.filterwarnings(
+    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
+)
 
 
 # Temporary directory for copies we make of some file types to
 # reduce the probability that the file gets changed while we're
 # uploading it.
-TMP_DIR = tempfile.TemporaryDirectory('wandb')
+TMP_DIR = tempfile.TemporaryDirectory("wandb")
 
 
 logger = logging.getLogger(__file__)
@@ -49,7 +52,7 @@ class FilePusher(object):
     def __init__(self, api):
         self._api = api
 
-        self._tempdir = tempfile.TemporaryDirectory('wandb')
+        self._tempdir = tempfile.TemporaryDirectory("wandb")
 
         self._stats = stats.Stats()
 
@@ -57,11 +60,17 @@ class FilePusher(object):
         self._event_queue = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
-            self._api, self._tempdir, self._incoming_queue, self._event_queue, self._stats)
+            self._api,
+            self._tempdir,
+            self._incoming_queue,
+            self._event_queue,
+            self._stats,
+        )
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
-            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS)
+            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS
+        )
         self._step_upload.start()
 
         # Holds refs to tempfiles if users need to make a temporary file that
@@ -76,33 +85,50 @@ class FilePusher(object):
 
     def print_status(self, prefix=True):
         step = 0
-        spinner_states = ['-', '\\', '|', '/']
+        spinner_states = ["-", "\\", "|", "/"]
         stop = False
         while True:
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = ' %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r' % (
-                summary['uploaded_bytes'] / 1048576.0,
-                summary['total_bytes'] / 1048576.0,
-                summary['deduped_bytes'] / 1048576.0)
+            line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+                summary["uploaded_bytes"] / 1048576.0,
+                summary["total_bytes"] / 1048576.0,
+                summary["deduped_bytes"] / 1048576.0,
+            )
             line = spinner_states[step % 4] + line
             step += 1
             wandb.termlog(line, newline=False, prefix=prefix)
             if stop:
                 break
             time.sleep(0.25)
-        dedupe_fraction = summary['deduped_bytes'] / float(summary['total_bytes']) if summary['total_bytes'] > 0  else 0
+        dedupe_fraction = (
+            summary["deduped_bytes"] / float(summary["total_bytes"])
+            if summary["total_bytes"] > 0
+            else 0
+        )
         if dedupe_fraction > 0.01:
-            wandb.termlog('W&B sync reduced upload amount by %.1f%%             ' %
-                          (dedupe_fraction * 100), prefix=prefix)
+            wandb.termlog(
+                "W&B sync reduced upload amount by %.1f%%             "
+                % (dedupe_fraction * 100),
+                prefix=prefix,
+            )
         # clear progress line.
-        wandb.termlog(' ' * 79, prefix=prefix)
+        wandb.termlog(" " * 79, prefix=prefix)
 
     def file_counts_by_category(self):
         return self._stats.file_counts_by_category()
 
-    def file_changed(self, save_name, path, artifact_id=None, copy=True, use_prepare_flow=False, save_fn=None, digest=None):
+    def file_changed(
+        self,
+        save_name,
+        path,
+        artifact_id=None,
+        copy=True,
+        use_prepare_flow=False,
+        save_fn=None,
+        digest=None,
+    ):
         """Tell the file pusher that a file's changed and should be uploaded.
         Arguments:
             save_name: string logical location of the file relative to the run
@@ -116,14 +142,16 @@ class FilePusher(object):
             return
 
         save_name = wandb.util.to_forward_slash_path(save_name)
-        event = step_checksum.RequestUpload(path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest)
+        event = step_checksum.RequestUpload(
+            path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest
+        )
         self._incoming_queue.put(event)
 
     def store_manifest_files(self, manifest, artifact_id, save_fn):
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
-    def named_temp_file(self, mode='w+b'):
+    def named_temp_file(self, mode="w+b"):
         # get a named temp file that the file pusher with hold a reference to so it
         # doesn't get gc'd. Obviously, we shouldn't do this very much :). It's currently
         # used for artifact metadata.
@@ -132,7 +160,9 @@ class FilePusher(object):
         return f
 
     def commit_artifact(self, artifact_id, before_commit=None, on_commit=None):
-        event = step_checksum.RequestCommitArtifact(artifact_id, before_commit, on_commit)
+        event = step_checksum.RequestCommitArtifact(
+            artifact_id, before_commit, on_commit
+        )
         self._incoming_queue.put(event)
 
     def finish(self):
@@ -146,5 +176,4 @@ class FilePusher(object):
             time.sleep(0.5)
 
     def is_alive(self):
-        return (self._step_checksum.is_alive()
-            or self._step_upload.is_alive())
+        return self._step_checksum.is_alive() or self._step_upload.is_alive()

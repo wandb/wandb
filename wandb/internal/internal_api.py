@@ -17,7 +17,7 @@ import sys
 import random
 import traceback
 
-if os.name == 'posix' and sys.version_info[0] < 3:
+if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
 else:
     import subprocess  # type: ignore[no-redef]
@@ -60,14 +60,20 @@ class Api(object):
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
 
-    def __init__(self, default_settings=None, load_settings=True, retry_timedelta=datetime.timedelta(days=1), environ=os.environ):
+    def __init__(
+        self,
+        default_settings=None,
+        load_settings=True,
+        retry_timedelta=datetime.timedelta(days=1),
+        environ=os.environ,
+    ):
         self._environ = environ
         self.default_settings = {
-            'section': "default",
-            'run': "latest",
-            'git_remote': "origin",
-            'ignore_globs': [],
-            'base_url': "https://api.wandb.ai"
+            "section": "default",
+            "run": "latest",
+            "git_remote": "origin",
+            "ignore_globs": [],
+            "base_url": "https://api.wandb.ai",
         }
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
@@ -76,28 +82,31 @@ class Api(object):
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
-            'system_sample_seconds': 2,
-            'system_samples': 15,
-            'heartbeat_seconds': 30,
+            "system_sample_seconds": 2,
+            "system_samples": 15,
+            "heartbeat_seconds": 30,
         }
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={
-                    'User-Agent': self.user_agent,
-                    'X-WANDB-USERNAME': env.get_username(env=self._environ),
-                    'X-WANDB-USER-EMAIL': env.get_user_email(env=self._environ)},
+                    "User-Agent": self.user_agent,
+                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
+                    "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
-                url='%s/graphql' % self.settings('base_url')
+                url="%s/graphql" % self.settings("base_url"),
             )
         )
-        self.gql = retry.Retry(self.execute,
-                               retry_timedelta=retry_timedelta,
-                               check_retry_fn=util.no_retry_auth,
-                               retryable_exceptions=(RetryError, requests.RequestException))
+        self.gql = retry.Retry(
+            self.execute,
+            retry_timedelta=retry_timedelta,
+            check_retry_fn=util.no_retry_auth,
+            retryable_exceptions=(RetryError, requests.RequestException),
+        )
         self._current_run_id = None
         self._file_stream_api = None
 
@@ -107,7 +116,7 @@ class Api(object):
 
     def relocate(self):
         """Ensures the current api points to the right server"""
-        self.client.transport.url = '%s/graphql' % self.settings('base_url')
+        self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
@@ -126,17 +135,19 @@ class Api(object):
         except ValueError:
             return
 
-        if 'errors' in data and isinstance(data['errors'], list):
-            for err in data['errors']:
+        if "errors" in data and isinstance(data["errors"], list):
+            for err in data["errors"]:
                 # Our tests and potentially some api endpoints return a string error?
                 if isinstance(err, six.string_types):
                     err = {"message": err}
-                if not err.get('message'):
+                if not err.get("message"):
                     continue
-                wandb.termerror('Error while calling W&B API: {} ({})'.format(err['message'], res))
+                wandb.termerror(
+                    "Error while calling W&B API: {} ({})".format(err["message"], res)
+                )
 
     def disabled(self):
-        return self._settings.get(Settings.DEFAULT_SECTION, 'disabled', fallback=False)
+        return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
 
     def sync_spell(self, run, env=None):
         """Syncs this run with spell"""
@@ -149,10 +160,11 @@ class Api(object):
             except CommError as e:
                 wandb.termerror("Unable to register run with spell.run: %s" % e.message)
                 return False
-            return requests.put(env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url", json={
-                "access_token": env.get("WANDB_ACCESS_TOKEN"),
-                "url": url
-            }, timeout=2)
+            return requests.put(
+                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
+                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
+                timeout=2,
+            )
         except requests.RequestException:
             return False
 
@@ -178,32 +190,50 @@ class Api(object):
             if self.git.dirty:
                 patch_path = os.path.join(out_dir, DIFF_FNAME)
                 if self.git.has_submodule_diff:
-                    with open(patch_path, 'wb') as patch:
+                    with open(patch_path, "wb") as patch:
                         # we diff against HEAD to ensure we get changes in the index
                         subprocess.check_call(
-                            ['git', 'diff', '--submodule=diff', 'HEAD'], stdout=patch, cwd=root, timeout=5)
+                            ["git", "diff", "--submodule=diff", "HEAD"],
+                            stdout=patch,
+                            cwd=root,
+                            timeout=5,
+                        )
                 else:
-                    with open(patch_path, 'wb') as patch:
+                    with open(patch_path, "wb") as patch:
                         subprocess.check_call(
-                            ['git', 'diff', 'HEAD'], stdout=patch, cwd=root, timeout=5)
+                            ["git", "diff", "HEAD"], stdout=patch, cwd=root, timeout=5
+                        )
 
             upstream_commit = self.git.get_upstream_fork_point()
             if upstream_commit and upstream_commit != self.git.repo.head.commit:
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
-                    out_dir, 'upstream_diff_{}.patch'.format(sha))
+                    out_dir, "upstream_diff_{}.patch".format(sha)
+                )
                 if self.git.has_submodule_diff:
-                    with open(upstream_patch_path, 'wb') as upstream_patch:
+                    with open(upstream_patch_path, "wb") as upstream_patch:
                         subprocess.check_call(
-                            ['git', 'diff', '--submodule=diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
+                            ["git", "diff", "--submodule=diff", sha],
+                            stdout=upstream_patch,
+                            cwd=root,
+                            timeout=5,
+                        )
                 else:
-                    with open(upstream_patch_path, 'wb') as upstream_patch:
+                    with open(upstream_patch_path, "wb") as upstream_patch:
                         subprocess.check_call(
-                            ['git', 'diff', sha], stdout=upstream_patch, cwd=root, timeout=5)
+                            ["git", "diff", sha],
+                            stdout=upstream_patch,
+                            cwd=root,
+                            timeout=5,
+                        )
         # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
         # so we now catch ValueError.  Catching this error feels too generic.
-        except (ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            logger.error('Error generating diff: %s' % e)
+        except (
+            ValueError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            logger.error("Error generating diff: %s" % e)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -211,12 +241,12 @@ class Api(object):
     @property
     def current_run_id(self):
         if not self._current_run_id:
-            self._current_run_id = self.settings('run_id')
+            self._current_run_id = self.settings("run_id")
         return self._current_run_id
 
     @property
     def user_agent(self):
-        return 'W&B Internal Client %s' % __version__
+        return "W&B Internal Client %s" % __version__
 
     @property
     def api_key(self):
@@ -231,7 +261,7 @@ class Api(object):
 
     @property
     def api_url(self):
-        return self.settings('base_url')
+        return self.settings("base_url")
 
     @property
     def app_url(self):
@@ -256,33 +286,59 @@ class Api(object):
         """
         result = self.default_settings.copy()
         result.update(self._settings.items(section=section))
-        result.update({
-            'entity': env.get_entity(
-                self._settings.get(Settings.DEFAULT_SECTION, "entity", fallback=result.get('entity')),
-                env=self._environ),
-            'project': env.get_project(
-                self._settings.get(Settings.DEFAULT_SECTION, "project", fallback=result.get('project')),
-                env=self._environ),
-            'base_url': env.get_base_url(
-                self._settings.get(Settings.DEFAULT_SECTION, "base_url", fallback=result.get('base_url')),
-                env=self._environ),
-            'ignore_globs': env.get_ignore(
-                self._settings.get(Settings.DEFAULT_SECTION, "ignore_globs", fallback=result.get('ignore_globs')),
-                env=self._environ),
-        })
+        result.update(
+            {
+                "entity": env.get_entity(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "entity",
+                        fallback=result.get("entity"),
+                    ),
+                    env=self._environ,
+                ),
+                "project": env.get_project(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "project",
+                        fallback=result.get("project"),
+                    ),
+                    env=self._environ,
+                ),
+                "base_url": env.get_base_url(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "base_url",
+                        fallback=result.get("base_url"),
+                    ),
+                    env=self._environ,
+                ),
+                "ignore_globs": env.get_ignore(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "ignore_globs",
+                        fallback=result.get("ignore_globs"),
+                    ),
+                    env=self._environ,
+                ),
+            }
+        )
 
         return result if key is None else result[key]
 
     def clear_setting(self, key, globally=False, persist=False):
-        self._settings.clear(Settings.DEFAULT_SECTION, key, globally=globally, persist=persist)
+        self._settings.clear(
+            Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
+        )
 
     def set_setting(self, key, value, globally=False, persist=False):
-        self._settings.set(Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist)
-        if key == 'entity':
+        self._settings.set(
+            Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
+        )
+        if key == "entity":
             env.set_entity(value, env=self._environ)
-        elif key == 'project':
+        elif key == "project":
             env.set_project(value, env=self._environ)
-        elif key == 'base_url':
+        elif key == "base_url":
             self.relocate()
 
     def parse_slug(self, slug, project=None, run=None):
@@ -301,7 +357,8 @@ class Api(object):
 
     @normalize_exceptions
     def viewer(self):
-        query = gql('''
+        query = gql(
+            """
         query Viewer{
             viewer {
                 id
@@ -316,18 +373,19 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
         res = self.gql(query)
-        return res.get('viewer') or {}
+        return res.get("viewer") or {}
 
     @normalize_exceptions
     def viewer_server_info(self):
-        cli_query = '''
+        cli_query = """
             serverInfo {
                 cliVersionInfo
             }
-        '''
-        query_str = '''
+        """
+        query_str = """
         query Viewer{
             viewer {
                 id
@@ -343,7 +401,7 @@ class Api(object):
             }
             _CLI_QUERY_
         }
-        '''
+        """
         query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
         query_old = gql(query_str.replace("_CLI_QUERY_", ""))
 
@@ -351,7 +409,7 @@ class Api(object):
             try:
                 res = self.gql(query)
             except UsageError as e:
-                raise(e)
+                raise (e)
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -359,8 +417,8 @@ class Api(object):
             err = None
             break
         if err:
-            raise(err)
-        return res.get('viewer') or {}, res.get('serverInfo') or {}
+            raise (err)
+        return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):
@@ -372,7 +430,8 @@ class Api(object):
         Returns:
                 [{"id","name","description"}]
         """
-        query = gql('''
+        query = gql(
+            """
         query Models($entity: String!) {
             models(first: 10, entityName: $entity) {
                 edges {
@@ -384,9 +443,13 @@ class Api(object):
                 }
             }
         }
-        ''')
-        return self._flatten_edges(self.gql(query, variable_values={
-            'entity': entity or self.settings('entity')})['models'])
+        """
+        )
+        return self._flatten_edges(
+            self.gql(
+                query, variable_values={"entity": entity or self.settings("entity")}
+            )["models"]
+        )
 
     @normalize_exceptions
     def project(self, project, entity=None):
@@ -399,7 +462,8 @@ class Api(object):
         Returns:
                 [{"id","name","repo","dockerImage","description"}]
         """
-        query = gql('''
+        query = gql(
+            """
         query Models($entity: String, $project: String!) {
             model(name: $project, entityName: $entity) {
                 id
@@ -409,9 +473,11 @@ class Api(object):
                 description
             }
         }
-        ''')
-        return self.gql(query, variable_values={
-            'entity': entity, 'project': project})['model']
+        """
+        )
+        return self.gql(query, variable_values={"entity": entity, "project": project})[
+            "model"
+        ]
 
     @normalize_exceptions
     def sweep(self, sweep, specs, project=None, entity=None):
@@ -426,7 +492,8 @@ class Api(object):
         Returns:
                 [{"id","name","repo","dockerImage","description"}]
         """
-        query = gql('''
+        query = gql(
+            """
         query Sweep($entity: String, $project: String!, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
@@ -463,16 +530,24 @@ class Api(object):
                 }
             }
         }
-        ''')
-        entity = entity or self.settings('entity')
-        project = project or self.settings('project')
-        response = self.gql(query, variable_values={'entity': entity,
-                                                    'project': project, 'sweep': sweep, 'specs': specs})
-        if response['project'] is None or response['project']['sweep'] is None:
-            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep) )
-        data = response['project']['sweep']
+        """
+        )
+        entity = entity or self.settings("entity")
+        project = project or self.settings("project")
+        response = self.gql(
+            query,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "sweep": sweep,
+                "specs": specs,
+            },
+        )
+        if response["project"] is None or response["project"]["sweep"] is None:
+            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep))
+        data = response["project"]["sweep"]
         if data:
-            data['runs'] = self._flatten_edges(data['runs'])
+            data["runs"] = self._flatten_edges(data["runs"])
         return data
 
     @normalize_exceptions
@@ -486,7 +561,8 @@ class Api(object):
         Returns:
                 [{"id",name","description"}]
         """
-        query = gql('''
+        query = gql(
+            """
         query Buckets($model: String!, $entity: String!) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
@@ -501,10 +577,17 @@ class Api(object):
                 }
             }
         }
-        ''')
-        return self._flatten_edges(self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'),
-            'model': project or self.settings('project')})['model']['buckets'])
+        """
+        )
+        return self._flatten_edges(
+            self.gql(
+                query,
+                variable_values={
+                    "entity": entity or self.settings("entity"),
+                    "model": project or self.settings("project"),
+                },
+            )["model"]["buckets"]
+        )
 
     @normalize_exceptions
     def launch_run(self, command, project=None, entity=None, run_id=None):
@@ -520,7 +603,8 @@ class Api(object):
         Returns:
                 [{"podName","status"}]
         """
-        query = gql('''
+        query = gql(
+            """
         mutation launchRun(
             $entity: String
             $model: String
@@ -538,22 +622,26 @@ class Api(object):
                 runId
             }
         }
-        ''')
+        """
+        )
         patch = BytesIO()
         if self.git.dirty:
-            self.git.repo.git.execute(['git', 'diff'], output_stream=patch)
+            self.git.repo.git.execute(["git", "diff"], output_stream=patch)
             patch.seek(0)
         cwd = "."
         if self.git.enabled:
             cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
-        return self.gql(query, variable_values={
-            'entity': entity or self.settings('entity'),
-            'model': project or self.settings('project'),
-            'command': command,
-            'runId': run_id,
-            'patch': patch.read().decode("utf8"),
-            'cwd': cwd
-        })
+        return self.gql(
+            query,
+            variable_values={
+                "entity": entity or self.settings("entity"),
+                "model": project or self.settings("project"),
+                "command": command,
+                "runId": run_id,
+                "patch": patch.read().decode("utf8"),
+                "cwd": cwd,
+            },
+        )
 
     @normalize_exceptions
     def run_config(self, project, run=None, entity=None):
@@ -564,7 +652,8 @@ class Api(object):
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
-        query = gql('''
+        query = gql(
+            """
         query Model($name: String!, $entity: String!, $run: String!) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
@@ -581,19 +670,20 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
-        response = self.gql(query, variable_values={
-            'name': project, 'run': run, 'entity': entity
-        })
-        if response['model'] == None:
-            raise CommError("Run {}/{}/{} not found".format(entity, project, run) )
-        run = response['model']['bucket']
-        commit = run['commit']
-        patch = run['patch']
-        config = json.loads(run['config'] or '{}')
-        if len(run['files']['edges']) > 0:
-            url = run['files']['edges'][0]['node']['directUrl']
+        response = self.gql(
+            query, variable_values={"name": project, "run": run, "entity": entity}
+        )
+        if response["model"] == None:
+            raise CommError("Run {}/{}/{} not found".format(entity, project, run))
+        run = response["model"]["bucket"]
+        commit = run["commit"]
+        patch = run["patch"]
+        config = json.loads(run["config"] or "{}")
+        if len(run["files"]["edges"]) > 0:
+            url = run["files"]["edges"][0]["node"]["directUrl"]
             res = requests.get(url)
             res.raise_for_status()
             metadata = res.json()
@@ -610,7 +700,8 @@ class Api(object):
             project_name (str): The project to download, (can include bucket)
             run (str): The run to download
         """
-        query = gql('''
+        query = gql(
+            """
         query Model($project: String!, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
@@ -634,25 +725,28 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
-        response = self.gql(query, variable_values={
-            'entity': entity, 'project': project_name, 'name': name,
-        })
+        response = self.gql(
+            query,
+            variable_values={"entity": entity, "project": project_name, "name": name,},
+        )
 
-        if 'model' not in response or 'bucket' not in (response['model'] or {}):
+        if "model" not in response or "bucket" not in (response["model"] or {}):
             return None
 
-        project = response['model']
-        self.set_setting('project', project_name)
-        if 'entity' in project:
-            self.set_setting('entity', project['entity']['name'])
+        project = response["model"]
+        self.set_setting("project", project_name)
+        if "entity" in project:
+            self.set_setting("entity", project["entity"]["name"])
 
-        return project['bucket']
+        return project["bucket"]
 
     @normalize_exceptions
     def check_stop_requested(self, project_name, entity_name, run_id):
-        query = gql('''
+        query = gql(
+            """
         query Model($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
@@ -660,23 +754,29 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
-        response = self.gql(query, variable_values={
-            'projectName': project_name, 'entityName': entity_name, 'runId': run_id,
-        })
+        response = self.gql(
+            query,
+            variable_values={
+                "projectName": project_name,
+                "entityName": entity_name,
+                "runId": run_id,
+            },
+        )
 
-        project = response.get('project', None)
+        project = response.get("project", None)
         if not project:
             return False
-        run = project.get('run', None)
+        run = project.get("run", None)
         if not run:
             return False
 
-        return run['stopped']
+        return run["stopped"]
 
     def format_project(self, project):
-        return re.sub(r'\W+', '-', project.lower()).strip("-_")
+        return re.sub(r"\W+", "-", project.lower()).strip("-_")
 
     @normalize_exceptions
     def upsert_project(self, project, id=None, description=None, entity=None):
@@ -687,7 +787,8 @@ class Api(object):
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
         """
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation UpsertModel($name: String!, $id: String, $entity: String!, $description: String, $repo: String)  {
             upsertModel(input: { id: $id, name: $name, entityName: $entity, description: $description, repo: $repo }) {
                 model {
@@ -696,35 +797,61 @@ class Api(object):
                 }
             }
         }
-        ''')
-        response = self.gql(mutation, variable_values={
-            'name': self.format_project(project), 'entity': entity or self.settings('entity'),
-            'description': description, 'id': id})
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "name": self.format_project(project),
+                "entity": entity or self.settings("entity"),
+                "description": description,
+                "id": id,
+            },
+        )
         # TODO(jhr): Commenting out 'repo' field for cling, add back
         #   'description': description, 'repo': self.git.remote_url, 'id': id})
-        return response['upsertModel']['model']
+        return response["upsertModel"]["model"]
 
     @normalize_exceptions
     def pop_from_run_queue(self, entity=None, project=None):
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation popFromRunQueue($entity: String!, $project: String!)  {
             popFromRunQueue(input: { entityName: $entity, projectName: $project }) {
                 runQueueItemId
                 runSpec
             }
         }
-        ''')
-        response = self.gql(mutation, variable_values={
-            'entity': entity, 'project': project})
-        return response['popFromRunQueue']
+        """
+        )
+        response = self.gql(
+            mutation, variable_values={"entity": entity, "project": project}
+        )
+        return response["popFromRunQueue"]
 
     @normalize_exceptions
-    def upsert_run(self, id=None, name=None, project=None, host=None,
-                   group=None, tags=None,
-                   config=None, description=None, entity=None, state=None,
-                   display_name=None, notes=None,
-                   repo=None, job_type=None, program_path=None, commit=None,
-                   sweep_name=None, summary_metrics=None, num_retries=None):
+    def upsert_run(
+        self,
+        id=None,
+        name=None,
+        project=None,
+        host=None,
+        group=None,
+        tags=None,
+        config=None,
+        description=None,
+        entity=None,
+        state=None,
+        display_name=None,
+        notes=None,
+        repo=None,
+        job_type=None,
+        program_path=None,
+        commit=None,
+        sweep_name=None,
+        summary_metrics=None,
+        num_retries=None,
+    ):
         """Update a run
 
         Args:
@@ -742,7 +869,8 @@ class Api(object):
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
         """
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation UpsertBucket(
             $id: String, $name: String,
             $project: String,
@@ -803,7 +931,8 @@ class Api(object):
                 inserted
             }
         }
-        ''')
+        """
+        )
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -811,31 +940,41 @@ class Api(object):
 
         kwargs = {}
         if num_retries is not None:
-            kwargs['num_retries'] = num_retries
+            kwargs["num_retries"] = num_retries
 
         variable_values = {
-            'id': id, 'entity': entity or self.settings('entity'), 'name': name,
-            'project': project or util.auto_project_name(program_path),
-            'groupName': group, 'tags': tags,
-            'description': description, 'config': config, 'commit': commit,
-            'displayName': display_name, 'notes': notes,
-            'host': None if self.settings().get('anonymous') == 'true' else host,
-            'debug': env.is_debug(env=self._environ), 'repo': repo, 'program': program_path, 'jobType': job_type,
-            'state': state, 'sweep': sweep_name, 'summaryMetrics': summary_metrics
+            "id": id,
+            "entity": entity or self.settings("entity"),
+            "name": name,
+            "project": project or util.auto_project_name(program_path),
+            "groupName": group,
+            "tags": tags,
+            "description": description,
+            "config": config,
+            "commit": commit,
+            "displayName": display_name,
+            "notes": notes,
+            "host": None if self.settings().get("anonymous") == "true" else host,
+            "debug": env.is_debug(env=self._environ),
+            "repo": repo,
+            "program": program_path,
+            "jobType": job_type,
+            "state": state,
+            "sweep": sweep_name,
+            "summaryMetrics": summary_metrics,
         }
 
-        response = self.gql(
-            mutation, variable_values=variable_values, **kwargs)
+        response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
-        run = response['upsertBucket']['bucket']
-        project = run.get('project')
+        run = response["upsertBucket"]["bucket"]
+        project = run.get("project")
         if project:
-            self.set_setting('project', project['name'])
-            entity = project.get('entity')
+            self.set_setting("project", project["name"])
+            entity = project.get("entity")
             if entity:
-                self.set_setting('entity', entity['name'])
+                self.set_setting("entity", entity["name"])
 
-        return response['upsertBucket']['bucket'], response['upsertBucket']['inserted']
+        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
@@ -856,7 +995,8 @@ class Api(object):
                     'model.json': { "url": "https://model.json", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
                 }
         """
-        query = gql('''
+        query = gql(
+            """
         query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
@@ -874,22 +1014,29 @@ class Api(object):
                 }
             }
         }
-        ''')
-        run_id = run or self.settings('run')
-        entity = entity or self.settings('entity')
-        query_result = self.gql(query, variable_values={
-            'name': project, 'run': run_id,
-            'entity': entity,
-            'description': description,
-            'files': [file for file in files]
-        })
+        """
+        )
+        run_id = run or self.settings("run")
+        entity = entity or self.settings("entity")
+        query_result = self.gql(
+            query,
+            variable_values={
+                "name": project,
+                "run": run_id,
+                "entity": entity,
+                "description": description,
+                "files": [file for file in files],
+            },
+        )
 
-        run = query_result['model']['bucket']
+        run = query_result["model"]["bucket"]
         if run:
-            result = {file['name']: file for file in self._flatten_edges(run['files'])}
-            return run['id'], run['files']['uploadHeaders'], result
+            result = {file["name"]: file for file in self._flatten_edges(run["files"])}
+            return run["id"], run["files"]["uploadHeaders"], result
         else:
-            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run_id))
+            raise CommError(
+                "Run does not exist {}/{}/{}.".format(entity, project, run_id)
+            )
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -908,7 +1055,8 @@ class Api(object):
                     'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
                 }
         """
-        query = gql('''
+        query = gql(
+            """
         query Model($name: String!, $entity: String!, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
@@ -925,12 +1073,18 @@ class Api(object):
                 }
             }
         }
-        ''')
-        query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'),
-            'entity': entity or self.settings('entity')})
-        files = self._flatten_edges(query_result['model']['bucket']['files'])
-        return {file['name']: file for file in files if file}
+        """
+        )
+        query_result = self.gql(
+            query,
+            variable_values={
+                "name": project,
+                "run": run or self.settings("run"),
+                "entity": entity or self.settings("entity"),
+            },
+        )
+        files = self._flatten_edges(query_result["model"]["bucket"]["files"])
+        return {file["name"]: file for file in files if file}
 
     @normalize_exceptions
     def download_url(self, project, file_name, run=None, entity=None):
@@ -948,7 +1102,8 @@ class Api(object):
                 { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
 
         """
-        query = gql('''
+        query = gql(
+            """
         query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
@@ -965,13 +1120,20 @@ class Api(object):
                 }
             }
         }
-        ''')
-        query_result = self.gql(query, variable_values={
-            'name': project, 'run': run or self.settings('run'), 'fileName': file_name,
-            'entity': entity or self.settings('entity')})
-        if query_result['model']:
-            files = self._flatten_edges(query_result['model']['bucket']['files'])
-            return files[0] if len(files) > 0 and files[0].get('updatedAt') else None
+        """
+        )
+        query_result = self.gql(
+            query,
+            variable_values={
+                "name": project,
+                "run": run or self.settings("run"),
+                "fileName": file_name,
+                "entity": entity or self.settings("entity"),
+            },
+        )
+        if query_result["model"]:
+            files = self._flatten_edges(query_result["model"]["bucket"]["files"])
+            return files[0] if len(files) > 0 and files[0].get("updatedAt") else None
         else:
             return None
 
@@ -987,7 +1149,7 @@ class Api(object):
         """
         response = requests.get(url, stream=True)
         response.raise_for_status()
-        return (int(response.headers.get('content-length', 0)), response)
+        return (int(response.headers.get("content-length", 0)), response)
 
     @normalize_exceptions
     def download_write_file(self, metadata, out_dir=None):
@@ -999,12 +1161,12 @@ class Api(object):
         Returns:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
         """
-        fileName = metadata['name']
-        path = os.path.join(out_dir or self.settings('wandb_dir'), fileName)
-        if self.file_current(fileName, metadata['md5']):
+        fileName = metadata["name"]
+        path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
+        if self.file_current(fileName, metadata["md5"]):
             return path, None
 
-        size, response = self.download_file(metadata['url'])
+        size, response = self.download_file(metadata["url"])
 
         with open(path, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
@@ -1030,8 +1192,7 @@ class Api(object):
         if progress.len == 0:
             raise CommError("%s is an empty file" % file.name)
         try:
-            response = requests.put(
-                url, data=progress, headers=extra_headers)
+            response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {} {}".format(url, e))
@@ -1039,7 +1200,9 @@ class Api(object):
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
-            if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
+            if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
+                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            ):
                 util.sentry_reraise(retry.TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
@@ -1060,7 +1223,8 @@ class Api(object):
             sweep (str): sweep id
             project_name: (str): model that contains sweep
         """
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation CreateAgent(
             $host: String!
             $projectName: String!,
@@ -1078,27 +1242,36 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
         if entity is None:
             entity = self.settings("entity")
         if project_name is None:
-            project_name = self.settings('project')
+            project_name = self.settings("project")
 
         # don't retry on validation or not found errors
         def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if not(e.response.status_code >= 400 and e.response.status_code < 500) or e.response.status_code == 429:
+            if (
+                not (e.response.status_code >= 400 and e.response.status_code < 500)
+                or e.response.status_code == 429
+            ):
                 return True
             body = json.loads(e.response.content)
-            raise UsageError(body['errors'][0]['message'])
+            raise UsageError(body["errors"][0]["message"])
 
-        response = self.gql(mutation, variable_values={
-            'host': host,
-            'entityName': entity,
-            'projectName': project_name,
-            'sweep': sweep_id}, check_retry_fn=no_retry_4xx)
-        return response['createAgent']['agent']
+        response = self.gql(
+            mutation,
+            variable_values={
+                "host": host,
+                "entityName": entity,
+                "projectName": project_name,
+                "sweep": sweep_id,
+            },
+            check_retry_fn=no_retry_4xx,
+        )
+        return response["createAgent"]["agent"]
 
     def agent_heartbeat(self, agent_id, metrics, run_states):
         """Notify server about agent state, receive commands.
@@ -1110,7 +1283,8 @@ class Api(object):
         Returns:
             List of commands to execute.
         """
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation Heartbeat(
             $id: ID!,
             $metrics: JSONString,
@@ -1127,28 +1301,41 @@ class Api(object):
                 commands
             }
         }
-        ''')
+        """
+        )
         try:
-            response = self.gql(mutation, variable_values={
-                'id': agent_id,
-                'metrics': json.dumps(metrics),
-                'runState': json.dumps(run_states)})
+            response = self.gql(
+                mutation,
+                variable_values={
+                    "id": agent_id,
+                    "metrics": json.dumps(metrics),
+                    "runState": json.dumps(run_states),
+                },
+            )
         except Exception as e:
             # GQL raises exceptions with stringified python dictionaries :/
             message = ast.literal_eval(e.args[0])["message"]
-            logger.error('Error communicating with W&B: %s', message)
+            logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            return json.loads(response['agentHeartbeat']['commands'])
+            return json.loads(response["agentHeartbeat"]["commands"])
 
     @normalize_exceptions
-    def upsert_sweep(self, config, controller=None, scheduler=None, obj_id=None, project=None, entity=None):
+    def upsert_sweep(
+        self,
+        config,
+        controller=None,
+        scheduler=None,
+        obj_id=None,
+        project=None,
+        entity=None,
+    ):
         """Upsert a sweep object.
 
         Args:
             config (str): sweep config (will be converted to yaml)
         """
-        project_query = '''
+        project_query = """
                     project {
                         id
                         name
@@ -1157,8 +1344,8 @@ class Api(object):
                             name
                         }
                     }
-        '''
-        mutation_str = '''
+        """
+        mutation_str = """
         mutation UpsertSweep(
             $id: ID,
             $config: String,
@@ -1183,7 +1370,7 @@ class Api(object):
                 }
             }
         }
-        '''
+        """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
         mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
@@ -1194,24 +1381,31 @@ class Api(object):
         def no_retry_4xx(e):
             if not isinstance(e, requests.HTTPError):
                 return True
-            if not(e.response.status_code >= 400 and e.response.status_code < 500) or e.response.status_code == 429:
+            if (
+                not (e.response.status_code >= 400 and e.response.status_code < 500)
+                or e.response.status_code == 429
+            ):
                 return True
             body = json.loads(e.response.content)
-            raise UsageError(body['errors'][0]['message'])
+            raise UsageError(body["errors"][0]["message"])
 
         for mutation in mutation_new, mutation_old:
             try:
-                response = self.gql(mutation, variable_values={
-                    'id': obj_id,
-                    'config': yaml.dump(config),
-                    'description': config.get("description"),
-                    'entityName': entity or self.settings("entity"),
-                    'projectName': project or self.settings("project"),
-                    'controller': controller,
-                    'scheduler': scheduler},
-                    check_retry_fn=no_retry_4xx)
+                response = self.gql(
+                    mutation,
+                    variable_values={
+                        "id": obj_id,
+                        "config": yaml.dump(config),
+                        "description": config.get("description"),
+                        "entityName": entity or self.settings("entity"),
+                        "projectName": project or self.settings("project"),
+                        "controller": controller,
+                        "scheduler": scheduler,
+                    },
+                    check_retry_fn=no_retry_4xx,
+                )
             except UsageError as e:
-                raise(e)
+                raise (e)
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -1219,22 +1413,23 @@ class Api(object):
             err = None
             break
         if err:
-            raise(err)
+            raise (err)
 
-        sweep = response['upsertSweep']['sweep']
-        project = sweep.get('project')
+        sweep = response["upsertSweep"]["sweep"]
+        project = sweep.get("project")
         if project:
-            self.set_setting('project', project['name'])
-            entity = project.get('entity')
+            self.set_setting("project", project["name"])
+            entity = project.get("entity")
             if entity:
-                self.set_setting('entity', entity['name'])
+                self.set_setting("entity", entity["name"])
 
-        return response['upsertSweep']['sweep']['name']
+        return response["upsertSweep"]["sweep"]["name"]
 
     @normalize_exceptions
     def create_anonymous_api_key(self):
         """Creates a new API key belonging to a new anonymous user."""
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation CreateAnonymousApiKey {
             createAnonymousEntity(input: {}) {
                 apiKey {
@@ -1242,10 +1437,11 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
         response = self.gql(mutation, variable_values={})
-        return response['createAnonymousEntity']['apiKey']['name']
+        return response["createAnonymousEntity"]["apiKey"]["name"]
 
     def file_current(self, fname, md5):
         """Checksum a file and compare the md5 with the known md5
@@ -1275,10 +1471,19 @@ class Api(object):
         return responses
 
     def get_project(self):
-        return self.settings('project')
+        return self.settings("project")
 
     @normalize_exceptions
-    def push(self, files, run=None, entity=None, project=None, description=None, force=True, progress=False):
+    def push(
+        self,
+        files,
+        run=None,
+        entity=None,
+        project=None,
+        description=None,
+        force=True,
+        progress=False,
+    ):
         """Uploads multiple files to W&B
 
         Args:
@@ -1305,46 +1510,70 @@ class Api(object):
         # will never retry self.upload_urls() here. Instead, maybe we should
         # make push itself retriable.
         run_id, upload_headers, result = self.upload_urls(
-            project, files, run, entity, description)
+            project, files, run, entity, description
+        )
         extra_headers = {}
         for upload_header in upload_headers:
-            key, val = upload_header.split(':', 1)
+            key, val = upload_header.split(":", 1)
             extra_headers[key] = val
         responses = []
         for file_name, file_info in result.items():
-            file_url = file_info['url']
+            file_url = file_info["url"]
 
             # If the upload URL is relative, fill it in with the base URL,
             # since its a proxied file store like the on-prem VM.
-            if file_url.startswith('/'):
-                file_url = '{}{}'.format(self.api_url, file_url)
+            if file_url.startswith("/"):
+                file_url = "{}{}".format(self.api_url, file_url)
 
             try:
                 # To handle Windows paths
                 # TODO: this doesn't handle absolute paths...
                 normal_name = os.path.join(*file_name.split("/"))
-                open_file = files[file_name] if isinstance(
-                    files, dict) else open(normal_name, "rb")
+                open_file = (
+                    files[file_name]
+                    if isinstance(files, dict)
+                    else open(normal_name, "rb")
+                )
             except IOError:
                 print("%s does not exist" % file_name)
                 continue
             if progress:
-                if hasattr(progress, '__call__'):
-                    responses.append(self.upload_file_retry(
-                        file_url, open_file, progress, extra_headers=extra_headers))
+                if hasattr(progress, "__call__"):
+                    responses.append(
+                        self.upload_file_retry(
+                            file_url, open_file, progress, extra_headers=extra_headers
+                        )
+                    )
                 else:
                     length = os.fstat(open_file.fileno()).st_size
-                    with click.progressbar(file=progress, length=length, label='Uploading file: %s' % (file_name),
-                                           fill_char=click.style('&', fg='green')) as bar:
-                        responses.append(self.upload_file_retry(
-                            file_url, open_file, lambda bites, _: bar.update(bites), extra_headers=extra_headers))
+                    with click.progressbar(
+                        file=progress,
+                        length=length,
+                        label="Uploading file: %s" % (file_name),
+                        fill_char=click.style("&", fg="green"),
+                    ) as bar:
+                        responses.append(
+                            self.upload_file_retry(
+                                file_url,
+                                open_file,
+                                lambda bites, _: bar.update(bites),
+                                extra_headers=extra_headers,
+                            )
+                        )
             else:
-                responses.append(self.upload_file_retry(file_info['url'], open_file, extra_headers=extra_headers))
+                responses.append(
+                    self.upload_file_retry(
+                        file_info["url"], open_file, extra_headers=extra_headers
+                    )
+                )
             open_file.close()
         return responses
 
-    def use_artifact(self, artifact_id, entity_name=None, project_name=None, run_name=None):
-        query = gql('''
+    def use_artifact(
+        self, artifact_id, entity_name=None, project_name=None, run_name=None
+    ):
+        query = gql(
+            """
         mutation UseArtifact(
             $entityName: String!,
             $projectName: String!,
@@ -1368,24 +1597,31 @@ class Api(object):
                 }
             }
         }
-        ''')
-        entity_name = entity_name or self.settings('entity')
-        project_name = project_name or self.settings('project')
+        """
+        )
+        entity_name = entity_name or self.settings("entity")
+        project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        response = self.gql(query, variable_values={
-            'entityName': entity_name,
-            'projectName': project_name,
-            'runName': run_name,
-            'artifactID': artifact_id,
-        })
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity_name,
+                "projectName": project_name,
+                "runName": run_name,
+                "artifactID": artifact_id,
+            },
+        )
 
-        if response['useArtifact']['artifact']:
-            return response['useArtifact']['artifact']
+        if response["useArtifact"]["artifact"]:
+            return response["useArtifact"]["artifact"]
         return None
 
-    def create_artifact_type(self, artifact_type_name, entity_name=None, project_name=None, description=None):
-        mutation = gql('''
+    def create_artifact_type(
+        self, artifact_type_name, entity_name=None, project_name=None, description=None
+    ):
+        mutation = gql(
+            """
         mutation CreateArtifactType(
             $entityName: String!,
             $projectName: String!,
@@ -1403,19 +1639,37 @@ class Api(object):
                 }
             }
         }
-        ''')
-        entity_name = entity_name or self.settings('entity')
-        project_name = project_name or self.settings('project')
-        response = self.gql(mutation, variable_values={
-            'entityName': entity_name,
-            'projectName': project_name,
-            'artifactTypeName': artifact_type_name,
-            'description': description,
-        })
-        return response['createArtifactType']['artifactType']['id']
+        """
+        )
+        entity_name = entity_name or self.settings("entity")
+        project_name = project_name or self.settings("project")
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entityName": entity_name,
+                "projectName": project_name,
+                "artifactTypeName": artifact_type_name,
+                "description": description,
+            },
+        )
+        return response["createArtifactType"]["artifactType"]["id"]
 
-    def create_artifact(self, artifact_type_name, artifact_collection_name, digest, entity_name=None, project_name=None, run_name=None, description=None, labels=None, metadata=None, aliases=None, is_user_created=False):
-        mutation = gql('''
+    def create_artifact(
+        self,
+        artifact_type_name,
+        artifact_collection_name,
+        digest,
+        entity_name=None,
+        project_name=None,
+        run_name=None,
+        description=None,
+        labels=None,
+        metadata=None,
+        aliases=None,
+        is_user_created=False,
+    ):
+        mutation = gql(
+            """
         mutation CreateArtifact(
             $artifactTypeName: String!,
             $artifactCollectionNames: [String!],
@@ -1459,38 +1713,51 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
-        entity_name = entity_name or self.settings('entity')
-        project_name = project_name or self.settings('project')
+        entity_name = entity_name or self.settings("entity")
+        project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
 
         if aliases is None:
             aliases = []
-        response = self.gql(mutation, variable_values={
-            'entityName': entity_name,
-            'projectName': project_name,
-            'runName': run_name,
-            'artifactTypeName': artifact_type_name,
-            'artifactCollectionNames': [artifact_collection_name],
-            'digest': digest,
-            'description': description,
-            'aliases': [alias for alias in aliases],
-            'labels': json.dumps(util.make_safe_for_json(labels)) if labels else None,
-            'metadata': json.dumps(util.make_safe_for_json(metadata)) if metadata else None,
-        })
-        av = response['createArtifact']['artifact']
-        # TODO: make this a part of the graph 
-        av['version'] = "latest"
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entityName": entity_name,
+                "projectName": project_name,
+                "runName": run_name,
+                "artifactTypeName": artifact_type_name,
+                "artifactCollectionNames": [artifact_collection_name],
+                "digest": digest,
+                "description": description,
+                "aliases": [alias for alias in aliases],
+                "labels": json.dumps(util.make_safe_for_json(labels))
+                if labels
+                else None,
+                "metadata": json.dumps(util.make_safe_for_json(metadata))
+                if metadata
+                else None,
+            },
+        )
+        av = response["createArtifact"]["artifact"]
+        # TODO: make this a part of the graph
+        av["version"] = "latest"
         for alias in av["aliases"]:
-            if alias["artifactCollectionName"] == artifact_collection_name and re.match(r"^v\d+$", alias["alias"]):
-                av['version'] = alias["alias"]
-        latest = response['createArtifact']['artifact']['artifactSequence'].get('latestArtifact')
+            if alias["artifactCollectionName"] == artifact_collection_name and re.match(
+                r"^v\d+$", alias["alias"]
+            ):
+                av["version"] = alias["alias"]
+        latest = response["createArtifact"]["artifact"]["artifactSequence"].get(
+            "latestArtifact"
+        )
         return av, latest
 
     def commit_artifact(self, artifact_id):
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation CommitArtifact(
             $artifactID: ID!,
         ) {
@@ -1503,15 +1770,24 @@ class Api(object):
                 }
             }
         }
-        ''')
-        response = self.gql(mutation, variable_values={
-            'artifactID': artifact_id
-        })
+        """
+        )
+        response = self.gql(mutation, variable_values={"artifactID": artifact_id})
         return response
 
-    def create_artifact_manifest(self, name, digest, artifact_id,
-                                 base_artifact_id=None,entity=None, project=None, run=None, include_upload=True):
-        mutation = gql('''
+    def create_artifact_manifest(
+        self,
+        name,
+        digest,
+        artifact_id,
+        base_artifact_id=None,
+        entity=None,
+        project=None,
+        run=None,
+        include_upload=True,
+    ):
+        mutation = gql(
+            """
         mutation CreateArtifactManifest(
             $name: String!,
             $digest: String!,
@@ -1543,28 +1819,33 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
-        entity_name = entity or self.settings('entity')
-        project_name = project or self.settings('project')
+        entity_name = entity or self.settings("entity")
+        project_name = project or self.settings("project")
         run_name = run or self.current_run_id
 
-        response = self.gql(mutation, variable_values={
-            'name': name,
-            'digest': digest,
-            'artifactID': artifact_id,
-            'baseArtifactID': base_artifact_id,
-            'entityName': entity_name,
-            'projectName': project_name,
-            'runName': run_name,
-            'includeUpload': include_upload,
-        })
+        response = self.gql(
+            mutation,
+            variable_values={
+                "name": name,
+                "digest": digest,
+                "artifactID": artifact_id,
+                "baseArtifactID": base_artifact_id,
+                "entityName": entity_name,
+                "projectName": project_name,
+                "runName": run_name,
+                "includeUpload": include_upload,
+            },
+        )
 
-        return response['createArtifactManifest']['artifactManifest']['file']
+        return response["createArtifactManifest"]["artifactManifest"]["file"]
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):
-        mutation = gql('''
+        mutation = gql(
+            """
         mutation CreateArtifactFiles(
             $storageLayout: ArtifactStorageLayout!
             $artifactFiles: [CreateArtifactFileSpecInput!]!
@@ -1589,34 +1870,37 @@ class Api(object):
                 }
             }
         }
-        ''')
+        """
+        )
 
         # TODO: we should use constants here from interface/artifacts.py
         # but probably don't want the dependency. We're going to remove
         # this setting in a future release, so I'm just hard-coding the strings.
-        storage_layout = 'V2'
+        storage_layout = "V2"
         if env.get_use_v1_artifacts():
-            storage_layout = 'V1'
+            storage_layout = "V1"
 
-        response = self.gql(mutation, variable_values={
-            'storageLayout': storage_layout,
-            'artifactFiles': [af for af in artifact_files]
-        })
+        response = self.gql(
+            mutation,
+            variable_values={
+                "storageLayout": storage_layout,
+                "artifactFiles": [af for af in artifact_files],
+            },
+        )
 
         result = {}
-        for edge in response['createArtifactFiles']['files']['edges']:
-            node = edge['node']
-            result[node['displayName']] = node
+        for edge in response["createArtifactFiles"]["files"]["edges"]:
+            node = edge["node"]
+            result[node["displayName"]] = node
         return result
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""
         return requests.put(
             url=url,
-            headers={'Content-Length': '0',
-                     'Content-Range': 'bytes */%i' % length}
+            headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
         )
 
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
-        return [node['node'] for node in response['edges']]
+        return [node["node"] for node in response["edges"]]

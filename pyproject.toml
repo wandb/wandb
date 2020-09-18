@@ -1,11 +1,7 @@
 [tool.black]
 line-length = 88
 exclude = '''
-  wandb/internal/internal_api.py
-| wandb/internal/file_pusher.py
-| wandb/internal/file_stream.py
-| wandb/internal/stats.py
-| wandb/internal/git_repo.py
+| wandb/apis/__init__.py
 '''
 include = '''
   wandb/sdk/
@@ -22,4 +18,7 @@ include = '''
 | wandb/integration/sagemaker/
 | wandb/sync/
 | wandb/secretagent/
+| wandb/wandb_agent.py
+| wandb/wandb_controller.py
+| wandb/apis/
 '''
