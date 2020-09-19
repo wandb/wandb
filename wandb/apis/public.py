@@ -292,7 +292,6 @@ class Api(object):
 
         entity is optional and will fallback to the current logged in user.
         """
-        run = self.settings["run"]
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
         parts = path.replace("/runs/", "/").strip("/ ").split("/")

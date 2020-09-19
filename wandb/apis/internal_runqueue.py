@@ -60,7 +60,6 @@ class Api(object):
         self._environ = environ
         self.default_settings = {
             "section": "default",
-            "run": "latest",
             "git_remote": "origin",
             "ignore_globs": [],
             "base_url": "https://api.wandb.ai",
@@ -567,6 +566,8 @@ class Api(object):
         }
         """
         )
+        run_id = run_id or self.current_run_id
+        assert run_id, "run_id must be specified"
         patch = BytesIO()
         if self.git.dirty:
             self.git.repo.git.execute(["git", "diff"], output_stream=patch)
@@ -592,7 +593,7 @@ class Api(object):
 
         Args:
             project (str): The project to download, (can include bucket)
-            run (str, optional): The run to download
+            run (str): The run to download
             entity (str, optional): The entity to scope this project to.
         """
         query = gql(
@@ -615,7 +616,8 @@ class Api(object):
         }
         """
         )
-
+        run = run or self.current_run_id
+        assert run, "run must be specified"
         response = self.gql(
             query, variable_values={"name": project, "run": run, "entity": entity}
         )
@@ -641,7 +643,7 @@ class Api(object):
         Args:
             entity (str, optional): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
-            run (str, optional): The run to download
+            name (str): The run to download
         """
         query = gql(
             """
@@ -699,7 +701,8 @@ class Api(object):
         }
         """
         )
-
+        run_id = run_id or self.current_run_id
+        assert run_id, "run_id must be specified"
         response = self.gql(
             query,
             variable_values={
@@ -923,7 +926,7 @@ class Api(object):
         Args:
             project (str): The project to download
             files (list or dict): The filenames to upload
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -956,7 +959,8 @@ class Api(object):
         }
         """
         )
-        run_id = run or self.settings("run")
+        run_id = run or self.current_run_id
+        assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
             query,
@@ -984,7 +988,7 @@ class Api(object):
 
         Args:
             project (str): The project to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -1015,11 +1019,13 @@ class Api(object):
         }
         """
         )
+        run = run or self.current_run_id
+        assert run, "run must be specified"
         query_result = self.gql(
             query,
             variable_values={
                 "name": project,
-                "run": run or self.settings("run"),
+                "run": run,
                 "entity": entity or self.settings("entity"),
             },
         )
@@ -1033,7 +1039,7 @@ class Api(object):
         Args:
             project (str): The project to download
             file_name (str): The name of the file to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -1062,11 +1068,13 @@ class Api(object):
         }
         """
         )
+        run = run or self.current_run_id
+        assert run, "run must be specified"
         query_result = self.gql(
             query,
             variable_values={
                 "name": project,
-                "run": run or self.settings("run"),
+                "run": run,
                 "fileName": file_name,
                 "entity": entity or self.settings("entity"),
             },
@@ -1349,13 +1357,14 @@ class Api(object):
 
         Args:
             project (str): The project to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
             The requests library response object
         """
         project, run = self.parse_slug(project, run=run)
+        assert run, "run must be specified"
         urls = self.download_urls(project, run, entity)
         responses = []
         for file_name in urls:

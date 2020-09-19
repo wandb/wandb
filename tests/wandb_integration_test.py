@@ -7,8 +7,10 @@ Be sure to use `test_settings` or an isolated directory
 import wandb
 import pytest
 import json
-import sys
+import platform
+import subprocess
 import os
+from .utils import fixture_open
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
@@ -35,6 +37,28 @@ def test_resume_allow_success(live_mock_server, test_settings):
     # assert first_stream['files']['wandb-events.jsonl'] == {
     #    'content': ['{"acc": 10, "_step": 15}'], 'offset': 0
     # }
+
+
+@pytest.mark.skipif(platform.system() == "Windows", reason="File syncing is somewhat busted in windows")
+# TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
+def test_parallel_runs(live_mock_server, test_settings):
+    with open("train.py", "w") as f:
+        f.write(fixture_open("train.py").read())
+    p1 = subprocess.Popen(["python", "train.py"], env=os.environ)
+    p2 = subprocess.Popen(["python", "train.py"], env=os.environ)
+    exit_codes = [p.wait() for p in (p1, p2)]
+    assert exit_codes == [0,0]
+    num_runs = 0
+    # Assert we've stored 2 runs worth of files
+    files_sorted = sorted([
+        'wandb-metadata.json', 'code/tests/logs/test_parallel_runs/train.py',
+        'requirements.txt', 'output.log', 'config.yaml',
+        'wandb-summary.json'])
+    for run,files in live_mock_server.get_ctx()["storage"].items():
+        num_runs += 1
+        print("Files from server", files)
+        assert sorted([f for f in files if not f.endswith(".patch")]) == files_sorted
+    assert num_runs == 2
 
 
 def test_resume_must_failure(live_mock_server, test_settings):
@@ -116,7 +140,7 @@ def test_network_fault_files(live_mock_server, test_settings):
     run.join()
     ctx = live_mock_server.get_ctx()
     print(ctx)
-    assert [f for f in sorted(ctx["storage"]) if not f.endswith(".patch")] == sorted(
+    assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
         ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
 
 
@@ -127,5 +151,5 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     run.join()
     ctx = live_mock_server.get_ctx()
     print(ctx)
-    assert [f for f in sorted(ctx["storage"]) if not f.endswith(".patch")] == sorted(
+    assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
         ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])

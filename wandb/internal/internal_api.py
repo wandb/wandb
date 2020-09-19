@@ -70,7 +70,6 @@ class Api(object):
         self._environ = environ
         self.default_settings = {
             "section": "default",
-            "run": "latest",
             "git_remote": "origin",
             "ignore_globs": [],
             "base_url": "https://api.wandb.ai",
@@ -240,8 +239,6 @@ class Api(object):
 
     @property
     def current_run_id(self):
-        if not self._current_run_id:
-            self._current_run_id = self.settings("run_id")
         return self._current_run_id
 
     @property
@@ -350,9 +347,8 @@ class Api(object):
             project = project or self.settings().get("project")
             if project is None:
                 raise CommError("No default project configured.")
-            run = run or slug or env.get_run(env=self._environ)
-            if run is None:
-                run = "latest"
+            run = run or slug or self.current_run_id or env.get_run(env=self._environ)
+            assert run, "run must be specified"
         return (project, run)
 
     @normalize_exceptions
@@ -1016,7 +1012,8 @@ class Api(object):
         }
         """
         )
-        run_id = run or self.settings("run")
+        run_id = run or self.current_run_id
+        assert run_id, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
             query,
@@ -1044,7 +1041,7 @@ class Api(object):
 
         Args:
             project (str): The project to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -1075,11 +1072,13 @@ class Api(object):
         }
         """
         )
+        run = run or self.current_run_id
+        assert run, "run must be specified"
         query_result = self.gql(
             query,
             variable_values={
                 "name": project,
-                "run": run or self.settings("run"),
+                "run": run,
                 "entity": entity or self.settings("entity"),
             },
         )
@@ -1093,7 +1092,7 @@ class Api(object):
         Args:
             project (str): The project to download
             file_name (str): The name of the file to download
-            run (str, optional): The run to upload to
+            run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
@@ -1122,11 +1121,13 @@ class Api(object):
         }
         """
         )
+        run = run or self.current_run_id
+        assert run, "run must be specified"
         query_result = self.gql(
             query,
             variable_values={
                 "name": project,
-                "run": run or self.settings("run"),
+                "run": run,
                 "fileName": file_name,
                 "entity": entity or self.settings("entity"),
             },
