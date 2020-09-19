@@ -702,16 +702,20 @@ class Settings(object):
 
     def _infer_run_settings_from_env(self):
         """Modify settings based on environment (for runs only)."""
-        # If the settings say to save code, and there's not already a program file,
-        # infer it now.
-        if self.save_code and not self.program_relpath:
-            program = _get_program()
-            if program:
-                program_relpath = _get_program_relpath_from_gitrepo(program)
-                self.update(dict(program=program, program_relpath=program_relpath))
-            else:
-                program = "<python with no main file>"
-                self.update(dict(program=program))
+        if self.disable_code:
+            self.update(dict(program="<code saving explicitly disabled>"))
+            return
+
+        # If there's not already a program file, infer it now.
+        program = self.program or _get_program()
+        if program:
+            program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
+                program
+            )
+            self.update(dict(program=program, program_relpath=program_relpath))
+        else:
+            program = "<python with no main file>"
+            self.update(dict(program=program))
 
     def setdefaults(self, __d=None):
         __d = __d or defaults
