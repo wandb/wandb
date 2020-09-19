@@ -881,7 +881,7 @@ def auto_project_name(program):
     # if we're in git, set project name to git repo name + relative path within repo
     root_dir = GitRepo().root_dir
     if root_dir is None:
-        return None
+        return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
     # style. Coerce here.
     root_dir = to_native_slash_path(root_dir)
