@@ -267,10 +267,3 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
-
-
-def _config_dict_from_proto_list(obj_list):
-    d = dict()
-    for item in obj_list:
-        d[item.key] = dict(desc=None, value=json.loads(item.value_json))
-    return d

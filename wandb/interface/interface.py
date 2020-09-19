@@ -280,6 +280,14 @@ class BackendSender(object):
 
             return json_value
 
+    def _make_summary_from_dict(self, summary_dict):
+        summary = wandb_internal_pb2.SummaryRecord()
+        for k, v in six.iteritems(summary_dict):
+            update = summary.update.add()
+            update.key = k
+            update.value_json = json.dumps(v)
+        return summary
+
     def _make_summary(self, summary_record):
         pb_summary_record = wandb_internal_pb2.SummaryRecord()
 

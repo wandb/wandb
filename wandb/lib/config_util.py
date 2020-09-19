@@ -1,3 +1,4 @@
+import json
 import os
 
 import six
@@ -9,6 +10,20 @@ import yaml
 
 class ConfigError(Error):  # type: ignore
     pass
+
+
+def dict_from_proto_list(obj_list):
+    d = dict()
+    for item in obj_list:
+        d[item.key] = dict(desc=None, value=json.loads(item.value_json))
+    return d
+
+
+def dict_no_value_from_proto_list(obj_list):
+    d = dict()
+    for item in obj_list:
+        d[item.key] = json.loads(item.value_json)["value"]
+    return d
 
 
 # TODO(jhr): these functions should go away once we merge jobspec PR

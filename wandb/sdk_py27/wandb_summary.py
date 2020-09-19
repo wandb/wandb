@@ -32,6 +32,9 @@ class SummaryDict(object):
     def keys(self):
         return [k for k in self._as_dict().keys() if k != "_wandb"]
 
+    def get(self, key, default=None):
+        return self._as_dict().get(key, default)
+
     def __getitem__(self, key):
         item = self._as_dict()[key]
 
