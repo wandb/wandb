@@ -1524,3 +1524,8 @@ class WriteSerializingFile(object):
             self.f.close()
         finally:
             self.lock.release()
+
+
+def finish(exit_code=None):
+    if wandb.run:
+        wandb.run.finish(exit_code=exit_code)
