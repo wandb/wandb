@@ -11,8 +11,8 @@ class SummaryRecord(object):
     # remove: t.Tuple["SummaryItem"]
 
     def __init__(self):
-        self.update = tuple()
-        self.remove = tuple()
+        self.update = []
+        self.remove = []
 
     def __str__(self):
         s = "SummaryRecord:\n  Update:\n    "
