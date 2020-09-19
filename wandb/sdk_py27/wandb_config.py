@@ -46,6 +46,10 @@ class Config(object):
     def _as_dict(self):
         return self._items
 
+    def as_dict(self):
+        # TODO: add telemetry, deprecate, then remove
+        return dict(self)
+
     def __getitem__(self, key):
         return self._items[key]
 
