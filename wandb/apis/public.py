@@ -27,6 +27,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+# Only retry requests for 20 seconds in the public api
+RETRY_TIMEDELTA = datetime.timedelta(seconds=20)
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
     id
@@ -162,7 +164,7 @@ class RetryingClient(object):
         self._client = client
 
     @retriable(
-        retry_timedelta=datetime.timedelta(seconds=20),
+        retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -1082,6 +1084,29 @@ class Run(Attrs):
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
+    def upload_file(self, path, root="."):
+        """
+        Args:
+            path (str): name of file to upload.
+            root (str): the root path to save the file relative to.  i.e.
+                If you want to have the file saved in the run as "my_dir/file.txt"
+                and you're currently in "my_dir" you would set root to "../"
+
+        Returns:
+            A :obj:`File` matching the name argument.
+        """
+        api = InternalApi(
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        api.set_current_run_id(self.id)
+        root = os.path.abspath(root)
+        name = os.path.relpath(path, root)
+        with open(os.path.join(root, name), "rb") as f:
+            api.push({util.to_forward_slash_path(name): f})
+        return Files(self.client, self, [name])[0]
+
+    @normalize_exceptions
     def history(
         self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
     ):
@@ -1183,7 +1208,8 @@ class Run(Attrs):
             A :obj:`Artifact` object.
         """
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project}
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
 
@@ -1210,7 +1236,8 @@ class Run(Attrs):
             A :obj:`Artifact` object.
         """
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project}
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
 
@@ -1572,7 +1599,7 @@ class File(object):
 
     @normalize_exceptions
     @retriable(
-        retry_timedelta=datetime.timedelta(seconds=10),
+        retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )

@@ -64,7 +64,7 @@ class Api(object):
         self,
         default_settings=None,
         load_settings=True,
-        retry_timedelta=datetime.timedelta(days=1),
+        retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
     ):
         self._environ = environ
@@ -108,6 +108,11 @@ class Api(object):
         )
         self._current_run_id = None
         self._file_stream_api = None
+        # This Retry class is initialized once for each Api instance, so this
+        # defaults to retrying 1 million times per process or 7 days
+        self.upload_file_retry = normalize_exceptions(
+            retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
+        )
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -1210,10 +1215,6 @@ class Api(object):
 
         return response
 
-    # This Retry class is initialized once for each Api instance, so this
-    # defaults to retrying 1 million times per process or 365 days
-    upload_file_retry = normalize_exceptions(retry.retriable()(upload_file))
-
     @normalize_exceptions
     def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
@@ -1488,7 +1489,7 @@ class Api(object):
         """Uploads multiple files to W&B
 
         Args:
-            files (list or dict): The filenames to upload
+            files (list or dict): The filenames to upload, when dict the values are open files
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
             project (str, optional): The name of the project to upload to. Defaults to the one in settings.

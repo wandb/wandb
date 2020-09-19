@@ -68,6 +68,9 @@ class Api(object):
     def create_anonymous_api_key(self):
         return self.api.create_anonymous_api_key()
 
+    def push(self, *args, **kwargs):
+        return self.api.push(*args, **kwargs)
+
     def sweep(self, *args, **kwargs):
         return self.api.sweep(*args, **kwargs)
 

@@ -17,6 +17,10 @@ class ResponseMock(object):
             raise requests.exceptions.HTTPError("Bad Request", response=self.response)
 
     @property
+    def status_code(self):
+        return self.response.status_code
+
+    @property
     def content(self):
         return self.response.data
 

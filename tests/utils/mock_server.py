@@ -22,6 +22,7 @@ def default_ctx():
         "fail_storage_count": 0,  # used via "fail_storage_times"
         "page_count": 0,
         "page_times": 2,
+        "requested_file": "weights.h5",
         "current_run": None,
         "files": {},
         "k8s": False,
@@ -71,10 +72,10 @@ def run(ctx):
         }
     else:
         fileNode = {
-            "name": "weights.h5",
+            "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": request.url_root + "/storage?file=weights.h5",
+            "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
         }
       
     return {
@@ -94,7 +95,7 @@ def run(ctx):
         ],
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
-            # Special weights url meant to be used with api_mocks#download_url
+            # Special weights url by default, if requesting upload we set the name
             "edges": [
                 {
                     "node": fileNode,
@@ -196,7 +197,6 @@ def set_ctx(ctx):
     g.ctx.set(ctx)
 
 
-
 def _bucket_config():
     return {
         'patch': '''
@@ -263,8 +263,8 @@ def create_app(user_ctx=None):
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
         if body["variables"].get("files"):
-            file = body["variables"]["files"][0]
-            url = request.url_root + "/storage?file={}&run={}".format(urllib.parse.quote(file), ctx["current_run"])
+            ctx["requested_file"] = body["variables"]["files"][0]
+            url = request.url_root + "/storage?file={}&run={}".format(urllib.parse.quote(ctx["requested_file"]), ctx["current_run"])
             return json.dumps(
                 {
                     "data": {
@@ -273,7 +273,7 @@ def create_app(user_ctx=None):
                                 "id": "storageid",
                                 "files": {
                                     "uploadHeaders": [],
-                                    "edges": [{"node": {"name": file, "url": url}}],
+                                    "edges": [{"node": {"name": ctx["requested_file"], "url": url}}],
                                 },
                             }
                         }
