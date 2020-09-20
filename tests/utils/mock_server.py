@@ -424,6 +424,41 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation CreateAgent(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
+            )
+        if "mutation Heartbeat(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "agentHeartbeat": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
+                            "commands": json.dumps([
+                                {
+                                    "type": "run",
+                                    "run_id": "mocker-server-run-x9",
+                                    "args": {
+                                        "learning_rate": {
+                                            "value": 0.99124
+                                        }
+                                    }
+                                }
+                            ])
+                        }
+                    }
+                }
+            )
         if "mutation UpsertBucket(" in body["query"]:
             return json.dumps(
                 {

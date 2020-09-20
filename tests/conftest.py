@@ -128,6 +128,11 @@ def git_repo(runner):
 
 
 @pytest.fixture
+def dummy_api_key():
+    return DUMMY_API_KEY
+
+
+@pytest.fixture
 def test_settings(test_dir, mocker):
     """ Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
