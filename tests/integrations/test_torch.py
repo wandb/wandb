@@ -155,6 +155,7 @@ def test_double_log(wandb_init_run):
         wandb.watch(net)
 
 
+@pytest.mark.timeout(120)
 def test_sequence_net(wandb_init_run):
     net = Sequence()
     graph = wandb.wandb_torch.TorchGraph.hook_torch(net)

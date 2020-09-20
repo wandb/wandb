@@ -156,6 +156,10 @@ class RunDummy(RunBase):
     def id(self):
         pass
 
+    @property
+    def sweep_id(self):
+        pass
+
     def get_url(self):
         pass
 
@@ -440,6 +444,12 @@ class Run(RunBase):
     @property
     def id(self):
         return self._run_id
+
+    @property
+    def sweep_id(self):
+        if not self._run_obj:
+            return None
+        return self._run_obj.sweep_id or None
 
     @property
     def path(self):

@@ -436,7 +436,7 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         return future.get(timeout)
 
-    def communicate_login(self, api_key=None, anonymous=None, timeout=5):
+    def communicate_login(self, api_key=None, anonymous=None, timeout=15):
         login = self._make_login(api_key, anonymous)
         rec = self._make_request(login=login)
         result = self._communicate(rec, timeout=timeout)
