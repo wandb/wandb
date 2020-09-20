@@ -72,6 +72,9 @@ class Meta(object):
             )
         )
         program_absolute = os.path.join(root, program_relative)
+        if not os.path.exists(program_absolute):
+            logger.warning("unable to save code -- can't find %s" % program_absolute)
+            return
         saved_program = os.path.join(self._settings.files_dir, "code", program_relative)
         self._saved_program = program_relative
 

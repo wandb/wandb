@@ -84,6 +84,13 @@ def test_cb_item():
     m.check_updates(("this",), 2)
 
 
+def test_cb_update():
+    s, m = create_summary_and_mock({})
+    s.update(dict(this=1, that=2))
+    m.check_updates(("this",), 1)
+    m.check_updates(("that",), 2)
+
+
 def test_cb_item_nested():
     s, m = create_summary_and_mock({})
     s["this"] = 2

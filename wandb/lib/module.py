@@ -6,8 +6,6 @@ def set_global(
     run=None,
     config=None,
     log=None,
-    join=None,
-    finish=None,
     summary=None,
     save=None,
     restore=None,
@@ -20,10 +18,6 @@ def set_global(
         wandb.config = config
     if log:
         wandb.log = log
-    if join:
-        wandb.join = join
-    if finish:
-        wandb.finish = finish
     if summary:
         wandb.summary = summary
     if save:
@@ -42,12 +36,6 @@ def unset_globals():
     wandb.summary = preinit.PreInitObject("wandb.summary")
     wandb.log = preinit.PreInitCallable(
         "wandb.log", wandb.wandb_sdk.wandb_run.Run.log
-    )
-    wandb.join = preinit.PreInitCallable(
-        "wandb.join", wandb.wandb_sdk.wandb_run.Run.join
-    )
-    wandb.finish = preinit.PreInitCallable(
-        "wandb.finish", wandb.wandb_sdk.wandb_run.Run.finish
     )
     wandb.save = preinit.PreInitCallable(
         "wandb.save", wandb.wandb_sdk.wandb_run.Run.save

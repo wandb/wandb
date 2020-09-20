@@ -280,6 +280,14 @@ class BackendSender(object):
 
             return json_value
 
+    def _make_summary_from_dict(self, summary_dict):
+        summary = wandb_internal_pb2.SummaryRecord()
+        for k, v in six.iteritems(summary_dict):
+            update = summary.update.add()
+            update.key = k
+            update.value_json = json.dumps(v)
+        return summary
+
     def _make_summary(self, summary_record):
         pb_summary_record = wandb_internal_pb2.SummaryRecord()
 
@@ -428,7 +436,7 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         return future.get(timeout)
 
-    def communicate_login(self, api_key=None, anonymous=None, timeout=5):
+    def communicate_login(self, api_key=None, anonymous=None, timeout=15):
         login = self._make_login(api_key, anonymous)
         rec = self._make_request(login=login)
         result = self._communicate(rec, timeout=timeout)

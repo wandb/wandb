@@ -164,6 +164,36 @@ def test_run_file(runner, mock_server, api):
         assert os.path.exists("weights.h5")
 
 
+def test_run_upload_file(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        with open("new_file.pb", "w") as f:
+            f.write("TEST")
+        file = run.upload_file("new_file.pb")
+        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+
+
+def test_run_upload_file_relative(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        wandb.util.mkdir_exists_ok("foo")
+        os.chdir("foo")
+        with open("new_file.pb", "w") as f:
+            f.write("TEST")
+        file = run.upload_file("new_file.pb", "../")
+        assert file.url == "https://api.wandb.ai//storage?file=foo/new_file.pb"
+
+
+def test_upload_file_retry(runner, mock_server, api):
+    mock_server.set_context("fail_storage_count", 4)
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        with open("new_file.pb", "w") as f:
+            f.write("TEST")
+        file = run.upload_file("new_file.pb")
+        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+
+
 def test_runs_from_path(mock_server, api):
     runs = api.runs("test/test")
     assert len(runs) == 4

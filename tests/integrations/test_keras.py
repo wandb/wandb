@@ -76,6 +76,17 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
+def test_keras_resume_best_metric(dummy_model, dummy_data, live_mock_server,
+                                  test_settings):
+    res = live_mock_server.set_ctx({"resume": True})
+    print("CTX AFTER UPDATE", res)
+    print("GET RIGHT AWAY", live_mock_server.get_ctx())
+    wandb.init(reinit=True, resume="allow", settings=test_settings)
+    print("Summary", dict(wandb.run.summary))
+    print("Config", dict(wandb.run.config))
+    assert WandbCallback().best == 0.5
+
+
 def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
     error = False
     data, labels = dummy_data

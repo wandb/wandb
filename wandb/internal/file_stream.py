@@ -13,11 +13,11 @@ from wandb import env
 import os
 
 
-MAX_LINE_SIZE = 4*1024*1024 - 100*1024  # imposed by back end
+MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
 
 logger = logging.getLogger(__name__)
 
-Chunk = collections.namedtuple('Chunk', ('filename', 'data'))
+Chunk = collections.namedtuple("Chunk", ("filename", "data"))
 
 
 class DefaultFilePolicy(object):
@@ -27,10 +27,7 @@ class DefaultFilePolicy(object):
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
-        return {
-            'offset': chunk_id,
-            'content': [c.data for c in chunks]
-        }
+        return {"offset": chunk_id, "content": [c.data for c in chunks]}
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
@@ -40,15 +37,17 @@ class JsonlFilePolicy(DefaultFilePolicy):
         chunk_data = []
         for chunk in chunks:
             if len(chunk.data) > MAX_LINE_SIZE:
-                msg = 'Metric data exceeds maximum size of {} bytes. Dropping it.'.format(MAX_LINE_SIZE)
+                msg = "Metric data exceeds maximum size of {} bytes. Dropping it.".format(
+                    MAX_LINE_SIZE
+                )
                 wandb.termerror(msg, repeat=False)
                 util.sentry_message(msg)
             else:
                 chunk_data.append(chunk.data)
 
         return {
-            'offset': chunk_id,
-            'content': chunk_data,
+            "offset": chunk_id,
+            "content": chunk_data,
         }
 
 
@@ -56,13 +55,13 @@ class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
         if len(data) > MAX_LINE_SIZE:
-            msg = 'Summary data exceeds maximum size of {} bytes. Dropping it.'.format(MAX_LINE_SIZE)
+            msg = "Summary data exceeds maximum size of {} bytes. Dropping it.".format(
+                MAX_LINE_SIZE
+            )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
             return False
-        return {
-            'offset': 0, 'content': [data]
-        }
+        return {"offset": 0, "content": [data]}
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -76,7 +75,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     def process_chunks(self, chunks):
         ret = []
-        flag = False # whether the cursor can be moved up
+        flag = False  # whether the cursor can be moved up
         for c in chunks:
             # Line has two possible formats:
             # 1) "2020-08-25T20:38:36.895321 this is my line of text"
@@ -90,10 +89,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
             lines = rest.split(os.linesep)
             for line in lines:
-                line = line.split('\r')[-1]
+                line = line.split("\r")[-1]
                 if line:
                     # check for cursor up control character
-                    if line.endswith('\x1b\x5b\x41'):
+                    if line.endswith("\x1b\x5b\x41"):
                         if flag:
                             ret.pop()
                             flag = False
@@ -102,23 +101,16 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                         flag = True
         chunk_id = self._chunk_id
         self._chunk_id += len(ret)
-        return {
-            'offset': chunk_id,
-            'content': ret
-        }
+        return {"offset": chunk_id, "content": ret}
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
-        data = b''.join([c.data for c in chunks])
-        enc = base64.b64encode(data).decode('ascii')
+        data = b"".join([c.data for c in chunks])
+        enc = base64.b64encode(data).decode("ascii")
         offset = self._offset
         self._offset += len(data)
-        return {
-            'offset': self._offset,
-            'content': enc,
-            'encoding': 'base64'
-        }
+        return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
 
 class FileStreamApi(object):
@@ -129,7 +121,8 @@ class FileStreamApi(object):
 
     TODO: Differentiate between binary/text encoding.
     """
-    Finish = collections.namedtuple('Finish', ('exitcode'))
+
+    Finish = collections.namedtuple("Finish", ("exitcode"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -142,13 +135,15 @@ class FileStreamApi(object):
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
-        self._client.auth = ('api', api.api_key)
+        self._client.auth = ("api", api.api_key)
         self._client.timeout = self.HTTP_TIMEOUT
-        self._client.headers.update({
-            'User-Agent': api.user_agent,
-            'X-WANDB-USERNAME': env.get_username(),
-            'X-WANDB-USER-EMAIL': env.get_user_email()
-        })
+        self._client.headers.update(
+            {
+                "User-Agent": api.user_agent,
+                "X-WANDB-USERNAME": env.get_username(),
+                "X-WANDB-USER-EMAIL": env.get_user_email(),
+            }
+        )
         self._file_policies = {}
         self._queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
@@ -161,10 +156,11 @@ class FileStreamApi(object):
         settings = self._api.settings()
         settings.update(self._settings)
         self._endpoint = "{base}/files/{entity}/{project}/{run}/file_stream".format(
-            base=settings['base_url'],
-            entity=settings['entity'],
-            project=settings['project'],
-            run=self._run_id)
+            base=settings["base_url"],
+            entity=settings["entity"],
+            project=settings["project"],
+            run=self._run_id,
+        )
 
     def start(self):
         self._init_endpoint()
@@ -204,7 +200,8 @@ class FileStreamApi(object):
         # If we have more than MAX_ITEMS_PER_PUSH in the queue then the push thread
         # will get behind and data will buffer up in the queue.
         return util.read_many_from_queue(
-            self._queue, self.MAX_ITEMS_PER_PUSH, self.rate_limit_seconds())
+            self._queue, self.MAX_ITEMS_PER_PUSH, self.rate_limit_seconds()
+        )
 
     def _thread_body(self):
         posted_data_time = time.time()
@@ -222,7 +219,9 @@ class FileStreamApi(object):
 
             cur_time = time.time()
 
-            if ready_chunks and (finished or cur_time - posted_data_time > self.rate_limit_seconds()):
+            if ready_chunks and (
+                finished or cur_time - posted_data_time > self.rate_limit_seconds()
+            ):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
                 self._send(ready_chunks)
@@ -230,17 +229,25 @@ class FileStreamApi(object):
 
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(util.request_with_retry(self._client.post,
-                                                              self._endpoint, json={'complete': False, 'failed': False}))
+                self._handle_response(
+                    util.request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={"complete": False, "failed": False},
+                    )
+                )
         # post the final close message. (item is self.Finish instance now)
-        util.request_with_retry(self._client.post,
-                                self._endpoint, json={'complete': True, 'exitcode': int(finished.exitcode)})
+        util.request_with_retry(
+            self._client.post,
+            self._endpoint,
+            json={"complete": True, "exitcode": int(finished.exitcode)},
+        )
 
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
             raise response
-            wandb.termerror('Droppped streaming file chunk (see wandb/debug.log)')
+            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
             logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()
@@ -256,13 +263,15 @@ class FileStreamApi(object):
             file_chunks = list(file_chunks)  # groupby returns iterator
             # Specific file policies are set by internal/sender.py
             self.set_default_file_policy(filename, DefaultFilePolicy())
-            files[filename] = self._file_policies[filename].process_chunks(
-                file_chunks)
+            files[filename] = self._file_policies[filename].process_chunks(file_chunks)
             if not files[filename]:
                 del files[filename]
 
-        self._handle_response(util.request_with_retry(
-            self._client.post, self._endpoint, json={'files': files}))
+        self._handle_response(
+            util.request_with_retry(
+                self._client.post, self._endpoint, json={"files": files}
+            )
+        )
 
     def stream_file(self, path):
         name = path.split("/")[-1]

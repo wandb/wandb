@@ -46,6 +46,10 @@ class Config(object):
     def _as_dict(self):
         return self._items
 
+    def as_dict(self):
+        # TODO: add telemetry, deprecate, then remove
+        return dict(self)
+
     def __getitem__(self, key):
         return self._items[key]
 
@@ -72,7 +76,7 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None):
         parsed_dict = wandb_helper.parse_config(d)
-        sanitized = self._sanitize_dict(parsed_dict)
+        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
         self._items.update(sanitized)
 
     def update(self, d, allow_val_change=None):
@@ -113,7 +117,7 @@ class Config(object):
     def _sanitize_dict(self, config_dict, allow_val_change=None):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
-            k, v = self._sanitize(k, v)
+            k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
 
         return sanitized

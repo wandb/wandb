@@ -43,7 +43,7 @@ class TBWatcher(object):
         self._consumer = None
         self._settings = settings
         self._interface = interface
-        self._internal_run = internal_run.InternalRun(run_proto, settings)
+        self._run_proto = run_proto
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
@@ -78,7 +78,7 @@ class TBWatcher(object):
 
         if not self._consumer:
             self._consumer = TBEventConsumer(
-                self, self._watcher_queue, self._internal_run
+                self, self._watcher_queue, self._run_proto, self._settings
             )
             self._consumer.start()
 
@@ -231,13 +231,21 @@ class TBEventConsumer(object):
     out of order steps.
     """
 
-    def __init__(self, tbwatcher, queue, internal_run, delay=10):
+    def __init__(self, tbwatcher, queue, run_proto, settings, delay=10):
         self._tbwatcher = tbwatcher
         self._queue = queue
-        self._internal_run = internal_run
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = None
         self._delay = delay
+
+        # This is a bit of a hack to get file saving to work as it does in the user
+        # process. Since we don't have a real run object, we have to define the
+        # datatypes callback ourselves.
+        def datatypes_cb(fname):
+            files = dict(files=[(fname, "now")])
+            self._tbwatcher._interface.publish_files(files)
+
+        self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
 
     def start(self):
         self._start_time = time.time()

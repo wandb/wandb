@@ -43,6 +43,8 @@ init = wandb_sdk.init
 setup = wandb_sdk.setup
 save = wandb_sdk.save
 watch = wandb_sdk.watch
+finish = wandb_sdk.finish
+join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
@@ -111,12 +113,6 @@ config = _preinit.PreInitObject("wandb.config")
 summary = _preinit.PreInitObject("wandb.summary")
 log = _preinit.PreInitCallable(
     "wandb.log", wandb_sdk.wandb_run.Run.log
-)
-join = _preinit.PreInitCallable(
-    "wandb.join", wandb_sdk.wandb_run.Run.join
-)
-finish = _preinit.PreInitCallable(
-    "wandb.finish", wandb_sdk.wandb_run.Run.finish
 )
 save = _preinit.PreInitCallable(
     "wandb.save", wandb_sdk.wandb_run.Run.save

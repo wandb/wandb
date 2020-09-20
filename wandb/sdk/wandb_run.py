@@ -31,7 +31,7 @@ from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import filenames, module, proto_util, redirect, sparkline
+from wandb.lib import config_util, filenames, module, proto_util, redirect, sparkline
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
@@ -156,6 +156,10 @@ class RunDummy(RunBase):
     def id(self):
         pass
 
+    @property
+    def sweep_id(self):
+        pass
+
     def get_url(self):
         pass
 
@@ -209,6 +213,12 @@ class RunDummy(RunBase):
 
     def use_artifact(self, artifact_or_name, type=None, aliases=None):
         pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return exc_type is None
 
 
 class Run(RunBase):
@@ -436,6 +446,12 @@ class Run(RunBase):
         return self._run_id
 
     @property
+    def sweep_id(self):
+        if not self._run_obj:
+            return None
+        return self._run_obj.sweep_id or None
+
+    @property
     def path(self):
         parts = []
         for e in [self._entity, self._project, self._run_id]:
@@ -459,7 +475,7 @@ class Run(RunBase):
 
     @property
     def resumed(self):
-        return self._starting_step > 0
+        return self.starting_step > 0
 
     @property
     def step(self):
@@ -559,7 +575,22 @@ class Run(RunBase):
 
     def _set_run_obj(self, run_obj):
         self._run_obj = run_obj
-        # TODO: Update run summary when resuming?
+        self._entity = run_obj.entity
+        self._project = run_obj.project
+        # Grab the config from resuming
+        if run_obj.config:
+            c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
+            # TODO: Windows throws a wild error when this is set...
+            if "_wandb" in c_dict:
+                del c_dict["_wandb"]
+            # We update the config object here without triggering the callback
+            self.config._update(c_dict, allow_val_change=True)
+        # Update the summary, this will trigger an un-needed graphql request :(
+        if run_obj.summary:
+            summary_dict = {}
+            for orig in run_obj.summary.update:
+                summary_dict[orig.key] = json.loads(orig.value_json)
+            self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
@@ -875,14 +906,14 @@ class Run(RunBase):
     def _get_project_url(self):
         s = self._settings
         r = self._run_obj
-        app_url = s.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(s.base_url)
         url = "{}/{}/{}".format(app_url, url_quote(r.entity), url_quote(r.project))
         return url
 
     def _get_run_url(self):
         s = self._settings
         r = self._run_obj
-        app_url = s.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(s.base_url)
         url = "{}/{}/{}/runs/{}".format(
             app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id)
         )
@@ -901,7 +932,7 @@ class Run(RunBase):
         if not sweep_id:
             return
 
-        app_url = self._settings.base_url.replace("//api.", "//app.")
+        app_url = wandb.util.app_url(self._settings.base_url)
 
         return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
             base=app_url,
@@ -1524,3 +1555,8 @@ class WriteSerializingFile(object):
             self.f.close()
         finally:
             self.lock.release()
+
+
+def finish(exit_code=None):
+    if wandb.run:
+        wandb.run.finish(exit_code=exit_code)
