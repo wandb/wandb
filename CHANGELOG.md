@@ -1,3 +1,19 @@
+## 0.10.2 (September 20, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added upload_file to API
+-  wandb.finish() can be called without matching wandb.init()
+
+#### :bug: Bug Fix
+
+-  Fix issue where files were being logged to wrong parallel runs
+-  Fix missing properties/methods -- as_dict(), sweep_id
+-  Fix wandb.summary.update() not updating all keys
+-  Code saving was not properly enabled based on UI settings
+-  Tensorboard now logging images before end of program
+-  Fix resume issues dealing with config and summary metrics
+
 ## 0.10.1 (September 16, 2020)
 
 #### :nail_care: Enhancement
