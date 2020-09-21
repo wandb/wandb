@@ -258,57 +258,67 @@ class SendManager(object):
     def _maybe_setup_resume(self, run):
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
-        error = None
-        if self._settings.resume:
-            # TODO: This causes a race, we need to make the upsert atomically
-            # only create or update depending on the resume config
-            # we use the runs entity if set, otherwise fallback to users entity
-            entity = run.entity or self._entity
-            logger.info(
-                "checking resume status for %s/%s/%s", entity, run.project, run.run_id
-            )
-            resume_status = self._api.run_resume_status(
-                entity=entity, project_name=run.project, name=run.run_id
-            )
-            if resume_status is None:
-                if self._settings.resume == "must":
-                    error = wandb_internal_pb2.ErrorInfo()
-                    error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                    error.message = (
-                        "resume='must' but run (%s) doesn't exist" % run.run_id
-                    )
-            else:
-                if self._settings.resume == "never":
-                    error = wandb_internal_pb2.ErrorInfo()
-                    error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
-                    error.message = "resume='never' but run (%s) exists" % run.run_id
-                elif self._settings.resume in ("allow", "auto"):
-                    history = {}
-                    events = {}
-                    config = {}
-                    summary = {}
-                    try:
-                        history = json.loads(
-                            json.loads(resume_status["historyTail"])[-1]
-                        )
-                        events = json.loads(json.loads(resume_status["eventsTail"])[-1])
-                        config = json.loads(resume_status["config"])
-                        summary = json.loads(resume_status["summaryMetrics"])
-                    except (IndexError, ValueError) as e:
-                        logger.error("unable to load resume tails", exc_info=e)
-                    # TODO: Do we need to restore config / summary?
-                    # System metrics runtime is usually greater than history
-                    events_rt = events.get("_runtime", 0)
-                    history_rt = history.get("_runtime", 0)
-                    self._resume_state["runtime"] = max(events_rt, history_rt)
-                    self._resume_state["step"] = history.get("_step", -1) + 1
-                    self._resume_state["history"] = resume_status["historyLineCount"]
-                    self._resume_state["events"] = resume_status["eventsLineCount"]
-                    self._resume_state["output"] = resume_status["logLineCount"]
-                    self._resume_state["config"] = config
-                    self._resume_state["summary"] = summary
-                    logger.info("configured resuming with: %s" % self._resume_state)
-        return error
+        if not self._settings.resume:
+            return
+
+        # TODO: This causes a race, we need to make the upsert atomically
+        # only create or update depending on the resume config
+        # we use the runs entity if set, otherwise fallback to users entity
+        entity = run.entity or self._entity
+        logger.info(
+            "checking resume status for %s/%s/%s", entity, run.project, run.run_id
+        )
+        resume_status = self._api.run_resume_status(
+            entity=entity, project_name=run.project, name=run.run_id
+        )
+
+        if not resume_status:
+            if self._settings.resume == "must":
+                error = wandb_internal_pb2.ErrorInfo()
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
+                return error
+            return
+
+        #
+        # handle cases where we have resume_status
+        #
+        if self._settings.resume == "never":
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+            error.message = "resume='never' but run (%s) exists" % run.run_id
+            return error
+
+        history = {}
+        events = {}
+        config = {}
+        summary = {}
+        try:
+            history = json.loads(json.loads(resume_status["historyTail"])[-1])
+            events = json.loads(json.loads(resume_status["eventsTail"])[-1])
+            config = json.loads(resume_status["config"])
+            summary = json.loads(resume_status["summaryMetrics"])
+        except (IndexError, ValueError) as e:
+            logger.error("unable to load resume tails", exc_info=e)
+            if self._settings.resume == "must":
+                error = wandb_internal_pb2.ErrorInfo()
+                error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
+                error.message = "resume='must' but could not resume (%s) " % run.run_id
+                return error
+
+        # TODO: Do we need to restore config / summary?
+        # System metrics runtime is usually greater than history
+        events_rt = events.get("_runtime", 0)
+        history_rt = history.get("_runtime", 0)
+        self._resume_state["runtime"] = max(events_rt, history_rt)
+        self._resume_state["step"] = history.get("_step", -1) + 1
+        self._resume_state["history"] = resume_status["historyLineCount"]
+        self._resume_state["events"] = resume_status["eventsLineCount"]
+        self._resume_state["output"] = resume_status["logLineCount"]
+        self._resume_state["config"] = config
+        self._resume_state["summary"] = summary
+        logger.info("configured resuming with: %s" % self._resume_state)
+        return
 
     def send_run(self, data):
         run = data.run
