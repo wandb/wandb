@@ -1,3 +1,4 @@
-from wandb import magic_impl
+from wandb.integration import magic
 
-magic_impl.magic_install()
+
+magic.magic_install()

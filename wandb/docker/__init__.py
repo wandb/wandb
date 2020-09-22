@@ -1,20 +1,29 @@
+import logging
 import os
+import subprocess
+
 import requests
 import six
-import logging
 from wandb.docker import auth
 from wandb.docker import www_authenticate
-import subprocess
-entrypoint = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "wandb-entrypoint.sh")
+
+entrypoint = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"
+)
 auth_config = auth.load_config()
 log = logging.getLogger(__name__)
 
 
 def shell(cmd):
-    "Simple wrapper for calling docker, returning None on error and the output on success"
+    """Simple wrapper for calling docker,
+
+    returning None on error and the output on success"""
     try:
-        return subprocess.check_output(['docker'] + cmd, stderr=subprocess.STDOUT).decode('utf8').strip()
+        return (
+            subprocess.check_output(["docker"] + cmd, stderr=subprocess.STDOUT)
+            .decode("utf8")
+            .strip()
+        )
     except subprocess.CalledProcessError:
         return None
 
@@ -27,11 +36,11 @@ def default_image(gpu=False):
 
 
 def parse_repository_tag(repo_name):
-    parts = repo_name.rsplit('@', 1)
+    parts = repo_name.rsplit("@", 1)
     if len(parts) == 2:
         return tuple(parts)
-    parts = repo_name.rsplit(':', 1)
-    if len(parts) == 2 and '/' not in parts[1]:
+    parts = repo_name.rsplit(":", 1)
+    if len(parts) == 2 and "/" not in parts[1]:
         return tuple(parts)
     return repo_name, None
 
@@ -57,17 +66,24 @@ def auth_token(registry, repo):
     response = requests.get("https://{}/v2/".format(registry), timeout=3)
     if response.headers.get("www-authenticate"):
         try:
-            info = www_authenticate.parse(response.headers['www-authenticate'])
+            info = www_authenticate.parse(response.headers["www-authenticate"])
         except ValueError:
             info = {}
     else:
-        log.error("Received {} when attempting to authenticate with {}".format(
-            response, registry))
+        log.error(
+            "Received {} when attempting to authenticate with {}".format(
+                response, registry
+            )
+        )
         info = {}
     if info.get("bearer"):
-        res = requests.get(info["bearer"]["realm"] +
-                           "?service={}&scope=repository:{}:pull".format(
-            info["bearer"]["service"], repo), auth=auth_info, timeout=3)
+        res = requests.get(
+            info["bearer"]["realm"] + "?service={}&scope=repository:{}:pull".format(
+                info["bearer"]["service"], repo
+            ),
+            auth=auth_info,
+            timeout=3,
+        )
         res.raise_for_status()
         return res.json()
     return {}
@@ -82,16 +98,21 @@ def image_id_from_registry(image_name):
         # dockerhub is crazy
         if registry == "index.docker.io":
             registry = "registry-1.docker.io"
-        res = requests.head("https://{}/v2/{}/manifests/{}".format(registry, repository, tag), headers={
-            "Authorization": "Bearer {}".format(token),
-            "Accept": "application/vnd.docker.distribution.manifest.v2+json"
-        }, timeout=5)
+        res = requests.head(
+            "https://{}/v2/{}/manifests/{}".format(registry, repository, tag),
+            headers={
+                "Authorization": "Bearer {}".format(token),
+                "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+            },
+            timeout=5,
+        )
         res.raise_for_status()
     except requests.RequestException:
-        log.error("Received {} when attempting to get digest for {}".format(
-            res, image_name))
+        log.error(
+            "Received {} when attempting to get digest for {}".format(res, image_name)
+        )
         return None
-    return "@".join([registry+"/"+repository, res.headers["Docker-Content-Digest"]])
+    return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
 
 
 def image_id(image_name):
@@ -99,4 +120,6 @@ def image_id(image_name):
     if "@sha256:" in image_name:
         return image_name
     else:
-        return shell(['inspect', image_name, '--format', '{{index .RepoDigests 0}}']) or image_id_from_registry(image_name)
+        return shell(
+            ["inspect", image_name, "--format", "{{index .RepoDigests 0}}"]
+        ) or image_id_from_registry(image_name)

@@ -53,18 +53,18 @@ Example:
 
 from __future__ import print_function
 
-import yaml
 import json
-import time
-import string
+import os
 import random
+import string
+import time
+
 import six
 from six.moves import urllib
-import os
-
 import wandb
-from wandb.apis import InternalApi
 from wandb import env
+from wandb.apis import InternalApi
+import yaml
 
 # wandb.sweeps.sweeps will be loaded later to prevent dependency requirements for non sweep users.
 wandb_sweeps = None
@@ -74,35 +74,38 @@ wandb_sweeps = None
 # TODO(jhr): Add print_summary
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
-SWEEP_INITIAL_RUN_STATE = 'running'
+SWEEP_INITIAL_RUN_STATE = "running"
 
 
 def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return "".join(random.choice(chars) for _ in range(size))
 
 
 def _get_sweep_url(api, sweep_id):
     """Return sweep url if we can figure it out."""
     if api.api_key:
-        if api.settings('entity') is None:
+        if api.settings("entity") is None:
             viewer = api.viewer()
-            if viewer.get('entity'):
-                api.set_setting('entity', viewer['entity'])
-        project = api.settings('project')
+            if viewer.get("entity"):
+                api.set_setting("entity", viewer["entity"])
+        project = api.settings("project")
         if not project:
             return
-        if api.settings('entity'):
+        if api.settings("entity"):
             return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
                 base=api.app_url,
-                entity=urllib.parse.quote(api.settings('entity')),
+                entity=urllib.parse.quote(api.settings("entity")),
                 project=urllib.parse.quote(project),
-                sweepid=urllib.parse.quote(sweep_id)
+                sweepid=urllib.parse.quote(sweep_id),
             )
 
 
 class _Run(object):
     """Run object containing attributes about a run for sweep searching and stopping."""
-    def __init__(self, name, state, history, config, summaryMetrics, stopped, shouldStop):
+
+    def __init__(
+        self, name, state, history, config, summaryMetrics, stopped, shouldStop
+    ):
         self.name = name
         self.state = state
         self.config = config
@@ -112,38 +115,46 @@ class _Run(object):
         self.shouldStop = shouldStop
 
     def __repr__(self):
-        return 'Run(%s,%s,%s,%s,%s,%s)' % (self.name, self.state, self.config, self.history, self.summaryMetrics, self.stopped)
+        return "Run(%s,%s,%s,%s,%s,%s)" % (
+            self.name,
+            self.state,
+            self.config,
+            self.history,
+            self.summaryMetrics,
+            self.stopped,
+        )
 
     @classmethod
     def init_from_dict(cls, run_dict):
         """Initialize from dictionary.
-    
+
         Args:
             run_dict (dict): Run dictionaries with keys 'name', 'state', 'config', 'stopped', 'sampledHistory', 'summaryMetrics', ...
         Returns:
             _Run(): Run object
         """
-        name = run_dict['name']
-        state = run_dict['state']
-        config = run_dict['config']
-        stopped = run_dict['stopped']
+        name = run_dict["name"]
+        state = run_dict["state"]
+        config = run_dict["config"]
+        stopped = run_dict["stopped"]
         config = json.loads(config)
-        history = run_dict['sampledHistory']
+        history = run_dict["sampledHistory"]
         history = history[0]
-        summaryMetrics = run_dict['summaryMetrics']
+        summaryMetrics = run_dict["summaryMetrics"]
         if summaryMetrics:
             summaryMetrics = json.loads(summaryMetrics)
-        shouldStop = run_dict['shouldStop']
+        shouldStop = run_dict["shouldStop"]
         r = cls(name, state, history, config, summaryMetrics, stopped, shouldStop)
         return r
 
 
 class ControllerError(Exception):
     """Base class for sweep errors"""
+
     pass
 
 
-class _WandbController():
+class _WandbController:
     """Sweep controller class.
 
     Internal datastructures on the sweep object to coordinate local controller with
@@ -177,6 +188,7 @@ class _WandbController():
         - Runs are only schedule if there are no other runs scheduled.
 
     """
+
     def __init__(self, sweep_id_or_config=None, entity=None, project=None):
         global wandb_sweeps
         try:
@@ -225,7 +237,7 @@ class _WandbController():
         # count of logged lines since last status
         self._logged = 0
         # last status line printed
-        self._laststatus = ''
+        self._laststatus = ""
         # keep track of logged actions for print_actions()
         self._log_actions = []
         # keep track of logged debug for print_debug()
@@ -290,38 +302,38 @@ class _WandbController():
         if isinstance(search, str):
             self._create["method"] = search
         elif issubclass(search, wandb_sweeps.base.Search):
-            self._create["method"] = 'custom'
+            self._create["method"] = "custom"
             self._custom_search = search(kwargs)
         else:
             raise ControllerError("Unhandled search type.")
-    
+
     def configure_stopping(self, stopping, **kwargs):
         self._configure_check()
         if isinstance(stopping, str):
-            self._create.setdefault('early_terminate', {})
-            self._create['early_terminate']['type'] = stopping
+            self._create.setdefault("early_terminate", {})
+            self._create["early_terminate"]["type"] = stopping
             for k, v in kwargs.items():
-                self._create['early_terminate'][k] = v
+                self._create["early_terminate"][k] = v
         elif issubclass(stopping, wandb_sweeps.base.EarlyTerminate):
             self._custom_stopping = stopping(kwargs)
-            self._create.setdefault('early_terminate', {})
-            self._create['early_terminate']['type'] = 'custom'
+            self._create.setdefault("early_terminate", {})
+            self._create["early_terminate"]["type"] = "custom"
         else:
             raise ControllerError("Unhandled stopping type.")
 
     def configure_metric(self, metric, goal=None):
         self._configure_check()
-        self._create.setdefault('metric', {})
-        self._create['metric']['name'] = metric
+        self._create.setdefault("metric", {})
+        self._create["metric"]["name"] = metric
         if goal:
-            self._create['metric']['goal'] = goal
+            self._create["metric"]["goal"] = goal
 
     def configure_program(self, program):
         self._configure_check()
         if isinstance(program, str):
-            self._create['program'] = program
-        elif hasattr(program, '__call__'):
-            self._create['program'] = '__callable__'
+            self._create["program"] = program
+        elif callable(program):
+            self._create["program"] = "__callable__"
             self._program_function = program
             raise ControllerError("Program functions are not supported yet")
         else:
@@ -329,35 +341,48 @@ class _WandbController():
 
     def configure_name(self, name):
         self._configure_check()
-        self._create['name'] = name
+        self._create["name"] = name
 
     def configure_description(self, description):
         self._configure_check()
-        self._create['description'] = description
+        self._create["description"] = description
 
-    def configure_parameter(self, name, values=None, value=None, distribution=None, min=None, max=None, mu=None, sigma=None, q=None):
+    def configure_parameter(
+        self,
+        name,
+        values=None,
+        value=None,
+        distribution=None,
+        min=None,
+        max=None,
+        mu=None,
+        sigma=None,
+        q=None,
+    ):
         self._configure_check()
-        self._create.setdefault('parameters', {}).setdefault(name, {})
-        if value is not None or (values is None and min is None and max is None and distribution is None):
-            self._create['parameters'][name]['value'] = value
+        self._create.setdefault("parameters", {}).setdefault(name, {})
+        if value is not None or (
+            values is None and min is None and max is None and distribution is None
+        ):
+            self._create["parameters"][name]["value"] = value
         if values is not None:
-            self._create['parameters'][name]['values'] = values
+            self._create["parameters"][name]["values"] = values
         if min is not None:
-            self._create['parameters'][name]['min'] = min
+            self._create["parameters"][name]["min"] = min
         if max is not None:
-            self._create['parameters'][name]['max'] = max
+            self._create["parameters"][name]["max"] = max
         if mu is not None:
-            self._create['parameters'][name]['mu'] = mu
+            self._create["parameters"][name]["mu"] = mu
         if sigma is not None:
-            self._create['parameters'][name]['sigma'] = sigma
+            self._create["parameters"][name]["sigma"] = sigma
         if q is not None:
-            self._create['parameters'][name]['q'] = q
+            self._create["parameters"][name]["q"] = q
 
     def configure_controller(self, type):
         """configure controller to local if type == 'local'."""
         self._configure_check()
-        self._create.setdefault('controller', {})
-        self._create['controller'].setdefault('type', type)
+        self._create.setdefault("controller", {})
+        self._create["controller"].setdefault("type", type)
 
     def configure(self, sweep_dict_or_config):
         self._configure_check()
@@ -378,26 +403,28 @@ class _WandbController():
         if not self._create:
             raise ControllerError("Must configure sweep before create.")
         # Do validation if local controller
-        is_local = self._create.get('controller', {}).get('type') == 'local'
+        is_local = self._create.get("controller", {}).get("type") == "local"
         if is_local:
             msg = self._validate(self._create)
             if msg:
                 raise ControllerError("Validate Error: %s" % msg)
         # Create sweep
         sweep_id = self._api.upsert_sweep(self._create)
-        print('Create sweep with ID:', sweep_id)
+        print("Create sweep with ID:", sweep_id)
         sweep_url = _get_sweep_url(self._api, sweep_id)
         if sweep_url:
-            print('Sweep URL:', sweep_url)
+            print("Sweep URL:", sweep_url)
         self._sweep_id = sweep_id
         self._defer_sweep_creation = False
         return sweep_id
 
-    def run(self, verbose=None, print_status=True, print_actions=False, print_debug=False):
+    def run(
+        self, verbose=None, print_status=True, print_actions=False, print_debug=False
+    ):
         if verbose:
-            print_status=True
-            print_actions=True
-            print_debug=True
+            print_status = True
+            print_actions = True
+            print_debug = True
         self._start_if_not_started()
         while not self.done():
             if print_status:
@@ -416,56 +443,61 @@ class _WandbController():
             k.append(self._sweep_metric)
             specs_json = {"keys": k, "samples": 100000}
         specs = json.dumps(specs_json)
-        # FIXME(jhr): catch exceptions?
+        # TODO(jhr): catch exceptions?
         sweep_obj = self._api.sweep(self._sweep_id, specs)
         if not sweep_obj:
             return
         self._sweep_obj = sweep_obj
-        self._sweep_config = yaml.safe_load(sweep_obj['config'])
-        self._sweep_metric = self._sweep_config.get('metric', {}).get('name')
-        self._sweep_runs = [_Run.init_from_dict(r) for r in sweep_obj['runs']]
+        self._sweep_config = yaml.safe_load(sweep_obj["config"])
+        self._sweep_metric = self._sweep_config.get("metric", {}).get("name")
+        self._sweep_runs = [_Run.init_from_dict(r) for r in sweep_obj["runs"]]
         self._sweep_runs_map = {r.name: r for r in self._sweep_runs}
 
-        self._controller = json.loads(sweep_obj.get('controller') or '{}')
-        self._scheduler = json.loads(sweep_obj.get('scheduler') or '{}')
+        self._controller = json.loads(sweep_obj.get("controller") or "{}")
+        self._scheduler = json.loads(sweep_obj.get("scheduler") or "{}")
         self._controller_prev_step = self._controller.copy()
         return sweep_obj
 
     def _sweep_object_sync_to_backend(self):
         if self._controller == self._controller_prev_step:
             return
-        sweep_obj_id = self._sweep_obj['id']
+        sweep_obj_id = self._sweep_obj["id"]
         controller = json.dumps(self._controller)
         self._api.upsert_sweep(
-            self._sweep_config, controller=controller, obj_id=sweep_obj_id)
+            self._sweep_config, controller=controller, obj_id=sweep_obj_id
+        )
         self._controller_prev_step = self._controller.copy()
 
     def _start_if_not_started(self):
         if self._started:
             return
         if self._defer_sweep_creation:
-            raise ControllerError("Must specify or create a sweep before running controller.")
+            raise ControllerError(
+                "Must specify or create a sweep before running controller."
+            )
         obj = self._sweep_object_read_from_backend()
         if not obj:
             return
-        is_local = self._sweep_config.get('controller', {}).get('type') == 'local'
+        is_local = self._sweep_config.get("controller", {}).get("type") == "local"
         if not is_local:
-            raise ControllerError("Only sweeps with a local controller are currently supported.")
+            raise ControllerError(
+                "Only sweeps with a local controller are currently supported."
+            )
         self._started = True
         # reset controller state, we might want to parse this and decide
         # what we can continue and add a version key, but for now we can
         # be safe and just reset things on start
-        self._controller = {}   
+        self._controller = {}
         self._sweep_object_sync_to_backend()
 
     def _parse_scheduled(self):
-        scheduled_list = self._scheduler.get('scheduled') or []
+        scheduled_list = self._scheduler.get("scheduled") or []
         started_ids = []
         stopped_runs = []
         done_runs = []
         for s in scheduled_list:
-            runid = s.get('runid')
-            objid = s.get('id')
+            runid = s.get("runid")
+            objid = s.get("id")
             r = self._sweep_runs_map.get(runid)
             if not r:
                 continue
@@ -475,7 +507,7 @@ class _WandbController():
             if r.state == SWEEP_INITIAL_RUN_STATE and not summary:
                 continue
             started_ids.append(objid)
-            if r.state != 'running':
+            if r.state != "running":
                 done_runs.append(runid)
         return started_ids, stopped_runs, done_runs
 
@@ -486,14 +518,16 @@ class _WandbController():
         started_ids, stopped_runs, done_runs = self._parse_scheduled()
 
         # Remove schedule entry from controller dict if already scheduled
-        schedule_list = self._controller.get('schedule', [])
-        new_schedule_list = [s for s in schedule_list if s.get('id') not in started_ids]
-        self._controller['schedule'] = new_schedule_list
+        schedule_list = self._controller.get("schedule", [])
+        new_schedule_list = [s for s in schedule_list if s.get("id") not in started_ids]
+        self._controller["schedule"] = new_schedule_list
 
         # Remove earlystop entry from controller if already stopped
-        earlystop_list = self._controller.get('earlystop', [])
-        new_earlystop_list = [r for r in earlystop_list if r not in stopped_runs and r not in done_runs]
-        self._controller['earlystop'] = new_earlystop_list
+        earlystop_list = self._controller.get("earlystop", [])
+        new_earlystop_list = [
+            r for r in earlystop_list if r not in stopped_runs and r not in done_runs
+        ]
+        self._controller["earlystop"] = new_earlystop_list
 
         # Clear out step logs
         self._log_actions = []
@@ -509,21 +543,21 @@ class _WandbController():
 
     def done(self):
         self._start_if_not_started()
-        state = self._sweep_obj.get('state')
-        if state in ('RUNNING', 'PENDING'):
+        state = self._sweep_obj.get("state")
+        if state in ("RUNNING", "PENDING"):
             return False
         return True
 
     def _search(self):
         sweep = self._sweep_obj.copy()
-        sweep['runs'] = self._sweep_runs
-        sweep['config'] = self._sweep_config
+        sweep["runs"] = self._sweep_runs
+        sweep["config"] = self._sweep_config
         search = self._custom_search or wandb_sweeps.Search.to_class(self._sweep_config)
         next_run = search.next_run(sweep)
         if next_run:
             next_run, info = next_run
             if info:
-                #print("DEBUG", info)
+                # print("DEBUG", info)
                 pass
         else:
             self._done_scheduling = True
@@ -537,29 +571,33 @@ class _WandbController():
     def _validate(self, config):
         """Make sure config is valid."""
         sweep = {}
-        sweep['config'] = config
-        sweep['runs'] = []
+        sweep["config"] = config
+        sweep["runs"] = []
         search = self._custom_search or wandb_sweeps.Search.to_class(config)
         try:
-            next_run = search.next_run(sweep)
+            _ = search.next_run(sweep)
         except Exception as err:
             return str(err)
         try:
-            stopper = self._custom_stopping or wandb_sweeps.EarlyTerminate.to_class(config)
-            runs = stopper.stop_runs(config, [])
+            stopper = self._custom_stopping or wandb_sweeps.EarlyTerminate.to_class(
+                config
+            )
+            _ = stopper.stop_runs(config, [])
         except Exception as err:
             return str(err)
         if config.get("program") is None:
-            return "Config file is missing 'program' specification" 
+            return "Config file is missing 'program' specification"
         return
 
     def _stopping(self):
         sweep = self._sweep_obj.copy()
-        sweep['runs'] = self._sweep_runs
-        sweep['config'] = self._sweep_config
-        stopper = self._custom_stopping or wandb_sweeps.EarlyTerminate.to_class(self._sweep_config)
-        stop_runs, info = stopper.stop_runs(self._sweep_config, sweep['runs'])
-        debug_lines = info.get('lines', [])
+        sweep["runs"] = self._sweep_runs
+        sweep["config"] = self._sweep_config
+        stopper = self._custom_stopping or wandb_sweeps.EarlyTerminate.to_class(
+            self._sweep_config
+        )
+        stop_runs, info = stopper.stop_runs(self._sweep_config, sweep["runs"])
+        debug_lines = info.get("lines", [])
         if debug_lines:
             self._log_debug += debug_lines
 
@@ -578,23 +616,24 @@ class _WandbController():
             return
 
         if params:
-            param_list = ['%s=%s' % (k, v.get('value')) for k, v in sorted(six.iteritems(params))]
-            self._log_actions.append(('schedule', ','.join(param_list)))
+            param_list = [
+                "%s=%s" % (k, v.get("value")) for k, v in sorted(six.iteritems(params))
+            ]
+            self._log_actions.append(("schedule", ",".join(param_list)))
 
         # schedule one run
         schedule_list = []
         schedule_id = _id_generator()
-        schedule_list.append(
-            {'id': schedule_id, 'data': {'args': params}})
+        schedule_list.append({"id": schedule_id, "data": {"args": params}})
         self._controller["schedule"] = schedule_list
 
         self._sweep_object_sync_to_backend()
 
     def stop_runs(self, runs):
-        earlystop_list = self._controller.get('earlystop', []) + runs
+        earlystop_list = self._controller.get("earlystop", []) + runs
         earlystop_list = list(set(runs))
-        self._log_actions.append(('stop', ','.join(runs)))
-        self._controller['earlystop'] = earlystop_list
+        self._log_actions.append(("stop", ",".join(runs)))
+        self._controller["earlystop"] = earlystop_list
         self._sweep_object_sync_to_backend()
 
     def print_status(self):
@@ -606,7 +645,7 @@ class _WandbController():
 
     def print_actions(self):
         for action, line in self._log_actions:
-            self._info('%s (%s)' % (action.capitalize(), line))
+            self._info("%s (%s)" % (action.capitalize(), line))
         self._log_actions = []
 
     def print_debug(self):
@@ -633,16 +672,18 @@ def controller(sweep_id_or_config=None, entity=None, project=None):
         tuner.configure_stopping(...)
 
     """
-    c = _WandbController(sweep_id_or_config=sweep_id_or_config, entity=entity, project=project)
+    c = _WandbController(
+        sweep_id_or_config=sweep_id_or_config, entity=entity, project=project
+    )
     return c
 
 
 def _get_run_counts(runs):
     metrics = {}
-    categories = ('running', 'finished', 'crashed', 'failed')
+    categories = ("running", "finished", "crashed", "failed")
     for r in runs:
         state = r.state
-        found = 'unknown'
+        found = "unknown"
         for c in categories:
             if state == c:
                 found = c
@@ -653,19 +694,19 @@ def _get_run_counts(runs):
 
 
 def _get_runs_status(metrics):
-    categories = ('finished', 'crashed', 'failed', 'unknown', 'running')
+    categories = ("finished", "crashed", "failed", "unknown", "running")
     mlist = []
     for c in categories:
         if not metrics.get(c):
             continue
         mlist.append("%s: %d" % (c.capitalize(), metrics[c]))
-    s = ', '.join(mlist)
+    s = ", ".join(mlist)
     return s
 
 
 def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
-    sweep = sweep_obj['name']
-    state = sweep_obj['state']
+    sweep = sweep_obj["name"]
+    _ = sweep_obj["state"]
     run_count = len(sweep_runs)
     run_type_counts = _get_run_counts(sweep_runs)
     stopped = len([r for r in sweep_runs if r.stopped])
@@ -676,13 +717,13 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
         if stopping:
             stopstr += " (Stopping: %d)" % stopping
     runs_status = _get_runs_status(run_type_counts)
-    method = sweep_conf.get('method', 'unknown')
-    stopping = sweep_conf.get('early_terminate', None)
+    method = sweep_conf.get("method", "unknown")
+    stopping = sweep_conf.get("early_terminate", None)
     sweep_options = []
     sweep_options.append(method)
     if stopping:
-        sweep_options.append(stopping.get('type', 'unknown'))
-    sweep_options = ','.join(sweep_options)
+        sweep_options.append(stopping.get("type", "unknown"))
+    sweep_options = ",".join(sweep_options)
     sections = []
     sections.append("Sweep: %s (%s)" % (sweep, sweep_options))
     if runs_status:
@@ -691,7 +732,7 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
         sections.append("Runs: %d" % (run_count))
     if stopstr:
         sections.append(stopstr)
-    sections = ' | '.join(sections)
+    sections = " | ".join(sections)
     return sections
 
 
@@ -716,8 +757,8 @@ def sweep(sweep, entity=None, project=None):
         env.set_project(project)
     api = InternalApi()
     sweep_id = api.upsert_sweep(sweep)
-    print('Create sweep with ID:', sweep_id)
+    print("Create sweep with ID:", sweep_id)
     sweep_url = _get_sweep_url(api, sweep_id)
     if sweep_url:
-        print('Sweep URL:', sweep_url)
+        print("Sweep URL:", sweep_url)
     return sweep_id

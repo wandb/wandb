@@ -1,5 +1,5 @@
 from wandb.data_types import Table
-from wandb.core import Error
+from wandb.errors import Error
 
 class Visualize:
     def __init__(self, viz_id, value):

@@ -1,148 +1,54 @@
-import pytest
-from .utils import git_repo
 import os
-import glob
-import sys
-import six
-from click.testing import CliRunner
-import wandb
-import types
-import subprocess
-from wandb import env
-from wandb import util
-from wandb.meta import Meta
-from wandb.apis import InternalApi
+import pytest
+import platform
+import threading
+
+from six.moves import queue
+from wandb.internal.meta import Meta
+from wandb.internal.sender import SendManager
+from wandb.interface.interface import BackendSender
 
 
-def test_meta(git_repo, mocker):
-    mocker.patch.object(sys, 'argv', ["foo", "bar"])
-    meta = Meta(InternalApi())
+@pytest.fixture()
+def record_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def result_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def interface(record_q):
+    return BackendSender(record_q=record_q)
+
+
+@pytest.fixture()
+def meta(test_settings, interface):
+    return Meta(settings=test_settings, interface=interface)
+
+
+@pytest.fixture()
+def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run, interface):
+    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q, interface=interface)
+    meta._interface.publish_run(mocked_run)
+    sm.send(record_q.get())
+    yield sm
+
+
+# @pytest.mark.skipif(platform.system() == "Windows", reason="git stopped working")
+def test_meta_probe(mock_server, meta, sm, record_q):
+    with open("README", "w") as f:
+        f.write("Testing")
+    meta.probe()
     meta.write()
-    print(meta.data)
-    assert meta.data["cpu_count"] > 0
-    assert meta.data["git"]["commit"]
-    assert meta.data["heartbeatAt"]
-    assert meta.data["startedAt"]
-    assert meta.data["host"]
-    assert meta.data["root"] == os.getcwd()
-    assert meta.data["python"]
-    assert meta.data["program"]
-    assert meta.data["executable"]
-    assert meta.data["args"] == ["bar"]
-    assert meta.data["state"] == "running"
-    assert meta.data["username"]
-    assert meta.data["os"]
+    sm.send(record_q.get())
+    sm.finish()
+    print(mock_server.ctx)
+    assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
+    assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
+    assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 
-def test_anonymous_redaction(mocker):
-    mocker.patch.object(sys, 'argv', ["foo", "bar"])
-    api = InternalApi()
-    api.set_setting('anonymous', 'true')
-
-    meta = Meta(api, "wandb")
-    meta.write()
-
-    print(meta.data)
-    assert "host" not in meta.data
-    assert "username" not in meta.data
-    assert "executable" not in meta.data
-    assert "email" not in meta.data
-    assert "root" not in meta.data
-
-
-def test_disable_code(git_repo):
-    os.environ[env.DISABLE_CODE] = "true"
-    meta = Meta(InternalApi())
-    assert meta.data.get("git") is None
-    del os.environ[env.DISABLE_CODE]
-
-def test_no_save_code(git_repo):
-    with open("test.ipynb", "w") as f:
-        f.write("{}")
-    os.environ[env.SAVE_CODE] = "false"
-    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
-    meta = Meta(InternalApi())
-    assert meta.data.get("codePath") is None
-
-
-def test_colab(mocker, monkeypatch):
-    with CliRunner().isolated_filesystem():
-        mocker.patch('wandb._get_python_type', lambda: "jupyter")
-        with open("test.ipynb", "w") as f:
-            f.write("{}")
-        os.environ[env.SAVE_CODE] = "true"
-        module = types.ModuleType("fake_jupyter")
-        module.notebook_metadata = lambda: {"path": "fileId=123abc", "name": "test.ipynb", "root": os.getcwd()}
-        monkeypatch.setattr(wandb, 'jupyter', module)
-        meta = Meta(InternalApi())
-        assert meta.data["colab"] == "https://colab.research.google.com/drive/123abc"
-        assert meta.data["program"] == "test.ipynb"
-        assert meta.data["codePath"] == "test.ipynb"
-        assert os.path.exists("code/test.ipynb")
-
-
-def test_git_untracked_notebook_env(monkeypatch, git_repo, mocker):
-    mocker.patch('wandb._get_python_type', lambda: "jupyter")
-    with open("test.ipynb", "w") as f:
-        f.write("{}")
-    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
-    os.environ[env.SAVE_CODE] = "true"
-    meta = Meta(InternalApi())
-    assert meta.data["program"] == "test.ipynb"
-    assert meta.data["codePath"] == "test.ipynb"
-    assert os.path.exists("code/test.ipynb")
-    del os.environ[env.NOTEBOOK_NAME]
-
-
-def test_git_untracked_notebook_env_subdir(monkeypatch, git_repo, mocker):
-    mocker.patch('wandb._get_python_type', lambda: "jupyter")
-    util.mkdir_exists_ok("sub")
-    with open("sub/test.ipynb", "w") as f:
-        f.write("{}")
-    os.environ[env.NOTEBOOK_NAME] = "sub/test.ipynb"
-    os.environ[env.SAVE_CODE] = "true"
-    meta = Meta(InternalApi())
-    assert meta.data["program"] == "sub/test.ipynb"
-    assert meta.data["codePath"] == "sub/test.ipynb"
-    assert os.path.exists("code/sub/test.ipynb")
-    del os.environ[env.NOTEBOOK_NAME]
-
-
-# We save code whether it is tracked or not tracked
-def test_git_tracked_notebook_env(monkeypatch, git_repo, mocker):
-    mocker.patch('wandb._get_python_type', lambda: "jupyter")
-    with open("test.ipynb", "w") as f:
-        f.write("{}")
-    subprocess.check_call(['git', 'add', 'test.ipynb'])
-    os.environ[env.NOTEBOOK_NAME] = "test.ipynb"
-    os.environ[env.SAVE_CODE] = "true"
-    meta = Meta(InternalApi())
-    assert meta.data["program"] == "test.ipynb"
-    assert meta.data.get("codePath") == "test.ipynb"
-    assert os.path.exists("code/test.ipynb")
-    del os.environ[env.NOTEBOOK_NAME]
-
-
-def test_meta_cuda(mocker):
-    mocker.patch('wandb.meta.os.path.exists', lambda path: True)
-
-    def magic(path, mode="w"):
-        if "cuda/version.txt" in path:
-            stringIO = six.StringIO("CUDA Version 9.0.176")
-            # Monkeypatching for Python 2 compatibility
-            stringIO.__enter__ = lambda: stringIO
-            stringIO.__exit__ = lambda type, value, traceback: True
-            return stringIO
-        else:
-            return open(path, mode=mode)
-    mocker.patch('wandb.meta.open', magic)
-    meta = Meta(InternalApi())
-    assert meta.data["cuda"] == "9.0.176"
-
-
-def test_meta_thread(git_repo):
-    meta = Meta(InternalApi(), "wandb")
-    meta.start()
-    meta.shutdown()
-    print("GO", glob.glob("**"))
-    assert os.path.exists("wandb/wandb-metadata.json")
+# TODO: test actual code saving

@@ -1,39 +1,36 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help
-.DEFAULT_GOAL := help
+# vim:ft=make:
+
+# Setup browser launch
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
 try:
 	from urllib import pathname2url
 except:
 	from urllib.request import pathname2url
-
 webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
 endef
 export BROWSER_PYSCRIPT
-
-define PRINT_HELP_PYSCRIPT
-import re, sys
-
-for line in sys.stdin:
-	match = re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', line)
-	if match:
-		target, help = match.groups()
-		print("%-20s %s" % (target, help))
-endef
-export PRINT_HELP_PYSCRIPT
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
-ifeq ($(strip $(shell git status --untracked-files=no --porcelain 2>/dev/null)),)
-	GIT_TREE_STATE=clean
-else
-	GIT_TREE_STATE=dirty
-endif
 
-help:
-	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+coverage: ## check code coverage quickly with the default Python
+	coverage run --source wandb -m pytest
+	coverage report -m
+	coverage html
+	$(BROWSER) htmlcov/index.html
+
+
+release-test: dist ## package and upload test release
+	twine upload --repository testpypi dist/*
+
+release: dist ## package and upload release
+	twine upload dist/*
+
+dist: clean ## builds source and wheel package
+	python setup.py sdist bdist_wheel
+	ls -l dist
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
-
 
 clean-build: ## remove build artifacts
 	rm -fr build/
@@ -41,6 +38,36 @@ clean-build: ## remove build artifacts
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
+
+setup-clean:
+	rm -fr build/
+	rm -fr dist/
+
+test-clean:
+	rm -fr build/
+	rm -fr dist/
+	find . -name '*.pyc' -delete
+	find . -name '__pycache__' -delete
+	rm -rf .tox/
+	rm -rf .pytest_cache/
+
+test:
+	tox -e "codemod,black,mypy,flake8"
+
+test-full:
+	tox
+
+test-short:
+	tox -e "codemod,black,mypy,flake8,py36"
+
+format:
+	tox -e format
+
+proto:
+	cd wandb/proto && python wandb_internal_codegen.py
+
+isort:
+	isort -o wandb -o gql --force-sort-within-sections $(args)
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
@@ -52,42 +79,3 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/
-
-lint: ## check style with flake8
-	flake8 wandb tests
-
-test: ## run tests quickly with the default Python
-	py.test	
-
-test-all: ## run tests on every Python version with tox
-	CIRCLE_TEST_REPORTS=/tmp tox
-
-coverage: ## check code coverage quickly with the default Python
-	coverage run --source wandb -m pytest
-	
-		coverage report -m
-		coverage html
-		$(BROWSER) htmlcov/index.html
-
-gitdirty:
-ifeq ($(GIT_TREE_STATE),dirty)
-	$(error un-committed changes, commit before continuing)
-endif
-
-release: dist ## package and upload a release
-	git push
-	twine upload dist/*
-
-release-test: dist ## package and upload test release
-	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
-
-dist: clean ## builds source and wheel package
-	python setup.py sdist bdist_wheel
-	ls -l dist
-
-arena: dist
-	cp -r dist wandb/kubeflow
-	docker build wandb/kubeflow -t wandb/arena
-
-install: clean ## install the package to the active Python's site-packages
-	python setup.py install
