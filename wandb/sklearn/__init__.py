@@ -196,6 +196,7 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
         # Classifier Metrics
         if sklearn.base.is_classifier(model):
             y_pred = model.predict(X_test)
+            y_probas = model.predict_proba(X_test)
 
             metric_name.append("accuracy_score")
             metric_value.append(round_2(sklearn.metrics.accuracy_score(y_test, y_pred)))
@@ -368,8 +369,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
         if true_labels is None:
             true_classes = classes
         else:
-            # TODO: Where did this go?
-            # validate_labels(classes, true_labels, "true_labels")
+            validate_labels(classes, true_labels, "true_labels")
 
             true_label_indexes = np.in1d(classes, true_labels)
 
@@ -379,8 +379,7 @@ def confusion_matrix(y_true=None, y_pred=None, labels=None, true_labels=None,
         if pred_labels is None:
             pred_classes = classes
         else:
-            # TODO: Where did this go?
-            # validate_labels(classes, pred_labels, "pred_labels")
+            validate_labels(classes, pred_labels, "pred_labels")
 
             pred_label_indexes = np.in1d(classes, pred_labels)
 
@@ -514,7 +513,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
         indices = np.argsort(importances)[::-1]
 
-        if feature_names is None or not feature_names.astype(np.object).any():
+        if feature_names is None:
             feature_names = indices
         else:
             feature_names = np.array(feature_names)[indices]
@@ -557,16 +556,16 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
     Example:
         wandb.sklearn.plot_elbow_curve(model, X_train)
     """
-    try:
-        from joblib import Parallel, delayed
-    except ImportError:
-        wandb.termerror("plot_elbow_curve requires python 3x")
-        return
     if not hasattr(clusterer, 'n_clusters'):
         wandb.termlog('n_clusters attribute not in classifier. Cannot plot elbow method.')
         return
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
+        try:
+            from joblib import Parallel, delayed
+        except ImportError:
+            wandb.termerror("plot_elbow_curve requires python 3x")
+            return
         if cluster_ranges is None:
             cluster_ranges = range(1, 10, 2)
         else:

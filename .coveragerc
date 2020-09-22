@@ -1,5 +1,0 @@
-[run]
-branch = True
-omit =
-    wandb/vendor/*
-    wandb/kubeflow/arena.py

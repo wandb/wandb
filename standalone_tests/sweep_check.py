@@ -27,8 +27,8 @@ def train(**kwargs):
     with run:
         c=dict(run.config)
         run.name = '{}-{}-{}'.format(c.get("param0"), c.get("param1"), c.get("param2"))
-        run.save()
         run_id = run.id
+        print("SweepID", run.sweep_id)
         length = run.config.get("length", L)
         epochs = run.config.get("epochs", 27)
         delay = run.config.get("delay", 0)

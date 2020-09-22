@@ -18,14 +18,13 @@ import sys
 import threading
 import time
 import random
-import platform
 import stat
 import shortuuid
 import importlib
 import types
 import yaml
-import numbers
 from datetime import date, datetime
+import platform
 
 import click
 import requests
@@ -38,32 +37,31 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
+from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
-import wandb.core
-from wandb import io_wrap
-from wandb import wandb_dir
-from wandb.apis import CommError
-from wandb import wandb_config
+from wandb.old.core import wandb_dir
+from wandb.errors.error import CommError
+from wandb.lib.git import GitRepo
 from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
-OUTPUT_FNAME = 'output.log'
-DIFF_FNAME = 'diff.patch'
 
+IS_GIT = os.path.exists(
+    os.path.join(os.path.dirname(__file__), '..', '.git'))
 
 # these match the environments for gorilla
-if wandb.core.IS_GIT:
+if IS_GIT:
     SENTRY_ENV = 'development'
 else:
     SENTRY_ENV = 'production'
 
 if error_reporting_enabled():
-    sentry_sdk.init("https://f84bb3664d8e448084801d9198b771b2@sentry.io/1299483",
+    sentry_sdk.init(dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
                     release=wandb.__version__,
                     default_integrations=False,
                     environment=SENTRY_ENV)
@@ -74,12 +72,14 @@ def sentry_message(message):
         capture_message(message)
 
 
-def sentry_exc(exc):
+def sentry_exc(exc, delay=False):
     if error_reporting_enabled():
         if isinstance(exc, six.string_types):
             capture_exception(Exception(exc))
         else:
             capture_exception(exc)
+        if delay:
+            time.sleep(2)
 
 
 def sentry_reraise(exc):
@@ -95,18 +95,28 @@ def sentry_reraise(exc):
     six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
-def vendor_import(name):
+def sentry_set_scope(process_context, entity, project, url=None):
+    with configure_scope() as scope:
+        scope.set_tag("process_context", process_context)
+        scope.set_tag("entity", entity)
+        scope.set_tag("project", project)
+        if url is not None:
+            scope.set_tag("url", url)
+
+
+def vendor_setup():
     """This enables us to use the vendor directory for packages we don't depend on"""
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, 'vendor')
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", )
+    package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
+    for p in [vendor_dir] + package_dirs:
+        if p not in sys.path:
+            sys.path.insert(1, p)
 
-    # TODO: this really needs to go, was added for CI
-    if sys.modules.get("prompt_toolkit"):
-        for k in list(sys.modules.keys()):
-            if k.startswith("prompt_toolkit"):
-                del sys.modules[k]
 
-    sys.path.insert(1, vendor_dir)
+def vendor_import(name):
+    vendor_setup()
     return import_module(name)
 
 
@@ -202,6 +212,13 @@ np = get_module('numpy')
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
+
+
+def app_url(api_url):
+    if "wandb." in api_url and api_url.startswith('https://api.'):
+        return api_url.replace('api.', '')
+    # wandb/local
+    return api_url
 
 
 def get_full_typename(o):
@@ -314,7 +331,6 @@ def ensure_matplotlib_figure(obj):
             "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
     return obj
 
-
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
     converted = True
@@ -323,7 +339,10 @@ def json_friendly(obj):
     if is_tf_eager_tensor_typename(typename):
         obj = obj.numpy()
     elif is_tf_tensor_typename(typename):
-        obj = obj.eval()
+        try:
+            obj = obj.eval()
+        except RuntimeError:
+            obj = obj.numpy()
     elif is_pytorch_tensor_typename(typename):
         try:
             if obj.requires_grad:
@@ -439,30 +458,21 @@ def parse_tfjob_config():
         return False
 
 
-def parse_sm_config():
-    """Attempts to parse SageMaker configuration returning False if it can't find it"""
-    sagemaker_config = "/opt/ml/input/config/hyperparameters.json"
-    resource_config = "/opt/ml/input/config/resourceconfig.json"
-    if os.path.exists(sagemaker_config) and os.path.exists(resource_config):
-        conf = {}
-        conf["sagemaker_training_job_name"] = os.getenv('TRAINING_JOB_NAME')
-        # Hyper-parameter searchs quote configs...
-        for k, v in six.iteritems(json.load(open(sagemaker_config))):
-            cast = v.strip('"')
-            if os.getenv("WANDB_API_KEY") is None and k == "wandb_api_key":
-                os.environ["WANDB_API_KEY"] = cast
-            else:
-                if re.match(r'^[-\d]+$', cast):
-                    cast = int(cast)
-                elif re.match(r'^[-.\d]+$', cast):
-                    cast = float(cast)
-                conf[k] = cast
-        return conf
-    else:
-        return False
-
-
 class WandBJSONEncoder(json.JSONEncoder):
+    """A JSON Encoder that handles some extra types."""
+
+    def default(self, obj):
+        if hasattr(obj, "json_encode"):
+            return obj.json_encode()
+        # if hasattr(obj, 'to_json'):
+        #     return obj.to_json()
+        tmp_obj, converted = json_friendly(obj)
+        if converted:
+            return tmp_obj
+        return json.JSONEncoder.default(self, obj)
+
+
+class WandBJSONEncoderOld(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
@@ -484,6 +494,7 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
         if converted:
             return obj
         return json.JSONEncoder.default(self, obj)
+    
 
 class JSONEncoderUncompressed(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
@@ -512,6 +523,7 @@ def json_dump_uncompressed(obj, fp, **kwargs):
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
     return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+
 
 def make_json_if_not_number(v):
     """If v is not a basic type convert it to json."""
@@ -562,58 +574,11 @@ def no_retry_auth(e):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        extra = ""
-        if wandb.run and str(wandb.run.api.api_key).startswith("local-"):
-            extra = " --host=http://localhost:8080"
-            if wandb.run.api.api_url == "https://api.wandb.ai":
-                raise CommError("Attempting to authenticate with the cloud using a local API key.  Set WANDB_BASE_URL to your local instance.")
-        raise CommError("Invalid or missing api_key.  Run wandb login" + extra)
+        raise CommError("Invalid or missing api_key.  Run wandb login")
     elif wandb.run:
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
-
-
-def write_netrc(host, entity, key):
-    """Add our host and key to .netrc"""
-    key_prefix, key_suffix = key.split('-', 1) if '-' in key else ('', key)
-    if len(key_suffix) != 40:
-        wandb.termlog('API-key must be exactly 40 characters long: {} ({} chars)'.format(key_suffix, len(key_suffix)))
-        return None
-    try:
-        normalized_host = host.split("/")[-1].split(":")[0]
-        wandb.termlog("Appending key for {} to your netrc file: {}".format(
-            normalized_host, os.path.expanduser('~/.netrc')))
-        machine_line = 'machine %s' % normalized_host
-        path = os.path.expanduser('~/.netrc')
-        orig_lines = None
-        try:
-            with open(path) as f:
-                orig_lines = f.read().strip().split('\n')
-        except (IOError, OSError) as e:
-            pass
-        with open(path, 'w') as f:
-            if orig_lines:
-                # delete this machine from the file if it's already there.
-                skip = 0
-                for line in orig_lines:
-                    if machine_line in line:
-                        skip = 2
-                    elif skip:
-                        skip -= 1
-                    else:
-                        f.write('%s\n' % line)
-            f.write(textwrap.dedent("""\
-            machine {host}
-              login {entity}
-              password {key}
-            """).format(host=normalized_host, entity=entity, key=key))
-        os.chmod(os.path.expanduser('~/.netrc'),
-                 stat.S_IRUSR | stat.S_IWUSR)
-        return True
-    except IOError as e:
-        wandb.termerror("Unable to read ~/.netrc")
-        return None
 
 
 def request_with_retry(func, *args, **kwargs):
@@ -706,6 +671,9 @@ def downsample(values, target_length):
         result.append(values[int(i * ratio)])
     return result
 
+import numbers
+def has_num(dictionary, key):
+     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
 
 def md5_file(path):
     hash_md5 = hashlib.md5()
@@ -721,11 +689,11 @@ def get_log_file_path():
     It would probably be better if this pointed to a log file in a
     run directory.
     """
-    return wandb.GLOBAL_LOG_FNAME
+    # TODO(jhr, cvp): refactor
+    if wandb.run:
+        return wandb.run._settings.log_internal
+    return os.path.join("wandb", "debug-internal.log")
 
-
-def is_wandb_file(name):
-    return name.startswith('wandb') or name == wandb_config.FNAME or name == "requirements.txt" or name == OUTPUT_FNAME or name == DIFF_FNAME
 
 def docker_image_regex(image):
     "regex for valid docker image names"
@@ -887,110 +855,15 @@ def download_file_from_url(dest_path, source_url, api_key=None):
     response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
     response.raise_for_status()
 
-    if "/" in dest_path:
-        dir = "/".join(dest_path.split("/")[0:-1])
-        mkdir_exists_ok(dir)
+    if os.sep in dest_path:
+        mkdir_exists_ok(os.path.dirname(dest_path))
     with open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
 
 
-def set_api_key(api, key, anonymous=False):
-    if not key:
-        return
-
-    # Normal API keys are 40-character hex strings. Onprem API keys have a
-    # variable-length prefix, a dash, then the 40-char string.
-    prefix, suffix = key.split('-') if '-' in key else ('', key)
-
-    if len(suffix) == 40:
-        os.environ[env.API_KEY] = key
-        api.set_setting('anonymous', str(anonymous).lower(), globally=True, persist=True)
-        write_netrc(api.api_url, "user", key)
-        api.reauth()
-        return
-    raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
-
-
 def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
-
-
-LOGIN_CHOICE_ANON = 'Private W&B dashboard, no account required'
-LOGIN_CHOICE_NEW = 'Create a W&B account'
-LOGIN_CHOICE_EXISTS = 'Use an existing W&B account'
-LOGIN_CHOICE_DRYRUN = "Don't visualize my results"
-LOGIN_CHOICES = [
-    LOGIN_CHOICE_ANON,
-    LOGIN_CHOICE_NEW,
-    LOGIN_CHOICE_EXISTS,
-    LOGIN_CHOICE_DRYRUN
-]
-
-
-def prompt_api_key(api, input_callback=None, browser_callback=None, no_offline=False, local=False):
-    input_callback = input_callback or getpass.getpass
-
-    choices = [choice for choice in LOGIN_CHOICES]
-    if os.environ.get(env.ANONYMOUS, "never") == "never":
-        # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
-        choices.remove(LOGIN_CHOICE_ANON)
-    if os.environ.get(env.JUPYTER, "false") == "true" or no_offline:
-        choices.remove(LOGIN_CHOICE_DRYRUN)
-
-    if os.environ.get(env.ANONYMOUS) == "must":
-        result = LOGIN_CHOICE_ANON
-    # If we're not in an interactive environment, default to dry-run.
-    elif not isatty(sys.stdout) or not isatty(sys.stdin):
-        result = LOGIN_CHOICE_DRYRUN
-    elif local:
-        result = LOGIN_CHOICE_EXISTS
-    else:
-        for i, choice in enumerate(choices):
-            wandb.termlog("(%i) %s" % (i + 1, choice))
-
-        def prompt_choice():
-            try:
-                return int(six.moves.input("%s: Enter your choice: " % wandb.core.LOG_STRING)) - 1
-            except ValueError:
-                return -1
-        idx = -1
-        while idx < 0 or idx > len(choices) - 1:
-            idx = prompt_choice()
-            if idx < 0 or idx > len(choices) - 1:
-                wandb.termwarn("Invalid choice")
-        result = choices[idx]
-        wandb.termlog("You chose '%s'" % result)
-
-    if result == LOGIN_CHOICE_ANON:
-        key = api.create_anonymous_api_key()
-
-        set_api_key(api, key, anonymous=True)
-        return key
-    elif result == LOGIN_CHOICE_NEW:
-        key = browser_callback(signup=True) if browser_callback else None
-
-        if not key:
-            wandb.termlog('Create an account here: {}/authorize?signup=true'.format(api.app_url))
-            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
-
-        set_api_key(api, key)
-        return key
-    elif result == LOGIN_CHOICE_EXISTS:
-        key = browser_callback() if browser_callback else None
-
-        if not key:
-            wandb.termlog('You can find your API key in your browser here: {}/authorize'.format(api.app_url))
-            key = input_callback('%s: Paste an API key from your profile and hit enter' % wandb.core.LOG_STRING).strip()
-        set_api_key(api, key)
-        return key
-    else:
-        # Jupyter environments don't have a tty, but we can still try logging in using the browser callback if one
-        # is supplied.
-        key, anonymous = browser_callback() if os.environ.get(env.JUPYTER, "false") == "true" and browser_callback else (None, False)
-
-        set_api_key(api, key, anonymous=anonymous)
-        return key
 
 
 def sizeof_fmt(num, suffix='B'):
@@ -1004,11 +877,14 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def auto_project_name(program, api):
+def auto_project_name(program):
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = api.git.root_dir
+    root_dir = GitRepo().root_dir
     if root_dir is None:
-        return None
+        return "uncategorized"
+    # On windows, GitRepo returns paths in unix style, but os.path is windows
+    # style. Coerce here.
+    root_dir = to_native_slash_path(root_dir)
     repo_name = os.path.basename(root_dir)
     if program is None:
         return repo_name
@@ -1054,22 +930,59 @@ def parse_sweep_id(parts_dict):
         return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
 
-def has_num(dictionary, key):
-     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
-
-def get_program():
-    try:
-        import __main__
-        program = __main__.__file__
-    except (ImportError, AttributeError):
-        program = None
-    return program
-    
 def to_forward_slash_path(path):
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return path
 
+def to_native_slash_path(path):
+    return path.replace('/', os.sep)
+
 def bytes_to_hex(bytestr):
     # Works in python2 / python3
     return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
+
+
+class ImportMetaHook():
+    def __init__(self):
+        self.modules = {}
+        self.on_import = {}
+
+    def add(self, fullname, on_import):
+        self.on_import.setdefault(fullname, []).append(on_import)
+
+    def install(self):
+        sys.meta_path.insert(0, self)
+
+    def uninstall(self):
+        sys.meta_path.remove(self)
+
+    def find_module(self, fullname, path=None):
+        if fullname in self.on_import:
+            return self
+
+    def load_module(self, fullname):
+        self.uninstall()
+        mod = importlib.import_module(fullname)
+        self.install()
+        self.modules[fullname] = mod
+        on_imports = self.on_import.get(fullname)
+        if on_imports:
+            for f in on_imports:
+                f()
+        return mod
+
+    def get_modules(self):
+        return tuple(self.modules)
+
+    def get_module(self, module):
+        return self.modules[module]
+
+_import_hook = None
+
+def add_import_hook(fullname, on_import):
+    global _import_hook
+    if _import_hook is None:
+        _import_hook = ImportMetaHook()
+        _import_hook.install()
+    _import_hook.add(fullname, on_import)

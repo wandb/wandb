@@ -55,18 +55,18 @@ def main(argv):
     with wandb.init(reinit=True, job_type='user') as run:
         # Use artifact that doesn't exist
         art2 = artifact_with_various_paths()
-        run.use_artifact(art2)
+        run.use_artifact(art2, aliases='art2')
 
     with wandb.init(reinit=True, job_type='writer') as run:
         # Log artifact that doesn't exist
         art1 = artifact_with_various_paths()
-        run.log_artifact(art1)
+        run.log_artifact(art1, aliases='art1')
 
     with wandb.init(reinit=True, job_type='reader') as run:
         # Downloading should probably fail or warn when your artifact contains
         # a path that can't be downloaded.
         print('Downloading art1')
-        art = run.use_artifact(art1.digest, type='artsy')
+        art = run.use_artifact('my-artys:art1')
 
         import pprint
         pprint.pprint(art._load_manifest().to_manifest_json())
@@ -78,7 +78,7 @@ def main(argv):
         print('Art requirements.txt reference', art.get_path('requirements.txt').download())
 
         print('Downloading art2')
-        art = run.use_artifact(art2.digest, type='artsy')
+        art = run.use_artifact('my-artys:art2')
         art_dir = art.download()
         art.verify()
         print(os.listdir(art_dir))

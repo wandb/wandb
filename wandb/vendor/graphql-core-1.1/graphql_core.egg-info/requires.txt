@@ -1,0 +1,15 @@
+six>=1.10.0
+promise>=2.0
+
+[gevent]
+gevent==1.1rc1
+
+[test]
+pytest==3.0.2
+pytest-django==2.9.1
+pytest-cov==2.3.1
+coveralls
+gevent==1.1rc1
+six>=1.10.0
+pytest-benchmark==3.0.0
+pytest-mock==1.2

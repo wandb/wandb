@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: query=%7B%0A++myFavoriteFilm%3A+film%28id%3A+%22RmlsbToz%22%29+%7B%0A++++id%0A++++title%0A++++episodeId%0A++++characters%28first%3A+5%29+%7B%0A++++++edges+%7B%0A++++++++node+%7B%0A++++++++++name%0A++++++++%7D%0A++++++%7D%0A++++%7D%0A++%7D%0A%7D%0A
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '247'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Cookie:
+      - csrftoken=hRIez34v4hg2Wbl8XhrbshvDIB3HmLR2L9WNTJ3SdrIQHxAKtoukxiuwQlwRJewz
+      User-Agent:
+      - python-requests/2.22.0
+      x-csrftoken:
+      - hRIez34v4hg2Wbl8XhrbshvDIB3HmLR2L9WNTJ3SdrIQHxAKtoukxiuwQlwRJewz
+    method: POST
+    uri: http://127.0.0.1:8000/graphql
+  response:
+    body:
+      string: '{"data":{"myFavoriteFilm":{"id":"RmlsbToz","title":"Return of the Jedi","episodeId":6,"characters":{"edges":[{"node":{"name":"Luke
+        Skywalker"}},{"node":{"name":"C-3PO"}},{"node":{"name":"R2-D2"}},{"node":{"name":"Darth
+        Vader"}},{"node":{"name":"Leia Organa"}}]}}}}'
+    headers:
+      Content-Length:
+      - '264'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 03 Dec 2019 08:23:58 GMT
+      Server:
+      - WSGIServer/0.1 Python/2.7.16
+      Set-Cookie:
+      - csrftoken=hRIez34v4hg2Wbl8XhrbshvDIB3HmLR2L9WNTJ3SdrIQHxAKtoukxiuwQlwRJewz;
+        expires=Tue, 01-Dec-2020 08:23:58 GMT; Max-Age=31449600; Path=/
+      Vary:
+      - Cookie
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
