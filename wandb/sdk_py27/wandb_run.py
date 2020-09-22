@@ -167,6 +167,10 @@ class RunDummy(RunBase):
         pass
 
     @property
+    def project(self):
+        pass
+
+    @property
     def config(self):
         return self._config
 
@@ -484,6 +488,10 @@ class Run(RunBase):
     def project_name(self, api=None):
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project
+
+    @property
+    def project(self):
+        return self.project_name()
 
     def get_url(self):
         if not self._run_obj:

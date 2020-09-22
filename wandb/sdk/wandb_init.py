@@ -448,6 +448,7 @@ def init(
     tensorboard=None,  # alias for sync_tensorboard
     sync_tensorboard=None,
     monitor_gym=None,
+    save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], str, None] = None,
 ) -> RunBase:
