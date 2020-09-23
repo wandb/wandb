@@ -96,6 +96,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                 all_run_histories.append(history)
 
         self.thresholds = []
+        cnt_runs_in_band = []
         # iterate over the histories at every band and find the threshold for a run to be in the top r percentile
         for band in self.bands:
             # values of metric at iteration number "band"
@@ -108,9 +109,10 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                     int((self.r) * len(band_values))]
 
             self.thresholds.append(threshold)
+            cnt_runs_in_band.append(len(band_values))
 
         info = {}
-        info['lines'] = []
+        info['lines'] = []  # This acts as an output log for `wandb sweep --controller --verbose`
         info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (
             band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
 
@@ -122,19 +124,28 @@ class HyperbandEarlyTerminate(EarlyTerminate):
                 closest_threshold = 0
                 bandstr = ""
                 termstr = ""
-                for band, threshold in zip(self.bands, self.thresholds):
+                for band, threshold, cnt_runs in zip(self.bands, self.thresholds, cnt_runs_in_band):
                     if band < len(history):
                         closest_band = band
                         closest_threshold = threshold
+                        closest_cnt = cnt_runs
                     else:
                         break
 
                 if closest_band != -1:  # no bands apply yet
-                    bandstr = " (Metric: %f Band: %d Threshold %f)" % (
-                        min(history), closest_band, closest_threshold)
+                    bandstr = " (Metric: %f Band: %d Threshold: %f Cnt: %d)" % (
+                        min(history), closest_band, closest_threshold, closest_cnt)
                     if min(history) > closest_threshold:
                         terminate_run_names.append(run.name)
                         termstr = " STOP"
+                    elif closest_cnt == 1:
+                        # This is the first run to reach this band.  Stop it.
+                        # This means early runs are always short, and don't run their full length.
+                        # Letting early runs go to completion can be very wasteful with bayes or
+                        # random because they're just random guesses and probably not very good.
+                        # (Could put a config switch here.)
+                        terminate_run_names.append(run.name)
+                        termstr = " STOP_FIRST"
 
                 info['lines'].append("Run: %s Step: %d%s%s" % (
                     run.name, len(history), bandstr, termstr))
