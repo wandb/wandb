@@ -1,4 +1,3 @@
-// Place your settings in this file to overwrite default and user settings.
 {
   "files.exclude": {
     "**/*.pyc": true,
@@ -6,15 +5,19 @@
     "build": true
   },
   "git.ignoreLimitWarning": true,
-  "python.linting.pylintEnabled": true,
+
+  "editor.formatOnSave": false,
+
   "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.mypyEnabled": false,
+
+  "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.formatting.provider": "autopep8",
-  "python.formatting.autopep8Args": [
-      "--ignore-local-config",
-      "--ignore",
-      "E265,E402,E202,E225,E226",
-      "--max-line-length",
-      "120"
-  ]
+  "python.testing.nosetestsEnabled": false,
+
+  "python.formatting.provider": "black",
+  "python.formatting.autopep8Args": ["--max-line-length", "120"],
+  "python.testing.pytestArgs": ["."],
+  "python.linting.pylintEnabled": false
 }

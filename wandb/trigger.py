@@ -12,12 +12,11 @@ _triggers = {}
 
 
 def reset():
-    global triggers
-    _triggers = {}
+    _triggers.clear()
 
 
-def register(event_str, func):
-    _triggers.setdefault(event_str, []).append(func)
+def register(event, func):
+    _triggers.setdefault(event, []).append(func)
 
 
 def call(event_str, *args, **kwargs):
@@ -25,5 +24,5 @@ def call(event_str, *args, **kwargs):
         func(*args, **kwargs)
 
 
-def unregister(event_str, func):
-    _triggers[event_str].remove(func)
+def unregister(event, func):
+    _triggers[event].remove(func)

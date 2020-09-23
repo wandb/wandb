@@ -39,9 +39,9 @@ def _group_pairs(tokens):
     i = 0
     while i < len(tokens) - 2:
         if tokens[i][0] == 'token' and \
-           tokens[i+1][0] == 'equals' and \
-           tokens[i+2][0] == 'token':
-            tokens[i:i+3] = [('pair', (tokens[i][1], tokens[i+2][1]))]
+           tokens[i + 1][0] == 'equals' and \
+           tokens[i + 2][0] == 'token':
+            tokens[i:i + 3] = [('pair', (tokens[i][1], tokens[i + 2][1]))]
         i += 1
 
 
@@ -60,7 +60,7 @@ def _group_challenges(tokens):
                 j += 2
             j -= 1
         challenges.append((tokens[0][1], tokens[1:j]))
-        tokens[:j+1] = []
+        tokens[:j + 1] = []
     return challenges
 
 

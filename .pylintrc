@@ -1,0 +1,15 @@
+[MASTER]
+exclude =
+    wandb/vendor
+    wandb/sdk_py27
+
+max-line-length = 180
+good-names = logger
+disable =
+    useless-object-inheritance,  # for py2 compatibility
+    bad-continuation,  # to handle yapf formatting
+
+
+[MISCELLANEOUS]
+notes=FIXME,XXX
+

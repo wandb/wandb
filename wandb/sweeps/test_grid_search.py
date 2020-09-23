@@ -20,6 +20,11 @@ sweep_config_2params = {'parameters': {
     'v2': {'values': [4, 5]}}}
 
 
+sweep_config_1params_none = {'parameters': {
+    'v1': {'values': [None, 2, 3]},
+    }}
+
+
 def test_grid_single():
     gs = grid_search.GridSearch(randomize_order=False)
     runs = []
@@ -27,6 +32,15 @@ def test_grid_single():
     params, info = gs.next_run(sweep)
     assert info == None
     assert params['v1']['value'] == 1 and params['v2']['value'] == 4
+
+
+def test_grid_single_none():
+    gs = grid_search.GridSearch(randomize_order=False)
+    runs = []
+    sweep = {'config': sweep_config_1params_none, 'runs': runs}
+    params, info = gs.next_run(sweep)
+    assert info == None
+    assert params['v1']['value'] == None
 
 
 def test_grid_all():

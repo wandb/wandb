@@ -1,25 +1,50 @@
-import wandb
-from wandb.apis import InternalApi, CommError
-from wandb.run_manager import RunManager
-from wandb import env
-import time
-import os
-import threading
+from base64 import b64encode
 import logging
-import uuid
-from IPython.core.getipython import get_ipython
-from IPython.core.magic import cell_magic, line_cell_magic, line_magic, Magics, magics_class
-from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from IPython.display import display, Javascript
-import requests
-from requests.compat import urljoin
+import os
 import re
 import sys
-from base64 import b64encode
-from pkg_resources import resource_filename
-from importlib import import_module
+
+import requests
+from requests.compat import urljoin
+import wandb
+
+try:
+    from IPython.core.getipython import get_ipython
+    from IPython.core.magic import line_cell_magic, Magics, magics_class
+    from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+    from IPython.display import display
+except ImportError:
+    wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
+
+    class Magics(object):
+        pass
+
+    def magics_class(*args, **kwargs):
+        return lambda *args, **kwargs: None
+
+    def magic_arguments(*args, **kwargs):
+        return lambda *args, **kwargs: None
+
+    def argument(*args, **kwargs):
+        return lambda *args, **kwargs: None
+
+    def line_cell_magic(*args, **kwargs):
+        return lambda *args, **kwargs: None
 
 logger = logging.getLogger(__name__)
+
+
+class Run(object):
+    def __init__(self, run=None):
+        self.run = run or wandb.run
+
+    def _repr_html_(self):
+        try:
+            url = self.run._get_run_url() + "?jupyter=true"
+            return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
+                </iframe>''' % url
+        except wandb.Error as e:
+            return "Can't display wandb interface<br/>{}".format(e)
 
 
 @magics_class
@@ -30,20 +55,63 @@ class WandBMagics(Magics):
 
     @magic_arguments()
     @argument(
-        "-d", "--display", default=True,
-        help="Display the wandb interface automatically"
+        "-d",
+        "--display",
+        default=True,
+        help="Display the wandb interface automatically",
     )
     @line_cell_magic
     def wandb(self, line, cell=None):
         # Record options
         args = parse_argstring(self.wandb, line)
         self.options["body"] = ""
-        self.options['wandb_display'] = args.display
-
+        self.options["wandb_display"] = args.display
         # Register events
         display(Run())
         if cell is not None:
             get_ipython().run_cell(cell)
+
+
+def notebook_metadata():
+    """Attempts to query jupyter for the path and name of the notebook file"""
+    error_message = (
+        "Failed to query for notebook name, you can set it manually with "
+        "the WANDB_NOTEBOOK_NAME environment variable"
+    )
+    try:
+        import ipykernel
+        from notebook.notebookapp import list_running_servers
+
+        kernel_id = re.search(
+            "kernel-(.*).json", ipykernel.connect.get_connection_file()
+        ).group(1)
+        servers = list(
+            list_running_servers()
+        )  # TODO: sometimes there are invalid JSON files and this blows up
+    except Exception:
+        logger.error(error_message)
+        return {}
+    for s in servers:
+        try:
+            if s["password"]:
+                raise ValueError("Can't query password protected kernel")
+            res = requests.get(
+                urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
+            ).json()
+        except (requests.RequestException, ValueError):
+            logger.error(error_message)
+            return {}
+        for nn in res:
+            # TODO: wandb/client#400 found a case where res returned an array of
+            # strings...
+            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
+                if nn["kernel"]["id"] == kernel_id:
+                    return {
+                        "root": s["notebook_dir"],
+                        "path": nn["notebook"]["path"],
+                        "name": nn["notebook"]["name"],
+                    }
+    return {}
 
 
 def attempt_colab_login(app_url):
@@ -52,7 +120,9 @@ def attempt_colab_login(app_url):
     from google.colab._message import MessageError
     from IPython import display
 
-    display.display(display.Javascript('''
+    display.display(
+        display.Javascript(
+            """
         window._wandbApiKey = new Promise((resolve, reject) => {
             function loadScript(url) {
             return new Promise(function(resolve, reject) {
@@ -80,84 +150,39 @@ def attempt_colab_login(app_url):
             });
             })
         });
-    ''' % app_url.replace("http:", "https:")))
+    """  # noqa: E501
+            % app_url.replace("http:", "https:")
+        )
+    )
     try:
-        return output.eval_js('_wandbApiKey')
+        return output.eval_js("_wandbApiKey")
     except MessageError:
         return None
 
 
-def notebook_metadata():
-    """Attempts to query jupyter for the path and name of the notebook file"""
-    error_message = "Failed to query for notebook name, you can set it manually with the WANDB_NOTEBOOK_NAME environment variable"
-    try:
-        import ipykernel
-        from notebook.notebookapp import list_running_servers
-        kernel_id = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group(1)
-        servers = list(list_running_servers())  # TODO: sometimes there are invalid JSON files and this blows up
-    except Exception:
-        logger.error(error_message)
-        return {}
-    for s in servers:
-        try:
-            if s['password']:
-                raise ValueError("Can't query password protected kernel")
-            res = requests.get(urljoin(s['url'], 'api/sessions'), params={'token': s.get('token', '')}).json()
-        except (requests.RequestException, ValueError):
-            logger.error(error_message)
-            return {}
-        for nn in res:
-            # TODO: wandb/client#400 found a case where res returned an array of strings...
-            if isinstance(nn, dict) and nn.get("kernel") and 'notebook' in nn:
-                if nn['kernel']['id'] == kernel_id:
-                    return {"root": s['notebook_dir'], "path": nn['notebook']['path'], "name": nn['notebook']['name']}
-    return {}
-
-
-class JupyterAgent(object):
-    """A class that only logs metrics after `wandb.log` has been called and stops logging at cell completion"""
-
-    def __init__(self):
-        self.paused = True
+class Notebook(object):
+    def __init__(self, settings):
         self.outputs = {}
+        self.settings = settings
         self.shell = get_ipython()
 
-    def start(self):
-        if self.paused:
-            self.paused = False
-            self.rm = RunManager(wandb.run, output=False, cloud=wandb.run.mode != "dryrun")
-            wandb.run.api._file_stream_api = None
-            self.rm.mirror_stdout_stderr()
-            # Init will return the last step of a resumed run
-            # we update the runs history._steps in extreme hack fashion
-            # TODO: this reserves a bigtime refactor
-            new_step = self.rm.init_run(dict(os.environ))
-            if new_step:
-                wandb.run.history._steps = new_step + 1
-
-    def stop(self):
-        if not self.paused:
-            self.save_history()
-            self.rm.unmirror_stdout_stderr()
-            wandb.run.close_files()
-            self.rm.shutdown()
-            self.paused = True
-
-    def save_display(self, exc_count, dataWithMetadata):
+    def save_display(self, exc_count, data_with_metadata):
         self.outputs[exc_count] = self.outputs.get(exc_count, [])
 
         # byte values such as images need to be encoded in base64
         # otherwise nbformat.v4.new_output will throw a NotebookValidationError
-        data = dataWithMetadata["data"]
-        b64encodedData = {}
+        data = data_with_metadata["data"]
+        b64_data = {}
         for key in data:
             val = data[key]
             if isinstance(val, bytes):
-                b64encodedData[key] = b64encode(val).decode("utf-8")
+                b64_data[key] = b64encode(val).decode("utf-8")
             else:
-                b64encodedData[key] = val
+                b64_data[key] = val
 
-        self.outputs[exc_count].append({"data": b64encodedData, "metadata": dataWithMetadata["metadata"]})
+        self.outputs[exc_count].append(
+            {"data": b64_data, "metadata": data_with_metadata["metadata"]}
+        )
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
@@ -166,70 +191,61 @@ class JupyterAgent(object):
         except ImportError:
             logger.error("Run pip install nbformat to save notebook history")
             return
-
         # TODO: some tests didn't patch ipython properly?
-        if self.shell == None:
+        if self.shell is None:
             return
-
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        if len(hist) <= 1 or not env.should_save_code():
+        if len(hist) <= 1 or not self.settings.save_code:
+            logger.info("not saving jupyter history")
             return
-
         try:
-            for session, execution_count, exc in hist:
+            for _, execution_count, exc in hist:
                 if exc[1]:
                     # TODO: capture stderr?
-                    outputs = [v4.new_output(output_type="stream", name="stdout", text=exc[1])]
+                    outputs = [
+                        v4.new_output(output_type="stream", name="stdout", text=exc[1])
+                    ]
                 else:
                     outputs = []
                 if self.outputs.get(execution_count):
                     for out in self.outputs[execution_count]:
-                        outputs.append(v4.new_output(output_type="display_data", data=out["data"], metadata=out["metadata"] or {}))
-                cells.append(v4.new_code_cell(
-                    execution_count=execution_count,
-                    source=exc[0],
-                    outputs=outputs
-                ))
+                        outputs.append(
+                            v4.new_output(
+                                output_type="display_data",
+                                data=out["data"],
+                                metadata=out["metadata"] or {},
+                            )
+                        )
+                cells.append(
+                    v4.new_code_cell(
+                        execution_count=execution_count, source=exc[0], outputs=outputs
+                    )
+                )
             if hasattr(self.shell, "kernel"):
                 language_info = self.shell.kernel.language_info
             else:
-                language_info = {
-                    'name': "python",
-                    "version": sys.version
-                }
-            nb = v4.new_notebook(cells=cells, metadata={
-                'kernelspec': {
-                    'display_name': 'Python %i' % sys.version_info[0],
-                    'name': 'python%i' % sys.version_info[0],
-                    'language': 'python'
+                language_info = {"name": "python", "version": sys.version}
+            logger.info("saving %i cells to _session_history.ipynb", len(cells))
+            nb = v4.new_notebook(
+                cells=cells,
+                metadata={
+                    "kernelspec": {
+                        "display_name": "Python %i" % sys.version_info[0],
+                        "name": "python%i" % sys.version_info[0],
+                        "language": "python",
+                    },
+                    "language_info": language_info,
                 },
-                'language_info': language_info
-            })
+            )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run.config._set_wandb("session_history", state_path)
+            wandb.run.config["_wandb"]["session_history"] = state_path
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
-            with open(os.path.join(wandb.run.dir, state_path), 'w', encoding='utf-8') as f:
+            with open(
+                os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
+            ) as f:
                 write(nb, f, version=4)
         except (OSError, validator.NotebookValidationError) as e:
             logger.error("Unable to save ipython session history:\n%s", e)
             pass
-
-
-class Run(object):
-    def __init__(self, run=None):
-        self.run = run or wandb.run
-
-    def _repr_html_(self):
-        state = "running"
-        if self.run._jupyter_agent == None:
-            state = "no_agent"
-        elif self.run._jupyter_agent.paused:
-            state = "paused"
-        try:
-            url = self.run.get_url(params={'jupyter': 'true', 'state': state})
-            return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
-                </iframe>''' % url
-        except CommError as e:
-            return "Can't display wandb interface<br/>{}".format(e.message)

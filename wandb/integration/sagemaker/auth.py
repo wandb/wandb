@@ -1,0 +1,32 @@
+import os
+
+import six
+import wandb
+from wandb import env
+from wandb.lib import apikey
+
+
+def sagemaker_auth(overrides=None, path=".", api_key=None):
+    """Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
+
+    Args:
+        overrides (dict, optional): Additional environment variables to write
+                                    to secrets.env
+        path (str, optional): The path to write the secrets file.
+    """
+
+    wl = wandb.setup()
+    settings = wl.settings()
+    current_api_key = apikey.api_key(settings=settings)
+
+    overrides = overrides or dict()
+    api_key = overrides.get(env.API_KEY, api_key or current_api_key)
+    if api_key is None:
+        raise ValueError(
+            "Can't find W&B ApiKey, set the WANDB_API_KEY env variable "
+            "or run `wandb login`"
+        )
+    overrides[env.API_KEY] = api_key
+    with open(os.path.join(path, "secrets.env"), "w") as file:
+        for k, v in six.iteritems(overrides):
+            file.write("{}={}\n".format(k, v))
