@@ -31,7 +31,15 @@ from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import config_util, filenames, module, proto_util, redirect, sparkline
+from wandb.lib import (
+    config_util,
+    filenames,
+    ipython,
+    module,
+    proto_util,
+    redirect,
+    sparkline,
+)
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import Visualize
 
@@ -1124,19 +1132,24 @@ class Run(RunBase):
                 os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
+        errored = True
         try:
             self._on_finish()
+            errored = False
         except KeyboardInterrupt:
             wandb.termerror("Control-C detected -- Run data was not synced")
-            os._exit(-1)
+            if ipython._get_python_type() == "python":
+                os._exit(-1)
         except Exception as e:
             self._console_stop()
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             traceback.print_exception(*sys.exc_info())
-            os._exit(-1)
-        self._on_final()
+            if ipython._get_python_type() == "python":
+                os._exit(-1)
+        if not errored:
+            self._on_final()
 
     def _console_start(self):
         logger.info("atexit reg")
