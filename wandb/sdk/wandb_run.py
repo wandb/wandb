@@ -1132,10 +1132,8 @@ class Run(RunBase):
                 os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
-        errored = True
         try:
             self._on_finish()
-            errored = False
         except KeyboardInterrupt:
             wandb.termerror("Control-C detected -- Run data was not synced")
             if ipython._get_python_type() == "python":
@@ -1148,7 +1146,7 @@ class Run(RunBase):
             traceback.print_exception(*sys.exc_info())
             if ipython._get_python_type() == "python":
                 os._exit(-1)
-        if not errored:
+        else:
             self._on_final()
 
     def _console_start(self):
