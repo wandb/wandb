@@ -1,31 +1,40 @@
-# Experimental wandb client
+# Wandb library
 
 https://paper.dropbox.com/doc/Cling-CLI-Refactor-lETNuiP0Rax8yjTi03Scp
 
-## Play along
+## Get the code / library
 
-`pip install --upgrade git+git://github.com/wandb/client-ng.git#egg=wandb-ng`
+Checkout from github:
+```
+git clone git@github.com:wandb/client.git
+cd client
+pip install -e .
+```
+
+Install from pip:
+```
+pip install --upgrade git+git://github.com/wandb/client.git
+```
 
 Or from pypi:
-
-- https://pypi.org/project/wandb-ng/
-- `pip install --upgrade wandb-ng`
+```
+pip install --upgrade wandb`
+```
 
 ## Code organization
 
 ```
-wandb/sdk                - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-wandb/sdk_py27           - Generated files [currently by strip.sh]
-wandb/backend            - Support to launch internal process
-wandb/interface          - Interface to backend execution 
-wandb/proto              - Protocol buffers for inter-process communication and persist file store
-wandb/internal           - Backend threads/processes
-wandb/apis               - Public api (still has internal api but this should be moved to wandb/internal)
-wandb/cli                - Handlers for command line functionality
-wandb/superagent         - super agent / run queue work in progress
-wandb/sweeps             - sweeps stuff (mostly unmodified for now)
-wandb/framework/keras    - keras integration
-wandb/framework/pytorch  - pytorch integration
+wandb/sdk                  - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
+wandb/sdk_py27             - Generated files [currently by strip.sh]
+wandb/backend              - Support to launch internal process
+wandb/interface            - Interface to backend execution 
+wandb/proto                - Protocol buffers for inter-process communication and persist file store
+wandb/internal             - Backend threads/processes
+wandb/apis                 - Public api (still has internal api but this should be moved to wandb/internal)
+wandb/cli                  - Handlers for command line functionality
+wandb/sweeps               - sweeps stuff (mostly unmodified for now)
+wandb/integration/keras    - keras integration
+wandb/integration/pytorch  - pytorch integration
 ```
 
 ## Setup development environment
@@ -49,7 +58,7 @@ then run:
 
 We use protocol buffers to communicate from the user process to the wandb backend process.
 
-If you update any of the *.proto files in wandb/proto, you'll need to run:
+If you update any of the .proto files in wandb/proto, you'll need to run:
 
 ```
 make proto

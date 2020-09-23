@@ -26,7 +26,7 @@ renderer:
   markdown:
     source_linker:
       type: github
-      repo: wandb/client-ng
+      repo: wandb/client
   pages:
     - title: Developer Documentation
       name: index
