@@ -2725,7 +2725,6 @@ class Artifact(object):
 
     def _load_manifest(self):
         if self._manifest is None:
-            # Fetch a signed URL
             query = gql("""
             query ArtifactManifest(
                 $entityName: String!,
