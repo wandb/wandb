@@ -60,6 +60,9 @@ test-full:
 test-short:
 	tox -e "codemod,black,mypy,flake8,py36"
 
+test-sweeps:
+	tox -e "py36" -- wandb/sweeps/
+
 format:
 	tox -e format
 
