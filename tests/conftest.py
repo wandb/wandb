@@ -185,6 +185,11 @@ def runner(monkeypatch, mocker):
 
 
 @pytest.fixture(autouse=True)
+def reset_setup():
+    wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+
+
+@pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
     """Never use our real credentials, put them in their own isolated dir"""
     with CliRunner().isolated_filesystem():
