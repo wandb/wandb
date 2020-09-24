@@ -42,7 +42,7 @@ def jupyter_progress_bar(min=0, max=1):
             # TODO: this currently works in iPython but it's deprecated since 4.0
             from IPython.html.widgets import FloatProgress  # type: ignore
         else:
-            FloatProgress = ipywidgets.FloatProgress
+            FloatProgress = ipywidgets.FloatProgress  # noqa:N806
         return FloatProgress(min=min, max=max)
     except ImportError:
         return None

@@ -280,6 +280,7 @@ class Run(RunBase):
         self._exit_result = None
         self._final_summary = None
         self._sampled_history = None
+        self._jupyter_progress_displayed = False
         self._jupyter_progress = None
         if self._settings._jupyter:
             self._jupyter_progress = ipython.jupyter_progress_bar()
@@ -976,8 +977,11 @@ class Run(RunBase):
             run_state_str = "Syncing run"
         run_name = self._get_run_name()
         app_url = wandb.util.app_url(self._settings.base_url)
-        dir_str = "Run data is saved locally in {}".format(self._settings._sync_dir)
 
+        sync_dir = self._settings._sync_dir
+        if self._settings._jupyter:
+            sync_dir = "<pre>{}</pre>".format(sync_dir)
+        dir_str = "Run data is saved locally in <pre>{}</pre>".format(sync_dir)
         if self._settings._jupyter:
             sweep_line = (
                 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
@@ -990,10 +994,10 @@ class Run(RunBase):
             ipython.display_html(
                 """
                 {}<br/>
-                {} <span color="{}">{}</span> to <a href="{}" target="_blank">Weights & Biases</a> {}.<br/>
+                {} <strong style="color:{}">{}</strong> to <a href="{}" target="_blank">Weights & Biases</a> {}.<br/>
                 Project page: <a href="{}" target="_blank">{}</a><br/>
                 {}Run page: <a href="{}" target="_blank">{}</a><br/>
-                {}<br/>
+                {}<br/><br/>
             """.format(  # noqa: E501
                     version_str,
                     run_state_str,
@@ -1227,6 +1231,9 @@ class Run(RunBase):
                 self._jupyter_progress.value = (
                     progress.uploaded_bytes / progress.total_bytes
                 )
+            if not self._jupyter_progress_displayed:
+                self._jupyter_progress_displayed = True
+                ipython.display_widget(self._jupyter_progress)
         else:
             spinner_states = ["-", "\\", "|", "/"]
 
@@ -1287,7 +1294,7 @@ class Run(RunBase):
             if not self._settings._offline:
                 status_str += " Press ctrl-c to abort syncing."
         if self._settings._jupyter:
-            ipython.display_html(status_str.replace("\n", "<br/>"))
+            ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
         else:
             print("")
             wandb.termlog(status_str)
@@ -1333,17 +1340,19 @@ class Run(RunBase):
                 if len(error_lines) < self._reporter.error_count:
                     wandb.termlog("More errors")
         if self._settings.log_user:
-            log_str = "Find user logs for this run at: {}".format(
-                self._settings.log_user
-            )
+            log_user = self._settings.log_user
+            if self._settings._jupyter:
+                log_user = "<pre>{}</pre>".format(log_user)
+            log_str = "Find user logs for this run at: {}".format(log_user)
             if self._settings._jupyter:
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
         if self._settings.log_internal:
-            log_str = "Find internal logs for this run at: {}".format(
-                self._settings.log_internal
-            )
+            log_internal = self._settings.log_internal
+            if self._settings._jupyter:
+                log_internal = "<pre>{}</pre>".format(log_internal)
+            log_str = "Find internal logs for this run at: {}".format(log_internal)
             if self._settings._jupyter:
                 ipython.display_html(log_str)
             else:
@@ -1358,7 +1367,7 @@ class Run(RunBase):
             if self._settings._jupyter:
                 ipython.display_html(
                     """
-                    <br/>Synced <span color="{}">{}</span>: <a href="{}">{}</a><br/>
+                    <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}">{}</a><br/>
                 """.format(
                         RUN_NAME_COLOR, run_name, run_url, run_url
                     )
@@ -1385,20 +1394,25 @@ class Run(RunBase):
             logger.info("rendering summary")
             max_len = max([len(k) for k in self._final_summary.keys()])
             format_str = "  {:>%s} {}\n" % max_len
-            summary_lines = ""
+            summary_rows = []
             for k, v in iteritems(self._final_summary):
                 # arrays etc. might be too large. for now we just don't print them
                 if isinstance(v, string_types):
                     if len(v) >= 20:
                         v = v[:20] + "..."
-                    summary_lines += format_str.format(k, v)
+                    summary_rows.append((k, v))
                 elif isinstance(v, numbers.Number):
-                    summary_lines += format_str.format(k, v)
+                    summary_rows.append((k, v))
             if self._settings._jupyter:
-                ipython.display_html(
-                    "<h3>Run summary:</h3><br/>" + summary_lines.replace("\n", "<br/>")
-                )
+                summary_table = "<table>"
+                for row in summary_rows:
+                    summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
+                summary_table += "</table>"
+                ipython.display_html("<h3>Run summary:</h3><br/>" + summary_table)
             else:
+                summary_lines = "\n".join(
+                    [format_str.format(k, v) for k, v in summary_rows]
+                )
                 wandb.termlog("Run summary:")
                 wandb.termlog(summary_lines)
 
@@ -1415,20 +1429,25 @@ class Run(RunBase):
 
         logger.info("rendering history")
         max_len = max([len(k) for k in self._sampled_history])
-        history_lines = ""
+        history_rows = []
         for key in self._sampled_history:
             vals = wandb.util.downsample(self._sampled_history[key], 40)
             if any((not isinstance(v, numbers.Number) for v in vals)):
                 continue
             line = sparkline.sparkify(vals)
-            format_str = u"  {:>%s} {}\n" % max_len
-            history_lines += format_str.format(key, line)
+            history_rows.append((key, line))
         if self._settings._jupyter:
-            ipython.display_html(
-                "<h3>Run history:</h3><br/>" + history_lines.replace("\n", "<br/>")
-            )
+            history_table = "<table>"
+            for row in history_rows:
+                history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
+            history_table += "</table>"
+            ipython.display_html("<h3>Run history:</h3><br/>" + history_table + "<br/>")
         else:
             wandb.termlog("Run history:")
+            history_lines = ""
+            format_str = u"  {:>%s} {}\n" % max_len
+            for row in history_rows:
+                history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
 
     def _show_files(self):
