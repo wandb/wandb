@@ -1,4 +1,8 @@
+import logging
+
 import wandb
+
+logger = logging.getLogger(__name__)
 
 
 STYLED_TABLE_HTML = """<style>
@@ -50,13 +54,23 @@ class ProgressWidget(object):
         self._progress = widgets.FloatProgress(min=min, max=max)
         self._label = widgets.Label()
         self._displayed = False
+        self._disabled = False
 
     def update(self, value, label):
-        self._progress.value = value
-        self._label.value = value
-        if not self._displayed:
-            self._displayed = True
-            display_widget(self.widgets.VBox([self._label, self._progress]))
+        if self._disabled:
+            return
+        try:
+            self._progress.value = value
+            self._label.value = label
+            if not self._displayed:
+                self._displayed = True
+                display_widget(self.widgets.VBox([self._label, self._progress]))
+        except Exception as e:
+            self._disabled = True
+            logger.exception(e)
+            wandb.termwarn(
+                "Unable to render progress bar, see the user log for details"
+            )
 
 
 def jupyter_progress_bar(min=0, max=1.0):
@@ -67,7 +81,9 @@ def jupyter_progress_bar(min=0, max=1.0):
             # TODO: this currently works in iPython but it's deprecated since 4.0
             from IPython.html import widgets  # type: ignore
 
-            assert hasattr(widgets, "VBox")
+        assert hasattr(widgets, "VBox")
+        assert hasattr(widgets, "Label")
+        assert hasattr(widgets, "FloatProgress")
         return ProgressWidget(widgets, min=min, max=max)
     except (ImportError, AssertionError):
         return None
