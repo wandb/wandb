@@ -125,13 +125,6 @@ fragment ArtifactFragment on Artifact {
         id
         name
     }
-    currentManifest {
-        id
-        file {
-            id
-            directUrl
-        }
-    }
 }
 """
 
@@ -2732,7 +2725,39 @@ class Artifact(object):
 
     def _load_manifest(self):
         if self._manifest is None:
-            index_file_url = self._attrs["currentManifest"]["file"]["directUrl"]
+            query = gql(
+                """
+            query ArtifactManifest(
+                $entityName: String!,
+                $projectName: String!,
+                $name: String!
+            ) {
+                project(name: $projectName, entityName: $entityName) {
+                    artifact(name: $name) {
+                        currentManifest {
+                            id
+                            file {
+                                id
+                                directUrl
+                            }
+                        }
+                    }
+                }
+            }
+            """
+            )
+            response = self.client.execute(
+                query,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "name": self.artifact_name,
+                },
+            )
+
+            index_file_url = response["project"]["artifact"]["currentManifest"]["file"][
+                "directUrl"
+            ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
