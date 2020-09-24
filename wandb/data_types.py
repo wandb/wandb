@@ -918,13 +918,16 @@ class Image(BatchableMedia):
 
     def bind_to_run(self, *args, **kwargs):
         super(Image, self).bind_to_run(*args, **kwargs)
+        id_ = kwargs.get('id_')
         if self._boxes is not None:
-            for k in self._boxes:
-                self._boxes[k].bind_to_run(*args, **kwargs)
+            for i, k in enumerate(self._boxes):
+                id_ = '{}{}'.format(id_, i) if id_ is not None else None
+                self._boxes[k].bind_to_run(*args, **{**kwargs, 'id_': id_})
 
         if self._masks is not None:
-            for k in self._masks:
-                self._masks[k].bind_to_run(*args, **kwargs)
+            for i, k in enumerate(self._masks):
+                id_ = '{}{}'.format(id_, i) if id_ is not None else None
+                self._masks[k].bind_to_run(*args, **{**kwargs, 'id_': id_})
 
     def to_json(self, run):
         json_dict = super(Image, self).to_json(run)
