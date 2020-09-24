@@ -86,6 +86,7 @@ class ArtifactSaver(object):
             description=description,
             is_user_created=self._is_user_created,
         )
+
         # TODO(artifacts):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
         #   correct. It may be better to poll until it's committed or failed, and then decided what to
