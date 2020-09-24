@@ -132,8 +132,11 @@ def conv3x3(in_channels, out_channels, **kwargs):
     return layer
 
 
-def test_all_logging(wandb_init_run):
+@pytest.mark.parametrize("use_dp", [False, True])
+def test_all_logging(wandb_init_run, use_dp=False):
     net = ConvNet()
+    if use_db:
+        net = nn.DataParallel(net)
     wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((32, 1, 28, 28)))
@@ -148,16 +151,22 @@ def test_all_logging(wandb_init_run):
     assert(len(wandb.run._backend.history) == 3)
 
 
-def test_double_log(wandb_init_run):
+@pytest.mark.parametrize("use_dp", [False, True])
+def test_double_log(wandb_init_run, use_dp=False):
     net = ConvNet()
+    if use_dp:
+        net = nn.DataParallel(net)
     wandb.watch(net)
     with pytest.raises(ValueError):
         wandb.watch(net)
 
 
 @pytest.mark.timeout(120)
-def test_sequence_net(wandb_init_run):
+@pytest.mark.parametrize("use_dp", [False, True])
+def test_sequence_net(wandb_init_run, use_dp=False):
     net = Sequence()
+    if use_dp:
+        net = nn.DataParallel(net)
     graph = wandb.wandb_torch.TorchGraph.hook_torch(net)
     output = net.forward(dummy_torch_tensor(
         (97, 100)))
@@ -171,9 +180,13 @@ def test_sequence_net(wandb_init_run):
 
 @pytest.mark.skipif(sys.platform == "darwin",
                     reason="TODO: [Errno 24] Too many open files?!?")
-def test_multi_net(wandb_init_run):
+@pytest.mark.parametrize("use_dp", [False, True])
+def test_multi_net(wandb_init_run, use_dp=False):
     net1 = ConvNet()
     net2 = ConvNet()
+    if use_dp:
+        net1 = nn.DataParallel(net1)
+        net2 = nn.DataParallel(net2)
     graphs = wandb.watch((net1, net2))
     output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
     output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
