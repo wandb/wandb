@@ -588,6 +588,9 @@ def create_app(user_ctx=None):
         if "query Artifact(" in body["query"]:
             art = artifact(ctx)
             art["artifactType"] = {"id": 1, "name": "dataset"}
+            return {"data": {"project": {"artifact": art}}}
+        if "query ArtifactManifest(" in body["query"]:
+            art = artifact(ctx)
             art["currentManifest"] = {
                 "id": 1,
                 "file": {
