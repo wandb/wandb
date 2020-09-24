@@ -34,6 +34,7 @@ import textwrap
 from sys import getsizeof
 from collections import namedtuple, Mapping, Sequence
 from importlib import import_module
+from pkg_resources import parse_version
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
@@ -941,6 +942,18 @@ def to_native_slash_path(path):
 def bytes_to_hex(bytestr):
     # Works in python2 / python3
     return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
+
+def read_wandb_config_file(path):
+    with open(os.path.join(path, 'config.yaml'), 'r') as fp:
+        z = yaml.load(fp)
+    return z
+
+def check_and_warn_old(files):
+    if 'wandb-metadata.json' in files:
+        wandb.termwarn("These runs were logged with a previous version of wandb.")
+        wandb.termwarn("Run pip install wandb<0.10.0 to get the old library and sync your runs.")
+        return True
+    return False
 
 
 class ImportMetaHook():
