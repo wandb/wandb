@@ -1363,7 +1363,7 @@ class Run(RunBase):
             if self._settings._jupyter:
                 ipython.display_html(
                     """
-                    <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}">{}</a><br/>
+                    <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a><br/>
                 """.format(
                         RUN_NAME_COLOR, run_name, run_url, run_url
                     )
