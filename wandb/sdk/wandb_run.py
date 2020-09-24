@@ -280,7 +280,6 @@ class Run(RunBase):
         self._exit_result = None
         self._final_summary = None
         self._sampled_history = None
-        self._jupyter_progress_displayed = False
         self._jupyter_progress = None
         if self._settings._jupyter:
             self._jupyter_progress = ipython.jupyter_progress_bar()
@@ -980,8 +979,8 @@ class Run(RunBase):
 
         sync_dir = self._settings._sync_dir
         if self._settings._jupyter:
-            sync_dir = "<pre>{}</pre>".format(sync_dir)
-        dir_str = "Run data is saved locally in <pre>{}</pre>".format(sync_dir)
+            sync_dir = "<code>{}</code>".format(sync_dir)
+        dir_str = "Run data is saved locally in {}".format(sync_dir)
         if self._settings._jupyter:
             sweep_line = (
                 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
@@ -1224,16 +1223,11 @@ class Run(RunBase):
         )
 
         if self._jupyter_progress:
-            self._jupyter_progress.description = line
             if progress.total_bytes == 0:
-                self._jupyter_progress.value = 1
+                percent_done = 1
             else:
-                self._jupyter_progress.value = (
-                    progress.uploaded_bytes / progress.total_bytes
-                )
-            if not self._jupyter_progress_displayed:
-                self._jupyter_progress_displayed = True
-                ipython.display_widget(self._jupyter_progress)
+                percent_done = progress.uploaded_bytes / progress.total_bytes
+            self._jupyter_progress.update(percent_done, line)
         else:
             spinner_states = ["-", "\\", "|", "/"]
 
@@ -1342,7 +1336,7 @@ class Run(RunBase):
         if self._settings.log_user:
             log_user = self._settings.log_user
             if self._settings._jupyter:
-                log_user = "<pre>{}</pre>".format(log_user)
+                log_user = "<code>{}</code>".format(log_user)
             log_str = "Find user logs for this run at: {}".format(log_user)
             if self._settings._jupyter:
                 ipython.display_html(log_str)
@@ -1351,7 +1345,7 @@ class Run(RunBase):
         if self._settings.log_internal:
             log_internal = self._settings.log_internal
             if self._settings._jupyter:
-                log_internal = "<pre>{}</pre>".format(log_internal)
+                log_internal = "<code>{}</code>".format(log_internal)
             log_str = "Find internal logs for this run at: {}".format(log_internal)
             if self._settings._jupyter:
                 ipython.display_html(log_str)
@@ -1404,7 +1398,7 @@ class Run(RunBase):
                 elif isinstance(v, numbers.Number):
                     summary_rows.append((k, v))
             if self._settings._jupyter:
-                summary_table = "<table>"
+                summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
                     summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
                 summary_table += "</table>"
@@ -1437,7 +1431,7 @@ class Run(RunBase):
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
         if self._settings._jupyter:
-            history_table = "<table>"
+            history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
                 history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
             history_table += "</table>"
