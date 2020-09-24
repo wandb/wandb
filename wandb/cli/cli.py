@@ -208,8 +208,6 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
             raise ClickException("host must start with http(s)://")
         api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
-    if key:
-        relogin=True
 
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 

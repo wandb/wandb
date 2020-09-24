@@ -229,9 +229,10 @@ class Settings(object):
         WORKSPACE: int = 7
         ENV: int = 8
         SETUP: int = 9
-        INIT: int = 10
-        SETTINGS: int = 11
-        ARGS: int = 12
+        LOGIN: int = 10
+        INIT: int = 11
+        SETTINGS: int = 12
+        ARGS: int = 13
 
     Console: Type[SettingsConsole] = SettingsConsole
 
@@ -252,6 +253,9 @@ class Settings(object):
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id=None,
+        allow_val_override: bool = None,
+        force: bool = None,
+        relogin: bool = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         # strict=None,  # set to "on" to enforce current best practices (also "warn")
@@ -790,7 +794,25 @@ class Settings(object):
                 d[k] = d[k].split(",")
         return d
 
-    def apply_init(self, args):
+    def _apply_login(self, args):
+        param_map = dict(
+            key="api_key",
+            host="base_url",
+            )
+        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
+        self._update(args, _source=self.Source.LOGIN)
+
+    def _apply_init(self, args):
+        # prevent setting project, entity if in sweep
+        # TODO(jhr): these should be locked elements in the future
+        if self.sweep_id:
+            for key in ("project", "entity"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Ignored wandb.init() arg %s when running a sweep" % key
+                    )
+
         # strip out items where value is None
         param_map = dict(
             name="run_name",
@@ -812,7 +834,10 @@ class Settings(object):
                     args["resume"] = "allow"
             elif args["resume"] is True:
                 args["resume"] = "auto"
-        self.update(args)
+
+        # update settings
+        self._update(args, _source=self.Source.INIT)
+
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
