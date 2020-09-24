@@ -1,10 +1,11 @@
-import collections
 import warnings
 
+import numpy
 from sacred.dependencies import get_digest
 from sacred.observers import RunObserver
-import numpy
 import wandb
+
+
 class WandbObserver(RunObserver):
     """Logs sacred experiment data to W&B.
     Args:
@@ -53,17 +54,16 @@ class WandbObserver(RunObserver):
     """
 
     def __init__(self, **kwargs):
-        self.run =  wandb.init(**kwargs)
+        self.run = wandb.init(**kwargs)
         self.resources = {}
 
     def started_event(self, ex_info, command, host_info, start_time, config, meta_info, _id):
-        """ 
+        """
         TODO:
-        * add the source code file 
+        * add the source code file
         * add dependencies and metadata
         """
         self.__update_config(config)
-
 
     def completed_event(self, stop_time, result):
         if result:
@@ -76,12 +76,10 @@ class WandbObserver(RunObserver):
                     wandb.log({"result_{}".format(i): float(r)})
                 elif isinstance(r, dict):
                     wandb.log(r)
-
                 elif isinstance(r, object):
                     artifact = wandb.Artifact('result_{}.pkl'.format(i), type='result')
                     artifact.add_file(r)
                     self.run.log_artifact(artifact)
-                
                 elif isinstance(r,numpy.ndarray):
                     wandb.log({"result_{}".format(i):wandb.Image(r)})
                 else:
@@ -105,13 +103,13 @@ class WandbObserver(RunObserver):
 
     def log_metrics(self, metrics_by_name, info):
         for metric_name, metric_ptr in metrics_by_name.items():
-            for step, value in zip(metric_ptr["steps"], metric_ptr["values"]):
+            for _step, value in zip(metric_ptr["steps"], metric_ptr["values"]):
                 if isinstance(value,numpy.ndarray):
                     wandb.log({metric_name:wandb.Image(value)})
                 else:
                     wandb.log({metric_name:value})
-    
+
     def __update_config(self,config):
         for k, v in config.items():
             self.run.config[k] = v
-        self.run.config['resources'] = []        
+        self.run.config['resources'] = []

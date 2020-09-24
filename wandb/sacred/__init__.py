@@ -1,3 +1,3 @@
-from wandb.integration.sacred import WandbObserver  
+from wandb.integration.sacred import WandbObserver
 
 __all__ = ['WandbObserver']
