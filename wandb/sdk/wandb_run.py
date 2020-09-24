@@ -1389,7 +1389,7 @@ class Run(RunBase):
         if self._final_summary:
             logger.info("rendering summary")
             max_len = max([len(k) for k in self._final_summary.keys()])
-            format_str = "  {:>%s} {}\n" % max_len
+            format_str = "  {:>%s} {}" % max_len
             summary_rows = []
             for k, v in iteritems(self._final_summary):
                 # arrays etc. might be too large. for now we just don't print them
@@ -1398,6 +1398,8 @@ class Run(RunBase):
                         v = v[:20] + "..."
                     summary_rows.append((k, v))
                 elif isinstance(v, numbers.Number):
+                    if isinstance(v, float):
+                        v = round(v, 5)
                     summary_rows.append((k, v))
             if self._settings._jupyter:
                 summary_table = ipython.STYLED_TABLE_HTML
