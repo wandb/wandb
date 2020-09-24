@@ -53,6 +53,7 @@ class ProgressWidget(object):
         self.widgets = widgets
         self._progress = widgets.FloatProgress(min=min, max=max)
         self._label = widgets.Label()
+        self._widget = self.widgets.VBox([self._label, self._progress])
         self._displayed = False
         self._disabled = False
 
@@ -64,13 +65,18 @@ class ProgressWidget(object):
             self._label.value = label
             if not self._displayed:
                 self._displayed = True
-                display_widget(self.widgets.VBox([self._label, self._progress]))
+                display_widget(self._widget)
         except Exception as e:
             self._disabled = True
             logger.exception(e)
             wandb.termwarn(
                 "Unable to render progress bar, see the user log for details"
             )
+
+    def close(self):
+        if self._disabled or not self._displayed:
+            return
+        self._widget.close()
 
 
 def jupyter_progress_bar(min=0, max=1.0):

@@ -1228,6 +1228,8 @@ class Run(RunBase):
             else:
                 percent_done = progress.uploaded_bytes / progress.total_bytes
             self._jupyter_progress.update(percent_done, line)
+            if done:
+                self._jupyter_progress.close()
         elif not self._settings._jupyter:
             spinner_states = ["-", "\\", "|", "/"]
 
