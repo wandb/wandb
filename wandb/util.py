@@ -942,6 +942,13 @@ def bytes_to_hex(bytestr):
     # Works in python2 / python3
     return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
 
+def check_and_warn_old(files):
+    if 'wandb-metadata.json' in files:
+        wandb.termwarn("These runs were logged with a previous version of wandb.")
+        wandb.termwarn("Run pip install wandb<0.10.0 to get the old library and sync your runs.")
+        return True
+    return False
+
 
 class ImportMetaHook():
     def __init__(self):
