@@ -4,14 +4,6 @@
 login.
 """
 
-# TODO: Move this check into wandb_settings probably.
-# if not _validate_anonymous_setting(anonymous):
-#    wandb.termwarn(
-#        "Invalid value passed for argument `anonymous` to "
-#        "wandb.login(). Can be 'must', 'allow', or 'never'."
-#    )
-#    return False
-
 from __future__ import print_function
 
 import logging
@@ -28,10 +20,6 @@ logger = logging.getLogger("wandb")
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
-
-
-def _validate_anonymous_setting(anon_str):
-    return anon_str in ["must", "allow", "never"]
 
 
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):

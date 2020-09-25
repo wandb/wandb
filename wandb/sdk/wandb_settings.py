@@ -795,10 +795,7 @@ class Settings(object):
         return d
 
     def _apply_login(self, args):
-        param_map = dict(
-            key="api_key",
-            host="base_url",
-            )
+        param_map = dict(key="api_key", host="base_url",)
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._update(args, _source=self.Source.LOGIN)
 
