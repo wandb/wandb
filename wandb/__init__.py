@@ -144,7 +144,7 @@ lightgbm = _lazyloader.LazyLoader(
 )
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
-
+sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 
 def ensure_configured():
     global api
