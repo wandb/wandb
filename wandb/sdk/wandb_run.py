@@ -41,7 +41,12 @@ from wandb.lib import (
     sparkline,
 )
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
-from wandb.viz import custom_plot_on_table, CustomChart, Visualize
+from wandb.viz import (
+    create_custom_chart,
+    CustomChart,
+    update_custom_chart_panel_config,
+    Visualize,
+)
 
 from . import wandb_config
 from . import wandb_history
@@ -553,7 +558,7 @@ class Run(RunBase):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
-        remove_keys = []
+        update_keys = {}
         for k in row:
             if isinstance(row[k], Visualize):
                 if "viz" not in self._config["_wandb"]:
@@ -565,14 +570,18 @@ class Run(RunBase):
                 row[k] = row[k].value
                 visualize_persist_config = True
             elif isinstance(row[k], CustomChart):
+                update_custom_chart_panel_config(row[k], k)
                 self._add_panel(k, "Vega2", row[k].panel_config)
                 visualize_persist_config = True
-                remove_keys.append(k)
+                update_keys[k] = row[k].table
+
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
-        for k in remove_keys:
+        # remove custom charts and insert custom chart tables
+        for k in update_keys.keys():
             row.pop(k)
+            row[f"{k}_table"] = update_keys[k]
 
         self._backend.interface.publish_history(row, step)
 
@@ -928,7 +937,7 @@ class Run(RunBase):
         self.finish(exit_code=exit_code)
 
     def plot_table(
-        self, vega_spec_name, table_key, data_table, config_mapping,
+        self, vega_spec_name, data_table, config_mapping,
     ):
         """Creates a custom plot on a table.
         Args:
@@ -939,9 +948,7 @@ class Run(RunBase):
             config_mapping: a dictionary containing the field mappings
                             and historyFieldSettings
         """
-        visualization = custom_plot_on_table(vega_spec_name, table_key, config_mapping)
-
-        self.log({table_key: data_table})
+        visualization = create_custom_chart(vega_spec_name, data_table, config_mapping)
         return visualization
 
     def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
@@ -1406,7 +1413,7 @@ class Run(RunBase):
             if any((not isinstance(v, numbers.Number) for v in vals)):
                 continue
             line = sparkline.sparkify(vals)
-            format_str = u"  {:>%s} {}" % max_len
+            format_str = "  {:>%s} {}" % max_len
             wandb.termlog(format_str.format(key, line))
 
     def _show_files(self):

@@ -12,10 +12,19 @@ def visualize(viz_id, value):
     return Visualize(viz_id, value)
 
 class CustomChart:
-    def __init__(self, panel_config):
-        self.panel_config = panel_config
+    def __init__(self, viz_id, table, config_mapping):
+        self.viz_id = viz_id
+        self.table = table
+        self.panel_config = config_mapping
 
-def custom_plot_on_table(vega_spec_name, table_key, config_mapping):
+def create_custom_chart(vega_spec_name, data_table, config_mapping):
+    if not isinstance(data_table, Table):
+        raise Error("custom chart data_table must be Table, not {}".format(type(data_table).__name__))
+
+    return CustomChart(vega_spec_name, data_table, config_mapping)
+
+def update_custom_chart_panel_config(custom_chart, key):
+    table_key = key + "_table"
     userQuery = {
         "userQuery": {
             "queryFields": [
@@ -47,15 +56,12 @@ def custom_plot_on_table(vega_spec_name, table_key, config_mapping):
             ],
         }
     }
-
-    panel_config = {}
-    panel_config.update(config_mapping)
-    panel_config.update({'panelDefId': vega_spec_name})
-    panel_config.update(
+    
+    custom_chart.panel_config.update({'panelDefId': custom_chart.viz_id})
+    custom_chart.panel_config.update(
         {'transform': {"name": "tableWithLeafColNames"}}
     )
-    panel_config.update(
+    custom_chart.panel_config.update(
         {"historyFieldSettings": {"key": table_key, "x-axis": "_step"}}
     )
-    panel_config.update(userQuery)
-    return CustomChart(panel_config)
+    custom_chart.panel_config.update(userQuery)
