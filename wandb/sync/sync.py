@@ -19,6 +19,7 @@ from wandb.internal import datastore
 from wandb.internal import sender
 from wandb.internal import settings_static
 from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -65,11 +66,11 @@ class SyncThread(threading.Thread):
         for sync_item in self._sync_list:
             if os.path.isdir(sync_item):
                 files = os.listdir(sync_item)
-                files = list(filter(lambda f: f.endswith(WANDB_SUFFIX), files))
-                if len(files) != 1:
-                    print("Skipping directory: {}", format(sync_item))
+                filtered_files = list(filter(lambda f: f.endswith(WANDB_SUFFIX), files))
+                if check_and_warn_old(files) or len(filtered_files) != 1:
+                    print("Skipping directory: {}".format(sync_item))
                     continue
-                sync_item = os.path.join(sync_item, files[0])
+                sync_item = os.path.join(sync_item, filtered_files[0])
             dirname = os.path.dirname(sync_item)
             files_dir = os.path.join(dirname, "files")
             sd = dict(

@@ -4,6 +4,8 @@ Base classes to be inherited from for Search and EarlyTerminate algorithms
 
 import math
 
+from wandb.sweeps.util import is_nan_or_nan_string
+
 
 class Search():
     def _metric_from_run(self, sweep_config, run, default=None):
@@ -18,7 +20,10 @@ class Search():
         # Use summary to find metric
         if metric_name in run.summaryMetrics:
             metric = run.summaryMetrics[metric_name]
-        if maximize:
+            # Exclude None or NaN summary metrics.
+            if metric is None or is_nan_or_nan_string(metric):
+                metric = None
+        if maximize and metric is not None:
             metric = -metric
 
         # Use history to find metric (if available)
@@ -28,7 +33,7 @@ class Search():
             m = line.get(metric_name)
             if m is None:
                 continue
-            if math.isnan(m):
+            if is_nan_or_nan_string(m):
                 continue
             metric_history.append(m)
         if maximize:
@@ -78,6 +83,11 @@ class EarlyTerminate():
                 m = line[self.metric_name]
                 metric_history.append(m)
 
+        # Filter out bad values
+        metric_history = [
+            x for x in metric_history
+            if x is not None and not is_nan_or_nan_string(x)
+        ]
         if self.maximize:
             metric_history = [-m for m in metric_history]
 
