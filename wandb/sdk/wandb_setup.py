@@ -125,7 +125,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
     def _update(self, settings=None):
         if settings:
-            s = self.settings()
+            s = self._clone_settings()
             s._apply_settings(settings=settings)
             self._settings = s.freeze()
 
@@ -139,7 +139,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _get_logger(self):
         return logger
 
-    def settings(self, __d=None, **kwargs):
+    @property
+    def settings(self):
+        return self._settings
+
+    def _clone_settings(self, __d=None, **kwargs):
         s = copy.copy(self._settings)
         s.update(__d, **kwargs)
         return s

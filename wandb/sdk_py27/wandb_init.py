@@ -69,7 +69,7 @@ class _WandbInit(object):
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings = self._wl.settings()
+        settings = self._wl._clone_settings()
         settings_param = kwargs.pop("settings", None)
         if settings_param:
             settings._apply_settings(settings_param)
