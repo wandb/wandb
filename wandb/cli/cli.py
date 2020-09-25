@@ -5,6 +5,7 @@ import copy
 import datetime
 from functools import wraps
 import getpass
+import json
 import logging
 import os
 import shutil
@@ -1411,9 +1412,9 @@ wandb_magic_install()
     magic_run(code, globs, None)
 
 
-@cli.command("on", help="Ensure W&B is enabled in this directory")
+@cli.command("online", help="Ensure W&B is enabled in this directory")
 @display_error
-def on():
+def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
@@ -1424,9 +1425,9 @@ def on():
     )
 
 
-@cli.command("off", help="Disable W&B in this directory, useful for testing")
+@cli.command("offline", help="Disable W&B in this directory, useful for testing")
 @display_error
-def off():
+def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
@@ -1436,4 +1437,32 @@ def off():
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+        )
+
+
+@cli.command("on", hidden=True)
+@click.pass_context
+@display_error
+def on(ctx):
+    ctx.invoke(online)
+
+
+@cli.command("off", hidden=True)
+@click.pass_context
+@display_error
+def off(ctx):
+    ctx.invoke(offline)
+
+
+@cli.command("status", help="Show configuration settings")
+@click.option(
+    "--settings/--no-settings", help="Show the current settings", default=True
+)
+def status(settings):
+    api = _get_cling_api()
+    if settings:
+        click.echo(click.style("Current Settings", bold=True))
+        settings = api.settings()
+        click.echo(
+            json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
