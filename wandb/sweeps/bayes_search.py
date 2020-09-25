@@ -106,7 +106,7 @@ def train_gaussian_process(
 
         Returns:
             gp - the gaussian process function
-            y_mean - mean 
+            y_mean - mean
             y_stddev - stddev
 
             To make a prediction with gp on real world data X, need to call:
@@ -194,7 +194,7 @@ def next_sample(
 
             runtimes - vector of length sample_y - should be the time taken to train each model in sample X
             failures - vector of length sample_y - should be True for models where training failed and False where
-                training succeeded.  This model will throw out NaNs and Infs so if you want it to avaoid 
+                training succeeded.  This model will throw out NaNs and Infs so if you want it to avaoid
                 failure values for X, use this failure vector.
 
             current_X - hyperparameters currently being explored
@@ -383,8 +383,10 @@ class BayesianSearch(Search):
             max_metric = max([self._metric_from_run(sweep['config'], run, default=0.) for run in runs
                               if run.state == "finished"])
 
-        for run in runs:
-            X_norm = params.convert_run_to_normalized_vector(run)
+        X_norms = params.convert_runs_to_normalized_vector(runs)
+        for i in range(len(runs)):
+            run = runs[i]
+            X_norm = X_norms[i]
             if run.state == "finished":
                 # run is complete
                 #print("DEBUG0.1", run)

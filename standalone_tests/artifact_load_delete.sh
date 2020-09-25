@@ -1,0 +1,12 @@
+python artifact_load.py \
+  --gen_n_files 1000 \
+  --gen_max_small_size 10000 \
+  --gen_max_large_size 250000 \
+  --test_phase_seconds 600 \
+  --num_writers 10 \
+  --files_per_version_min 1 \
+  --files_per_version_max 25 \
+  --num_readers 10 \
+  --num_deleters 2 \
+  --min_versions_before_delete 2 \
+  --delete_period_max 5

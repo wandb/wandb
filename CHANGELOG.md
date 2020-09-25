@@ -1,5 +1,91 @@
-## 0.9.4 (July 24, 2020)
+## 0.10.2 (September 20, 2020)
 
+#### :nail_care: Enhancement
+
+-  Added upload_file to API
+-  wandb.finish() can be called without matching wandb.init()
+
+#### :bug: Bug Fix
+
+-  Fix issue where files were being logged to wrong parallel runs
+-  Fix missing properties/methods -- as_dict(), sweep_id
+-  Fix wandb.summary.update() not updating all keys
+-  Code saving was not properly enabled based on UI settings
+-  Tensorboard now logging images before end of program
+-  Fix resume issues dealing with config and summary metrics
+
+## 0.10.1 (September 16, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added sync_tensorboard ability to handle S3 and GCS files
+-  Added ability to specify host with login
+-  Improved artifact API to allow modifying attributes
+
+#### :bug: Bug Fix
+
+-  Fix codesaving to respect the server settings
+-  Fix issue runing wandb.init() on restricted networks
+-  Fix issue where we were ignoring settings changes
+-  Fix artifact download issues
+
+## 0.10.0 (September 11, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added history sparklines at end of run
+-  Artifact improvements and API for linking
+-  Improved offline support and syncing
+-  Basic noop mode support to simplify testing
+-  Improved windows/pycharm support 
+-  Run object has more modifiable properties
+-  Public API supports attaching artifacts to historic runs
+
+#### :bug: Bug Fix
+
+-  Many bugs fixed due to simplifying logic
+
+## 0.9.7 (September 8, 2020)
+
+#### :nail_care: Enhancement
+
+-  New sacred observer available at wandb.sacred.WandbObserver
+-  Improved artifact reference tracking for HTTP urls
+
+#### :bug: Bug Fix
+
+-  Print meaningful error message when runs are queried with `summary` instead of `summary_metrics`
+
+## 0.9.6 (August 28, 2020)
+
+#### :nail_care: Enhancement
+
+-  Sub paths of artifacts now expose an optional root directory argument to download()
+-  Artifact.new_file accepts an optional mode argument
+-  Removed legacy fastai docs as we're now packaged with fastai v2!
+
+#### :bug: Bug Fix
+
+-  Fix yaml parsing error handling logic
+-  Bad spelling in torch docstring, thanks @mkkb473
+
+## 0.9.5 (August 17, 2020)
+
+#### :nail_care: Enhancement
+
+-  Remove unused y_probas in sklearn plots, thanks @dreamflasher
+-  New deletion apis for artifacts
+
+#### :bug: Bug Fix
+
+-  Fix `wandb restore` when not logged in
+-  Fix artifact download paths on Windows
+-  Retry 408 errors on upload
+-  Fix mask numeric types, thanks @numpee
+-  Fix artifact reference naming mixup
+
+## 0.9.4 (July 24, 2020)
+ 
 #### :nail_care: Enhancement
 
 -  Default pytorch histogram logging frequency from 100 -> 1000 steps

@@ -1,3 +1,0 @@
-[submodule "wandb/kubeflow/arena"]
-	path = wandb/kubeflow/arena
-	url = https://github.com/wandb/arena.git

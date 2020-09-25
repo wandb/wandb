@@ -1,28 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""wandb setup."""
 
 from setuptools import setup
 
-with open('README.md') as readme_file:
+
+with open('package_readme.md') as readme_file:
     readme = readme_file.read()
 
-requirements = [
-    'Click>=7.0',
-    'GitPython>=1.0.0',
-    'gql==0.2.0',
-    'nvidia-ml-py3>=7.352.0',
-    'python-dateutil>=2.6.1',
-    'requests>=2.0.0',
-    'shortuuid>=0.5.0',
-    'six>=1.10.0',
-    'watchdog>=0.8.3',
-    'PyYAML>=3.10',
-    'psutil>=5.0.0',
-    'sentry-sdk>=0.4.0',
-    'subprocess32>=3.5.3',
-    'docker-pycreds>=0.4.0',
-    'configparser>=3.8.1',
-]
+with open('requirements.txt') as requirements_file:
+    requirements = requirements_file.read().splitlines()
 
 test_requirements = [
     'mock>=2.0.0',
@@ -31,12 +18,12 @@ test_requirements = [
 
 gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
-
+grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 
 setup(
     name='wandb',
-    version='0.9.4',
+    version='0.10.3.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -47,19 +34,22 @@ setup(
         'wandb'
     ],
     package_dir={'wandb': 'wandb'},
+    package_data={
+        'wandb': [
+            'py.typed',
+        ]
+    },
     entry_points={
         'console_scripts': [
-            'wandb=wandb.cli:cli',
-            'wb=wandb.cli:cli',
-            'wanbd=wandb.cli:cli',
-            'wandb-docker-run=wandb.cli:docker_run'
+            'wandb=wandb.cli.cli:cli',
+            'wb=wandb.cli.cli:cli',
         ]
     },
     include_package_data=True,
     install_requires=requirements,
     license="MIT license",
     zip_safe=False,
-    keywords='wandb',
+    # keywords='wandb',
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -84,6 +74,13 @@ setup(
     extras_require={
         'kubeflow': kubeflow_requirements,
         'gcp': gcp_requirements,
-        'aws': aws_requirements
+        'aws': aws_requirements,
+        'grpc': grpc_requirements,
     }
 )
+
+# if os.name == "nt" and sys.version_info >= (3, 6):
+#     legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
+#     if legacy_env_var not in os.environ:
+#         if os.system("setx " + legacy_env_var + " 1") != 0:
+#             raise Exception("Error setting environment variable " + legacy_env_var)

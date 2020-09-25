@@ -556,16 +556,16 @@ def plot_elbow_curve(clusterer=None, X=None, cluster_ranges=None, n_jobs=1,
     Example:
         wandb.sklearn.plot_elbow_curve(model, X_train)
     """
-    try:
-        from joblib import Parallel, delayed
-    except ImportError:
-        wandb.termerror("plot_elbow_curve requires python 3x")
-        return
     if not hasattr(clusterer, 'n_clusters'):
         wandb.termlog('n_clusters attribute not in classifier. Cannot plot elbow method.')
         return
     if (test_missing(clusterer=clusterer) and test_types(clusterer=clusterer) and
         test_fitted(clusterer)):
+        try:
+            from joblib import Parallel, delayed
+        except ImportError:
+            wandb.termerror("plot_elbow_curve requires python 3x")
+            return
         if cluster_ranges is None:
             cluster_ranges = range(1, 10, 2)
         else:

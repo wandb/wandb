@@ -1,0 +1,475 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "google/protobuf/timestamp.proto";
+
+/*
+ * Record: Persistent on disk data (BE CAREFUL)
+ * Result: responses from Record requests
+ *
+ * Request: Communication requests between processes
+ * Response: Responses from Request messages
+ */
+
+/************************
+ * Records and Results
+ ************************/
+
+/*
+ * Record: joined record for message passing and persistance
+ */
+message Record {
+  int64            num = 1;
+  oneof record_type {
+    // Low numbers for more frequent data
+    HistoryRecord  history = 2;
+    SummaryRecord  summary = 3;
+    OutputRecord   output = 4;
+    ConfigRecord   config = 5;
+    FilesRecord    files = 6;
+    StatsRecord    stats = 7;
+    ArtifactRecord artifact = 8;
+    TBRecord       tbrecord = 9;
+    // Higher numbers for less frequent data
+    RunRecord      run = 17;
+    RunExitRecord  exit = 18;
+    FinalRecord    final = 20;
+    HeaderRecord   header = 21;
+    FooterRecord   footer = 22;
+    // request field does not belong here longterm
+    Request        request = 100;
+  }
+  Control          control = 16;
+  string           uuid = 19;
+}
+
+message Control {
+  bool req_resp = 1;  // record is expecting a result
+  bool local = 2;     // should not be persisted or synchronized
+}
+
+/*
+ * Result: all results
+ */
+message Result {
+  oneof result_type {
+    RunUpdateResult   run_result = 17;
+    RunExitResult     exit_result = 18;
+    HistoryResult     log_result = 20;
+    SummaryResult     summary_result = 21;
+    OutputResult      output_result = 22;
+    ConfigResult      config_result = 23;
+    /* response field does not belong here longterm */
+    Response          response = 100;
+  }
+  string              uuid = 24;
+}
+
+/*
+ * FinalRecord
+ */
+message FinalRecord {
+}
+
+/*
+ * HeaderRecord
+ */
+message HeaderRecord {
+}
+
+/*
+ * FooterRecord
+ */
+message FooterRecord {
+}
+
+/*
+ * RunRecord: wandb/sdk/wandb_run/Run
+ */
+message RunRecord {
+  string                    run_id = 1;
+  string                    entity = 2;
+  string                    project = 3;
+  ConfigRecord              config = 4;
+  SummaryRecord             summary = 5;
+  string                    run_group = 6;
+  string                    job_type = 7;
+  string                    display_name = 8;
+  string                    notes = 9;
+  repeated string           tags = 10;
+  SettingsRecord            settings = 11;
+  string                    sweep_id = 12;
+  string                    host = 13;
+  int64                     starting_step = 14;
+
+  string                    storage_id = 16;
+  google.protobuf.Timestamp start_time = 17;
+}
+
+message RunUpdateResult {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
+}
+
+message ErrorInfo {
+  enum ErrorCode {
+    UNKNOWN = 0;
+    INVALID = 1;
+    PERMISSION = 2;
+    NETWORK = 3;
+    INTERNAL = 4;
+  }
+  string  message = 1;
+  ErrorCode code = 2;
+}
+
+/*
+ * RunExitRecord: exit status of process
+ */
+message RunExitRecord {
+  int32 exit_code = 1;
+}
+
+message RunExitResult {
+}
+
+/*
+ * SettingsRecord: wandb/sdk/wandb_settings/Settings
+ */
+message SettingsRecord {
+  repeated SettingsItem item = 1;
+}
+
+message SettingsItem {
+  string key = 1;
+  string value_json = 16;
+}
+
+/*
+ * HistoryRecord: wandb/sdk/wandb_history/History
+ */
+message HistoryRecord {
+  repeated HistoryItem item = 1;
+}
+
+message HistoryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+message HistoryResult {
+}
+
+/*
+ * OutputRecord: console output
+ */
+message OutputRecord {
+  enum OutputType {
+    STDERR = 0;
+    STDOUT = 1;
+  }
+  OutputType                output_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string                    line = 3;
+}
+
+message OutputResult {
+}
+
+/*
+ * ConfigRecord: wandb/sdk/wandb_config/Config
+ */
+message ConfigRecord {
+  repeated ConfigItem update = 1;
+  repeated ConfigItem remove = 2;
+}
+
+message ConfigItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+message ConfigResult {
+}
+
+/*
+ * SummaryRecord: wandb/sdk/wandb_summary/Summary
+ */
+message SummaryRecord {
+  repeated SummaryItem update = 1;
+  repeated SummaryItem remove = 2;
+}
+
+message SummaryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  string          value_json = 16;
+}
+
+message SummaryResult {
+}
+
+/*
+ * FilesRecord: files added to run
+ */
+message FilesRecord {
+  repeated FilesItem files = 1;
+}
+
+message FilesItem {
+  enum PolicyType {
+    NOW = 0;
+    END = 1;
+    LIVE = 2;
+  }
+  string path = 1;
+  PolicyType policy = 2;
+  string external_path = 16;
+}
+
+/*
+ * StatsRecord: system metrics
+ */
+message StatsRecord {
+  enum StatsType {
+    SYSTEM = 0;
+  }
+  StatsType                 stats_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  repeated StatsItem        item = 3;
+}
+
+message StatsItem {
+  string          key = 1;
+  string          value_json = 16;
+}
+
+/*
+ * ArtifactRecord: track artifacts
+ */
+message ArtifactRecord {
+  string                        run_id = 1;
+  string                        project = 2;
+  string                        entity = 3;
+  string                        type = 4;
+  string                        name = 5;
+  string                        digest = 6;
+  string                        description = 7;
+  string                        metadata = 8;
+  bool                          user_created = 9;
+  bool                          use_after_commit = 10;
+  repeated string               aliases = 11;
+  ArtifactManifest              manifest = 12;
+}
+
+message ArtifactManifest {
+  int32                             version = 1;
+  string                            storage_policy = 2;
+  repeated StoragePolicyConfigItem  storage_policy_config = 3;
+  repeated ArtifactManifestEntry    contents = 4;
+}
+
+message ArtifactManifestEntry {
+  string                path = 1;
+  string                digest = 2;
+  string                ref = 3;
+  int64                 size = 4;
+  string                mimetype = 5;
+  string                local_path = 6;
+  string                birth_artifact_id = 7;
+  repeated ExtraItem    extra = 16;
+}
+
+message ExtraItem {
+  string        key = 1;
+  string        value_json = 2;
+}
+
+message StoragePolicyConfigItem {
+  string            key = 1;
+  string            value_json = 2;
+}
+
+/*
+ * TBRecord: store tb locations
+ */
+message TBRecord {
+  string log_dir = 1;
+  bool   save = 2;
+}
+
+/************************
+ * Requests and Responses
+ ************************/
+
+/*
+ * Request: all non persistent messages
+ */
+message Request {
+  oneof request_type {
+    StatusRequest         status = 1;
+    DeferRequest          defer = 3;
+    GetSummaryRequest     get_summary = 4;
+    LoginRequest          login = 5;
+    PauseRequest          pause = 6;
+    ResumeRequest         resume = 7;
+    PollExitRequest       poll_exit = 8;
+    SampledHistoryRequest sampled_history = 9;
+    RunStartRequest       run_start = 11;
+    CheckVersionRequest   check_version = 12;
+    ShutdownRequest       shutdown = 64;
+  }
+}
+
+/*
+ * Response: all non persistent responses to Requests
+ */
+message Response {
+  oneof response_type {
+    StatusResponse         status_response = 19;
+    LoginResponse          login_response = 24;
+    GetSummaryResponse     get_summary_response = 25;
+    PollExitResponse       poll_exit_response = 26;
+    SampledHistoryResponse sampled_history_response = 27;
+    RunStartResponse       run_start_response = 28;
+    CheckVersionResponse   check_version_response = 29;
+    ShutdownResponse       shutdown_response = 64;
+  }
+}
+
+/*
+ * DeferRequest: internal message to defer work
+ */
+message DeferRequest {
+  enum DeferState {
+    BEGIN = 0;
+    FLUSH_STATS = 1;
+    FLUSH_TB = 2;
+    FLUSH_SUM = 3;
+    FLUSH_DIR = 4;
+    FLUSH_FP = 5;
+    FLUSH_FS = 6;
+    FLUSH_FINAL = 7;
+    END = 8;
+  }
+  DeferState state = 1;
+}
+
+/*
+ * PauseRequest: internal message to pause the heartbeat
+ */
+message PauseRequest {
+}
+
+/*
+ * ResumeRequest: internal message to resume the heartbeat
+ */
+message ResumeRequest {
+}
+
+/*
+ * LoginRequest: wandb/sdk/wandb_login
+ */
+message LoginRequest {
+  string api_key = 1;
+}
+
+message LoginResponse {
+  string active_entity = 1;
+}
+
+/*
+ * GetSummaryRequest: request consolidated summary
+ */
+message GetSummaryRequest {
+}
+
+message GetSummaryResponse {
+  repeated SummaryItem item = 1;
+}
+
+/*
+ * StatusRequest:
+ */
+message StatusRequest {
+  bool check_stop_req = 1;
+}
+
+message StatusResponse {
+  bool run_should_stop = 1;
+}
+
+/*
+ * PollExitRequest:
+ */
+message PollExitRequest {
+}
+
+message PollExitResponse {
+  bool            done = 1;
+  RunExitResult   exit_result = 2;
+  FileCounts      file_counts = 3;
+  FilePusherStats pusher_stats = 4;
+}
+
+message FileCounts {
+  int32 wandb_count = 1;
+  int32 media_count = 2;
+  int32 artifact_count = 3;
+  int32 other_count = 4;
+}
+
+message FilePusherStats {
+  int64 uploaded_bytes = 1;
+  int64 total_bytes = 2;
+  int64 deduped_bytes = 3;
+}
+
+/*
+ * ShutdownRequest:
+ */
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
+}
+
+/*
+ * SampledHistoryRequest:
+ */
+message SampledHistoryRequest {
+}
+
+message SampledHistoryItem {
+  string          key = 1;
+  repeated string nested_key = 2;
+  repeated float  values_float = 3;
+  repeated int64  values_int = 4;
+}
+
+message SampledHistoryResponse {
+  repeated SampledHistoryItem item = 1;
+}
+
+/*
+ * RunStartRequest: start the run
+ */
+message RunStartRequest {
+  RunRecord run = 1;
+}
+
+message RunStartResponse {
+}
+
+/*
+ * CheckVersion:
+ */
+message CheckVersionRequest {
+}
+
+message CheckVersionResponse {
+  string message = 1;
+}

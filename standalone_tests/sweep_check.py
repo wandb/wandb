@@ -27,8 +27,8 @@ def train(**kwargs):
     with run:
         c=dict(run.config)
         run.name = '{}-{}-{}'.format(c.get("param0"), c.get("param1"), c.get("param2"))
-        run.save()
         run_id = run.id
+        print("SweepID", run.sweep_id)
         length = run.config.get("length", L)
         epochs = run.config.get("epochs", 27)
         delay = run.config.get("delay", 0)
@@ -69,7 +69,7 @@ def check(sweep_id, num=None, result=None, stopped=None):
     print("ALL GOOD")
 
 
-def sweep_quick():
+def sweep_quick(args):
     config = dict(
         method="random",
         parameters=dict(
@@ -85,7 +85,7 @@ def sweep_quick():
     check(sweep_id, num=1)
 
 
-def sweep_grid():
+def sweep_grid(args):
     config = dict(
         method="grid",
         parameters=dict(
@@ -101,7 +101,7 @@ def sweep_grid():
     check(sweep_id, num=9, result=2 + 4*L + 1.5*L*L)
 
 
-def sweep_bayes():
+def sweep_bayes(args):
     config = dict(
         method="bayes",
         metric=dict(name="val_acc", goal="maximize"),
@@ -117,7 +117,7 @@ def sweep_bayes():
     check(sweep_id, num=9, result=2 + 4*L + 1.5*L*L)
 
 
-def sweep_bayes_nested():
+def sweep_bayes_nested(args):
     config = dict(
         method="bayes",
         metric=dict(name="feat1.val_acc", goal="maximize"),
@@ -133,7 +133,7 @@ def sweep_bayes_nested():
     check(sweep_id, num=9, result=2 + 4*L + 1.5*L*L)
 
 
-def sweep_grid_hyperband():
+def sweep_grid_hyperband(args):
     config = dict(
         method="grid",
         metric=dict(name="val_acc", goal="maximize"),
@@ -141,8 +141,7 @@ def sweep_grid_hyperband():
             param0=dict(values=[2]),
             param1=dict(values=[4, 1, 0]),
             param2=dict(values=[1.5, 0.5, 0]),
-            delay=dict(value=1),
-            #delay=dict(value=1),
+            delay=dict(value=args.grid_hyper_delay or 1),
             epochs=dict(value=27),
             ),
         early_terminate=dict(
@@ -165,6 +164,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--test', default='', type=str)
     parser.add_argument('-x', '--exclude', default='', type=str)
+    parser.add_argument('--grid_hyper_delay', type=int)
     parser.add_argument('--dryrun', dest='dryrun', action='store_true')
     parser.add_argument('--local', dest='local', action='store_true')
     args = parser.parse_args()
@@ -191,7 +191,7 @@ def main():
             continue
         if args.local and t == 'grid_hyper':
             POKE_LOCAL = True
-        f()
+        f(args)
 
 
 if __name__ == "__main__":
