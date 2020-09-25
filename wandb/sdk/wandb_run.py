@@ -585,7 +585,7 @@ class Run(RunBase):
         # remove custom charts and insert custom chart tables
         for k in update_keys.keys():
             row.pop(k)
-            row[f"{k}_table"] = update_keys[k]
+            row["{}_table".format(k)] = update_keys[k]
 
         self._backend.interface.publish_history(row, step)
 
