@@ -537,8 +537,14 @@ class Settings(object):
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(self, user_settings, _logger=None):
+        _logger = _logger or logger
         _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
+
+    def _apply_source_login(self, login_settings, _logger=None):
+        _logger = _logger or logger
+        _logger.info("setting login settings: {}".format(login_settings))
+        self._update(login_settings, _source=self.Source.LOGIN)
 
     def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
@@ -797,7 +803,7 @@ class Settings(object):
     def _apply_login(self, args):
         param_map = dict(key="api_key", host="base_url",)
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
-        self._update(args, _source=self.Source.LOGIN)
+        self._apply_source_login(args)
 
     def _apply_init(self, args):
         # prevent setting project, entity if in sweep

@@ -75,6 +75,8 @@ class _WandbLogin(object):
     def login(self):
         active_entity = None
         logged_in = self.is_logged_in()
+        if self._settings.relogin:
+            logged_in = False
         if logged_in:
             # TODO: do we want to move all login logic to the backend?
             if self._backend:
@@ -83,7 +85,7 @@ class _WandbLogin(object):
                 # active_entity = res.active_entity
             else:
                 active_entity = self._wl._get_entity()
-        if active_entity and not self._settings.relogin:
+        if active_entity:
             login_state_str = "Currently logged in as:"
             login_info_str = "(use `wandb login --relogin` to force relogin)"
             wandb.termlog(
@@ -94,7 +96,7 @@ class _WandbLogin(object):
                 ),
                 repeat=False,
             )
-            return True
+        return logged_in
 
     def configure_api_key(self, key):
         if self._settings._jupyter:
@@ -109,6 +111,11 @@ class _WandbLogin(object):
         apikey.write_key(self._settings, key)
         self._key = key
 
+    def update_session(self, key):
+        settings: Settings = wandb.Settings()
+        settings._apply_source_login(dict(api_key=key))
+        self._wl._update(settings=settings)
+
     def prompt_api_key(self):
         api = Api()
         key = apikey.prompt_api_key(
@@ -119,9 +126,11 @@ class _WandbLogin(object):
         )
         if key is False:
             raise UsageError("api_key not configured (no-tty).  Run wandb login")
+        self.update_session(key)
         self._key = key
 
     def propogate_login(self):
+        # TODO(jhr): figure out if this is really necessary
         if self._backend:
             # TODO: calling this twice is gross, this deserves a refactor
             # Make sure our backend picks up the new creds
@@ -163,7 +172,7 @@ def _login(
     if not key:
         wlogin.prompt_api_key()
 
-    # makes sure login credentials get to the backend
+    # make sure login credentials get to the backend
     wlogin.propogate_login()
 
     return wlogin._key or False
