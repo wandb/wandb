@@ -75,12 +75,14 @@ To run basic test use `make test`.  More detailed information can be found at CO
 We use [circleci](https://circleci.com) for CI.
 
 # Academic Researchers
+
 If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
 
 We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
 [![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)
 
 ## Community
+
 Got questions, feedback or want to join a community of ML engineers working on exciting projects?
 
 <a href="https://bit.ly/slack-forum"><img src="https://svgshare.com/i/M93.svg" alt="slack" width="55"/></a> Join our [slack](https://bit.ly/slack-forum) community.
