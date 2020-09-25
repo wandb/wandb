@@ -4,7 +4,7 @@ import os
 import time
 import shutil
 import requests
-from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
 from wandb import env
@@ -431,9 +431,9 @@ class WandbStoragePolicy(StoragePolicy):
     def _file_url(self, api, entity_name, manifest_entry):
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
+        md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
 
         if storage_layout == StorageLayout.V1:
-            md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
             return "{}/artifacts/{}/{}".format(
                 api.settings("base_url"), entity_name, md5_hex
             )
@@ -442,8 +442,8 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"),
                 storage_region,
                 entity_name,
-                manifest_entry.birth_artifact_id,
-                manifest_entry.digest,
+                quote(manifest_entry.birth_artifact_id),
+                md5_hex,
             )
         else:
             raise Exception("unrecognized storage layout: {}".format(storage_layout))
