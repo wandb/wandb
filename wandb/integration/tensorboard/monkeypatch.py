@@ -21,18 +21,17 @@ def patch(save=None, tensorboardX=None, pytorch=None):
     tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE)
     pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
 
-    if c_writer:
+    if not pytorch and not tensorboardX and c_writer:
         _patch_tensorflow2(writer=c_writer, module=TENSORBOARD_C_MODULE, save=save)
-    elif tb_writer or pt_writer:
-        if tb_writer:
-            _patch_nontensorflow(
-                writer=tb_writer, module=TENSORBOARD_WRITER_MODULE, save=save
-            )
-        if pt_writer:
-            _patch_nontensorflow(
-                writer=pt_writer, module=TENSORBOARD_PYTORCH_MODULE, save=save
-            )
-    else:
+    if tb_writer:
+        _patch_nontensorflow(
+            writer=tb_writer, module=TENSORBOARD_WRITER_MODULE, save=save
+        )
+    if pt_writer:
+        _patch_nontensorflow(
+            writer=pt_writer, module=TENSORBOARD_PYTORCH_MODULE, save=save
+        )
+    if not c_writer and not tb_writer and not tb_writer:
         wandb.termerror("Unsupported tensorboard configuration")
 
 
