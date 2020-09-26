@@ -13,9 +13,9 @@ import time
 
 import wandb
 from wandb import util
+from wandb import wandb_sdk
 from wandb.apis import InternalApi
 from wandb.lib import config_util
-from wandb import wandb_sdk
 
 
 class Job(object):
