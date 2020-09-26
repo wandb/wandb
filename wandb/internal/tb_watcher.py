@@ -133,6 +133,8 @@ class TBDirWatcher(object):
         path = self.tf_compat.tf.compat.as_str_any(path)
         start_time = self._tbwatcher._settings._start_time
         basename = os.path.basename(path)
+        # tensorboard tfevents filename format:
+        # https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
         if (not basename.startswith('events.out.tfevents.')
                 or basename.endswith('.profile-empty')):
             return False
