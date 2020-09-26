@@ -135,10 +135,11 @@ class TBDirWatcher(object):
         basename = os.path.basename(path)
         # tensorboard tfevents filename format:
         # https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-        if (not basename.startswith('events.out.tfevents.')
-                or basename.endswith('.profile-empty')):
+        if not basename.startswith("events.out.tfevents.") or basename.endswith(
+            ".profile-empty"
+        ):
             return False
-        fname_components = basename.split('.')
+        fname_components = basename.split(".")
         try:
             created_time = int(fname_components[3])
             hostname = fname_components[4]
@@ -149,10 +150,7 @@ class TBDirWatcher(object):
         # TODO: we should also check the PID (also contained in the tfevents
         #     filename). Can we assume that our parent pid is the user process
         #     that wrote these files?
-        return (
-            created_time >= start_time  # noqa: W503
-            and hostname == self._hostname
-        )
+        return created_time >= start_time and hostname == self._hostname  # noqa: W503
 
     def _loader(self, save=True, namespace=None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
