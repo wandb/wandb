@@ -15,6 +15,7 @@ import wandb
 from wandb import util
 from wandb.apis import InternalApi
 from wandb.lib import config_util
+from wandb import wandb_sdk
 
 
 class Job(object):
@@ -69,7 +70,7 @@ class Agent(object):
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
         os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-        wandb._setup(_reset=True)
+        wandb_sdk.wandb_setup._setup(_reset=True)
 
         print(
             "wandb: Agent Starting Run: {} with config:\n".format(run_id)
