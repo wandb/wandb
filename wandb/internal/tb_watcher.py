@@ -109,7 +109,6 @@ class TBDirWatcher(object):
         self.tf_compat = util.get_module(
             "tensorboard.compat", required="Please install tensorboard package"
         )
-        self.tf_io = util.get_module("tensorboard.compat.tensorflow_stub.io.gfile")
         self._tbwatcher = tbwatcher
         self._generator = self.directory_watcher.DirectoryWatcher(
             logdir, self._loader(save, namespace), self._is_new_tensorflow_events_file
