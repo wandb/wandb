@@ -69,7 +69,7 @@ class Agent(object):
         os.environ[wandb.env.RUN_ID] = run_id
         os.environ[wandb.env.CONFIG_PATHS] = config_file
         os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-        wandb.setup(_reset=True)
+        wandb._setup(_reset=True)
 
         print(
             "wandb: Agent Starting Run: {} with config:\n".format(run_id)

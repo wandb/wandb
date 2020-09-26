@@ -230,6 +230,6 @@ def _setup(settings=None, _reset=None):
     return wl
 
 
-def setup(settings=None, _reset=None):
-    ret = _setup(settings=settings, _reset=_reset)
+def setup(settings=None):
+    ret = _setup(settings=settings)
     return ret
