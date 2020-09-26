@@ -5,6 +5,7 @@ import copy
 import datetime
 from functools import wraps
 import getpass
+import json
 import logging
 import os
 import shutil
@@ -1436,4 +1437,32 @@ def off():
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+        )
+
+
+@cli.command("online", hidden=True)
+@click.pass_context
+@display_error
+def online(ctx):
+    ctx.invoke(on)
+
+
+@cli.command("offline", hidden=True)
+@click.pass_context
+@display_error
+def offline(ctx):
+    ctx.invoke(off)
+
+
+@cli.command("status", help="Show configuration settings")
+@click.option(
+    "--settings/--no-settings", help="Show the current settings", default=True
+)
+def status(settings):
+    api = _get_cling_api()
+    if settings:
+        click.echo(click.style("Current Settings", bold=True))
+        settings = api.settings()
+        click.echo(
+            json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
