@@ -135,7 +135,7 @@ class Agent(object):
     def loop(self):
         self.setup()
         self._stop_thread = False
-        proc = multiprocessing.Process(target=self._thread_body, daemon=True)
+        proc = multiprocessing.Process(target=self._thread_body)
         proc.start()
         try:
             try:
