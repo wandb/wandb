@@ -72,13 +72,19 @@ def config_dir():
         del os.environ["WANDB_CONFIG"]
 
 
+def debug_result(result, prefix=None):
+    prefix = prefix or ""
+    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
+    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
+    print("DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2])))
+
+
 def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
     with runner.isolated_filesystem():
-        runner.invoke(cli.login, [DUMMY_API_KEY])
+        result = runner.invoke(cli.login, [DUMMY_API_KEY])
+        debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
+        debug_result(result, "init")
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
@@ -93,11 +99,10 @@ def test_init_add_login(runner, empty_netrc, mock_server):
         with config_dir():
             with open("netrc", "w") as f:
                 f.write("previous config")
-            runner.invoke(cli.login, [DUMMY_API_KEY])
+            result = runner.invoke(cli.login, [DUMMY_API_KEY])
+            debug_result(result, "login")
             result = runner.invoke(cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
-            print(result.output)
-            print(result.exception)
-            print(traceback.print_tb(result.exc_info[2]))
+            debug_result(result, "init")
             assert result.exit_code == 0
             with open("netrc", "r") as f:
                 generatedNetrc = f.read()
