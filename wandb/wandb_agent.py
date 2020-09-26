@@ -48,7 +48,6 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
-        self._stop_thread = None
 
     def register(self):
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -112,15 +111,12 @@ class Agent(object):
 
 
     def _thread_body(self):
+        self.setup()
         count = 0
         while True:
-            if self._stop_thread:
-                return
             job = self.check_queue()
             if not job:
                 time.sleep(10)
-                if self._stop_thread:
-                    return
                 continue
             if job.done():
                 return
@@ -133,8 +129,8 @@ class Agent(object):
             time.sleep(5)
 
     def loop(self):
-        self.setup()
-        self._stop_thread = False
+        self._thread_body()
+        return
         proc = multiprocessing.Process(target=self._thread_body)
         proc.start()
         try:
@@ -143,8 +139,6 @@ class Agent(object):
             except KeyboardInterrupt:
                 wandb.termlog('Ctrl + C detected. Killing sweep process.')
                 proc.terminate()
-
-                # thread.join()
         except Exception:
             wandb.termerror("Error joining sweep process.")
 
