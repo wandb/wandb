@@ -1412,9 +1412,9 @@ wandb_magic_install()
     magic_run(code, globs, None)
 
 
-@cli.command("online", help="Ensure W&B is enabled in this directory")
+@cli.command("on", help="Ensure W&B is enabled in this directory")
 @display_error
-def online():
+def on():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
@@ -1425,9 +1425,9 @@ def online():
     )
 
 
-@cli.command("offline", help="Disable W&B in this directory, useful for testing")
+@cli.command("off", help="Disable W&B in this directory, useful for testing")
 @display_error
-def offline():
+def off():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
@@ -1440,18 +1440,18 @@ def offline():
         )
 
 
-@cli.command("on", hidden=True)
+@cli.command("online", hidden=True)
 @click.pass_context
 @display_error
-def on(ctx):
-    ctx.invoke(online)
+def online(ctx):
+    ctx.invoke(on)
 
 
-@cli.command("off", hidden=True)
+@cli.command("offline", hidden=True)
 @click.pass_context
 @display_error
-def off(ctx):
-    ctx.invoke(offline)
+def offline(ctx):
+    ctx.invoke(off)
 
 
 @cli.command("status", help="Show configuration settings")
