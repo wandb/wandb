@@ -65,10 +65,7 @@ class AgentProcess(object):
         # complete the run
         run = wandb.run
         if run:
-            if in_jupyter:
-                run._stop_jupyter_agent()
-            else:
-                wandb.join()
+            wandb.join()
 
         # signal that the process is finished
         finished_q.put(True)
