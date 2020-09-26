@@ -11,6 +11,7 @@ import os
 import socket
 import time
 import threading
+import multiprocessing
 
 import wandb
 from wandb import util
@@ -134,18 +135,18 @@ class Agent(object):
     def loop(self):
         self.setup()
         self._stop_thread = False
-        thread = threading.Thread(target=self._thread_body, daemon=True)
-        thread.start()
+        proc = multiprocessing.Process(target=self._thread_body, daemon=True)
+        proc.start()
         try:
             try:
-                thread.join()
+                proc.join()
             except KeyboardInterrupt:
-                wandb.termlog('Ctrl + C detected. Stopping sweep thread...')
-                self._stop_thread = True
-                thread.join()
-                wandb.termlog('Done.')
+                wandb.termlog('Ctrl + C detected. Killing sweep process.')
+                proc.terminate()
+
+                # thread.join()
         except Exception:
-            wandb.termerror("Error joining sweep thread.")
+            wandb.termerror("Error joining sweep process.")
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
