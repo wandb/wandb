@@ -142,7 +142,7 @@ class TBDirWatcher(object):
             hostname = fname_components[4]
         except (ValueError, IndexError):
             return False
-        # Ensure that the file is newer then our start time, and that it ws
+        # Ensure that the file is newer then our start time, and that it was
         # created from the same hostname.
         # TODO: we should also check the PID (also contained in the tfevents
         #     filename). Can we assume that our parent pid is the user process
