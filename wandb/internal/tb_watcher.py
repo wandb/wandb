@@ -4,6 +4,7 @@ tensor b watcher.
 
 import logging
 import os
+import socket
 import threading
 import time
 
@@ -108,9 +109,7 @@ class TBDirWatcher(object):
         self.tf_compat = util.get_module(
             "tensorboard.compat", required="Please install tensorboard package"
         )
-        # TODO: tensorboard provides: tensorboard.compat.tensorflow_stub.io.gfile
-        # but it doesn't give us mtime
-        self.tf_io = util.get_module("tensorflow.io.gfile")
+        self.tf_io = util.get_module("tensorboard.compat.tensorflow_stub.io.gfile")
         self._tbwatcher = tbwatcher
         self._generator = self.directory_watcher.DirectoryWatcher(
             logdir, self._loader(save, namespace), self._is_new_tensorflow_events_file
@@ -122,6 +121,7 @@ class TBDirWatcher(object):
         self._file_version = None
         self._namespace = namespace
         self._logdir = logdir
+        self._hostname = socket.gethostname()
 
     def start(self):
         self._thread.start()
@@ -131,20 +131,26 @@ class TBDirWatcher(object):
         if not path:
             raise ValueError("Path must be a nonempty string")
         path = self.tf_compat.tf.compat.as_str_any(path)
-        base = os.path.basename(path)
         start_time = self._tbwatcher._settings._start_time
-        if REMOTE_FILE_TOKEN in path:
-            if self.tf_io:
-                modified_time = self.tf_io.stat(path).mtime_nsec / 1000000000
-            else:
-                logger.warning("not logging tfevent file: %s, install tensorflow", path)
-                return False
-        else:
-            modified_time = os.stat(path).st_mtime
+        basename = os.path.basename(path)
+        if (not basename.startswith('events.out.tfevents.')
+                or basename.endswith('.profile-empty')):
+            return False
+        fname_components = basename.split('.')
+        try:
+            created_time = int(fname_components[3])
+            hostname = fname_components[4]
+        except (ValueError, IndexError):
+            return False
+        
+        # Ensure that the file is newer then our start time, and that it ws
+        # created from the same hostname.
+        # TODO: we should also check the PID (also contained in the tfevents
+        #     filename). Can we assume that our parent pid is the user process
+        #     that wrote these files?
         return (
-            "tfevents" in base
-            and modified_time >= start_time  # noqa: W503
-            and not base.endswith(".profile-empty")  # noqa: W503
+            created_time >= start_time  # noqa: W503
+            and hostname == self._hostname
         )
 
     def _loader(self, save=True, namespace=None):
