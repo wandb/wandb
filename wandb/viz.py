@@ -37,7 +37,15 @@ def custom_chart_panel_config(custom_chart, key, table_key):
                 ],
                 "fields": [
                     {
+                        "name": "id",
+                        "fields": []
+                    },
+                    {
                         "name": "name",
+                        "fields": []
+                    },
+                    {
+                        "name": "_defaultColorIndex",
                         "fields": []
                     },
                     {
