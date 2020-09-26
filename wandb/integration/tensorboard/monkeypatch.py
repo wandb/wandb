@@ -6,7 +6,7 @@ import wandb
 
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
-TENSORBOARD_PYTORCH_MODULE = "tensorboard.summary.writer.event_file_writer"
+TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def patch(save=None, tensorboardX=None, pytorch=None):
