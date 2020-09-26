@@ -12,56 +12,53 @@ def visualize(viz_id, value):
     return Visualize(viz_id, value)
 
 class CustomChart:
-    def __init__(self, viz_id, table, config_mapping):
+    def __init__(self, viz_id, table, fields, string_fields):
         self.viz_id = viz_id
         self.table = table
-        self.panel_config = config_mapping
+        self.fields = fields
+        self.string_fields = string_fields
 
-def create_custom_chart(vega_spec_name, data_table, config_mapping):
+def create_custom_chart(vega_spec_name, data_table, fields, string_fields):
     if not isinstance(data_table, Table):
         raise Error("custom chart data_table must be Table, not {}".format(type(data_table).__name__))
 
-    return CustomChart(vega_spec_name, data_table, config_mapping)
+    return CustomChart(vega_spec_name, data_table, fields, string_fields)
 
-def update_custom_chart_panel_config(custom_chart, key):
-    table_key = key + "_table"
+def custom_chart_panel_config(custom_chart, key, table_key):
     userQuery = {
-        "userQuery": {
-            "queryFields": [
-                {
-                    "name": "runSets",
-                    "args": [
-                        {
-                            "name": "runSets",
-                            "value": "${runSets}"
-                        }
-                    ],
-                    "fields": [
-                        {
-                            "name": "name",
-                            "fields": []
-                        },
-                        {
-                            "name": "summaryTable",
-                            "args": [
-                                {
-                                    "name": "tableKey",
-                                    "value": table_key
-                                }
-                            ],
-                            "fields": []
-                        }
-                    ]
-                }
-            ],
-        }
+        "queryFields": [
+            {
+                "name": "runSets",
+                "args": [
+                    {
+                        "name": "runSets",
+                        "value": "${runSets}"
+                    }
+                ],
+                "fields": [
+                    {
+                        "name": "name",
+                        "fields": []
+                    },
+                    {
+                        "name": "summaryTable",
+                        "args": [
+                            {
+                                "name": "tableKey",
+                                "value": table_key
+                            }
+                        ],
+                        "fields": []
+                    }
+                ]
+            }
+        ],
     }
-    
-    custom_chart.panel_config.update({'panelDefId': custom_chart.viz_id})
-    custom_chart.panel_config.update(
-        {'transform': {"name": "tableWithLeafColNames"}}
-    )
-    custom_chart.panel_config.update(
-        {"historyFieldSettings": {"key": table_key, "x-axis": "_step"}}
-    )
-    custom_chart.panel_config.update(userQuery)
+
+    return {
+        "userQuery": userQuery,
+        "panelDefId": custom_chart.viz_id,
+        "transform": {"name": "tableWithLeafColNames"},
+        "fieldSettings": custom_chart.fields,
+        "stringSettings": custom_chart.string_fields
+    }

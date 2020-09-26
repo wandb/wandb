@@ -44,7 +44,7 @@ from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
     CustomChart,
-    update_custom_chart_panel_config,
+    custom_chart_panel_config,
     Visualize,
 )
 
@@ -562,7 +562,7 @@ class Run(RunBase):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
-        update_keys = {}
+        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
                 if "viz" not in self._config["_wandb"]:
@@ -574,18 +574,24 @@ class Run(RunBase):
                 row[k] = row[k].value
                 visualize_persist_config = True
             elif isinstance(row[k], CustomChart):
-                update_custom_chart_panel_config(row[k], k)
-                self._add_panel(k, "Vega2", row[k].panel_config)
-                visualize_persist_config = True
-                update_keys[k] = row[k].table
+                custom_charts[k] = row[k]
+                custom_chart = row[k]
+
+        for k, custom_chart in custom_charts.items():
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row.pop(k)
+            # add the table under a different key
+            table_key = k + '_table'
+            row[table_key] = custom_chart.table
+            # add the panel
+            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
+            self._add_panel(k, "Vega2", panel_config)
+            visualize_persist_config = True
 
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
-
-        # remove custom charts and insert custom chart tables
-        for k in update_keys.keys():
-            row.pop(k)
-            row["{}_table".format(k)] = update_keys[k]
 
         self._backend.interface.publish_history(row, step)
 
@@ -940,17 +946,20 @@ class Run(RunBase):
     def join(self, exit_code=None):
         self.finish(exit_code=exit_code)
 
-    def plot_table(self, vega_spec_name, data_table, config_mapping):
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
         """Creates a custom plot on a table.
         Args:
             vega_spec_name: the name of the spec for the plot
             table_key: the key used to log the data table
             data_table: a wandb.Table object containing the data to
                         be used on the visualization
-            config_mapping: a dictionary containing the field mappings
-                            and historyFieldSettings
+            fields: a dict mapping from table keys to fields that the custom
+                    visualization needs
+            string_fields: a dict that provides values for any string constants
+                    the custom visualization needs
         """
-        visualization = create_custom_chart(vega_spec_name, data_table, config_mapping)
+        visualization = create_custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {})
         return visualization
 
     def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
