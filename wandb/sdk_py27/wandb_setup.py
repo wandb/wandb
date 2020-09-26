@@ -231,5 +231,5 @@ def _setup(settings=None, _reset=None):
 
 
 def setup(settings=None, _reset=None):
-    ret = _setup(settings=settings, _reset=None)
+    ret = _setup(settings=settings, _reset=_reset)
     return ret
