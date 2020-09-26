@@ -66,7 +66,8 @@ class AgentProcess(object):
         run = wandb.run
         if run:
             if in_jupyter:
-                run._stop_jupyter_agent()
+                pass
+                #run._stop_jupyter_agent()
             else:
                 wandb.join()
 
