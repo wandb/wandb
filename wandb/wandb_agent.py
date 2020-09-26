@@ -10,6 +10,7 @@ from __future__ import print_function
 import os
 import socket
 import time
+import threading
 
 import wandb
 from wandb import util
@@ -46,6 +47,7 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        self._stop_thread = None
 
     def register(self):
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -107,24 +109,43 @@ class Agent(object):
             self._sweep_id = sweep_id
         self.register()
 
-    def loop(self):
-        self.setup()
+
+    def _thread_body(self):
         count = 0
         while True:
+            if self._stop_thread:
+                return
             job = self.check_queue()
             if not job:
-                time.sleep(20)
+                time.sleep(10)
+                if self._stop_thread:
+                    return
                 continue
             if job.done():
-                break
+                return
             count += 1
             stop = self.run_job(job)
             if stop:
-                break
-            if self._count and count >= self._count:
-                break
+                return
+            if self._count and count == self._count:
+                return
             time.sleep(5)
 
+    def loop(self):
+        self.setup()
+        self._stop_thread = False
+        thread = threading.Thread(target=self._thread_body, daemon=True)
+        thread.start()
+        try:
+            try:
+                thread.join()
+            except KeyboardInterrupt:
+                wandb.termlog('Ctrl + C detected. Stopping sweep thread...')
+                self._stop_thread = True
+                thread.join()
+                wandb.termlog('Done.')
+        except Exception:
+            wandb.termerror("Error joining sweep thread.")
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
