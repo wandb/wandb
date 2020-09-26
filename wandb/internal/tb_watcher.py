@@ -134,7 +134,9 @@ class TBDirWatcher(object):
         basename = os.path.basename(path)
         # tensorboard tfevents filename format:
         # https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-        if not basename.startswith("events.out.tfevents.") or basename.endswith(
+        # tensorflow tfevents fielname format:
+        # https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
+        if 'tfevents' not in basename or basename.endswith(
             ".profile-empty"
         ):
             return False
