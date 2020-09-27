@@ -120,7 +120,7 @@ class TBDirWatcher(object):
         self._file_version = None
         self._namespace = namespace
         self._logdir = logdir
-        self._hostname = socket.gethostname()
+        self._hostname = socket.gethostname().split(".", 1)[0]
 
     def start(self):
         self._thread.start()
