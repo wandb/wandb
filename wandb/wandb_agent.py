@@ -7,7 +7,6 @@ Manage wandb agent.
 
 from __future__ import print_function
 
-import ctypes
 import os
 import socket
 import time
