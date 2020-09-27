@@ -738,7 +738,7 @@ def agent(ctx, project, entity, count, sweep_id):
         ctx.invoke(login, no_offline=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
+    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
