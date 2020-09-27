@@ -140,7 +140,7 @@ class TBDirWatcher(object):
             return False
         fname_components = basename.split(".")
         # check the hostname, which may have dots
-        for i, part in enumerate(self._hostname.split('.')):
+        for i, part in enumerate(self._hostname.split(".")):
             try:
                 fname_component_part = fname_components[4 + i]
             except IndexError:
