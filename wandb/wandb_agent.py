@@ -10,8 +10,6 @@ from __future__ import print_function
 import os
 import socket
 import time
-import threading
-import multiprocessing
 
 import wandb
 from wandb import util
@@ -84,11 +82,11 @@ class Agent(object):
             self._function()
             if wandb.run:
                 wandb.join()
-        except KeyboardInterrupt as e:
-            print("Keyboard interrupt", e)
+        except KeyboardInterrupt:
+            wandb.termlog("Ctrl + C detected. Stopping sweep.")
             return True
         except Exception as e:
-            print("Problem", e)
+            wandb.termerror("Error running job: " + str(e))
             return True
 
     def setup(self):
@@ -109,15 +107,21 @@ class Agent(object):
             self._sweep_id = sweep_id
         self.register()
 
-
-    def _thread_body(self):
+    def loop(self):
         self.setup()
         count = 0
+        waiting = False
         while True:
             job = self.check_queue()
             if not job:
+                if not waiting:
+                    wandb.termlog("Waiting for job...")
+                    waiting = True
                 time.sleep(10)
                 continue
+            if waiting:
+                wandb.termlog("Job received.")
+                waiting = False
             if job.done():
                 return
             count += 1
@@ -128,19 +132,9 @@ class Agent(object):
                 return
             time.sleep(5)
 
-    def loop(self):
-        self._thread_body()
-        return
-        proc = multiprocessing.Process(target=self._thread_body)
-        proc.start()
-        try:
-            try:
-                proc.join()
-            except KeyboardInterrupt:
-                wandb.termlog('Ctrl + C detected. Killing sweep process.')
-                proc.terminate()
-        except Exception:
-            wandb.termerror("Error joining sweep process.")
+
+_INSTANCES = 0
+
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
@@ -152,6 +146,8 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
     """
+    global _INSTANCES
+    _INSTANCES += 1
     if function is None:
         raise Exception("function paramter is required")
     if not callable(function):
@@ -159,4 +155,11 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
     agent = Agent(
         sweep_id, function=function, entity=entity, project=project, count=count,
     )
-    agent.loop()
+    try:
+        agent.loop()
+    finally:
+        _INSTANCES -= 1
+
+
+def _is_running():
+    return bool(_INSTANCES)
