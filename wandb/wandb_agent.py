@@ -19,41 +19,6 @@ from wandb.apis import InternalApi
 from wandb.lib import config_util
 
 
-_INSTANCES = 0
-
-
-def _is_colab():
-    try:
-        import google.colab  # noqa
-
-        return True
-    except ImportError:
-        return False
-
-
-def _terminate_thread(thread):
-    if not thread.isAlive():
-        return
-    tid = getattr(thread, "_thread_id", None)
-    if tid is None:
-        for k, v in threading._active.items():
-            if v is thread:
-                tid = k
-    if tid is None:
-        # This should never happen
-        return
-    print("Terminating thread: " + str(tid))
-    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-        ctypes.c_long(tid), ctypes.py_object(KeyboardInterrupt)
-    )
-    if res == 0:
-        # This should never happen
-        return
-    elif res != 1:
-        # Revert
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
-
-
 class Job(object):
     def __init__(self, command):
         job_type = command.get("type")
