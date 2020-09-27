@@ -176,8 +176,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _check(self):
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
-                pass
-                # print("bad thread")
+                print("bad thread")
         elif threading.current_thread().name != "MainThread":
             print("bad thread2", threading.current_thread().name)
         if getattr(sys, "frozen", False):
