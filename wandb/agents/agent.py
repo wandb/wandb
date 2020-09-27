@@ -140,6 +140,8 @@ class Agent(object):
 
     def _heartbeat(self):
         while True:
+            if not self._main_thread.isAlive():
+                return
             commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
             if not commands:
                 continue
@@ -182,33 +184,32 @@ class Agent(object):
                 return
             except Exception:
                 if self._exit:
-                    self._exit = False
                     return
 
     def _run_job(self, job):
-        run_id = job.run_id
-
-        config_file = os.path.join(
-            "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
-        )
-        config_util.save_config_file_from_dict(config_file, job.config)
-        os.environ[wandb.env.RUN_ID] = run_id
-        os.environ[wandb.env.CONFIG_PATHS] = config_file
-        os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-        wandb_sdk.wandb_setup._setup(_reset=True)
-
-        print(
-            "wandb: Agent Starting Run: {} with config:\n".format(run_id)
-            + "\n".join(
-                ["\t{}: {}".format(k, v["value"]) for k, v in job.config.items()]
-            )
-        )
         try:
+            run_id = job.run_id
+
+            config_file = os.path.join(
+                "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
+            )
+            config_util.save_config_file_from_dict(config_file, job.config)
+            os.environ[wandb.env.RUN_ID] = run_id
+            os.environ[wandb.env.CONFIG_PATHS] = config_file
+            os.environ[wandb.env.SWEEP_ID] = self._sweep_id
+            wandb_sdk.wandb_setup._setup(_reset=True)
+
+            print(
+                "wandb: Agent Starting Run: {} with config:\n".format(run_id)
+                + "\n".join(
+                    ["\t{}: {}".format(k, v["value"]) for k, v in job.config.items()]
+                )
+            )
             self._function()
             if wandb.run:
                 wandb.join()
-        except KeyboardInterrupt:
-            wandb.termlog("Ctrl + C detected. Stopping sweep.")
+        except KeyboardInterrupt as ki:
+            raise ki
         except Exception as e:
             if run_id in self._stopped_runs:
                 self._stopped_runs.remove(run_id)
@@ -217,11 +218,12 @@ class Agent(object):
                 wandb.termerror("Error running job: " + str(e))
 
     def run(self):
+        self._exit = False
         self.setup()
         self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
-        self._heartbeat_thread.start()
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
         self._main_thread.start()
+        self._heartbeat_thread.start()
         self._main_thread.join()
 
 
