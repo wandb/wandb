@@ -139,9 +139,16 @@ class TBDirWatcher(object):
         if "tfevents" not in basename or basename.endswith(".profile-empty"):
             return False
         fname_components = basename.split(".")
+        # check the hostname, which may have dots
+        for i, part in enumerate(self._hostname.split('.')):
+            try:
+                fname_component_part = fname_components[4 + i]
+            except IndexError:
+                return False
+            if part != fname_component_part:
+                return False
         try:
             created_time = int(fname_components[3])
-            hostname = fname_components[4]
         except (ValueError, IndexError):
             return False
         # Ensure that the file is newer then our start time, and that it was
@@ -149,7 +156,7 @@ class TBDirWatcher(object):
         # TODO: we should also check the PID (also contained in the tfevents
         #     filename). Can we assume that our parent pid is the user process
         #     that wrote these files?
-        return created_time >= start_time and hostname == self._hostname  # noqa: W503
+        return created_time >= start_time  # noqa: W503
 
     def _loader(self, save=True, namespace=None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
