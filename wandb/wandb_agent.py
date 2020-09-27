@@ -184,6 +184,7 @@ class Agent(object):
                 raise AgentError("Invalid agent kill delay")
             self._run_processes = {}  # keyed by run.id (GQL run name)
             self._server_responses = []
+            self._running = True
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
@@ -206,9 +207,6 @@ class Agent(object):
                     sweep_command = sweep_config.get("command")
                     if sweep_command and isinstance(sweep_command, list):
                         self._sweep_command = sweep_command
-
-        self.register()
-
         try:
             while self._running:
                 commands = util.read_many_from_queue(
@@ -318,8 +316,6 @@ class Agent(object):
             response["traceback"] = traceback.format_tb(tb)
             del tb
 
-        self._log.append((command, response))
-
         return response
 
     def _command_run(self, command):
@@ -349,8 +345,8 @@ class Agent(object):
             "${args}",
         ]
 
-        run_id = command.get("run_id")
-        sweep_id = os.environ.get(wandb.env.SWEEP_ID)
+        run_id = command["run_id"]
+        sweep_id = os.environ[wandb.env.SWEEP_ID]
         # TODO(jhr): move into settings
         config_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
@@ -497,7 +493,8 @@ class Agent(object):
         entity = parts.get("entity") or self._entity
         project = parts.get("project") or self._project
         sweep_id = parts.get("name") or self._sweep_id
-
+        if sweep_id:
+            os.environ[wandb.env.SWEEP_ID] = sweep_id
         if entity:
             wandb.env.set_entity(entity)
         if project:
@@ -507,7 +504,6 @@ class Agent(object):
         self.register()
 
     def _loop(self):
-        self.setup()
         count = 0
         waiting = False
         while True:
@@ -531,6 +527,7 @@ class Agent(object):
                 return
 
     def run(self):
+        self.setup()
         if self._subproc_mode:
             self._run_subproc()
         else:
