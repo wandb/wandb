@@ -7,6 +7,7 @@ Manage wandb agent.
 
 from __future__ import print_function
 
+import ctypes
 import os
 import socket
 import time
@@ -16,6 +17,41 @@ from wandb import util
 from wandb import wandb_sdk
 from wandb.apis import InternalApi
 from wandb.lib import config_util
+
+
+_INSTANCES = 0
+
+
+def _is_colab():
+    try:
+        import google.colab  # noqa
+
+        return True
+    except ImportError:
+        return False
+
+
+def _terminate_thread(thread):
+    if not thread.isAlive():
+        return
+    tid = getattr(thread, "_thread_id", None)
+    if tid is None:
+        for k, v in threading._active.items():
+            if v is thread:
+                tid = k
+    if tid is None:
+        # This should never happen
+        return
+    print("Terminating thread: " + str(tid))
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_long(tid), ctypes.py_object(KeyboardInterrupt)
+    )
+    if res == 0:
+        # This should never happen
+        return
+    elif res != 1:
+        # Revert
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
 
 
 class Job(object):
@@ -46,6 +82,7 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        self._stop_thread = None
 
     def register(self):
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -130,7 +167,6 @@ class Agent(object):
                 return
             if self._count and count == self._count:
                 return
-            time.sleep(5)
 
 
 _INSTANCES = 0
