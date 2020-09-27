@@ -12,21 +12,21 @@ import logging
 import multiprocessing
 import os
 import platform
-import socket
 import signal
-import six
-from six.moves import queue
+import socket
 import subprocess
 import sys
 import time
 import traceback
-import yaml
 
+import six
+from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_sdk
 from wandb.apis import InternalApi
 from wandb.lib import config_util
+import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -39,9 +39,7 @@ class AgentError(Exception):
 class AgentProcess(object):
     """Launch and manage a process."""
 
-    def __init__(
-        self, env=None, command=None, function=None, run_id=None
-    ):
+    def __init__(self, env=None, command=None, function=None, run_id=None):
         self._popen = None
         self._proc = None
         self._finished_q = multiprocessing.Queue()
@@ -55,8 +53,7 @@ class AgentProcess(object):
             self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
-                target=self._start,
-                args=(self._finished_q, env, function, run_id),
+                target=self._start, args=(self._finished_q, env, function, run_id),
             )
             self._proc.start()
         else:
@@ -153,7 +150,9 @@ class Agent(object):
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
 
-    def __init__(self, sweep_id=None, project=None, entity=None, function=None, count=None):
+    def __init__(
+        self, sweep_id=None, project=None, entity=None, function=None, count=None
+    ):
         self._sweep_path = sweep_id
         self._sweep_id = None
         self._project = project
@@ -193,7 +192,6 @@ class Agent(object):
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
-
 
     def _run_subproc(self):  # noqa: C901
 
@@ -326,14 +324,9 @@ class Agent(object):
             )
         )
         wandb.termlog(
-            "wandb: Agent Starting Run: {} with config:\n".format(
-                command.get("run_id")
-            )
+            "wandb: Agent Starting Run: {} with config:\n".format(command.get("run_id"))
             + "\n".join(
-                [
-                    "\t{}: {}".format(k, v["value"])
-                    for k, v in command["args"].items()
-                ]
+                ["\t{}: {}".format(k, v["value"]) for k, v in command["args"].items()]
             )
         )
 
@@ -373,11 +366,7 @@ class Agent(object):
                 fp.write(flags_json)
 
         if self._function:
-            proc = AgentProcess(
-                function=self._function,
-                env=env,
-                run_id=run_id,
-            )
+            proc = AgentProcess(function=self._function, env=env, run_id=run_id,)
         else:
             sweep_vars = dict(
                 interpreter=["python"],
@@ -532,6 +521,7 @@ class Agent(object):
             self._run_subproc()
         else:
             self._loop()
+
 
 _INSTANCES = 0
 
