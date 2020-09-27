@@ -6,7 +6,8 @@ import wandb
 
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
-TENSORBOARD_PYTORCH_MODULE = "tensorboard.summary.writer.event_file_writer"
+TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
+TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def patch(save=None, tensorboardX=None, pytorch=None):
@@ -17,15 +18,20 @@ def patch(save=None, tensorboardX=None, pytorch=None):
 
     wandb.util.get_module("tensorboard", required="Please install tensorboard package")
     c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE)
-    tb_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
+    tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE)
+    pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
 
-    if c_writer:
+    if not pytorch and not tensorboardX and c_writer:
         _patch_tensorflow2(writer=c_writer, module=TENSORBOARD_C_MODULE, save=save)
-    elif tb_writer:
+    if tb_writer:
         _patch_nontensorflow(
-            writer=tb_writer, module=TENSORBOARD_PYTORCH_MODULE, save=save
+            writer=tb_writer, module=TENSORBOARD_WRITER_MODULE, save=save
         )
-    else:
+    if pt_writer:
+        _patch_nontensorflow(
+            writer=pt_writer, module=TENSORBOARD_PYTORCH_MODULE, save=save
+        )
+    if not c_writer and not tb_writer and not tb_writer:
         wandb.termerror("Unsupported tensorboard configuration")
 
 
