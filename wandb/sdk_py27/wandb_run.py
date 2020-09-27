@@ -1170,7 +1170,9 @@ class Run(RunBase):
         self._exit_code = exit_code
         try:
             self._on_finish()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            if wandb.wandb_agent._is_running():
+                raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
             if ipython._get_python_type() == "python":
                 os._exit(-1)
