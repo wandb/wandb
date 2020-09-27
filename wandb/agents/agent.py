@@ -190,8 +190,11 @@ class Agent(object):
             except KeyboardInterrupt:
                 wandb.termlog("Ctrl + C detected. Stopping sweep.")
                 self._exit()
+                return
             except Exception as e:
-                if not self._exit_flag:
+                if self._exit_flag:
+                    return
+                else:
                     raise e
 
     def _run_job(self, job):
