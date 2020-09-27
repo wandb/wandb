@@ -136,7 +136,7 @@ class Agent(object):
     def _exit(self):
         self._stop_all_runs()
         self._exit_flag = True
-        #_terminate_thread(self._main_thread)
+        # _terminate_thread(self._main_thread)
 
     def _heartbeat(self):
         while True:
@@ -186,6 +186,7 @@ class Agent(object):
                 thread.join()
                 del self._run_threads[job.run_id]
                 if self._count and self._count == count:
+                    self._exit_flag = True
                     return
             except KeyboardInterrupt:
                 wandb.termlog("Ctrl + C detected. Stopping sweep.")
@@ -220,8 +221,7 @@ class Agent(object):
             if wandb.run:
                 wandb.join()
         except KeyboardInterrupt as ki:
-            wandb.termlog("Ctrl + C detected. Stopping sweep.")
-            self._exit()
+            raise ki
         except Exception as e:
             if run_id in self._stopped_runs:
                 self._stopped_runs.remove(run_id)
@@ -232,11 +232,11 @@ class Agent(object):
     def run(self):
         self._exit_flag = False
         self.setup()
-        #self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
+        # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
-        #self._main_thread.start()
+        # self._main_thread.start()
         self._heartbeat_thread.start()
-        #self._main_thread.join()
+        # self._main_thread.join()
         self._run_jobs_from_queue()
 
 
