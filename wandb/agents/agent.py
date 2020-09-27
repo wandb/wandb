@@ -60,9 +60,9 @@ class Job(object):
         if self.type == "run":
             return "Job({},{})".format(self.run_id, self.args)
         elif self.type == "stop":
-            return "Stop({})".format(self.run_id)
+            return "stop({})".format(self.run_id)
         else:
-            return "Exit()"
+            return "exit"
 
 
 class Agent(object):
@@ -84,7 +84,7 @@ class Agent(object):
         self._run_threads = {}
         self._queue = queue.Queue()
         self._stopped_runs = set()
-        self._exit = False
+        self._exit_flag = False
 
     def _register(self):
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -135,13 +135,15 @@ class Agent(object):
 
     def _exit(self):
         self._stop_all_runs()
-        self._exit = True
-        _terminate_thread(self._main_thread)
+        self._exit_flag = True
+        #_terminate_thread(self._main_thread)
 
     def _heartbeat(self):
         while True:
-            if not self._main_thread.isAlive():
+            if self._exit_flag:
                 return
+            # if not self._main_thread.isAlive():
+            #     return
             commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
             if not commands:
                 continue
@@ -159,14 +161,20 @@ class Agent(object):
         waiting = False
         count = 0
         while True:
+            if self._exit_flag:
+                return
             try:
                 try:
                     job = self._queue.get(timeout=5)
+                    if self._exit_flag:
+                        return
                 except queue.Empty:
                     if not waiting:
                         wandb.termlog("Waiting for job...")
                         waiting = True
                     time.sleep(5)
+                    if self._exit_flag:
+                        return
                     continue
                 if waiting:
                     wandb.termlog("Job received.")
@@ -181,10 +189,10 @@ class Agent(object):
                     return
             except KeyboardInterrupt:
                 wandb.termlog("Ctrl + C detected. Stopping sweep.")
-                return
-            except Exception:
-                if self._exit:
-                    return
+                self._exit()
+            except Exception as e:
+                if not self._exit_flag:
+                    raise e
 
     def _run_job(self, job):
         try:
@@ -209,7 +217,8 @@ class Agent(object):
             if wandb.run:
                 wandb.join()
         except KeyboardInterrupt as ki:
-            raise ki
+            wandb.termlog("Ctrl + C detected. Stopping sweep.")
+            self._exit()
         except Exception as e:
             if run_id in self._stopped_runs:
                 self._stopped_runs.remove(run_id)
@@ -218,13 +227,14 @@ class Agent(object):
                 wandb.termerror("Error running job: " + str(e))
 
     def run(self):
-        self._exit = False
+        self._exit_flag = False
         self.setup()
-        self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
+        #self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
-        self._main_thread.start()
+        #self._main_thread.start()
         self._heartbeat_thread.start()
-        self._main_thread.join()
+        #self._main_thread.join()
+        self._run_jobs_from_queue()
 
 
 def agent(sweep_id, function, entity=None, project=None, count=None):

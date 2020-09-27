@@ -1203,8 +1203,9 @@ class Run(RunBase):
 
     def _console_stop(self):
         self._restore()
-        self._output_writer.close()
-        self._output_writer = None
+        if self._output_writer:
+            self._output_writer.close()
+            self._output_writer = None
 
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
