@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Agent - Agent object.
-
-Manage wandb agent.
-
-"""
-
-from __future__ import print_function
-
 import json
 import logging
 import multiprocessing
@@ -23,11 +14,10 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
-from wandb import wandb_sdk
+from wandb.agents.agent import agent as pyagent
 from wandb.apis import InternalApi
 from wandb.lib import config_util
 import yaml
-
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +29,9 @@ class AgentError(Exception):
 class AgentProcess(object):
     """Launch and manage a process."""
 
-    def __init__(self, env=None, command=None, function=None, run_id=None):
+    def __init__(
+        self, env=None, command=None, function=None, run_id=None, in_jupyter=None
+    ):
         self._popen = None
         self._proc = None
         self._finished_q = multiprocessing.Queue()
@@ -53,13 +45,14 @@ class AgentProcess(object):
             self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
-                target=self._start, args=(self._finished_q, env, function, run_id),
+                target=self._start,
+                args=(self._finished_q, env, function, run_id, in_jupyter),
             )
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
 
-    def _start(self, finished_q, env, function, run_id):
+    def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
             for k, v in env.items():
                 os.environ[k] = v
@@ -127,23 +120,7 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
-class Job(object):
-    def __init__(self, command):
-        job_type = command.get("type")
-        self.type = job_type
-        if job_type == "run":
-            self.run_id = command.get("run_id")
-            self.config = command.get("args")
-
-    def __repr__(self):
-        return "Job({},{})".format(self.run_id, self.config)
-
-    def done(self):
-        return self.type == "exit"
-
-
 class Agent(object):
-
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
     KILL_DELAY = 30
@@ -151,39 +128,30 @@ class Agent(object):
     FLAPPING_MAX_FAILURES = 3
 
     def __init__(
-        self, sweep_id=None, project=None, entity=None, function=None, count=None
+        self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
     ):
-        self._sweep_path = sweep_id
-        self._sweep_id = None
-        self._project = project
-        self._entity = entity
+        self._api = api
+        self._queue = queue
+        self._run_processes = {}  # keyed by run.id (GQL run name)
+        self._server_responses = []
+        self._sweep_id = sweep_id
+        self._in_jupyter = in_jupyter
+        self._log = []
+        self._running = True
+        self._last_report_time = None
         self._function = function
+        self._report_interval = wandb.env.get_agent_report_interval(
+            self.REPORT_INTERVAL
+        )
+        self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
+        self._finished = 0
+        self._failed = 0
         self._count = count
-        # glob_config = os.path.expanduser('~/.config/wandb/settings')
-        # loc_config = 'wandb/settings'
-        # files = (glob_config, loc_config)
-        self._api = InternalApi()
-        self._agent_id = None
-        self._stop_thread = None
-
-        self._subproc_mode = function is None
-        if self._subproc_mode:
-            self._queue = multiprocessing.Queue()
-            self._last_report_time = None
-            self._report_interval = wandb.env.get_agent_report_interval(
-                self.REPORT_INTERVAL
-            )
-            self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
-            self._finished = 0
-            self._failed = 0
-            self._sweep_command = []
-            if self._report_interval is None:
-                raise AgentError("Invalid agent report interval")
-            if self._kill_delay is None:
-                raise AgentError("Invalid agent kill delay")
-            self._run_processes = {}  # keyed by run.id (GQL run name)
-            self._server_responses = []
-            self._running = True
+        self._sweep_command = []
+        if self._report_interval is None:
+            raise AgentError("Invalid agent report interval")
+        if self._kill_delay is None:
+            raise AgentError("Invalid agent kill delay")
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
@@ -193,7 +161,7 @@ class Agent(object):
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
 
-    def _run_subproc(self):  # noqa: C901
+    def run(self):  # noqa: C901
 
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
@@ -205,6 +173,11 @@ class Agent(object):
                     sweep_command = sweep_config.get("command")
                     if sweep_command and isinstance(sweep_command, list):
                         self._sweep_command = sweep_command
+
+        # TODO: include sweep ID
+        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
+        agent_id = agent["id"]
+
         try:
             while self._running:
                 commands = util.read_many_from_queue(
@@ -252,7 +225,7 @@ class Agent(object):
                     self._running = False
                     continue
 
-                commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
+                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
                 # TODO: send _server_responses
                 self._server_responses = []
@@ -270,7 +243,8 @@ class Agent(object):
                 pass
         finally:
             try:
-                wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
+                if not self._in_jupyter:
+                    wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
                 for _, run_process in six.iteritems(self._run_processes):
                     try:
                         run_process.terminate()
@@ -314,6 +288,8 @@ class Agent(object):
             response["traceback"] = traceback.format_tb(tb)
             del tb
 
+        self._log.append((command, response))
+
         return response
 
     def _command_run(self, command):
@@ -323,12 +299,18 @@ class Agent(object):
                 ["\t{}: {}".format(k, v["value"]) for k, v in command["args"].items()]
             )
         )
-        wandb.termlog(
-            "wandb: Agent Starting Run: {} with config:\n".format(command.get("run_id"))
-            + "\n".join(
-                ["\t{}: {}".format(k, v["value"]) for k, v in command["args"].items()]
+        if self._in_jupyter:
+            print(
+                "wandb: Agent Starting Run: {} with config:\n".format(
+                    command.get("run_id")
+                )
+                + "\n".join(
+                    [
+                        "\t{}: {}".format(k, v["value"])
+                        for k, v in command["args"].items()
+                    ]
+                )
             )
-        )
 
         # setup default sweep command if not configured
         sweep_command = self._sweep_command or [
@@ -338,8 +320,8 @@ class Agent(object):
             "${args}",
         ]
 
-        run_id = command["run_id"]
-        sweep_id = os.environ[wandb.env.SWEEP_ID]
+        run_id = command.get("run_id")
+        sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
         config_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
@@ -366,7 +348,12 @@ class Agent(object):
                 fp.write(flags_json)
 
         if self._function:
-            proc = AgentProcess(function=self._function, env=env, run_id=run_id,)
+            proc = AgentProcess(
+                function=self._function,
+                env=env,
+                run_id=run_id,
+                in_jupyter=self._in_jupyter,
+            )
         else:
             sweep_vars = dict(
                 interpreter=["python"],
@@ -431,99 +418,76 @@ class Agent(object):
                 pass
         self._running = False
 
-    def register(self):
-        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
-        self._agent_id = agent["id"]
 
-    def check_queue(self):
-        run_status = dict()
-        commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
-        if not commands:
-            return
-        command = commands[0]
-        job = Job(command)
-        return job
+class AgentApi(object):
+    def __init__(self, queue):
+        self._queue = queue
+        self._command_id = 0
+        self._multiproc_manager = multiprocessing.Manager()
 
-    def run_job(self, job):
-        run_id = job.run_id
+    def command(self, command):
+        command["origin"] = "local"
+        command["id"] = "local-%s" % self._command_id
+        self._command_id += 1
+        resp_queue = self._multiproc_manager.Queue()
+        command["resp_queue"] = resp_queue
+        self._queue.put(command)
+        result = resp_queue.get()
+        print("result:", result)
+        if "exception" in result:
+            print("Exception occurred while running command")
+            for line in result["traceback"]:
+                print(line.strip())
+            print(result["exception"])
+        return result
 
-        config_file = os.path.join(
-            "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
+
+def run_agent(
+    sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
+):
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = util.parse_sweep_id(parts)
+    if err:
+        wandb.termerror(err)
+        return
+    entity = parts.get("entity") or entity
+    project = parts.get("project") or project
+    sweep_id = parts.get("name") or sweep_id
+
+    if entity:
+        wandb.env.set_entity(entity)
+    if project:
+        wandb.env.set_project(project)
+    if sweep_id:
+        # TODO(jhr): remove when jobspec is merged
+        os.environ[wandb.env.SWEEP_ID] = sweep_id
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    log_level = logging.DEBUG
+    if in_jupyter:
+        log_level = logging.ERROR
+    ch.setLevel(log_level)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    ch.setFormatter(formatter)
+    try:
+        logger.addHandler(ch)
+
+        api = InternalApi()
+        queue = multiprocessing.Queue()
+        agent = Agent(
+            api,
+            queue,
+            sweep_id=sweep_id,
+            function=function,
+            in_jupyter=in_jupyter,
+            count=count,
         )
-        config_util.save_config_file_from_dict(config_file, job.config)
-        os.environ[wandb.env.RUN_ID] = run_id
-        os.environ[wandb.env.CONFIG_PATHS] = config_file
-        os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-        wandb_sdk.wandb_setup._setup(_reset=True)
-
-        print(
-            "wandb: Agent Starting Run: {} with config:\n".format(run_id)
-            + "\n".join(
-                ["\t{}: {}".format(k, v["value"]) for k, v in job.config.items()]
-            )
-        )
-        try:
-            self._function()
-            if wandb.run:
-                wandb.join()
-        except KeyboardInterrupt:
-            wandb.termlog("Ctrl + C detected. Stopping sweep.")
-            return True
-        except Exception as e:
-            wandb.termerror("Error running job: " + str(e))
-            return True
-
-    def setup(self):
-        parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
-        err = util.parse_sweep_id(parts)
-        if err:
-            wandb.termerror(err)
-            return
-        entity = parts.get("entity") or self._entity
-        project = parts.get("project") or self._project
-        sweep_id = parts.get("name") or self._sweep_id
-        if sweep_id:
-            os.environ[wandb.env.SWEEP_ID] = sweep_id
-        if entity:
-            wandb.env.set_entity(entity)
-        if project:
-            wandb.env.set_project(project)
-        if sweep_id:
-            self._sweep_id = sweep_id
-        self.register()
-
-    def _loop(self):
-        count = 0
-        waiting = False
-        while True:
-            job = self.check_queue()
-            if not job:
-                if not waiting:
-                    wandb.termlog("Waiting for job...")
-                    waiting = True
-                time.sleep(10)
-                continue
-            if waiting:
-                wandb.termlog("Job received.")
-                waiting = False
-            if job.done():
-                return
-            count += 1
-            stop = self.run_job(job)
-            if stop:
-                return
-            if self._count and count == self._count:
-                return
-
-    def run(self):
-        self.setup()
-        if self._subproc_mode:
-            self._run_subproc()
-        else:
-            self._loop()
-
-
-_INSTANCES = 0
+        agent.run()
+    finally:
+        # make sure we remove the logging handler (important for jupyter notebooks)
+        logger.removeHandler(ch)
 
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
@@ -531,22 +495,37 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
 
     Args:
         sweep_id (dict): Sweep ID generated by CLI or sweep API
-        function (func, optional): A function to call instead of the "program"
+        function (func, optional): A function to call instead of the "program" specifed in the config
         entity (str, optional): W&B Entity
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
     """
     global _INSTANCES
-    if function and not callable(function):
-        raise Exception("function paramter must be callable!")
-    agent = Agent(
-        sweep_id, function=function, entity=entity, project=project, count=count,
-    )
     _INSTANCES += 1
     try:
-        agent.run()
+        if function:
+            return pyagent(sweep_id, function, entity, project, count)
+        in_jupyter = wandb._get_python_type() != "python"
+        if in_jupyter:
+            os.environ[wandb.env.JUPYTER] = "true"
+            _api0 = InternalApi()
+            if not _api0.api_key:
+                wandb._jupyter_login(api=_api0)
+
+        _ = wandb.Settings()
+        return run_agent(
+            sweep_id,
+            function=function,
+            in_jupyter=in_jupyter,
+            entity=entity,
+            project=project,
+            count=count,
+        )
     finally:
         _INSTANCES -= 1
+
+
+_INSTANCES = 0
 
 
 def _is_running():
