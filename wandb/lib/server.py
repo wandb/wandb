@@ -21,7 +21,7 @@ class Server(object):
         self._settings = settings
 
     def query_with_timeout(self, timeout=None):
-        if self._settings._disable_viewer:
+        if self._settings and self._settings._disable_viewer:
             return
         timeout = timeout or 5
         async_viewer = util.async_call(self._api.viewer_server_info, timeout=timeout)
