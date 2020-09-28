@@ -194,22 +194,31 @@ def projects(entity, display=True):
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
-    wandb.setup(
-        settings=wandb.Settings(_cli_only_mode=True, anonymous=anon_mode, base_url=host)
-    )
-    api = _get_cling_api()
 
+    if host and not host.startswith("http"):
+        raise ClickException("host must start with http(s)://")
+
+    _api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
-        api.clear_setting("base_url", globally=True, persist=True)
+        _api.clear_setting("base_url", globally=True, persist=True)
         # To avoid writing an empty local settings file, we only clear if it exists
         if os.path.exists(Settings._local_path()):
-            api.clear_setting("base_url", persist=True)
+            _api.clear_setting("base_url", persist=True)
     elif host:
-        if not host.startswith("http"):
-            raise ClickException("host must start with http(s)://")
-        api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
+        # force relogin if host is specified
+        _api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
+    if host or cloud or key:
+        relogin = True
 
+    wandb.setup(
+        settings=wandb.Settings(
+            _cli_only_mode=True,
+            _disable_viewer=relogin,
+            anonymous=anon_mode,
+            base_url=host,
+        )
+    )
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 

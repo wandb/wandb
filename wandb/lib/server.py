@@ -18,12 +18,21 @@ class Server(object):
         self._error_network = None
         self._viewer = {}
         self._flags = {}
+        self._settings = settings
 
     def query_with_timeout(self, timeout=None):
+        if self._settings and self._settings._disable_viewer:
+            return
         timeout = timeout or 5
         async_viewer = util.async_call(self._api.viewer_server_info, timeout=timeout)
-        viewer_tuple, viewer_thread = async_viewer()
+        try:
+            viewer_tuple, viewer_thread = async_viewer()
+        except Exception:
+            # TODO: currently a bare exception as lots can happen, we should classify
+            self._error_network = True
+            return
         if viewer_thread.is_alive():
+            # this is likely a DNS hang
             self._error_network = True
             return
         self._error_network = False
