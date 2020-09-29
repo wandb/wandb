@@ -1,3 +1,20 @@
+## 0.10.3 (September 29, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added warning when trying to sync pre 0.10.0 run dirs
+
+#### :bug: Bug Fix
+
+-  Fix artifact download issues
+-  Fix multiple issues with tensorboard_sync
+-  Fix multiple issues with juypter/python sweeps
+-  Fix issue where login was timing out
+-  Fix issue where config was overwritten when resuming runs
+-  Ported sacred observer to 0.10.x release
+-  Fix predicted bounding boxes overwritten by ground truth boxes
+-  Add missing save_code parameter to wandb.init()
+
 ## 0.10.2 (September 20, 2020)
 
 #### :nail_care: Enhancement
