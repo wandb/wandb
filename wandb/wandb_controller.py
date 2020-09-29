@@ -63,6 +63,7 @@ import six
 from six.moves import urllib
 import wandb
 from wandb import env
+from wandb import wandb_sdk
 from wandb.apis import InternalApi
 import yaml
 
@@ -745,16 +746,13 @@ def sweep(sweep, entity=None, project=None):
     if isinstance(sweep, SweepConfig):
         sweep = dict(sweep)
     """Sweep create for controller api and jupyter (eventually for cli)."""
-    in_jupyter = wandb._get_python_type() != "python"
-    if in_jupyter:
-        os.environ[env.JUPYTER] = "true"
-        _api0 = InternalApi()
-        if not _api0.api_key:
-            wandb._jupyter_login(api=_api0)
     if entity:
         env.set_entity(entity)
     if project:
         env.set_project(project)
+
+    # Make sure we are logged in
+    wandb_sdk.wandb_login._login(_silent=True)
     api = InternalApi()
     sweep_id = api.upsert_sweep(sweep)
     print("Create sweep with ID:", sweep_id)

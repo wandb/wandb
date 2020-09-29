@@ -226,6 +226,7 @@ def _setup(settings=None, _reset=None):
     """Setup library context."""
     if _reset:
         _WandbSetup._instance = None
+        return
     wl = _WandbSetup(settings=settings)
     return wl
 

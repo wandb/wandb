@@ -49,6 +49,7 @@ class _WandbLogin(object):
         self.kwargs = None
         self._settings = None
         self._backend = None
+        self._silent = None
         self._wl = None
         self._key = None
 
@@ -72,14 +73,22 @@ class _WandbLogin(object):
     def set_backend(self, backend):
         self._backend = backend
 
+    def set_silent(self, silent):
+        self._silent = silent
+
     def login(self):
-        active_entity = None
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin:
             apikey_configured = False
         if not apikey_configured:
             return False
 
+        if not self._silent:
+            self.login_display()
+
+        return apikey_configured
+
+    def login_display(self):
         # check to see if we got an entity from the setup call
         active_entity = self._wl._get_entity()
         login_info_str = "(use `wandb login --relogin` to force relogin)"
@@ -98,7 +107,6 @@ class _WandbLogin(object):
             wandb.termlog(
                 "{} {}".format(login_state_str, login_info_str,), repeat=False,
             )
-        return apikey_configured
 
     def configure_api_key(self, key):
         if self._settings._jupyter:
@@ -141,7 +149,13 @@ class _WandbLogin(object):
 
 
 def _login(
-    anonymous=None, key=None, relogin=None, host=None, force=None, _backend=None
+    anonymous=None,
+    key=None,
+    relogin=None,
+    host=None,
+    force=None,
+    _backend=None,
+    _silent=None,
 ):
     kwargs = locals()
 
@@ -154,6 +168,10 @@ def _login(
     _backend = kwargs.pop("_backend", None)
     if _backend:
         wlogin.set_backend(_backend)
+
+    _silent = kwargs.pop("_silent", None)
+    if _silent:
+        wlogin.set_silent(_silent)
 
     # configure login object
     wlogin.setup(kwargs)
