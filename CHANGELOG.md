@@ -3,6 +3,7 @@
 #### :nail_care: Enhancement
 
 -  Added warning when trying to sync pre 0.10.0 run dirs
+-  Improved jupyter support for wandb run syncing information
 
 #### :bug: Bug Fix
 
