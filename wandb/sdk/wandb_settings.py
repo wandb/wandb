@@ -253,7 +253,7 @@ class Settings(object):
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id=None,
-        allow_val_override: bool = None,
+        allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
         # compatibility / error handling

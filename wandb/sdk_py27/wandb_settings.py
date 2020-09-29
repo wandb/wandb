@@ -253,7 +253,7 @@ class Settings(object):
         magic = False,
         run_tags = None,
         sweep_id=None,
-        allow_val_override = None,
+        allow_val_change = None,
         force = None,
         relogin = None,
         # compatibility / error handling
