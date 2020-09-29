@@ -49,6 +49,7 @@ class _WandbLogin(object):
         self.kwargs: Optional[Dict] = None
         self._settings: Optional[Settings] = None
         self._backend = None
+        self._silent = None
         self._wl = None
         self._key = None
 
@@ -66,28 +67,33 @@ class _WandbLogin(object):
         self._wl = wandb.setup(settings=login_settings)
         self._settings = self._wl._settings
 
-    def is_logged_in(self):
+    def is_apikey_configured(self):
         return apikey.api_key(settings=self._settings) is not None
 
     def set_backend(self, backend):
         self._backend = backend
 
+    def set_silent(self, silent):
+        self._silent = silent
+
     def login(self):
-        active_entity = None
-        logged_in = self.is_logged_in()
+        apikey_configured = self.is_apikey_configured()
         if self._settings.relogin:
-            logged_in = False
-        if logged_in:
-            # TODO: do we want to move all login logic to the backend?
-            if self._backend:
-                pass
-                # res = self._backend.interface.communicate_login(key, anonymous)
-                # active_entity = res.active_entity
-            else:
-                active_entity = self._wl._get_entity()
+            apikey_configured = False
+        if not apikey_configured:
+            return False
+
+        if not self._silent:
+            self.login_display()
+
+        return apikey_configured
+
+    def login_display(self):
+        # check to see if we got an entity from the setup call
+        active_entity = self._wl._get_entity()
+        login_info_str = "(use `wandb login --relogin` to force relogin)"
         if active_entity:
             login_state_str = "Currently logged in as:"
-            login_info_str = "(use `wandb login --relogin` to force relogin)"
             wandb.termlog(
                 "{} {} {}".format(
                     login_state_str,
@@ -96,7 +102,11 @@ class _WandbLogin(object):
                 ),
                 repeat=False,
             )
-        return logged_in
+        else:
+            login_state_str = "W&B API key is configured"
+            wandb.termlog(
+                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+            )
 
     def configure_api_key(self, key):
         if self._settings._jupyter:
@@ -139,7 +149,13 @@ class _WandbLogin(object):
 
 
 def _login(
-    anonymous=None, key=None, relogin=None, host=None, force=None, _backend=None
+    anonymous=None,
+    key=None,
+    relogin=None,
+    host=None,
+    force=None,
+    _backend=None,
+    _silent=None,
 ):
     kwargs = locals()
 
@@ -152,6 +168,10 @@ def _login(
     _backend = kwargs.pop("_backend", None)
     if _backend:
         wlogin.set_backend(_backend)
+
+    _silent = kwargs.pop("_silent", None)
+    if _silent:
+        wlogin.set_silent(_silent)
 
     # configure login object
     wlogin.setup(kwargs)

@@ -304,6 +304,7 @@ class Settings(object):
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
+        _disable_viewer=None,  # prevent early viewer query
         console=None,
         disabled=None,  # alias for mode=dryrun, not supported yet
         reinit=None,

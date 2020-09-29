@@ -215,8 +215,12 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "wandb." in api_url and api_url.startswith('https://api.'):
-        return api_url.replace('api.', '')
+    if '://api.wandb.' in api_url:
+        # cloud
+        return api_url.replace('://api.', '://')
+    elif '://api.' in api_url:
+        # onprem cloud
+        return api_url.replace('://api.', '://app.')
     # wandb/local
     return api_url
 
