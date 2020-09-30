@@ -86,7 +86,6 @@ class Agent(object):
         self._queue = queue.Queue()
         self._stopped_runs = set()
         self._exit_flag = False
-        self._stop_flag = False
 
     def _register(self):
         logger.info("Agent._register()")
@@ -159,7 +158,6 @@ class Agent(object):
             if job.type == "run":
                 self._queue.put(job)
             elif job.type == "stop":
-                self._stop_flag = True
                 self._stop_run(job.run_id)
             elif job.type == "exit":
                 self._exit()
@@ -180,10 +178,6 @@ class Agent(object):
                         wandb.termlog("Sweep killed.")
                         return
                 except queue.Empty:
-                    if self._stop_flag:
-                        logger.info("Exiting main loop due to stop flag.")
-                        wandb.termlog("Sweep stoped.")
-                        return
                     if not waiting:
                         logger.info("Paused.")
                         wandb.termlog("Waiting for job...")
@@ -257,7 +251,6 @@ class Agent(object):
     def run(self):
         logger.info("Starting sweep agent: entity={}, project={}, count={}".format(self._entity, self._project, self._count))
         self._exit_flag = False
-        self._stop_flag = False
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
