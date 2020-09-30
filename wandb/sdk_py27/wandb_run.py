@@ -1174,16 +1174,12 @@ class Run(RunBase):
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if ipython._get_python_type() == "python":
-                os._exit(-1)
         except Exception as e:
             self._console_stop()
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             traceback.print_exception(*sys.exc_info())
-            if ipython._get_python_type() == "python":
-                os._exit(-1)
         else:
             self._on_final()
 
