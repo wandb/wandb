@@ -407,8 +407,8 @@ class Settings(object):
                 #     wandb.termlog(msg)
                 #     logger.info(msg)
                 #     console = "wrap"
-                else:
-                    console = "redirect"
+                # else:
+                #     console = "redirect"
             else:
                 console = "redirect"
         convert = convert_dict[console]
