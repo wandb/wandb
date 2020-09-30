@@ -43,8 +43,8 @@ from wandb.lib import (
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
-    CustomChart,
     custom_chart_panel_config,
+    CustomChart,
     Visualize,
 )
 
@@ -583,7 +583,7 @@ class Run(RunBase):
             #     a non-custom chart to this key?
             row.pop(k)
             # add the table under a different key
-            table_key = k + '_table'
+            table_key = k + "_table"
             row[table_key] = custom_chart.table
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
@@ -959,7 +959,8 @@ class Run(RunBase):
                     the custom visualization needs
         """
         visualization = create_custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {})
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
         return visualization
 
     def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
