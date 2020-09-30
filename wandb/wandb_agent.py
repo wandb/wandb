@@ -14,8 +14,8 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
-from wandb.agents.agent import agent as pyagent
 from wandb import wandb_sdk
+from wandb.agents.agent import agent as pyagent
 from wandb.apis import InternalApi
 from wandb.lib import config_util
 import yaml
