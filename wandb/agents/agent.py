@@ -242,7 +242,7 @@ class Agent(object):
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
-            wandb.termlog("Agent Starting Run: {} with config:\n".format(run_id))
+            wandb.termlog("Agent Starting Run: {} with config:".format(run_id))
             for k, v in job.config.items():
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
