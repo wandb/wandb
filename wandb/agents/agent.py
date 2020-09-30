@@ -250,7 +250,7 @@ class Agent(object):
         except Exception as e:
             if run_id in self._stopped_runs:
                 self._stopped_runs.remove(run_id)
-                wandb.termlog("Stopping run: " + str(run_id))
+                # wandb.termlog("Stopping run: " + str(run_id))
             else:
                 wandb.termerror("Error running job: " + str(e))
 
