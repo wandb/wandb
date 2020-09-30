@@ -59,7 +59,7 @@ class Job(object):
 
     def __repr__(self):
         if self.type == "run":
-            return "Job({},{})".format(self.run_id, self.args)
+            return "Job({},{})".format(self.run_id, self.config)
         elif self.type == "stop":
             return "stop({})".format(self.run_id)
         else:
