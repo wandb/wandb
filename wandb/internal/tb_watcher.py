@@ -49,7 +49,7 @@ def is_tfevents_file_created_by(path, hostname, start_time):
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
-    if basename.endswith(".profile_empty"):
+    if basename.endswith(".profile-empty"):
         return False
     fname_components = basename.split(".")
     try:
