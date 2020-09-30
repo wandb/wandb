@@ -82,10 +82,14 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+
+    def _init(self):
+        # These are not in constructor so that Agent instance can be rerun
         self._run_threads = {}
         self._queue = queue.Queue()
         self._stopped_runs = set()
         self._exit_flag = False
+        self._errored_runs = {}
 
     def _register(self):
         logger.info("Agent._register()")
@@ -95,6 +99,7 @@ class Agent(object):
 
     def _setup(self):
         logger.info("Agent._setup()")
+        self._init()
         parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
         err = util.parse_sweep_id(parts)
         if err:
@@ -193,12 +198,19 @@ class Agent(object):
                     wandb.termlog("Job received.")
                     waiting = False
                 count += 1
-                logger.info("Spawning new thread for run {}.".format(job.run_id))
+                run_id = job.run_id
+                logger.info("Spawning new thread for run {}.".format(run_id))
                 thread = threading.Thread(target=self._run_job, args=(job,))
-                self._run_threads[job.run_id] = thread
+                self._run_threads[run_id] = thread
                 thread.start()
                 thread.join()
-                logger.info("Thread joined for run {}.".format(job.run_id))
+                logger.info("Thread joined for run {}.".format(run_id))
+                exc = self._errored_runs.get(run_id)
+                if exc:
+                    logger.info("Run {} errored: \n {}".format(run_id, repr(exc)))
+                    wandb.termerror("Run {} errored: \n {}".format(run_id, repr(exc)))
+                    self._exit_flag = True
+                    return
                 del self._run_threads[job.run_id]
                 if self._count and self._count == count:
                     logger.info("Exiting main loop because max count reached.")
@@ -230,12 +242,10 @@ class Agent(object):
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
-            print(
-                "wandb: Agent Starting Run: {} with config:\n".format(run_id)
-                + "\n".join(
-                    ["\t{}: {}".format(k, v["value"]) for k, v in job.config.items()]
-                )
-            )
+            wandb.termlog("Agent Starting Run: {} with config:\n".format(run_id))
+            for k, v in job.config.items():
+                wandb.termlog("\t{}: {}".format(k, v["value"]))
+
             self._function()
             if wandb.run:
                 wandb.join()
@@ -246,11 +256,10 @@ class Agent(object):
                 self._stopped_runs.remove(run_id)
                 # wandb.termlog("Stopping run: " + str(run_id))
             else:
-                wandb.termerror("Error running job: " + str(e))
+                self._errored_runs[run_id] = e
 
     def run(self):
         logger.info("Starting sweep agent: entity={}, project={}, count={}".format(self._entity, self._project, self._count))
-        self._exit_flag = False
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
