@@ -310,7 +310,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         #  We want to run setup every time in tests
         wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
         mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
-        run = wandb.init(settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
+        run = wandb.init(settings=wandb.Settings(console="off", mode="offline"),
                          **args["wandb_init"])
         yield run
         wandb.join()
