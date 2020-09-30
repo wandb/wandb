@@ -36,7 +36,7 @@ def _terminate_thread(thread):
     if tid is None:
         # This should never happen
         return
-    print("Terminating thread: " + str(tid))
+    # print("Terminating thread: " + str(tid))
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(tid), ctypes.py_object(Exception)
     )
