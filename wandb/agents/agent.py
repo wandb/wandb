@@ -177,10 +177,12 @@ class Agent(object):
                     job = self._queue.get(timeout=5)
                     if self._exit_flag:
                         logger.info("Exiting main loop due to exit flag.")
+                        wandb.termlog("Sweep killed.")
                         return
                 except queue.Empty:
                     if self._stop_flag:
                         logger.info("Exiting main loop due to stop flag.")
+                        wandb.termlog("Sweep stoped.")
                         return
                     if not waiting:
                         logger.info("Paused.")
@@ -188,6 +190,8 @@ class Agent(object):
                         waiting = True
                     time.sleep(5)
                     if self._exit_flag:
+                        logger.info("Exiting main loop due to exit flag.")
+                        wandb.termlog("Sweep killed.")
                         return
                     continue
                 if waiting:
@@ -213,6 +217,8 @@ class Agent(object):
                 return
             except Exception as e:
                 if self._exit_flag:
+                    logger.info("Exiting main loop due to exit flag.")
+                    wandb.termlog("Sweep killed.")
                     return
                 else:
                     raise e
