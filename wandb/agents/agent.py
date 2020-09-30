@@ -207,8 +207,8 @@ class Agent(object):
                 logger.info("Thread joined for run {}.".format(run_id))
                 exc = self._errored_runs.get(run_id)
                 if exc:
-                    logger.info("Run {} errored: \n {}".format(run_id, repr(exc)))
-                    wandb.termerror("Run {} errored: \n {}".format(run_id, repr(exc)))
+                    logger.info("Run {} errored: {}".format(run_id, repr(exc)))
+                    wandb.termerror("Run {} errored: {}".format(run_id, repr(exc)))
                     self._exit_flag = True
                     return
                 del self._run_threads[job.run_id]
