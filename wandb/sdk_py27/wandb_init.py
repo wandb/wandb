@@ -22,7 +22,6 @@ from wandb.integration.magic import magic_install
 from wandb.lib import filesystem, module, reporting
 from wandb.util import sentry_exc
 
-from . import wandb_login
 from . import wandb_setup
 from .wandb_helper import parse_config
 from .wandb_run import Run, RunBase, RunDummy
@@ -70,8 +69,7 @@ class _WandbInit(object):
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings = self._wl.settings().duplicate()
-
+        settings = self._wl._clone_settings()
         settings_param = kwargs.pop("settings", None)
         if settings_param:
             settings._apply_settings(settings_param)
@@ -113,18 +111,6 @@ class _WandbInit(object):
         for k, v in init_config.items():
             self.config.setdefault(k, v)
 
-        # Temporarily unsupported parameters
-        unsupported = (
-            "allow_val_change",
-            "force",
-        )
-        for key in unsupported:
-            val = kwargs.pop(key, None)
-            if val:
-                self._reporter.warning(
-                    "currently unsupported wandb.init() arg: %s", key
-                )
-
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()
@@ -138,19 +124,17 @@ class _WandbInit(object):
         if magic not in (None, False):
             magic_install(kwargs)
 
-        # prevent setting project, entity if in sweep
-        # TODO(jhr): these should be locked elements in the future or at least
-        #            moved to apply_init()
-        if settings.sweep_id:
-            for key in ("project", "entity"):
-                val = kwargs.pop(key, None)
-                if val:
-                    print("Ignored wandb.init() arg %s when running a sweep" % key)
-        settings.apply_init(kwargs)
-
-        login_key = wandb_login._login(_disable_warning=True, _settings=settings)
+        # handle login related parameters as these are applied to global state
+        anonymous = kwargs.pop("anonymous", None)
+        force = kwargs.pop("force", None)
+        login_key = wandb.login(anonymous=anonymous, force=force)
         if not login_key:
             settings.mode = "offline"
+
+        # apply updated global state after login was handled
+        settings._apply_settings(wandb.setup()._settings)
+
+        settings._apply_init(kwargs)
 
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
@@ -353,9 +337,7 @@ class _WandbInit(object):
         )
         backend.server_connect()
         # Make sure we are logged in
-        wandb_login._login(
-            _backend=backend, _disable_warning=True, _settings=self.settings
-        )
+        # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
 
@@ -446,7 +428,7 @@ def init(
     mode = None,
     allow_val_change = None,
     resume = None,
-    force=None,
+    force = None,
     tensorboard=None,  # alias for sync_tensorboard
     sync_tensorboard=None,
     monitor_gym=None,

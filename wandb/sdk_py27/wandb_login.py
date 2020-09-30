@@ -14,33 +14,15 @@ from wandb.errors.error import UsageError
 from wandb.internal.internal_api import Api
 from wandb.lib import apikey
 
+from .wandb_settings import Settings
+
 logger = logging.getLogger("wandb")
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Dict  # noqa: F401 pylint: disable=unused-import
-
-
-def _validate_anonymous_setting(anon_str):
-    return anon_str in ["must", "allow", "never"]
+    from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
 
 
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):
-    configured = _login(
-        anonymous=anonymous, key=key, relogin=relogin, host=host, force=force
-    )
-    return True if configured else False
-
-
-def _login(
-    anonymous=None,
-    key=None,
-    relogin=None,
-    force=None,
-    host=None,
-    _backend=None,
-    _disable_warning=None,
-    _settings=None,
-):
     """Log in to W&B.
 
     Args:
@@ -57,66 +39,77 @@ def _login(
     Raises:
         UsageError - if api_key can not configured and no tty
     """
-    if wandb.run is not None:
-        if not _disable_warning:
-            wandb.termwarn("Calling wandb.login() after wandb.init() is a no-op.")
-        return True
+    kwargs = locals()
+    configured = _login(**kwargs)
+    return True if configured else False
 
-    settings_dict = {}
-    api = Api()
 
-    if anonymous is not None:
-        # TODO: Move this check into wandb_settings probably.
-        if not _validate_anonymous_setting(anonymous):
-            wandb.termwarn(
-                "Invalid value passed for argument `anonymous` to "
-                "wandb.login(). Can be 'must', 'allow', or 'never'."
-            )
+class _WandbLogin(object):
+    def __init__(self):
+        self.kwargs = None
+        self._settings = None
+        self._backend = None
+        self._silent = None
+        self._wl = None
+        self._key = None
+
+    def setup(self, kwargs):
+        self.kwargs = kwargs
+
+        # built up login settings
+        login_settings = wandb.Settings()
+        settings_param = kwargs.pop("_settings", None)
+        if settings_param:
+            login_settings._apply_settings(settings_param)
+        login_settings._apply_login(kwargs)
+
+        # make sure they are applied globally
+        self._wl = wandb.setup(settings=login_settings)
+        self._settings = self._wl._settings
+
+    def is_apikey_configured(self):
+        return apikey.api_key(settings=self._settings) is not None
+
+    def set_backend(self, backend):
+        self._backend = backend
+
+    def set_silent(self, silent):
+        self._silent = silent
+
+    def login(self):
+        apikey_configured = self.is_apikey_configured()
+        if self._settings.relogin:
+            apikey_configured = False
+        if not apikey_configured:
             return False
-        settings_dict.update({"anonymous": anonymous})
 
-    if host is not None:
-        settings_dict.update({"base_url": host})
+        if not self._silent:
+            self.login_display()
 
-    if key:
-        settings_dict.update({"api_key": key})
+        return apikey_configured
 
-    # Note: This won't actually do anything if called from a codepath where
-    # wandb.setup was previously called. If wandb.setup is called further up,
-    # you must make sure the anonymous setting (and any other settings) are
-    # already properly set up there.
-    wl = wandb.setup(settings=wandb.Settings(**settings_dict))
-    wl_settings = wl.settings()
-    if _settings:
-        wl_settings._apply_settings(settings=_settings)
-    settings = wl_settings
-
-    if settings._offline:
-        return False
-
-    active_entity = None
-    logged_in = is_logged_in(settings=settings)
-    if logged_in:
-        # TODO: do we want to move all login logic to the backend?
-        if _backend:
-            res = _backend.interface.communicate_login(key, anonymous)
-            active_entity = res.active_entity
-        else:
-            active_entity = wl._get_entity()
-    if active_entity and not relogin:
-        login_state_str = "Currently logged in as:"
+    def login_display(self):
+        # check to see if we got an entity from the setup call
+        active_entity = self._wl._get_entity()
         login_info_str = "(use `wandb login --relogin` to force relogin)"
-        wandb.termlog(
-            "{} {} {}".format(
-                login_state_str, click.style(active_entity, fg="yellow"), login_info_str
-            ),
-            repeat=False,
-        )
-        return True
+        if active_entity:
+            login_state_str = "Currently logged in as:"
+            wandb.termlog(
+                "{} {} {}".format(
+                    login_state_str,
+                    click.style(active_entity, fg="yellow"),
+                    login_info_str,
+                ),
+                repeat=False,
+            )
+        else:
+            login_state_str = "W&B API key is configured"
+            wandb.termlog(
+                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+            )
 
-    jupyter = settings._jupyter or False
-    if key:
-        if jupyter:
+    def configure_api_key(self, key):
+        if self._settings._jupyter:
             wandb.termwarn(
                 (
                     "If you're specifying your api key in code, ensure this "
@@ -125,23 +118,81 @@ def _login(
                     "`wandb login` from the command line."
                 )
             )
-        apikey.write_key(settings, key)
-    else:
+        apikey.write_key(self._settings, key)
+        self._key = key
+
+    def update_session(self, key):
+        settings = wandb.Settings()
+        settings._apply_source_login(dict(api_key=key))
+        self._wl._update(settings=settings)
+
+    def prompt_api_key(self):
+        api = Api()
         key = apikey.prompt_api_key(
-            settings, api=api, no_offline=force, no_create=force
+            self._settings,
+            api=api,
+            no_offline=self._settings.force,
+            no_create=self._settings.force,
         )
         if key is False:
             raise UsageError("api_key not configured (no-tty).  Run wandb login")
+        self.update_session(key)
+        self._key = key
 
-    if _backend and not logged_in:
-        # TODO: calling this twice is gross, this deserves a refactor
-        # Make sure our backend picks up the new creds
-        _ = _backend.interface.communicate_login(key, anonymous)
-    return key or False
+    def propogate_login(self):
+        # TODO(jhr): figure out if this is really necessary
+        if self._backend:
+            # TODO: calling this twice is gross, this deserves a refactor
+            # Make sure our backend picks up the new creds
+            # _ = self._backend.interface.communicate_login(key, anonymous)
+            pass
 
 
-def is_logged_in(settings=None):
-    wl = wandb.setup()
-    wl_settings = wl.settings()
-    wl_settings._apply_settings(settings=settings)
-    return apikey.api_key(settings=wl_settings) is not None
+def _login(
+    anonymous=None,
+    key=None,
+    relogin=None,
+    host=None,
+    force=None,
+    _backend=None,
+    _silent=None,
+):
+    kwargs = locals()
+
+    if wandb.run is not None:
+        wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
+        return True
+
+    wlogin = _WandbLogin()
+
+    _backend = kwargs.pop("_backend", None)
+    if _backend:
+        wlogin.set_backend(_backend)
+
+    _silent = kwargs.pop("_silent", None)
+    if _silent:
+        wlogin.set_silent(_silent)
+
+    # configure login object
+    wlogin.setup(kwargs)
+
+    if wlogin._settings._offline:
+        return False
+
+    # perform a login
+    logged_in = wlogin.login()
+
+    key = kwargs.get("key")
+    if key:
+        wlogin.configure_api_key(key)
+
+    if logged_in:
+        return logged_in
+
+    if not key:
+        wlogin.prompt_api_key()
+
+    # make sure login credentials get to the backend
+    wlogin.propogate_login()
+
+    return wlogin._key or False

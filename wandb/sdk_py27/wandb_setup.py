@@ -123,6 +123,12 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # s.freeze()
         self._settings = s
 
+    def _update(self, settings=None):
+        if settings:
+            s = self._clone_settings()
+            s._apply_settings(settings=settings)
+            self._settings = s.freeze()
+
     def _early_logger_flush(self, new_logger):
         if not self._early_logger:
             return
@@ -133,7 +139,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _get_logger(self):
         return logger
 
-    def settings(self, __d=None, **kwargs):
+    @property
+    def settings(self):
+        return self._settings
+
+    def _clone_settings(self, __d=None, **kwargs):
         s = copy.copy(self._settings)
         s.update(__d, **kwargs)
         return s
@@ -202,29 +212,25 @@ class _WandbSetup(object):
 
     _instance = None
 
-    def __init__(self, settings=None, _warn=True):
+    def __init__(self, settings=None):
         if _WandbSetup._instance is not None:
-            if _warn and settings:
-                logger.warning(
-                    "Ignoring settings passed to wandb.setup() "
-                    "which has already been configured."
-                )
-            return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
+            _WandbSetup._instance._update(settings=settings)
+        else:
+            _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _warn=True):
+def _setup(settings=None, _reset=None):
     """Setup library context."""
-    wl = _WandbSetup(settings=settings, _warn=_warn)
-    return wl
-
-
-def setup(settings=None, _reset=None):
     if _reset:
         _WandbSetup._instance = None
         return
+    wl = _WandbSetup(settings=settings)
+    return wl
+
+
+def setup(settings=None):
     ret = _setup(settings=settings)
     return ret

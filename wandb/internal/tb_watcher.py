@@ -4,6 +4,7 @@ tensor b watcher.
 
 import logging
 import os
+import socket
 import threading
 import time
 
@@ -35,6 +36,44 @@ def _link_and_save_file(path, base_path, interface, settings):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
     interface.publish_files(dict(files=[(file_name, "live")]))
+
+
+def is_tfevents_file_created_by(path, hostname, start_time):
+    """Checks if a path is a tfevents file created by hostname.
+
+    tensorboard tfevents filename format:
+        https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
+    tensorflow tfevents fielname format:
+        https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
+    """
+    if not path:
+        raise ValueError("Path must be a nonempty string")
+    basename = os.path.basename(path)
+    if basename.endswith(".profile-empty"):
+        return False
+    fname_components = basename.split(".")
+    try:
+        tfevents_idx = fname_components.index("tfevents")
+    except ValueError:
+        return False
+    # check the hostname, which may have dots
+    for i, part in enumerate(hostname.split(".")):
+        try:
+            fname_component_part = fname_components[tfevents_idx + 2 + i]
+        except IndexError:
+            return False
+        if part != fname_component_part:
+            return False
+    try:
+        created_time = int(fname_components[tfevents_idx + 1])
+    except (ValueError, IndexError):
+        return False
+    # Ensure that the file is newer then our start time, and that it was
+    # created from the same hostname.
+    # TODO: we should also check the PID (also contained in the tfevents
+    #     filename). Can we assume that our parent pid is the user process
+    #     that wrote these files?
+    return created_time >= start_time  # noqa: W503
 
 
 class TBWatcher(object):
@@ -108,12 +147,9 @@ class TBDirWatcher(object):
         self.tf_compat = util.get_module(
             "tensorboard.compat", required="Please install tensorboard package"
         )
-        # TODO: tensorboard provides: tensorboard.compat.tensorflow_stub.io.gfile
-        # but it doesn't give us mtime
-        self.tf_io = util.get_module("tensorflow.io.gfile")
         self._tbwatcher = tbwatcher
         self._generator = self.directory_watcher.DirectoryWatcher(
-            logdir, self._loader(save, namespace), self._is_new_tensorflow_events_file
+            logdir, self._loader(save, namespace), self._is_our_tfevents_file
         )
         self._thread = threading.Thread(target=self._thread_body)
         self._first_event_timestamp = None
@@ -122,29 +158,18 @@ class TBDirWatcher(object):
         self._file_version = None
         self._namespace = namespace
         self._logdir = logdir
+        self._hostname = socket.gethostname()
 
     def start(self):
         self._thread.start()
 
-    def _is_new_tensorflow_events_file(self, path):
+    def _is_our_tfevents_file(self, path):
         """Checks if a path has been modified since launch and contains tfevents"""
         if not path:
             raise ValueError("Path must be a nonempty string")
         path = self.tf_compat.tf.compat.as_str_any(path)
-        base = os.path.basename(path)
-        start_time = self._tbwatcher._settings._start_time
-        if REMOTE_FILE_TOKEN in path:
-            if self.tf_io:
-                modified_time = self.tf_io.stat(path).mtime_nsec / 1000000000
-            else:
-                logger.warning("not logging tfevent file: %s, install tensorflow", path)
-                return False
-        else:
-            modified_time = os.stat(path).st_mtime
-        return (
-            "tfevents" in base
-            and modified_time >= start_time  # noqa: W503
-            and not base.endswith(".profile-empty")  # noqa: W503
+        return is_tfevents_file_created_by(
+            path, self._hostname, self._tbwatcher._settings._start_time
         )
 
     def _loader(self, save=True, namespace=None):
