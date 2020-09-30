@@ -36,7 +36,7 @@ def _terminate_thread(thread):
     if tid is None:
         # This should never happen
         return
-    # print("Terminating thread: " + str(tid))
+    logger.info("Terminating thread: {}".format(tid))
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(tid), ctypes.py_object(Exception)
     )
@@ -45,6 +45,7 @@ def _terminate_thread(thread):
         return
     elif res != 1:
         # Revert
+        logger.info("Termination failed for thread {}".format(tid))
         ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
 
 
@@ -85,12 +86,16 @@ class Agent(object):
         self._queue = queue.Queue()
         self._stopped_runs = set()
         self._exit_flag = False
+        self._stop_flag = False
 
     def _register(self):
+        logger.info("Agent._register()")
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
         self._agent_id = agent["id"]
+        logger.info("agent_id = {}".format(self._agent_id))
 
-    def setup(self):
+    def _setup(self):
+        logger.info("Agent._setup()")
         parts = dict(entity=self._entity, project=self._project, name=self._sweep_path)
         err = util.parse_sweep_id(parts)
         if err:
@@ -123,6 +128,7 @@ class Agent(object):
         return run_status
 
     def _stop_run(self, run_id):
+        logger.info("Stopping run {}.".format(run_id))
         self._stopped_runs.add(run_id)
         thread = self._run_threads.get(run_id)
         if thread:
@@ -130,6 +136,7 @@ class Agent(object):
             del self._run_threads[run_id]
 
     def _stop_all_runs(self):
+        logger.info("Stopping all runs.")
         for run in list(self._run_threads.keys()):
             self._stop_run(run)
 
@@ -148,9 +155,11 @@ class Agent(object):
             if not commands:
                 continue
             job = Job(commands[0])
+            logger.info("Job received: {}".format(job))
             if job.type == "run":
                 self._queue.put(job)
             elif job.type == "stop":
+                self._stop_flag = True
                 self._stop_run(job.run_id)
             elif job.type == "exit":
                 self._exit()
@@ -167,9 +176,14 @@ class Agent(object):
                 try:
                     job = self._queue.get(timeout=5)
                     if self._exit_flag:
+                        logger.info("Exiting main loop due to exit flag.")
                         return
                 except queue.Empty:
+                    if self._stop_flag:
+                        logger.info("Exiting main loop due to stop flag.")
+                        return
                     if not waiting:
+                        logger.info("Paused.")
                         wandb.termlog("Waiting for job...")
                         waiting = True
                     time.sleep(5)
@@ -177,18 +191,23 @@ class Agent(object):
                         return
                     continue
                 if waiting:
+                    logger.info("Resumed.")
                     wandb.termlog("Job received.")
                     waiting = False
                 count += 1
+                logger.info("Spawning new thread for run {}.".format(job.run_id))
                 thread = threading.Thread(target=self._run_job, args=(job,))
                 self._run_threads[job.run_id] = thread
                 thread.start()
                 thread.join()
+                logger.info("Thread joined for run {}.".format(job.run_id))
                 del self._run_threads[job.run_id]
                 if self._count and self._count == count:
+                    logger.info("Exiting main loop because max count reached.")
                     self._exit_flag = True
                     return
             except KeyboardInterrupt:
+                logger.info("Ctrl + C detected. Stopping sweep.")
                 wandb.termlog("Ctrl + C detected. Stopping sweep.")
                 self._exit()
                 return
@@ -230,8 +249,10 @@ class Agent(object):
                 wandb.termerror("Error running job: " + str(e))
 
     def run(self):
+        logger.info("Starting sweep agent: entity={}, project={}, count={}".format(self._entity, self._project, self._count))
         self._exit_flag = False
-        self.setup()
+        self._stop_flag = False
+        self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
         # self._main_thread.start()
