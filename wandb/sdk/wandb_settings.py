@@ -331,7 +331,6 @@ class Settings(object):
         _os=None,
         _python=None,
         _kaggle=None,
-        _except_exit=None,
     ):
         kwargs = locals()
         kwargs.pop("self")
@@ -705,10 +704,6 @@ class Settings(object):
         u["_args"] = sys.argv[1:]
         u["_os"] = platform.platform(aliased=True)
         u["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            u["_except_exit"] = True
-
         self.update(u)
 
     def _infer_run_settings_from_env(self):
