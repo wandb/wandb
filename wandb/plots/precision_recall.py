@@ -1,6 +1,7 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
+from wandb import plots
 chart_limit = wandb.Table.MAX_ROWS
 
 def precision_recall(y_true=None, y_probas=None, labels=None,
@@ -85,9 +86,9 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                     if count >= chart_limit:
                         wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                         break
-            return wandb.visualize(
-                'wandb/pr_curve/v1', wandb.Table(
+            return plots.line(
+                wandb.Table(
                 columns=['class', 'precision', 'recall'],
                 data=data
-            ))
+            ), x='precision', y='recall', stroke='class')
         return pr_table(pr_curves)
