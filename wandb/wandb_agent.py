@@ -331,7 +331,7 @@ class Agent(object):
         )
         config_util.save_config_file_from_dict(config_file, command["args"])
         os.environ[wandb.env.RUN_ID] = run_id
-        os.environ[wandb.env.CONFIG_PATHS] = config_file
+        os.environ[wandb.env.CONFIG_PATHS] = os.path.abspath(config_file)
 
         env = dict(os.environ)
 
