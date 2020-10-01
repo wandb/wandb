@@ -5,3 +5,4 @@ from wandb.plots.explain_text import explain_text as ExplainText
 from wandb.plots.part_of_speech import part_of_speech as POS
 from wandb.plots.named_entity import named_entity as NER
 from wandb.plots.line import line
+from wandb.plots.histogram import histogram
