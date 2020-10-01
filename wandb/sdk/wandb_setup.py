@@ -103,7 +103,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         email = self._server._viewer.get("email", None)
         user_settings = {}
         if email:
-
             user_settings["email"] = email
         if "code_saving_enabled" in flags:
             logger.info("enabling code saving by default")
