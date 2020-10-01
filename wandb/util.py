@@ -95,12 +95,16 @@ def sentry_reraise(exc):
     six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
-def sentry_set_scope(process_context, entity, project, url=None):
-    with configure_scope() as scope:
+def sentry_set_scope(process_context, entity, project, email=None, url=None):
+    # Using GLOBAL_HUB means these tags will persist between threads.
+    # Normally there is one hub per thread.
+    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("process_context", process_context)
         scope.set_tag("entity", entity)
         scope.set_tag("project", project)
-        if url is not None:
+        if email:
+            scope.user = {"email": email}
+        if url:
             scope.set_tag("url", url)
 
 

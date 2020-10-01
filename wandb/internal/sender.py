@@ -457,7 +457,9 @@ class SendManager(object):
         self._fs.start()
         self._pusher = FilePusher(self._api)
         self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
-        util.sentry_set_scope("internal", self._run.entity, self._run.project)
+        util.sentry_set_scope(
+            "internal", self._run.entity, self._run.project, self._settings.email
+        )
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
