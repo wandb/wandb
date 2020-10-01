@@ -18,8 +18,8 @@ import os
 import sys
 import threading
 
-from wandb.lib import config_util, server
 from wandb import util
+from wandb.lib import config_util, server
 
 from . import wandb_settings
 

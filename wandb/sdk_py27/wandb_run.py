@@ -613,7 +613,13 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._settings.email, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            run_obj.entity,
+            run_obj.project,
+            self._settings.email,
+            self._get_run_url(),
+        )
 
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj
