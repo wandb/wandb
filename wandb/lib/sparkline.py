@@ -20,18 +20,19 @@ def sparkify(series):
     Raises ValueError if input data cannot be converted to float.
     Raises TypeError if series is not an iterable.
     """
-    series = [float(i) for i in series if not math.isnan(i)]
-    if not series:
+    series = [float(i) for i in series]
+    finite_series = [x for x in series if math.isfinite(x)]
+    if not finite_series:
         return u''
-    minimum = min(series)
-    maximum = max(series)
+    minimum = min(finite_series)
+    maximum = max(finite_series)
     data_range = maximum - minimum
     if data_range == 0.0:
         # Graph a baseline if every input value is equal.
-        return u''.join([spark_chars[0] for i in series])
+        return u''.join([spark_chars[0] if math.isfinite(x) else ' ' for x in series])
     coefficient = (len(spark_chars) - 1.0) / data_range
     return u''.join([
         spark_chars[
             int(round((x - minimum) * coefficient))
-        ] for x in series
+        ] if math.isfinite(x) else ' ' for x in series
     ])
