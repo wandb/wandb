@@ -15,6 +15,7 @@ from wandb.lib import runid
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
+import wandb
 
 
 class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
@@ -93,7 +94,7 @@ class Backend:
 
         wandb_dir = "wandb"
         run_path = "run-{}-server".format(timespec)
-        run_dir = os.path.join(wandb_dir, run_path)
+        run_dir = os.path.join(os.environ[wandb.env.dir], wandb_dir, run_path)
         files_dir = os.path.join(run_dir, "files")
         sync_file = os.path.join(run_dir, "run-{}.wandb".format(start_time))
         os.makedirs(files_dir)
