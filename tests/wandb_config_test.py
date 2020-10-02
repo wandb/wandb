@@ -38,5 +38,6 @@ def test_load_config_default():
     with open(test_path, "w") as f:
         yaml.dump(yaml_dict, f, default_flow_style=False)
     s = wandb_sdk.Config()
-    expected = [("epochs", 32), ("size_batch", 32)]
-    assert s.items() == expected
+    expected = sorted([("epochs", 32), ("size_batch", 32)],  key=lambda x: x[0])
+    actual = sorted(s.items(), key=lambda x: x[0])
+    assert actual == expected
