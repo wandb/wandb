@@ -40,15 +40,3 @@ def test_load_config_default():
     s = wandb_sdk.Config()
     expected = [("epochs", 32), ("size_batch", 32)]
     assert s.items() == expected
-
-
-# def test_load_custom_config_yaml():
-#     filename = "custom-config.yaml"
-#     test_path = os.path.join(filename)
-#     yaml_dict = {"height": {"value": 96}, "width": {"value": 96}}
-#     with open(test_path, "w") as f:
-#         yaml.dump(yaml_dict, f, default_flow_style=False)
-#     ok = wandb_sdk.login()
-#     run = wandb_sdk.init(config=filename)
-#     expected = [("height", 96), ("width", 96)]
-#     assert run.config == expected
