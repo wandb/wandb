@@ -9,13 +9,13 @@ import os
 import time
 
 import grpc
+import wandb
 from wandb.interface import interface
 from wandb.internal.internal import wandb_internal
 from wandb.lib import runid
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
-import wandb
 
 
 class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):

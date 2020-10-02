@@ -144,6 +144,8 @@ class _WandbInit(object):
             self._jupyter_setup(settings)
 
         self._log_setup(settings)
+        if settings.root_dir is None:
+            settings.root_dir = os.path.abspath(os.getcwd())
 
         self.settings = settings.freeze()
 
