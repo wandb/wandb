@@ -27,6 +27,10 @@ class FileEventHandler(object):
     def synced(self):
         return self._last_sync == os.path.getmtime(self.file_path)
 
+    @property
+    def policy(self):
+        raise NotImplementedError
+
     def on_modified(self, force=False):
         pass
 
@@ -40,7 +44,9 @@ class FileEventHandler(object):
 
 
 class PolicyIgnore(FileEventHandler):
-    pass
+    @property
+    def policy(self):
+        return "ignore"
 
 
 class PolicyNow(FileEventHandler):
@@ -54,6 +60,10 @@ class PolicyNow(FileEventHandler):
     def finish(self):
         pass
 
+    @property
+    def policy(self):
+        return "now"
+
 
 class PolicyEnd(FileEventHandler):
     """This policy only updates at the end of the run"""
@@ -64,6 +74,10 @@ class PolicyEnd(FileEventHandler):
         # user files shouldn't still be changing at the end of the run.
         self._last_sync = os.path.getmtime(self.file_path)
         self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
+
+    @property
+    def policy(self):
+        return "end"
 
 
 class PolicyLive(FileEventHandler):
@@ -127,6 +141,10 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
+    @property
+    def policy(self):
+        return "live"
+
 
 class DirWatcher(object):
     def __init__(self, settings, api, file_pusher):
@@ -159,7 +177,16 @@ class DirWatcher(object):
         self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
-            self._get_file_event_handler(src_path, save_name).on_modified(force=True)
+            feh = self._get_file_event_handler(src_path, save_name)
+            # handle the case where the policy changed
+            if feh.policy != policy:
+                try:
+                    del self._file_event_handlers[save_name]
+                except KeyError:
+                    # TODO: probably should do locking, but this handles moved files for now
+                    pass
+                feh = self._get_file_event_handler(src_path, save_name)
+            feh.on_modified(force=True)
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file

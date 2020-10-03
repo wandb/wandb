@@ -15,6 +15,7 @@ from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_sdk
+from wandb.agents.agent import agent as pyagent
 from wandb.apis import InternalApi
 from wandb.lib import config_util
 import yaml
@@ -502,15 +503,28 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
     """
+    global _INSTANCES
+    _INSTANCES += 1
+    try:
+        # make sure we are logged in
+        wandb_sdk.wandb_login._login(_silent=True)
+        if function:
+            return pyagent(sweep_id, function, entity, project, count)
+        in_jupyter = wandb._get_python_type() != "python"
+        return run_agent(
+            sweep_id,
+            function=function,
+            in_jupyter=in_jupyter,
+            entity=entity,
+            project=project,
+            count=count,
+        )
+    finally:
+        _INSTANCES -= 1
 
-    # make sure we are logged in
-    wandb_sdk.wandb_login._login(_silent=True)
-    in_jupyter = wandb._get_python_type() != "python"
-    return run_agent(
-        sweep_id,
-        function=function,
-        in_jupyter=in_jupyter,
-        entity=entity,
-        project=project,
-        count=count,
-    )
+
+_INSTANCES = 0
+
+
+def _is_running():
+    return bool(_INSTANCES)
