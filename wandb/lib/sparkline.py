@@ -6,6 +6,11 @@ import math
 spark_chars = u"▁▂▃▄▅▆▇█"
 
 
+# math.isfinite doesn't exist in python2, so provider our own
+def isfinite(f):
+    return not (math.isinf(f) or math.isnan(f))
+
+
 def sparkify(series):
     u"""Converts <series> to a sparkline string.
 
@@ -21,7 +26,7 @@ def sparkify(series):
     Raises TypeError if series is not an iterable.
     """
     series = [float(i) for i in series]
-    finite_series = [x for x in series if math.isfinite(x)]
+    finite_series = [x for x in series if isfinite(x)]
     if not finite_series:
         return u''
     minimum = min(finite_series)
@@ -29,10 +34,10 @@ def sparkify(series):
     data_range = maximum - minimum
     if data_range == 0.0:
         # Graph a baseline if every input value is equal.
-        return u''.join([spark_chars[0] if math.isfinite(x) else ' ' for x in series])
+        return u''.join([spark_chars[0] if isfinite(x) else ' ' for x in series])
     coefficient = (len(spark_chars) - 1.0) / data_range
     return u''.join([
         spark_chars[
             int(round((x - minimum) * coefficient))
-        ] if math.isfinite(x) else ' ' for x in series
+        ] if isfinite(x) else ' ' for x in series
     ])
