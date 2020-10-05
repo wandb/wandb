@@ -1,3 +1,9 @@
+## 0.10.4 (September 29, 2020)
+
+#### :bug: Bug Fix
+
+-  Fix an issue where wandb.init(allow_val_change=) throws exception
+
 ## 0.10.3 (September 29, 2020)
 
 #### :nail_care: Enhancement

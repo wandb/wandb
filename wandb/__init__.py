@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = '0.10.3'
+__version__ = '0.10.5.dev1'
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = 'wandb'
@@ -75,7 +75,6 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
-from wandb.jupyteragent import jupyteragent as _secretagent
 
 # from wandb.core import *
 from wandb.viz import visualize

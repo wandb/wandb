@@ -20,12 +20,18 @@ class Unbuffered(object):
         self.stream = stream
 
     def write(self, data):
-        self.stream.write(data)
-        self.stream.flush()
+        try:
+            self.stream.write(data)
+            self.stream.flush()
+        except Exception:
+            pass  # Underlying stream might be closed.
 
     def writelines(self, datas):
-        self.stream.writelines(datas)
-        self.stream.flush()
+        try:
+            self.stream.writelines(datas)
+            self.stream.flush()
+        except Exception:
+            pass  # Underlying stream might be closed.
 
     def __getattr__(self, attr):
         return getattr(self.stream, attr)
