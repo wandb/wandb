@@ -1055,6 +1055,7 @@ class HTTPHandler(StorageHandler):
         response.raise_for_status()
 
         digest, size, extra = self._entry_from_headers(response.headers)
+        digest = digest or path
         if manifest_entry.digest != digest:
             raise ValueError(
                 "Digest mismatch for url %s: expected %s but found %s"
