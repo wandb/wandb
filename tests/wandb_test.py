@@ -265,17 +265,6 @@ def test_restore(runner, mock_server, wandb_init_run):
         res = wandb.restore("weights.h5")
         assert os.path.getsize(res.name) == 10000
 
-def test_restore_with_path(runner, mock_server, wandb_init_run):
-    root = tempfile.gettempdir()
-    test_path = os.path.join(root, "tmp")
-    wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
-    with open(os.path.join(test_path, "test_restore_run_path.txt"), "w") as f:
-        f.write("something")
-    with runner.isolated_filesystem():        
-        res = wandb.restore("test_restore_run_path.txt", run_path=test_path)
-        line = res.read()
-        assert line == "something"
-
 
 def test_restore_name_not_found(runner, mock_server, wandb_init_run):
     with runner.isolated_filesystem():
