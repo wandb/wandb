@@ -895,10 +895,7 @@ class Run(RunBase):
         api_run = api.run(run_path or self.path)
         if root is None:
             root = self.dir  # TODO: runless else '.'
-        if run_path is None:
-            path = os.path.join(root, name)
-        else:
-            path = os.path.join(run_path, name)
+        path = os.path.join(run_path or root, name)
         if os.path.exists(path) and replace is False:
             return open(path, "r")
         files = api_run.files([name])
