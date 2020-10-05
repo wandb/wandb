@@ -462,7 +462,10 @@ def init(
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
                 sentry_exc(e)
-            getcaller()
+            if not (
+                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
+            ):
+                getcaller()
             assert logger
             if wi.settings.problem == "fatal":
                 raise
@@ -475,7 +478,7 @@ def init(
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
-        six.raise_from(Exception("interrupted"), e)
+        raise e
     except Exception as e:
         error_seen = e
         traceback.print_exc()
