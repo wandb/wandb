@@ -204,7 +204,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             # TODO(jhr): handle load errors, handle list of files
             config_paths = self._settings.config_paths.split(",")
             for config_path in config_paths:
-                print(config_path)
                 config_dict = config_util.dict_from_config_file(config_path)
                 if config_dict is None:
                     continue

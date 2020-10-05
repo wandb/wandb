@@ -3,7 +3,6 @@ config tests.
 """
 
 import pytest
-import os
 import yaml
 from wandb import wandb_sdk
 
@@ -33,11 +32,11 @@ def test_locked_set():
 
 
 def test_load_config_default():
-    test_path = os.path.join("config-defaults.yaml")
+    test_path = "config-defaults.yaml"
     yaml_dict = {"epochs": {"value": 32}, "size_batch": {"value": 32}}
     with open(test_path, "w") as f:
         yaml.dump(yaml_dict, f, default_flow_style=False)
     s = wandb_sdk.Config()
-    expected = sorted([("epochs", 32), ("size_batch", 32)],  key=lambda x: x[0])
+    expected = sorted([("epochs", 32), ("size_batch", 32)], key=lambda x: x[0])
     actual = sorted(s.items(), key=lambda x: x[0])
     assert actual == expected

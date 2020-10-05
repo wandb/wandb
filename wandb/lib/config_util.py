@@ -47,15 +47,16 @@ def save_config_file_from_dict(config_filename, config_dict):
         conf_file.write(data)
 
 
-def dict_from_config_file(config_filename):
-    file_path = os.path.join(config_filename)
-    if not os.path.exists(file_path):
-        logger.debug('no config file found in %s' % file_path)
+def dict_from_config_file(filename, must_exist=False):
+    if not os.path.exists(filename):
+        if must_exist:
+            raise ConfigError("config file %s doesn't exist" % filename)
+        logger.debug('no default config file found in %s' % filename)
         return None
     try:
-        conf_file = open(file_path)
+        conf_file = open(filename)
     except OSError:
-        raise ConfigError("Couldn't read config file: %s" % config_filename)
+        raise ConfigError("Couldn't read config file: %s" % filename)
     try:
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:
