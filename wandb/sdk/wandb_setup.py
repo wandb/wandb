@@ -100,7 +100,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _settings_setup(self, settings=None, early_logger=None):
         # TODO: Do a more formal merge of user settings from the backend.
         flags = self._get_user_flags()
+        email = self._server._viewer.get("email", None)
         user_settings = {}
+        if email:
+            user_settings["email"] = email
         if "code_saving_enabled" in flags:
             logger.info("enabling code saving by default")
             user_settings["save_code"] = flags["code_saving_enabled"]

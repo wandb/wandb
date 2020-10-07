@@ -296,7 +296,12 @@ class Run(RunBase):
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", self._entity, self._project)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -670,7 +675,13 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            entity=run_obj.entity,
+            project=run_obj.project,
+            email=self._settings.email,
+            url=self._get_run_url(),
+        )
 
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj

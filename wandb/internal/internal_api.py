@@ -391,6 +391,7 @@ class Api(object):
             viewer {
                 id
                 entity
+                email
                 flags
                 teams {
                     edges {
