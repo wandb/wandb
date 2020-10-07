@@ -170,7 +170,7 @@ class Agent(object):
             elif job.type == "exit":
                 self._exit()
                 return
-            time.sleep(2)
+            time.sleep(5)
 
     def _run_jobs_from_queue(self):
         waiting = False
@@ -183,17 +183,17 @@ class Agent(object):
                     job = self._queue.get(timeout=5)
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")
-                        wandb.termlog("Sweep killed.")
+                        wandb.termlog("Sweep Agent: Exiting.")
                         return
                 except queue.Empty:
                     if not waiting:
                         logger.debug("Paused.")
-                        wandb.termlog("Waiting for job...")
+                        wandb.termlog("Sweep Agent: Waiting for job.")
                         waiting = True
                     time.sleep(5)
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")
-                        wandb.termlog("Sweep killed.")
+                        wandb.termlog("Sweep Agent: Exiting.")
                         return
                     continue
                 if waiting:
@@ -215,11 +215,17 @@ class Agent(object):
                     if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                         self._exit_flag = True
                         return
-                    elif (time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
-                        msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
+                    elif (
+                        time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS
+                    ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
+                        msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
+                            self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
+                        )
                         logger.error(msg)
                         wandb.termerror(msg)
-                        wandb.termlog("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+                        wandb.termlog(
+                            "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                        )
                         self._exit_flag = True
                         return
                 del self._run_threads[job.run_id]
@@ -235,7 +241,7 @@ class Agent(object):
             except Exception as e:
                 if self._exit_flag:
                     logger.debug("Exiting main loop due to exit flag.")
-                    wandb.termlog("Sweep killed.")
+                    wandb.termlog("Sweep Agent: Killed.")
                     return
                 else:
                     raise e
@@ -258,11 +264,11 @@ class Agent(object):
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
             self._function()
-            if wandb.run:
-                wandb.join()
+            wandb.finish()
         except KeyboardInterrupt as ki:
             raise ki
         except Exception as e:
+            wandb.finish(exit_code=1)
             if run_id in self._stopped_runs:
                 self._stopped_runs.remove(run_id)
                 # wandb.termlog("Stopping run: " + str(run_id))
@@ -270,7 +276,11 @@ class Agent(object):
                 self._errored_runs[run_id] = e
 
     def run(self):
-        logger.info("Starting sweep agent: entity={}, project={}, count={}".format(self._entity, self._project, self._count))
+        logger.info(
+            "Starting sweep agent: entity={}, project={}, count={}".format(
+                self._entity, self._project, self._count
+            )
+        )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
@@ -280,7 +290,7 @@ class Agent(object):
         self._run_jobs_from_queue()
 
 
-def agent(sweep_id, function, entity=None, project=None, count=None):
+def pyagent(sweep_id, function, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
 
     Args:

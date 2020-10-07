@@ -109,5 +109,6 @@ class BackendMock(object):
 
     def cleanup(self):
         #  self.notify_queue.put(constants.NOTIFY_SHUTDOWN) # TODO: shut it down
+        self.interface.join()
         self.record_q.close()
         self.result_q.close()

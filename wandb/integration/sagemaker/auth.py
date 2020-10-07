@@ -15,8 +15,7 @@ def sagemaker_auth(overrides=None, path=".", api_key=None):
         path (str, optional): The path to write the secrets file.
     """
 
-    wl = wandb.setup()
-    settings = wl.settings()
+    settings = wandb.setup().settings
     current_api_key = apikey.api_key(settings=settings)
 
     overrides = overrides or dict()
