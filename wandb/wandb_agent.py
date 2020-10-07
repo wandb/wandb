@@ -15,7 +15,7 @@ from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_sdk
-from wandb.agents.agent import agent as pyagent
+from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
 from wandb.lib import config_util
 import yaml
@@ -506,6 +506,8 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
     global _INSTANCES
     _INSTANCES += 1
     try:
+        # clear singleton state
+        wandb_sdk.wandb_setup._setup(_reset=True)
         # make sure we are logged in
         wandb_sdk.wandb_login._login(_silent=True)
         if function:

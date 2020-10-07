@@ -280,7 +280,7 @@ class Agent(object):
         self._run_jobs_from_queue()
 
 
-def agent(sweep_id, function, entity=None, project=None, count=None):
+def pyagent(sweep_id, function, entity=None, project=None, count=None):
     """Generic agent entrypoint, used for CLI or jupyter.
 
     Args:
