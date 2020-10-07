@@ -225,8 +225,7 @@ def write_key(settings, key):
 
 def api_key(settings=None):
     if not settings:
-        wl = wandb.setup()
-        settings = wl.settings()
+        settings = wandb.setup().settings
     if settings.api_key:
         return settings.api_key
     auth = requests.utils.get_netrc_auth(settings.base_url)

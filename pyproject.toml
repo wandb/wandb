@@ -17,6 +17,7 @@ include = '''
 | wandb/integration/keras/
 | wandb/integration/sagemaker/
 | wandb/sync/
+| wandb/agents/
 | wandb/secretagent/
 | wandb/wandb_agent.py
 | wandb/wandb_controller.py
