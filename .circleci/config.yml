@@ -80,7 +80,7 @@ jobs:
                   shell: bash.exe
                   command: |
                       tox -v -e py37
-                  no_output_timeout: 5m
+                  no_output_timeout: 10m
     mac:
         macos:
             xcode: 11.4.1
