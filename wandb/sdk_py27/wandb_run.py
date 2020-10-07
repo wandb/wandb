@@ -291,7 +291,12 @@ class Run(RunBase):
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", entity=self._entity, project=self._project, email=self._settings.email)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
