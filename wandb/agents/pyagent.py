@@ -215,11 +215,17 @@ class Agent(object):
                     if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                         self._exit_flag = True
                         return
-                    elif (time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
-                        msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS)
+                    elif (
+                        time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS
+                    ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
+                        msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
+                            self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
+                        )
                         logger.error(msg)
                         wandb.termerror(msg)
-                        wandb.termlog("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+                        wandb.termlog(
+                            "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                        )
                         self._exit_flag = True
                         return
                 del self._run_threads[job.run_id]
@@ -270,7 +276,11 @@ class Agent(object):
                 self._errored_runs[run_id] = e
 
     def run(self):
-        logger.info("Starting sweep agent: entity={}, project={}, count={}".format(self._entity, self._project, self._count))
+        logger.info(
+            "Starting sweep agent: entity={}, project={}, count={}".format(
+                self._entity, self._project, self._count
+            )
+        )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
         self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
