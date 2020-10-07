@@ -188,6 +188,24 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
+def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
+    onprem_key = "test-" + DUMMY_API_KEY
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, [onprem_key])
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        assert onprem_key in generatedNetrc
+
+def test_login_invalid_key_arg(runner, empty_netrc, local_netrc):
+    invalid_key = "test--" + DUMMY_API_KEY
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, [invalid_key])
+        assert "API key must be 40 characters long, yours was" in str(result)
+        assert result.exit_code == 1
 
 @pytest.mark.skip(reason="Just need to make the mocking work correctly")
 def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
