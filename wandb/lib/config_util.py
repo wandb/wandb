@@ -62,7 +62,7 @@ def dict_from_config_file(filename, must_exist=False):
     except yaml.parser.ParserError:
         raise ConfigError("Invalid YAML in config yaml")
     config_version = loaded.pop("wandb_version", None)
-    if config_version and config_version != 1:
+    if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
     data = dict()
     for k, v in six.iteritems(loaded):
