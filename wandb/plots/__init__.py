@@ -7,3 +7,4 @@ from wandb.plots.named_entity import named_entity as NER
 from wandb.plots.line import line
 from wandb.plots.histogram import histogram
 from wandb.plots.scatter import scatter
+from wandb.plots.bar import bar
