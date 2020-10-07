@@ -506,8 +506,6 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
     global _INSTANCES
     _INSTANCES += 1
     try:
-        # clear singleton state
-        wandb_sdk.wandb_setup._setup(_reset=True)
         # make sure we are logged in
         wandb_sdk.wandb_login._login(_silent=True)
         if function:
