@@ -55,6 +55,8 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
 
+        wandb.START_TIME = time.time()
+
     def setup(self, kwargs):
         """Complete setup for wandb.init().
 

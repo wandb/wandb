@@ -7,7 +7,6 @@ The purpose of this module is to break circular imports.
 import os
 import string
 import sys
-import time
 import tempfile
 
 import click
@@ -24,7 +23,6 @@ else:
     __stage_dir__ = None
 
 SCRIPT_PATH = os.path.abspath(sys.argv[0])
-wandb.START_TIME = time.time()
 LIB_ROOT = os.path.join(os.path.dirname(__file__), '..')
 IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
@@ -109,6 +107,6 @@ def termerror(string, **kwargs):
 
 
 __all__ = [
-    '__stage_dir__', 'SCRIPT_PATH', 'START_TIME', 'wandb_dir',
+    '__stage_dir__', 'SCRIPT_PATH', 'wandb_dir',
     '_set_stage_dir', 'Error', 'WandbWarning', 'LOG_STRING', 'ERROR_STRING', 'termlog', 'termwarn', 'termerror'
 ]
