@@ -310,6 +310,7 @@ class _WandbInit(object):
                 restore=run.restore,
                 use_artifact=run.use_artifact,
                 log_artifact=run.log_artifact,
+                plot_table=run.plot_table,
             )
             return run
 
@@ -394,6 +395,7 @@ class _WandbInit(object):
             restore=run.restore,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
+            plot_table=run.plot_table,
         )
         self._reporter.set_context(run=run)
         run._on_start()

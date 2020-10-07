@@ -78,7 +78,8 @@ from wandb import superagent
 
 # from wandb.core import *
 from wandb.viz import visualize
-from wandb import plots
+from wandb import plot
+from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 
 
@@ -125,6 +126,10 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+plot_table = _preinit.PreInitCallable(
+    "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
+)
+
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}
 
