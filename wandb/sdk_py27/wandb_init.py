@@ -86,6 +86,7 @@ class _WandbInit(object):
                 if sm_api_key:
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
+                wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
 

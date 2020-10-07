@@ -1055,6 +1055,7 @@ class HTTPHandler(StorageHandler):
         response.raise_for_status()
 
         digest, size, extra = self._entry_from_headers(response.headers)
+        digest = digest or path
         if manifest_entry.digest != digest:
             raise ValueError(
                 "Digest mismatch for url %s: expected %s but found %s"
@@ -1074,6 +1075,7 @@ class HTTPHandler(StorageHandler):
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
             digest, size, extra = self._entry_from_headers(response.headers)
+            digest = digest or path
         return [
             ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)
         ]
@@ -1084,7 +1086,7 @@ class HTTPHandler(StorageHandler):
         if size:
             size = int(size)
 
-        digest = response_headers.get("etag", None)  #
+        digest = response_headers.get("etag", None)
         extra = {}
         if digest:
             extra["etag"] = digest

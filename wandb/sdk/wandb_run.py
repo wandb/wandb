@@ -416,6 +416,10 @@ class Run(RunBase):
         return self._config
 
     @property
+    def config_static(self):
+        return wandb_config.ConfigStatic(self._config)
+
+    @property
     def name(self):
         if self._name:
             return self._name
@@ -447,9 +451,8 @@ class Run(RunBase):
     def tags(self) -> Optional[Tuple]:
         if self._tags:
             return self._tags
-        if not self._run_obj:
-            return None
-        return self._run_obj.tags
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.tags
 
     @tags.setter
     def tags(self, tags: Sequence):
@@ -502,6 +505,25 @@ class Run(RunBase):
         return run_obj.project
 
     @property
+    def mode(self):
+        """For compatibility with 0.9.x and earlier, deprecate eventually."""
+        return "dryrun" if self._settings._offline else "run"
+
+    @property
+    def offline(self):
+        return self._settings._offline
+
+    @property
+    def group(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group
+
+    @property
+    def job_type(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.job_type
+
+    @property
     def project(self):
         return self.project_name()
 
@@ -510,6 +532,18 @@ class Run(RunBase):
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
+
+    def get_project_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_project_url()
+
+    def get_sweep_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_sweep_url()
 
     @property
     def url(self):
@@ -903,7 +937,7 @@ class Run(RunBase):
             return None
         # if the file does not exist, the file has an md5 of 0
         if files[0].md5 == "0":
-            raise ValueError("File {} not found.".format(path))
+            raise ValueError("File {} not found in {}.".format(name, run_path or root))
         return files[0].download(root=root, replace=True)
 
     def finish(self, exit_code=None):
