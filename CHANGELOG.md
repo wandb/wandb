@@ -1,3 +1,41 @@
+## 0.10.5 (October 7, 2020)
+
+#### :nail_care: Enhancement
+
+- Add new custom plots: `wandb.plot.*`
+- Add new python based sweep agent: `wandb.agent()`
+
+#### :bug: Bug Fix
+
+- Console log fixes (tqdm on windows, fix close exceptions)
+- Add more attributes to the Run object (group, job_type, urls)
+- Fix sagemaker login issues
+- Fix issue where plots were not uploaded until the end of run
+
+## 0.10.4 (September 29, 2020)
+
+#### :bug: Bug Fix
+
+-  Fix an issue where wandb.init(allow_val_change=) throws exception
+
+## 0.10.3 (September 29, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added warning when trying to sync pre 0.10.0 run dirs
+-  Improved jupyter support for wandb run syncing information
+
+#### :bug: Bug Fix
+
+-  Fix artifact download issues
+-  Fix multiple issues with tensorboard_sync
+-  Fix multiple issues with juypter/python sweeps
+-  Fix issue where login was timing out
+-  Fix issue where config was overwritten when resuming runs
+-  Ported sacred observer to 0.10.x release
+-  Fix predicted bounding boxes overwritten by ground truth boxes
+-  Add missing save_code parameter to wandb.init()
+
 ## 0.10.2 (September 20, 2020)
 
 #### :nail_care: Enhancement

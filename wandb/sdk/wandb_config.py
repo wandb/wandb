@@ -170,3 +170,23 @@ class Config(object):
             if val.__class__.__module__ not in ("builtins", "__builtin__"):
                 val = str(val)
             return val
+
+
+class ConfigStatic(object):
+    def __init__(self, config):
+        object.__setattr__(self, "__dict__", dict(config))
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def __setitem__(self, key, val):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __str__(self):
+        return str(self.__dict__)

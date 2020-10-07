@@ -1,6 +1,6 @@
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing, test_types, encode_labels
+from wandb.plots.utils import test_missing, test_types, encode_labels, deprecation_notice
 chart_limit = wandb.Table.MAX_ROWS
 
 def heatmap(x_labels, y_labels, matrix_values, show_text=False):
@@ -22,6 +22,8 @@ def heatmap(x_labels, y_labels, matrix_values, show_text=False):
          wandb.log({'heatmap': wandb.plots.HeatMap(x_labels, y_labels,
                     matrix_values)})
         """
+        deprecation_notice()
+
         np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
         scikit = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
 

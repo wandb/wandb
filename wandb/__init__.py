@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = '0.10.3.dev1'
+__version__ = '0.10.6.dev1'
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = 'wandb'
@@ -75,11 +75,11 @@ from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
-from wandb.jupyteragent import jupyteragent as _secretagent
 
 # from wandb.core import *
 from wandb.viz import visualize
-from wandb import plots
+from wandb import plot
+from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 
 
@@ -126,6 +126,10 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+plot_table = _preinit.PreInitCallable(
+    "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
+)
+
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}
 

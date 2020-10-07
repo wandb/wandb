@@ -253,7 +253,7 @@ class Settings(object):
         magic = False,
         run_tags = None,
         sweep_id=None,
-        allow_val_override = None,
+        allow_val_change = None,
         force = None,
         relogin = None,
         # compatibility / error handling
@@ -300,6 +300,7 @@ class Settings(object):
         dev_prod=None,  # in old settings files, TODO: support?
         host=None,
         username=None,
+        email=None,
         docker=None,
         _start_time=None,
         _start_datetime=None,
@@ -387,27 +388,28 @@ class Settings(object):
             if self._jupyter:
                 console = "wrap"
             elif self._windows:
-                legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
-                if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
-                    msg = (
-                        "Set %s environment variable to enable"
-                        " proper console logging on Windows. Falling "
-                        "back to wrapping stdout/err." % legacy_env_var
-                    )
-                    wandb.termwarn(msg)
-                    logger.info(msg)
-                    console = "wrap"
-                if "tensorflow" in sys.modules:
-                    msg = (
-                        "Tensorflow detected. Stream redirection is not supported "
-                        "on Windows when tensorflow is imported. Falling back to "
-                        "wrapping stdout/err."
-                    )
-                    wandb.termlog(msg)
-                    logger.info(msg)
-                    console = "wrap"
-                else:
-                    console = "redirect"
+                console = "wrap"
+                # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
+                # if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
+                #     msg = (
+                #         "Set %s environment variable to enable"
+                #         " proper console logging on Windows. Falling "
+                #         "back to wrapping stdout/err." % legacy_env_var
+                #     )
+                #     wandb.termwarn(msg)
+                #     logger.info(msg)
+                #     console = "wrap"
+                # if "tensorflow" in sys.modules:
+                #     msg = (
+                #         "Tensorflow detected. Stream redirection is not supported "
+                #         "on Windows when tensorflow is imported. Falling back to "
+                #         "wrapping stdout/err."
+                #     )
+                #     wandb.termlog(msg)
+                #     logger.info(msg)
+                #     console = "wrap"
+                # else:
+                #     console = "redirect"
             else:
                 console = "redirect"
         convert = convert_dict[console]

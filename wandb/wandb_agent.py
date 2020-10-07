@@ -14,6 +14,8 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
+from wandb import wandb_sdk
+from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
 from wandb.lib import config_util
 import yaml
@@ -347,6 +349,8 @@ class Agent(object):
                 fp.write(flags_json)
 
         if self._function:
+            # make sure that each run regenerates setup singleton
+            wandb_sdk.wandb_setup._setup(_reset=True)
             proc = AgentProcess(
                 function=self._function,
                 env=env,
@@ -499,19 +503,28 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
     """
-    in_jupyter = wandb._get_python_type() != "python"
-    if in_jupyter:
-        os.environ[wandb.env.JUPYTER] = "true"
-        _api0 = InternalApi()
-        if not _api0.api_key:
-            wandb._jupyter_login(api=_api0)
+    global _INSTANCES
+    _INSTANCES += 1
+    try:
+        # make sure we are logged in
+        wandb_sdk.wandb_login._login(_silent=True)
+        if function:
+            return pyagent(sweep_id, function, entity, project, count)
+        in_jupyter = wandb._get_python_type() != "python"
+        return run_agent(
+            sweep_id,
+            function=function,
+            in_jupyter=in_jupyter,
+            entity=entity,
+            project=project,
+            count=count,
+        )
+    finally:
+        _INSTANCES -= 1
 
-    _ = wandb.Settings()
-    return run_agent(
-        sweep_id,
-        function=function,
-        in_jupyter=in_jupyter,
-        entity=entity,
-        project=project,
-        count=count,
-    )
+
+_INSTANCES = 0
+
+
+def _is_running():
+    return bool(_INSTANCES)

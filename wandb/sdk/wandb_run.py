@@ -41,7 +41,12 @@ from wandb.lib import (
     sparkline,
 )
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
-from wandb.viz import Visualize
+from wandb.viz import (
+    create_custom_chart,
+    custom_chart_panel_config,
+    CustomChart,
+    Visualize,
+)
 
 from . import wandb_config
 from . import wandb_history
@@ -291,7 +296,12 @@ class Run(RunBase):
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", self._entity, self._project)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -416,6 +426,10 @@ class Run(RunBase):
         return self._config
 
     @property
+    def config_static(self):
+        return wandb_config.ConfigStatic(self._config)
+
+    @property
     def name(self):
         if self._name:
             return self._name
@@ -447,9 +461,8 @@ class Run(RunBase):
     def tags(self) -> Optional[Tuple]:
         if self._tags:
             return self._tags
-        if not self._run_obj:
-            return None
-        return self._run_obj.tags
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.tags
 
     @tags.setter
     def tags(self, tags: Sequence):
@@ -502,6 +515,25 @@ class Run(RunBase):
         return run_obj.project
 
     @property
+    def mode(self):
+        """For compatibility with 0.9.x and earlier, deprecate eventually."""
+        return "dryrun" if self._settings._offline else "run"
+
+    @property
+    def offline(self):
+        return self._settings._offline
+
+    @property
+    def group(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group
+
+    @property
+    def job_type(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.job_type
+
+    @property
     def project(self):
         return self.project_name()
 
@@ -510,6 +542,18 @@ class Run(RunBase):
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
+
+    def get_project_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_project_url()
+
+    def get_sweep_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_sweep_url()
 
     @property
     def url(self):
@@ -557,6 +601,7 @@ class Run(RunBase):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
+        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
                 if "viz" not in self._config["_wandb"]:
@@ -567,6 +612,23 @@ class Run(RunBase):
                 }
                 row[k] = row[k].value
                 visualize_persist_config = True
+            elif isinstance(row[k], CustomChart):
+                custom_charts[k] = row[k]
+                custom_chart = row[k]
+
+        for k, custom_chart in custom_charts.items():
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row.pop(k)
+            # add the table under a different key
+            table_key = k + "_table"
+            row[table_key] = custom_chart.table
+            # add the panel
+            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
+            self._add_panel(k, "Vega2", panel_config)
+            visualize_persist_config = True
+
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
@@ -613,7 +675,13 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            entity=run_obj.entity,
+            project=run_obj.project,
+            email=self._settings.email,
+            url=self._get_run_url(),
+        )
 
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj
@@ -903,7 +971,7 @@ class Run(RunBase):
             return None
         # if the file does not exist, the file has an md5 of 0
         if files[0].md5 == "0":
-            raise ValueError("File {} not found.".format(path))
+            raise ValueError("File {} not found in {}.".format(name, run_path or root))
         return files[0].download(root=root, replace=True)
 
     def finish(self, exit_code=None):
@@ -922,6 +990,23 @@ class Run(RunBase):
 
     def join(self, exit_code=None):
         self.finish(exit_code=exit_code)
+
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
+        """Creates a custom plot on a table.
+        Args:
+            vega_spec_name: the name of the spec for the plot
+            table_key: the key used to log the data table
+            data_table: a wandb.Table object containing the data to
+                        be used on the visualization
+            fields: a dict mapping from table keys to fields that the custom
+                    visualization needs
+            string_fields: a dict that provides values for any string constants
+                    the custom visualization needs
+        """
+        visualization = create_custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
+        return visualization
 
     def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
         if "visualize" not in self._config["_wandb"]:
@@ -1170,7 +1255,9 @@ class Run(RunBase):
         self._exit_code = exit_code
         try:
             self._on_finish()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            if wandb.wandb_agent._is_running():
+                raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
             if ipython._get_python_type() == "python":
                 os._exit(-1)
@@ -1201,8 +1288,9 @@ class Run(RunBase):
 
     def _console_stop(self):
         self._restore()
-        self._output_writer.close()
-        self._output_writer = None
+        if self._output_writer:
+            self._output_writer.close()
+            self._output_writer = None
 
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML

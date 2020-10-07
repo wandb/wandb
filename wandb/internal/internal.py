@@ -128,7 +128,7 @@ def wandb_internal(settings, record_q, result_q):
             logger.error("Thread {}:".format(thread.name), exc_info=exc_info)
             print("Thread {}:".format(thread.name), file=sys.stderr)
             traceback.print_exception(*exc_info)
-            sentry_exc(exc_info)
+            sentry_exc(exc_info, delay=True)
             sys.exit(-1)
 
 
