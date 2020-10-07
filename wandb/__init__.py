@@ -79,7 +79,8 @@ from wandb.jupyteragent import jupyteragent as _secretagent
 
 # from wandb.core import *
 from wandb.viz import visualize
-from wandb import plots
+from wandb import plot
+from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 
 
