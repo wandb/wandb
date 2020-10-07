@@ -86,6 +86,7 @@ class _WandbInit(object):
                 if sm_api_key:
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
+                wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
 
@@ -309,6 +310,7 @@ class _WandbInit(object):
                 restore=run.restore,
                 use_artifact=run.use_artifact,
                 log_artifact=run.log_artifact,
+                plot_table=run.plot_table,
             )
             return run
 
@@ -393,6 +395,7 @@ class _WandbInit(object):
             restore=run.restore,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
+            plot_table=run.plot_table,
         )
         self._reporter.set_context(run=run)
         run._on_start()
