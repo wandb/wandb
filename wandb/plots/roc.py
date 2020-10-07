@@ -1,7 +1,6 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types, encode_labels
-from wandb import plots
 chart_limit = wandb.Table.MAX_ROWS
 
 def roc(y_true=None, y_probas=None, labels=None,
@@ -64,9 +63,9 @@ def roc(y_true=None, y_probas=None, labels=None,
                             if count >= chart_limit:
                                 wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
                                 break
-                return plots.line(
-                    wandb.Table(
+                return wandb.visualize(
+                    'wandb/roc/v1', wandb.Table(
                     columns=['class', 'fpr', 'tpr'],
                     data=data
-                ), x='fpr', y='tpr', stroke='class')
+                ))
             return roc_table(fpr_dict, tpr_dict, classes, indices_to_plot)
