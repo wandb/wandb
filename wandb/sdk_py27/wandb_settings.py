@@ -25,6 +25,7 @@ Override priorities are in the reverse order of non-override settings
 import configparser
 import copy
 from datetime import datetime
+from distutils.util import strtobool
 import enum
 import getpass
 import itertools
@@ -88,6 +89,7 @@ env_settings = dict(
     anonymous=None,
     ignore_globs=None,
     resume=None,
+    show_history=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -169,6 +171,14 @@ def get_wandb_dir(root_dir):
     return path
 
 
+def _str_as_bool(val):
+    try:
+        val = bool(strtobool(val))
+    except (AttributeError, ValueError):
+        pass
+    return val if isinstance(val, bool) else None
+
+
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
@@ -206,6 +216,7 @@ class Settings(object):
     sync_symlink_latest_spec = None
     settings_system_spec = None
     settings_workspace_spec = None
+    show_history = None
 
     # Private attributes
     # __start_time: Optional[float]
@@ -318,6 +329,7 @@ class Settings(object):
         show_errors=None,
         summary_errors=None,
         summary_warnings=None,
+        show_history=None,
         _internal_queue_timeout=2,
         _internal_check_process=8,
         _disable_meta=None,
@@ -358,6 +370,12 @@ class Settings(object):
         if self.mode in ("dryrun", "offline"):
             ret = True
         return ret
+
+    @property
+    def _show_history(self):
+        if not self.show_history:
+            return None
+        return _str_as_bool(self.show_history)
 
     @property
     def _noop(self):
@@ -461,6 +479,11 @@ class Settings(object):
     @property
     def settings_workspace(self):
         return self._path_convert(self.settings_workspace_spec)
+
+    def _validate_show_history(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
 
     def _validate_mode(self, value):
         choices = {

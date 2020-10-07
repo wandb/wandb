@@ -1505,6 +1505,9 @@ class Run(RunBase):
         if not self._sampled_history:
             return
 
+        if self._settings._show_history is False:
+            return
+
         # Only print sparklines if the terminal is utf-8
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
