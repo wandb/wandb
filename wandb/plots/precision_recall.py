@@ -90,5 +90,5 @@ def precision_recall(y_true=None, y_probas=None, labels=None,
                 wandb.Table(
                 columns=['class', 'precision', 'recall'],
                 data=data
-            ), x='precision', y='recall', stroke='class')
+            ), x='recall', y='precision', stroke='class')
         return pr_table(pr_curves)
