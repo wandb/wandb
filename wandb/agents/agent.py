@@ -170,7 +170,7 @@ class Agent(object):
             elif job.type == "exit":
                 self._exit()
                 return
-            time.sleep(2)
+            time.sleep(5)
 
     def _run_jobs_from_queue(self):
         waiting = False
