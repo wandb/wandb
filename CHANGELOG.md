@@ -1,3 +1,17 @@
+## 0.10.5 (October 7, 2020)
+
+#### :nail_care: Enhancement
+
+- Add new custom plots: `wandb.plot.*`
+- Add new python based sweep agent: `wandb.agent()`
+
+#### :bug: Bug Fix
+
+- Console log fixes (tqdm on windows, fix close exceptions)
+- Add more attributes to the Run object (group, job_type, urls)
+- Fix sagemaker login issues
+- Fix issue where plots were not uploaded until the end of run
+
 ## 0.10.4 (September 29, 2020)
 
 #### :bug: Bug Fix
