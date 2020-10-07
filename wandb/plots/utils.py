@@ -1,3 +1,4 @@
+import logging
 import wandb
 from wandb import util
 try:
@@ -6,6 +7,11 @@ except ImportError:
     from collections import Sequence, Iterable
 collections = util.get_module("collections",
                     required="Logging python iterables requires collections")
+
+
+def deprecation_notice():
+    logging.warning("wandb.plots.* functions are deprecated. Please use wandb.plot.* instead")
+
 
 # Test Asummptions for plotting parameters and datasets
 def test_missing(**kwargs):
