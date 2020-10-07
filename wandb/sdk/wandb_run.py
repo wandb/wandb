@@ -1530,7 +1530,7 @@ class Run(RunBase):
         else:
             wandb.termlog("Run history:")
             history_lines = ""
-            format_str = "  {:>%s} {}\n" % max_len
+            format_str = u"  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)

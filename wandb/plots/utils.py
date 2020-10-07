@@ -10,7 +10,11 @@ collections = util.get_module("collections",
 
 
 def deprecation_notice():
-    logging.warning("wandb.plots.* functions are deprecated. Please use wandb.plot.* instead")
+    # At Jeff's request, we're not deprecating these yet. Its better to get a release out
+    # with the new APIs first. Also we shouldn't use logging.warning for this (possibly
+    # losing the messages in the user's logger).
+    # logging.warning("wandb.plots.* functions are deprecated. Please use wandb.plot.* instead")
+    pass
 
 
 # Test Asummptions for plotting parameters and datasets
