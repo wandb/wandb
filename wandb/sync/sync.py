@@ -157,7 +157,7 @@ class SyncThread(threading.Thread):
                         sys.stdout.flush()
                         shown = True
             sm.finish()
-            if self._mark_synced:
+            if self._mark_synced and not self._view:
                 synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)
                 with open(synced_file, "w"):
                     pass
@@ -214,10 +214,10 @@ class SyncManager:
 
 
 def get_runs(
-    include_offline=True,
-    include_online=True,
-    include_synced=True,
-    include_unsynced=True,
+    include_offline=None,
+    include_online=None,
+    include_synced=None,
+    include_unsynced=None,
     exclude_globs=None,
     include_globs=None,
 ):
