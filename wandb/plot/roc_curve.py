@@ -60,7 +60,7 @@ def roc_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
                     data.append(fpr)
                     count += 1
                     if count >= chart_limit:
-                        wandb.termwarn("wandb uses only the first %d datapoints to create the plots."% wandb.Table.MAX_ROWS)
+                        wandb.termwarn("wandb uses only the first %d datapoints to create the plots." % wandb.Table.MAX_ROWS)
                         break
         table = wandb.Table(
             columns=['class', 'fpr', 'tpr'],

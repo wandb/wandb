@@ -68,7 +68,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
 
         data = []
         count = 0
-        for i, class_name in enumerate(pr_curves.keys()):
+        for class_name in pr_curves.keys():
             precision, recall = pr_curves[class_name]
             for p, r in zip(precision, recall):
                 # if class_names are ints and labels are set
