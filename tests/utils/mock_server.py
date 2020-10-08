@@ -645,6 +645,8 @@ def create_app(user_ctx=None):
                 "git": ctx.get("git", {})
             }
         elif file == "diff.patch":
+            # TODO: make sure the patch is valid for windows as well,
+            # and un skip the test in test_cli.py
             return '''
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
@@ -655,7 +657,7 @@ index 30d74d2..9a2c773 100644
 \ No newline at end of file
 +testing
 \ No newline at end of file
-'''.replace("/", os.sep)
+'''
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
