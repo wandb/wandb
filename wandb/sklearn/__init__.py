@@ -505,7 +505,6 @@ def plot_feature_importances(model=None, feature_names=None,
 
     if (test_missing(model=model) and test_types(model=model) and
         test_fitted(model)):
-        feature_names = np.asarray(feature_names)
         if found_attribute == 'feature_importances_':
             importances = model.feature_importances_
         if found_attribute == 'coef_':  # ElasticNet or ElasticNetCV like models
@@ -513,7 +512,7 @@ def plot_feature_importances(model=None, feature_names=None,
 
         indices = np.argsort(importances)[::-1]
 
-        if feature_names is None:
+        if not feature_names:
             feature_names = indices
         else:
             feature_names = np.array(feature_names)[indices]
