@@ -119,12 +119,16 @@ class _WandbLogin(object):
                 )
             )
         apikey.write_key(self._settings, key)
+        self.update_session(key)
         self._key = key
 
     def update_session(self, key):
         settings: Settings = wandb.Settings()
         settings._apply_source_login(dict(api_key=key))
         self._wl._update(settings=settings)
+        # Whenever the key changes, make sure to pull in user settings
+        # from server.
+        self._wl._update_user_settings()
 
     def prompt_api_key(self):
         api = Api()
