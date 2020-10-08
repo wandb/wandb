@@ -153,7 +153,7 @@ class Agent(object):
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
             raise AgentError("Invalid agent kill delay")
-        os.environ['WANDB_DIR'] = os.path.abspath(os.getcwd())
+        os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
@@ -331,10 +331,14 @@ class Agent(object):
         json_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".json"
         )
-        
+
         os.environ[wandb.env.RUN_ID] = run_id
-        os.environ[wandb.env.CONFIG_PATHS] = os.path.join(os.environ[wandb.env.DIR],config_file)
-        config_util.save_config_file_from_dict(os.environ[wandb.env.CONFIG_PATHS], command["args"])
+        os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
+            os.environ[wandb.env.DIR], config_file
+        )
+        config_util.save_config_file_from_dict(
+            os.environ[wandb.env.CONFIG_PATHS], command["args"]
+        )
 
         env = dict(os.environ)
 

@@ -145,6 +145,11 @@ class _WandbInit(object):
 
         self._log_setup(settings)
 
+        if os.environ.get(wandb.env.DIR) is None:
+            os.environ["WANDB_DIR"] = os.getcwd()
+        if settings.root_dir is None:
+            settings.root_dir = os.environ["WANDB_DIR"]
+
         self.settings = settings.freeze()
 
     def teardown(self):

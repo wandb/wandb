@@ -248,7 +248,7 @@ class Agent(object):
             config_file = os.path.join(
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
-            
+
             os.environ[wandb.env.RUN_ID] = run_id
             os.environ[wandb.env.CONFIG_PATHS] = os.path.join(os.environ[wandb.env.DIR], config_file)
             config_util.save_config_file_from_dict(os.environ[wandb.env.CONFIG_PATHS], job.config)

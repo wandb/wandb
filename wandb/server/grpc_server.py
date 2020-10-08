@@ -9,7 +9,6 @@ import os
 import time
 
 import grpc
-import wandb
 from wandb.interface import interface
 from wandb.internal.internal import wandb_internal
 from wandb.lib import runid
