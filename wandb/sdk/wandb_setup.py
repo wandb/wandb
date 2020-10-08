@@ -170,6 +170,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         user_settings = {}
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
+
+        email = self._server._viewer.get("email", None)
+        if email:
+            user_settings["email"] = email
+
         return user_settings
 
     def _check(self):

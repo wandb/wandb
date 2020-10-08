@@ -300,6 +300,7 @@ class Settings(object):
         dev_prod=None,  # in old settings files, TODO: support?
         host=None,
         username=None,
+        email=None,
         docker=None,
         _start_time=None,
         _start_datetime=None,
