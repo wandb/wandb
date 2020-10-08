@@ -825,13 +825,14 @@ class Run(Attrs):
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.sweep = None
-        self.dir = os.path.abspath(os.path.join(self._base_dir, *self.path))
+        self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
         except OSError:
             pass
         self._summary = None
         self.state = attrs.get("state", "not found")
+
         self.load(force=not attrs)
 
     @property

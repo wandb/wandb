@@ -85,7 +85,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
-        os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
+        # if the directory to log to is not set, set it
+        if os.environ.get("WANDB_DIR") is None:
+            os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
