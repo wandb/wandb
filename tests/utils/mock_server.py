@@ -655,7 +655,7 @@ index 30d74d2..9a2c773 100644
 \ No newline at end of file
 +testing
 \ No newline at end of file
-'''
+'''.replace("/", os.sep)
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
