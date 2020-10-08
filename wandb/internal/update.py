@@ -21,6 +21,8 @@ def _find_available(current_version):
     # Return if no update is available
     pip_prerelease = False
     parsed_current_version = parse_version(current_version)
+    yanked = False
+    deleted = False
     if parse_version(latest_version) <= parsed_current_version:
         # pre-releases are not included in latest_version
         # so if we are currently running a pre-release we check more
@@ -36,13 +38,21 @@ def _find_available(current_version):
         release_list = sorted(release_list)
         if not release_list:
             return
+        # Each release is mapped to an array of metadata objects.
+        # Check the "yanked" property for each of the objects.
+        if parsed_current_version in release_list:
+            for item in data["releases"][current_version]:
+                yanked = yanked or item["yanked"]
+        else:
+            deleted = True
+
         parsed_latest_version = release_list[-1]
         if parsed_latest_version <= parsed_current_version:
             return
         latest_version = str(parsed_latest_version)
         pip_prerelease = True
 
-    return (latest_version, pip_prerelease)
+    return (latest_version, pip_prerelease, yanked, deleted)
 
 
 def check_available(current_version):
@@ -50,16 +60,19 @@ def check_available(current_version):
     if not package_info:
         return
 
-    latest_version, pip_prerelease = package_info
+    latest_version, pip_prerelease, yanked, deleted = package_info
+
+    upgrade_message = (
+            "%s version %s is available!  To upgrade, please run:\n"
+            " $ pip install %s --upgrade%s"
+            % (
+                wandb._wandb_module,
+                latest_version,
+                wandb._wandb_module,
+                " --pre" if pip_prerelease else "",
+            )
+    )
+    yank_message = None if yanked is False else "Warning: this package has been yanked"
 
     # A new version is available!
-    return (
-        "%s version %s is available!  To upgrade, please run:\n"
-        " $ pip install %s --upgrade%s"
-        % (
-            wandb._wandb_module,
-            latest_version,
-            wandb._wandb_module,
-            " --pre" if pip_prerelease else "",
-        )
-    )
+    return (upgrade_message, yank_message)

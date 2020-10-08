@@ -14,18 +14,18 @@ def test_check_nothing_new(mock_server):
 
 
 def test_check_prerelease_avail(mock_server):
-    package = update._find_available("88.1.2rc3")
-    assert package == ("88.1.2rc12", True)
+    latest_version, pip_prerelease, _, _ = update._find_available("88.1.2rc3")
+    assert (latest_version, pip_prerelease) == ("88.1.2rc12", True)
 
 
 def test_check_nextrelease_after_pre_avail(mock_server):
-    package = update._find_available("0.0.8rc3")
-    assert package == (wandb.__version__, False)
+    latest_version, pip_prerelease, _, _ = update._find_available("0.0.8rc3")
+    assert (latest_version, pip_prerelease) == (wandb.__version__, False)
 
 
 def test_check_nextrelease_avail(mock_server):
-    package = update._find_available("0.0.6")
-    assert package == (wandb.__version__, False)
+    latest_version, pip_prerelease, yanked, deleted = update._find_available("0.0.6")
+    assert (latest_version, pip_prerelease) == (wandb.__version__, False)
 
 
 def test_pypi_check_nothing_new(mock_server):
