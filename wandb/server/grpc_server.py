@@ -94,7 +94,7 @@ class Backend:
 
         wandb_dir = "wandb"
         run_path = "run-{}-server".format(timespec)
-        run_dir = os.path.join(os.environ[wandb.env.DIR], wandb_dir, run_path)
+        run_dir = os.path.join(wandb_dir, run_path)
         files_dir = os.path.join(run_dir, "files")
         sync_file = os.path.join(run_dir, "run-{}.wandb".format(start_time))
         os.makedirs(files_dir)

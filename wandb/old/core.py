@@ -30,7 +30,7 @@ IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 
 def wandb_dir():
-    root_dir = env.get_dir(os.getcwd())
+    root_dir = os.path.abspath(env.get_dir(os.getcwd()))
     path = os.path.join(root_dir, __stage_dir__ or ("wandb" + os.sep))
     if not os.access(root_dir, os.W_OK):
         termwarn("Path %s wasn't writable, using system temp directory" % path)
