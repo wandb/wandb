@@ -83,7 +83,10 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
         return None
 
     def encode_images(img_strs, value):
-        from PIL import Image
+        Image = wandb.util.get_module(
+            "PIL.Image",
+            required='Install pillow if you are logging images with Tensorboard. To install, run "pip install pillow".',
+        )
 
         if len(img_strs) == 0:
             return
