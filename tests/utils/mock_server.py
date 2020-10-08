@@ -199,22 +199,20 @@ def set_ctx(ctx):
 
 def _bucket_config():
     return {
-        'patch': '''
-diff --git a/patch.txt b/patch.txt
-index 30d74d2..9a2c773 100644
---- a/patch.txt
-+++ b/patch.txt
-@@ -1 +1 @@
--test
-\ No newline at end of file
-+testing
-\ No newline at end of file
-        ''',
         'commit': 'HEAD',
         'github': 'https://github.com/vanpelt',
         'config': '{"foo":{"value":"bar"}}',
         'files': {
-            'edges': [{'node': {'directUrl': request.url_root + "/storage?file=metadata.json"}}]
+            'edges': [
+                {'node': {
+                    'directUrl': request.url_root + "/storage?file=wandb-metadata.json",
+                    'name': 'wandb-metadata.json'
+                }},
+                {'node': {
+                    'directUrl': request.url_root + "/storage?file=diff.patch",
+                    'name': 'diff.patch'
+                }}
+            ]
         }
     }
 
@@ -629,7 +627,7 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        data = request.get_data()
+        request.get_data()
         if file == "wandb_manifest.json":
             return {
                 "version": 1,
@@ -639,8 +637,25 @@ def create_app(user_ctx=None):
                     "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299},
                 },
             }
-        elif file == "metadata.json":
-            return {"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"], "git": ctx.get("git", {})}
+        elif file == "wandb-metadata.json":
+            return {
+                "docker": "test/docker",
+                "program": "train.py",
+                "args": ["--test", "foo"],
+                "git": ctx.get("git", {})
+            }
+        elif file == "diff.patch":
+            return '''
+diff --git a/patch.txt b/patch.txt
+index 30d74d2..9a2c773 100644
+--- a/patch.txt
++++ b/patch.txt
+@@ -1 +1 @@
+-test
+\ No newline at end of file
++testing
+\ No newline at end of file
+'''
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
