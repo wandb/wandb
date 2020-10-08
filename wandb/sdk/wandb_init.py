@@ -12,6 +12,8 @@ import os
 import time
 import traceback
 
+import click
+
 import six
 import wandb
 from wandb import trigger
@@ -364,8 +366,14 @@ class _WandbInit(object):
             run._set_run_obj_offline(run_proto)
         else:
             ret = backend.interface.communicate_check_version()
-            if ret and ret.message:
-                wandb.termlog(ret.message)
+            if ret and ret.upgrade_message:
+                # if yanked, warn at header
+                if ret.yank_message:
+                    wandb.termlog(click.style(ret.yank_message, fg="red"))
+                wandb.termlog(ret.upgrade_message)
+                # if yanked, also warn at footer
+                if ret.yank_message:
+                    wandb.termlog(click.style(ret.yank_message, fg="red"))
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:

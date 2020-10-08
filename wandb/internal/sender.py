@@ -111,9 +111,10 @@ class SendManager(object):
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         current_version = wandb.__version__
-        message = update.check_available(current_version)
-        if message:
-            result.response.check_version_response.message = message
+        upgrade_message, yank_message = update.check_available(current_version)
+        if upgrade_message:
+            result.response.check_version_response.upgrade_message = upgrade_message
+            result.response.check_version_response.yank_message = yank_message
         self._result_q.put(result)
 
     def send_request_status(self, record):
