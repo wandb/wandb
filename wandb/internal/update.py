@@ -20,9 +20,18 @@ def _find_available(current_version):
 
     # Return if no update is available
     pip_prerelease = False
-    parsed_current_version = parse_version(current_version)
     yanked = False
     deleted = False
+    parsed_current_version = parse_version(current_version)
+
+    # Check if current version has been yanked or deleted
+    if current_version in release_list:
+        for item in data["releases"][current_version]:
+            yanked = yanked or item["yanked"]
+    else:
+        deleted = True
+
+    # Check pre-releases
     if parse_version(latest_version) <= parsed_current_version:
         # pre-releases are not included in latest_version
         # so if we are currently running a pre-release we check more
@@ -38,13 +47,6 @@ def _find_available(current_version):
         release_list = sorted(release_list)
         if not release_list:
             return
-        # Each release is mapped to an array of metadata objects.
-        # Check the "yanked" property for each of the objects.
-        if parsed_current_version in release_list:
-            for item in data["releases"][current_version]:
-                yanked = yanked or item["yanked"]
-        else:
-            deleted = True
 
         parsed_latest_version = release_list[-1]
         if parsed_latest_version <= parsed_current_version:
@@ -63,16 +65,21 @@ def check_available(current_version):
     latest_version, pip_prerelease, yanked, deleted = package_info
 
     upgrade_message = (
-            "%s version %s is available!  To upgrade, please run:\n"
-            " $ pip install %s --upgrade%s"
-            % (
-                wandb._wandb_module,
-                latest_version,
-                wandb._wandb_module,
-                " --pre" if pip_prerelease else "",
-            )
+        "%s version %s is available!  To upgrade, please run:\n"
+        " $ pip install %s --upgrade%s"
+        % (
+            wandb._wandb_module,
+            latest_version,
+            wandb._wandb_module,
+            " --pre" if pip_prerelease else "",
+        )
     )
-    yank_message = None if yanked is False else "Warning: this package has been yanked"
+
+    yank_message = None
+    if yanked:
+        yank_message = "WARNING: your current version has been YANKED"
+    if deleted:
+        yank_message = "WARNING: your current version has been DELETED"
 
     # A new version is available!
     return (upgrade_message, yank_message)
