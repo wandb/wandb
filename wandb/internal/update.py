@@ -54,7 +54,7 @@ def _find_available(current_version):
         latest_version = str(parsed_latest_version)
         pip_prerelease = True
 
-    return (latest_version, pip_prerelease, yanked, deleted)
+    return latest_version, pip_prerelease, yanked, deleted
 
 
 def check_available(current_version):
@@ -76,10 +76,10 @@ def check_available(current_version):
     )
 
     yank_message = None
-    if yanked:
-        yank_message = "WARNING: your current version has been YANKED"
     if deleted:
         yank_message = "WARNING: your current version has been DELETED"
+    elif yanked:
+        yank_message = "WARNING: your current version has been YANKED"
 
     # A new version is available!
-    return (upgrade_message, yank_message)
+    return upgrade_message, yank_message
