@@ -1314,6 +1314,7 @@ class Api(object):
                     "metrics": json.dumps(metrics),
                     "runState": json.dumps(run_states),
                 },
+                timeout=60,
             )
         except Exception as e:
             # GQL raises exceptions with stringified python dictionaries :/
