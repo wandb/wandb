@@ -667,6 +667,7 @@ def test_local_already_running(runner, docker, local_settings):
     assert "A container named wandb-local is already running" in result.output
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="The patch in mock_server.py doesn't work in windows")
 def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     with open("patch.txt", "w") as f:
         f.write("test")
