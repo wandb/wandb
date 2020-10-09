@@ -117,6 +117,9 @@ class SendManager(object):
                 messages.upgrade_message
             )
             result.response.check_version_response.yank_message = messages.yank_message
+            result.response.check_version_response.delete_message = (
+                messages.delete_message
+            )
         self._result_q.put(result)
 
     def send_request_status(self, record):

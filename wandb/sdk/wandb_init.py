@@ -365,14 +365,18 @@ class _WandbInit(object):
             run._set_run_obj_offline(run_proto)
         else:
             ret = backend.interface.communicate_check_version()
-            if ret and ret.upgrade_message:
-                # if yanked, warn at header
-                if ret.yank_message:
-                    wandb.termlog(click.style(ret.yank_message, fg="red"))
-                wandb.termlog(ret.upgrade_message)
-                # if yanked, also warn at footer
-                if ret.yank_message:
-                    wandb.termlog(click.style(ret.yank_message, fg="red"))
+            if ret:
+                if ret.upgrade_message:
+                    run._set_upgrade_version_message(ret.upgrade_message)
+                # if yanked or deleted, warn at header and footer
+                if ret.delete_message:
+                    run._set_check_version_message(
+                        click.style(ret.delete_message, fg="red")
+                    )
+                elif ret.yank_message:
+                    run._set_check_version_message(
+                        click.style(ret.yank_message, fg="red")
+                    )
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:
@@ -386,6 +390,7 @@ class _WandbInit(object):
                 self.teardown()
                 raise UsageError(error_message)
             run._set_run_obj(ret.run)
+            run._on_init()
 
         # initiate run (stats and metadata probing)
         _ = backend.interface.communicate_run_start()
