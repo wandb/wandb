@@ -153,7 +153,8 @@ class Agent(object):
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
             raise AgentError("Invalid agent kill delay")
-        os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
+        if os.environ.get(wandb.env.DIR) is None:
+            os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
