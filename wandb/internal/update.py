@@ -21,6 +21,7 @@ def _find_available(current_version):
     # Return if no update is available
     pip_prerelease = False
     yanked = False
+    yanked_reason = None
     deleted = False
     parsed_current_version = parse_version(current_version)
 
@@ -28,6 +29,7 @@ def _find_available(current_version):
     if current_version in release_list:
         for item in data["releases"][current_version]:
             yanked = yanked or item["yanked"]
+            yanked_reason = item["yanked_reason"]
     else:
         deleted = True
 
@@ -54,7 +56,7 @@ def _find_available(current_version):
         latest_version = str(parsed_latest_version)
         pip_prerelease = True
 
-    return latest_version, pip_prerelease, yanked, deleted
+    return latest_version, pip_prerelease, deleted, yanked, yanked_reason
 
 
 def check_available(current_version):
@@ -62,7 +64,7 @@ def check_available(current_version):
     if not package_info:
         return
 
-    latest_version, pip_prerelease, yanked, deleted = package_info
+    latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
 
     upgrade_message = (
         "%s version %s is available!  To upgrade, please run:\n"
@@ -75,11 +77,15 @@ def check_available(current_version):
         )
     )
 
-    yank_message = None
+    delete_message = None
     if deleted:
-        yank_message = "WARNING: your current version has been DELETED"
-    elif yanked:
-        yank_message = "WARNING: your current version has been YANKED"
+        delete_message = "WARNING: your current version has been DELETED"
+    yank_message = None
+    if yanked:
+        yank_message = (
+            "WARNING: your current version has been YANKED\n"
+            "Reason: %s" % yanked_reason
+        )
 
     # A new version is available!
-    return upgrade_message, yank_message
+    return upgrade_message, yank_message, delete_message
