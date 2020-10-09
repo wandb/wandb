@@ -67,7 +67,7 @@ format:
 	tox -e format
 
 proto:
-	cd wandb/proto && python wandb_internal_codegen.py
+	tox -e proto
 
 isort:
 	isort -o wandb -o gql --force-sort-within-sections $(args)
