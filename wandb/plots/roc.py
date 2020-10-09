@@ -1,6 +1,6 @@
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing, test_types, encode_labels
+from wandb.plots.utils import test_missing, test_types, encode_labels, deprecation_notice
 chart_limit = wandb.Table.MAX_ROWS
 
 def roc(y_true=None, y_probas=None, labels=None,
@@ -24,6 +24,8 @@ def roc(y_true=None, y_probas=None, labels=None,
         Example:
          wandb.log({'roc': wandb.plots.ROC(y_true, y_probas, labels)})
         """
+        deprecation_notice()
+
         np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
         sklearn = util.get_module("sklearn", required="roc requires the scikit library, install with `pip install scikit-learn`")
         from sklearn.metrics import roc_curve, auc

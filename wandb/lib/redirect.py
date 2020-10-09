@@ -164,7 +164,10 @@ class Redirect(object):
             fp = getattr(sys, self._stream)
             # TODO(jhr): does this still work under windows?  are we leaking a fd?
             # Do not close old filedescriptor as others might be using it
-            fp.close()
+            try:
+                fp.close()
+            except Exception:
+                pass  # Stream might be wrapped by another program which doesn't support closing.
         os.dup2(to_fd, self._old_fd)
         if self._io_wrapped:
             if close:
