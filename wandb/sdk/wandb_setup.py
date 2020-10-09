@@ -18,6 +18,7 @@ import os
 import sys
 import threading
 
+import wandb
 from wandb.lib import config_util, server
 
 from . import wandb_settings
@@ -90,6 +91,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         self._settings_setup(settings, self._early_logger)
         self._settings.freeze()
+        wandb.termsetup(self._settings)
 
         self._check()
         self._setup()
