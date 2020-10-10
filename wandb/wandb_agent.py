@@ -131,6 +131,7 @@ class Agent(object):
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
     ):
+        print("ASBDJKASBD")
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
@@ -264,6 +265,7 @@ class Agent(object):
                         pass  # if process is already dead
 
     def _process_command(self, command):
+        print("process command", command)
         logger.info(
             "Agent received command: %s"
             % (command["type"] if "type" in command else "Unknown")
