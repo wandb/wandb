@@ -370,9 +370,13 @@ class _WandbInit(object):
                     run._set_upgrade_version_message(ret.upgrade_message)
                 # if yanked or deleted, warn at header and footer
                 if ret.delete_message:
-                    run._set_check_version_message(click.style(ret.delete_message, fg="red"))
+                    run._set_check_version_message(
+                        click.style(ret.delete_message, fg="red")
+                    )
                 elif ret.yank_message:
-                    run._set_check_version_message(click.style(ret.yank_message, fg="red"))
+                    run._set_check_version_message(
+                        click.style(ret.yank_message, fg="red")
+                    )
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:

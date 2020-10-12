@@ -1498,7 +1498,7 @@ class Run(RunBase):
             )
 
         # display yank/deleted warning
-        if self._check_version_message :
+        if self._check_version_message:
             wandb.termlog(self._check_version_message)
 
     def _show_summary(self):
