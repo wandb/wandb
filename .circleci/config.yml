@@ -76,7 +76,13 @@ jobs:
                   command: |
                       pip install tox
             - run:
+                  name: Temporary conda hack
+                  shell: bash.exe
+                  command: |
+                      cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
+            - run:
                   name: Run tests
+                  shell: bash.exe
                   command: |
                       tox -v -e py37
                   no_output_timeout: 10m
