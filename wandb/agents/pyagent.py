@@ -131,7 +131,10 @@ class Agent(object):
                 dead_runs.append(k)
         # clean up dead runs
         for k in dead_runs:
-            del self._run_threads[k]
+            try:
+                del self._run_threads[k]
+            except KeyError:
+                pass
         return run_status
 
     def _stop_run(self, run_id):
@@ -140,7 +143,10 @@ class Agent(object):
         thread = self._run_threads.get(run_id)
         if thread:
             _terminate_thread(thread)
-            del self._run_threads[run_id]
+            try:
+                del self._run_threads[run_id]
+            except KeyError:
+                pass
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
@@ -228,7 +234,10 @@ class Agent(object):
                         )
                         self._exit_flag = True
                         return
-                del self._run_threads[job.run_id]
+                try:
+                    del self._run_threads[job.run_id]
+                except KeyError:
+                    pass
                 if self._count and self._count == count:
                     logger.debug("Exiting main loop because max count reached.")
                     self._exit_flag = True
