@@ -178,7 +178,7 @@ class Agent(object):
                 return
             time.sleep(5)
 
-    def _run_jobs_from_queue(self):
+    def _run_jobs_from_queue(self):  # noqa:C901
         waiting = False
         count = 0
         while True:
