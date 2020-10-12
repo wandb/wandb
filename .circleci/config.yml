@@ -77,7 +77,6 @@ jobs:
                       pip install tox
             - run:
                   name: Run tests
-                  shell: bash.exe
                   command: |
                       tox -v -e py37
                   no_output_timeout: 10m
