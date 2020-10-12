@@ -83,10 +83,9 @@ def check_available(current_version):
         delete_message = "WARNING: your current version has been DELETED"
     yank_message = None
     if yanked:
-        yank_message = (
-            "WARNING: your current version has been YANKED\n"
-            "Reason: %s" % yanked_reason
-        )
+        yank_message = "WARNING: your current version has been YANKED"
+        if yanked_reason:
+            yank_message += "\nReason: %s" % yanked_reason
 
     # A new version is available!
     return upgrade_message, yank_message, delete_message
