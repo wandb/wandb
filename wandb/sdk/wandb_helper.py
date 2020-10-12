@@ -10,7 +10,7 @@ from wandb.lib import config_util
 def parse_config(params, exclude=None, include=None):
     if exclude and include:
         raise UsageError("Expected at most only one of exclude or include")
-    if isinstance(params, str):
+    if isinstance(params, six.string_types):
         params = config_util.dict_from_config_file(params, must_exist=True)
     params = _to_dict(params)
     if include:
