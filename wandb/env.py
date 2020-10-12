@@ -205,8 +205,10 @@ def get_dir(default=None, env=None):
     return env.get(DIR, default)
 
 
-def get_config_paths():
-    pass
+def get_config_paths(default=None, env=None):
+    if env is None:
+        env = os.environ
+    return env.get(CONFIG_PATHS, default)
 
 
 def get_agent_report_interval(default=None, env=None):

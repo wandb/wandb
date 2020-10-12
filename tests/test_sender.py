@@ -8,7 +8,6 @@ import shutil
 from wandb.util import mkdir_exists_ok
 from wandb.internal.handler import HandleManager
 from wandb.internal.sender import SendManager
-from wandb.interface import constants
 from wandb.interface.interface import BackendSender
 
 
@@ -77,8 +76,7 @@ def hm(
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
         stopped = threading.Event()
-        hm = HandleManager(settings=test_settings, record_q=record_q, result_q=result_q, stopped=stopped,
-                sender_q=sender_q, writer_q=writer_q, interface=interface,)
+        hm = HandleManager(settings=test_settings, record_q=record_q, result_q=result_q, stopped=stopped, sender_q=sender_q, writer_q=writer_q, interface=interface,)
         yield hm
 
 
