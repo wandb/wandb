@@ -377,6 +377,7 @@ class _WandbInit(object):
                     run._set_check_version_message(
                         click.style(ret.yank_message, fg="red")
                     )
+            run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:
@@ -390,7 +391,6 @@ class _WandbInit(object):
                 self.teardown()
                 raise UsageError(error_message)
             run._set_run_obj(ret.run)
-            run._on_init()
 
         # initiate run (stats and metadata probing)
         _ = backend.interface.communicate_run_start()
