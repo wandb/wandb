@@ -207,9 +207,15 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # if config_paths was set, read in config dict
         if self._settings.config_paths:
             # TODO(jhr): handle load errors, handle list of files
-            self._config = config_util.dict_from_config_file(
-                self._settings.config_paths
-            )
+            config_paths = self._settings.config_paths.split(",")
+            for config_path in config_paths:
+                config_dict = config_util.dict_from_config_file(config_path)
+                if config_dict is None:
+                    continue
+                if self._config is not None:
+                    self._config.update(config_dict)
+                else:
+                    self._config = config_dict
 
 
 class _WandbSetup(object):

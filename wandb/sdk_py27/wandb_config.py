@@ -31,6 +31,8 @@ class Config(object):
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
 
+        self._load_defaults()
+
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
 
@@ -113,6 +115,11 @@ class Config(object):
             k, v = self._sanitize(k, v)
             self._locked[k] = num
             self._items[k] = v
+
+    def _load_defaults(self):
+        conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
+        if conf_dict is not None:
+            self.update(conf_dict)
 
     def _sanitize_dict(self, config_dict, allow_val_change=None):
         sanitized = {}
