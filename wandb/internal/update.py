@@ -20,16 +20,17 @@ def _find_available(current_version):
 
     # Return if no update is available
     pip_prerelease = False
+    deleted = False
     yanked = False
     yanked_reason = None
-    deleted = False
     parsed_current_version = parse_version(current_version)
 
     # Check if current version has been yanked or deleted
     if current_version in release_list:
         for item in data["releases"][current_version]:
             yanked = yanked or item["yanked"]
-            yanked_reason = item["yanked_reason"]
+            if item["yanked_reason"]:
+                yanked_reason = item["yanked_reason"]
     else:
         deleted = True
 
