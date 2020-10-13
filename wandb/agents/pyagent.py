@@ -89,6 +89,7 @@ class Agent(object):
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
         self._run_threads = {}
+        self._lock = threading.Lock()
         self._queue = queue.Queue()
         self._stopped_runs = set()
         self._exit_flag = False
@@ -122,31 +123,27 @@ class Agent(object):
         self._register()
 
     def _run_status(self):
-        run_status = {}
-        dead_runs = []
-        for k, v in self._run_threads.items():
-            if v.isAlive():
-                run_status[k] = True
-            else:
-                dead_runs.append(k)
-        # clean up dead runs
-        for k in dead_runs:
-            try:
+        with self._lock:
+            run_status = {}
+            dead_runs = []
+            for k, v in self._run_threads.items():
+                if v.isAlive():
+                    run_status[k] = True
+                else:
+                    dead_runs.append(k)
+            # clean up dead runs
+            for k in dead_runs:
                 del self._run_threads[k]
-            except KeyError:
-                pass
-        return run_status
+            return run_status
 
     def _stop_run(self, run_id):
         logger.debug("Stopping run {}.".format(run_id))
         self._stopped_runs.add(run_id)
-        thread = self._run_threads.get(run_id)
-        if thread:
-            _terminate_thread(thread)
-            try:
+        with self._lock:
+            thread = self._run_threads.get(run_id)
+            if thread:
+                _terminate_thread(thread)
                 del self._run_threads[run_id]
-            except KeyError:
-                pass
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
@@ -234,10 +231,9 @@ class Agent(object):
                         )
                         self._exit_flag = True
                         return
-                try:
-                    del self._run_threads[job.run_id]
-                except KeyError:
-                    pass
+                with self._lock:
+                    if run_id in self._run_threads:
+                        self._run_threads[run_id]
                 if self._count and self._count == count:
                     logger.debug("Exiting main loop because max count reached.")
                     self._exit_flag = True
