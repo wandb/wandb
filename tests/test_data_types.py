@@ -242,11 +242,12 @@ def test_matplotlib_image():
     assert img._image.width == 640
 
 def test_matplotlib_image_with_multiple_axes():
-    # Ensures that wandb.Image constructor can accept a pyplot reference in
-    # which the figure has multiple axes. Importantly, there is no requirement
-    # that any of the axes have plotted data.
+    '''Ensures that wandb.Image constructor can accept a pyplot reference in
+    which the figure has multiple axes. Importantly, there is no requirement
+    that any of the axes have plotted data.
+    '''
     data = [1,2,3]
-    total_plot_count = 3
+    total_plot_count = 3 # results in 3 plots
 
     # Attempts to create a figure containing up to `total_plot_count` axes and
     # optionally adds data to each axes in a permutation-style loop.
