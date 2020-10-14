@@ -241,6 +241,28 @@ def test_matplotlib_image():
     img = wandb.Image(plt)
     assert img._image.width == 640
 
+def test_matplotlib_image_with_multiple_axes():
+    # Ensures that wandb.Image constructor can accept a pyplot reference in
+    # which the figure has multiple axes. Importantly, there is no requirement
+    # that any of the axes have plotted data.
+    data = [1,2,3]
+    total_plot_count = 3
+
+    # Attempts to create a figure containing up to `total_plot_count` axes and
+    # optionally adds data to each axes in a permutation-style loop.
+    for num_plots in range(1, total_plot_count + 1):
+        for permutation in range(2 ** num_plots):
+            has_data = [permutation & (1 << i) > 0 for i in range(num_plots)]
+            fig, ax = plt.subplots(num_plots)
+            if num_plots == 1:
+                if has_data[0]:
+                    ax.plot(data)
+            else:
+                for plot_id in range(num_plots):
+                    if has_data[plot_id]:
+                        ax[plot_id].plot(data)
+            
+            wandb.Image(plt) # this should not error.
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy(mocked_run):

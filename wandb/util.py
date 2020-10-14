@@ -334,9 +334,6 @@ def ensure_matplotlib_figure(obj):
             if not isinstance(obj, Figure):
                 raise ValueError(
                     "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted.")
-    if not obj.gca().has_data():
-        raise ValueError(
-            "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
     return obj
 
 def json_friendly(obj):
