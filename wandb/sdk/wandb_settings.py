@@ -637,8 +637,7 @@ class Settings(object):
         for p in path:
             part = self._path_convert_part(p, format_dict)
             if part is None:
-                continue
-                # return None
+                return None
             path_items += part
         path = os.path.join(*path_items)
         path = os.path.expanduser(path)
