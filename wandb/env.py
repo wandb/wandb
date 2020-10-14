@@ -278,13 +278,6 @@ def set_project(value, env=None):
     env[PROJECT] = value or "uncategorized"
 
 
-def get_silent(env=None):
-    if env is None:
-        env = os.environ
-    val = env.get(SILENT, None)
-    return val
-
-
 def should_save_code():
     save_code = _env_as_bool(SAVE_CODE, default=False)
     code_disabled = _env_as_bool(DISABLE_CODE, default=False)
