@@ -1,8 +1,6 @@
+import logging
 import click
-import os
 import sys
-
-from wandb import util
 
 
 LOG_STRING = click.style('wandb', fg='blue', bold=True)
@@ -15,14 +13,16 @@ _silent = False
 _show_info = True
 _show_warnings = True
 _show_errors = True
+_logger = None
 
 
-def termsetup(settings):
-    global _silent, _show_info, _show_warnings, _show_errors
+def termsetup(settings, logger):
+    global _silent, _show_info, _show_warnings, _show_errors, _logger
     _silent = settings._silent
     _show_info = settings._show_info
     _show_warnings = settings._show_warnings
     _show_errors = settings._show_errors
+    _logger = logger
 
 
 def termlog(string='', newline=True, repeat=True, prefix=True):
@@ -39,16 +39,17 @@ def termlog(string='', newline=True, repeat=True, prefix=True):
 def termwarn(string, **kwargs):
     string = '\n'.join(['{} {}'.format(WARN_STRING, s)
                         for s in string.split('\n')])
-    _log(string=string, newline=True, silent=not _show_warnings, **kwargs)
+    _log(string=string, newline=True, silent=not _show_warnings, level=logging.WARNING, **kwargs)
 
 
 def termerror(string, **kwargs):
     string = '\n'.join(['{} {}'.format(ERROR_STRING, s)
                         for s in string.split('\n')])
-    _log(string=string, newline=True, silent=not _show_errors, **kwargs)
+    _log(string=string, newline=True, silent=not _show_errors, level=logging.ERROR, **kwargs)
 
 
-def _log(string='', newline=True, repeat=True, prefix=True, silent=False):
+def _log(string='', newline=True, repeat=True, prefix=True, silent=False, level=logging.INFO):
+    global _logger
     silent = silent or _silent
     if string:
         if prefix:
@@ -64,9 +65,12 @@ def _log(string='', newline=True, repeat=True, prefix=True, silent=False):
     if len(PRINTED_MESSAGES) < 1000:
         PRINTED_MESSAGES.add(line)
     if silent:
-        util.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
-        with open(util.get_log_file_path(), 'w') as log:
-            click.echo(line, file=log, nl=newline)
+        if level == logging.ERROR:
+            _logger.error(line)
+        elif level == logging.WARNING:
+            _logger.warn(line)
+        else:
+            _logger.info(line)
     else:
         click.echo(line, file=sys.stderr, nl=newline)
 
