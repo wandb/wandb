@@ -161,6 +161,21 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
+        print("Load viewer")
+        print(self)
+        # if self.mode != "dryrun" and not self._api.disabled() and self._api.api_key:
+        #    # Kaggle has internet disabled by default, this checks for that case
+        #    async_viewer = util.async_call(self._api.viewer, timeout=http_timeout)
+        #    viewer, viewer_thread = async_viewer()
+        #    if viewer_thread.is_alive():
+        #        if _is_kaggle():
+        #            raise CommError(
+        #                "To use W&B in kaggle you must enable internet in the settings panel on the right."  # noqa: E501
+        #            )
+        #    else:
+        #        # self._viewer = viewer
+        #        self._flags = json.loads(viewer.get("flags", "{}"))
+        #        print("loadviewer3", self._flags, viewer)
 
     def _load_user_settings(self, settings=None):
         if self._server is None:
