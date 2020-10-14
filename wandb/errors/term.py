@@ -19,7 +19,7 @@ _show_errors = True
 
 def termsetup(settings):
     global _silent, _show_info, _show_warnings, _show_errors
-    _silent = not settings._show_console
+    _silent = settings._silent
     _show_info = settings._show_info
     _show_warnings = settings._show_warnings
     _show_errors = settings._show_errors

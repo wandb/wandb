@@ -88,6 +88,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     anonymous=None,
     ignore_globs=None,
     resume=None,
+    silent=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -214,7 +215,7 @@ class Settings(object):
     sync_symlink_latest_spec: Optional[str] = None
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
-    show_console: bool = True
+    silent: bool = False
     show_info: bool = True
     show_warnings: bool = True
     show_errors: bool = True
@@ -325,7 +326,7 @@ class Settings(object):
         # compute environment
         show_colors=None,
         show_emoji=None,
-        show_console=None,
+        silent=None,
         show_info=None,
         show_warnings=None,
         show_errors=None,
@@ -373,10 +374,10 @@ class Settings(object):
         return ret
 
     @property
-    def _show_console(self) -> Optional[bool]:
-        if not self.show_console:
+    def _silent(self) -> Optional[bool]:
+        if not self.silent:
             return None
-        return _str_as_bool(self.show_console)
+        return _str_as_bool(self.silent)
 
     @property
     def _show_info(self) -> Optional[bool]:
@@ -535,7 +536,7 @@ class Settings(object):
             return
         return _error_choices(value, choices)
 
-    def _validate_show_console(self, value):
+    def _validate_silent(self, value):
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
@@ -755,9 +756,6 @@ class Settings(object):
         u["_executable"] = sys.executable
 
         u["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
-
-        if wandb.env.get_silent():
-            u["show_console"] = wandb.env.get_silent() != "true"
 
         # TODO: we should use the cuda library to collect this
         if os.path.exists("/usr/local/cuda/version.txt"):
