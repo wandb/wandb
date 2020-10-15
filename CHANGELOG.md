@@ -8,6 +8,7 @@
 - Warn about missing python package when logging images
 - Fix wandb.restore() to apply diff patch
 - Improve artifact error messages
+- Support multiple parameter config files
 
 ## 0.10.5 (October 7, 2020)
 
