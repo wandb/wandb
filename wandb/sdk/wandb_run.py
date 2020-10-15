@@ -59,6 +59,10 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
 
+_CONSOLE_REDIRECTED = False
+_OUT_CAP = None
+_ERR_CAP = None
+
 
 class ExitHooks(object):
     def __init__(self):
@@ -339,6 +343,7 @@ class Run(RunBase):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+        self._restore_console = True
 
     def _freeze(self):
         self._frozen = True
@@ -976,7 +981,7 @@ class Run(RunBase):
             raise ValueError("File {} not found in {}.".format(name, run_path or root))
         return files[0].download(root=root, replace=True)
 
-    def finish(self, exit_code=None):
+    def finish(self, exit_code=None, _sweep=False):
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
@@ -985,7 +990,7 @@ class Run(RunBase):
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
-        self._atexit_cleanup(exit_code=exit_code)
+        self._atexit_cleanup(exit_code=exit_code, _sweep=_sweep)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
@@ -1154,13 +1159,23 @@ class Run(RunBase):
         logger.info("redirect: %s", console)
 
         if console == self._settings.Console.REDIRECT:
+            global _CONSOLE_REDIRECTED, _OUT_CAP, _ERR_CAP
+            if _CONSOLE_REDIRECTED:
+                self._restore_console = False
+                _OUT_CAP._cb = self._redirect_cb
+                _OUT_CAP._output_writer = self._output_writer
+                _ERR_CAP._cb = self._redirect_cb
+                _ERR_CAP._output_writer = self._output_writer
+                return
             logger.info("Redirecting console.")
             out_cap = redirect.Capture(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )
+            _OUT_CAP = out_cap
             err_cap = redirect.Capture(
                 name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
+            _ERR_CAP = err_cap
             out_redir = redirect.Redirect(
                 src="stdout", dest=out_cap, unbuffered=True, tee=True
             )
@@ -1199,6 +1214,8 @@ class Run(RunBase):
             self._out_redir = out_redir
             self._err_redir = err_redir
             logger.info("Redirects installed.")
+            if console == self._settings.Console.REDIRECT:
+                _CONSOLE_REDIRECTED = True
         except Exception as e:
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
@@ -1228,7 +1245,7 @@ class Run(RunBase):
     def _restore(self):
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
+        if self._use_redirect and self._restore_console:
             if self._out_redir:
                 self._out_redir.uninstall()
             if self._err_redir:
@@ -1245,7 +1262,7 @@ class Run(RunBase):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code=None):
+    def _atexit_cleanup(self, exit_code=None, _sweep=False):
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return False
@@ -1262,7 +1279,7 @@ class Run(RunBase):
 
         self._exit_code = exit_code
         try:
-            self._on_finish()
+            self._on_finish(_sweep=_sweep)
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
@@ -1382,7 +1399,7 @@ class Run(RunBase):
             time.sleep(2)
         return ret
 
-    def _on_finish(self):
+    def _on_finish(self, _sweep=False):
         trigger.call("on_finished")
 
         if self._run_status_checker:
@@ -1391,7 +1408,8 @@ class Run(RunBase):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        self._console_stop()  # TODO: there's a race here with jupyter console logging
+        if not _sweep:
+            self._console_stop()  # TODO: there's a race here with jupyter console logging
         pid = self._backend._internal_pid
 
         status_str = "Waiting for W&B process to finish, PID {}".format(pid)
@@ -1768,6 +1786,6 @@ class WriteSerializingFile(object):
             self.lock.release()
 
 
-def finish(exit_code=None):
+def finish(exit_code=None, _sweep=False):
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code)
+        wandb.run.finish(exit_code=exit_code, _sweep=_sweep)

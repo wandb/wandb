@@ -159,6 +159,7 @@ class Agent(object):
     def _heartbeat(self):
         while True:
             if self._exit_flag:
+                wandb.finish()
                 return
             # if not self._main_thread.isAlive():
             #     return
@@ -270,7 +271,7 @@ class Agent(object):
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
             self._function()
-            wandb.finish()
+            wandb.finish(_sweep=True)
         except KeyboardInterrupt as ki:
             raise ki
         except Exception as e:
@@ -289,7 +290,7 @@ class Agent(object):
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         # self._main_thread.start()
         self._heartbeat_thread.start()
         # self._main_thread.join()
