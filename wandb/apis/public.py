@@ -2693,6 +2693,7 @@ class Artifact(object):
         """
             % ARTIFACT_FRAGMENT
         )
+        response = None
         try:
             response = self.client.execute(
                 query,
