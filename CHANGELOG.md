@@ -1,3 +1,9 @@
+## 0.10.7 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Fix issue when checking for updated releases on pypi
+
 ## 0.10.6 (October 15, 2020)
 
 #### :bug: Bug Fix
