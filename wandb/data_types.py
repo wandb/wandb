@@ -1273,7 +1273,7 @@ class Plotly(Media):
     @classmethod
     def make_plot_media(cls, val):
         if util.is_matplotlib_typename(util.get_full_typename(val)):
-            if util.matplotlib_contains_images(val)
+            if util.matplotlib_contains_images(val):
                 return Image(val)
             val = util.matplotlib_to_plotly(val)
         return cls(val)
@@ -1284,6 +1284,10 @@ class Plotly(Media):
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
             # If it is not, but it is a matplotlib figure, then attempt to convert it to plotly
             if util.is_matplotlib_typename(util.get_full_typename(val)):
+                if util.matplotlib_contains_images(val):
+                    raise ValueError(
+                        'Plotly does not currently support converting matplotlib figures containing images. \
+                            You can convert the plot to a static image with `wandb.Image(plt)` ')
                 val = util.matplotlib_to_plotly(val)
             else:
                 raise ValueError(

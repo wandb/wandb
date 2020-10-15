@@ -337,14 +337,14 @@ def ensure_matplotlib_figure(obj):
     return obj
 
 def matplotlib_to_plotly(obj):
-    obj = util.ensure_matplotlib_figure(obj)
-    tools = util.get_module("plotly.tools", 
+    obj = ensure_matplotlib_figure(obj)
+    tools = get_module("plotly.tools", 
         required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-    return tools.mpl_to_plotly(val)
+    return tools.mpl_to_plotly(obj)
 
 def matplotlib_contains_images(obj):
-    val = util.ensure_matplotlib_figure(obj)
-    return any(len(ax.images) > 0 for ax in val.axes)
+    obj = ensure_matplotlib_figure(obj)
+    return any(len(ax.images) > 0 for ax in obj.axes)
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""

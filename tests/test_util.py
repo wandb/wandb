@@ -5,6 +5,8 @@ import pytest
 import numpy
 import platform
 import tensorflow
+import plotly
+import matplotlib.pyplot as plt 
 
 from . import utils
 from wandb import util
@@ -229,3 +231,37 @@ def test_sizeof_fmt():
     assert util.sizeof_fmt(1000) == "1000.0B"
     assert util.sizeof_fmt(1000000) == "976.6KiB"
     assert util.sizeof_fmt(5000000) == "4.8MiB"
+
+def test_matplotlib_contains_images():
+    '''Ensures that the utility function can properly detect if immages are in a
+    matplotlib figure'''
+    # fig true
+    fig = utils.matplotlib_with_image()
+    assert utils.matplotlib_contains_images(fig)
+    plt.close()
+
+    # plt true
+    fig = utils.matplotlib_with_image()
+    assert util.matplotlib_contains_images(plt)
+    plt.close()
+
+    # fig false
+    fig = utils.matplotlib_without_image()
+    assert not util.matplotlib_contains_images(fig)
+    plt.close()
+
+    # plt false
+    fig = utils.matplotlib_without_image()
+    assert not util.matplotlib_contains_images(plt)
+    plt.close()
+
+def test_matplotlib_to_plotly():
+    '''Ensures that the utility function can properly transform a pyplot object to a
+    plotly object (not the wandb.* versions'''
+    fig = utils.matplotlib_without_image()
+    assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
+    plt.close()
+
+    fig = utils.matplotlib_without_image()
+    assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
+    plt.close()
