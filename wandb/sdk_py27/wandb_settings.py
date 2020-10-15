@@ -25,6 +25,7 @@ Override priorities are in the reverse order of non-override settings
 import configparser
 import copy
 from datetime import datetime
+from distutils.util import strtobool
 import enum
 import getpass
 import itertools
@@ -60,7 +61,6 @@ logger = logging.getLogger("wandb")
 
 defaults = dict(
     base_url="https://api.wandb.ai",
-    show_warnings=2,
     summary_warnings=5,
     git_remote="origin",
     ignore_globs=(),
@@ -88,6 +88,7 @@ env_settings = dict(
     anonymous=None,
     ignore_globs=None,
     resume=None,
+    silent=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -169,6 +170,14 @@ def get_wandb_dir(root_dir):
     return path
 
 
+def _str_as_bool(val):
+    try:
+        val = bool(strtobool(val))
+    except (AttributeError, ValueError):
+        pass
+    return val if isinstance(val, bool) else None
+
+
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
@@ -206,6 +215,10 @@ class Settings(object):
     sync_symlink_latest_spec = None
     settings_system_spec = None
     settings_workspace_spec = None
+    silent = False
+    show_info = True
+    show_warnings = True
+    show_errors = True
 
     # Private attributes
     # __start_time: Optional[float]
@@ -313,7 +326,7 @@ class Settings(object):
         # compute environment
         show_colors=None,
         show_emoji=None,
-        show_console=None,
+        silent=None,
         show_info=None,
         show_warnings=None,
         show_errors=None,
@@ -359,6 +372,30 @@ class Settings(object):
         if self.mode in ("dryrun", "offline"):
             ret = True
         return ret
+
+    @property
+    def _silent(self):
+        if not self.silent:
+            return None
+        return _str_as_bool(self.silent)
+
+    @property
+    def _show_info(self):
+        if not self.show_info:
+            return None
+        return _str_as_bool(self.show_info)
+
+    @property
+    def _show_warnings(self):
+        if not self.show_warnings:
+            return None
+        return _str_as_bool(self.show_warnings)
+
+    @property
+    def _show_errors(self):
+        if not self.show_errors:
+            return None
+        return _str_as_bool(self.show_errors)
 
     @property
     def _noop(self):
@@ -498,6 +535,26 @@ class Settings(object):
         if value in choices:
             return
         return _error_choices(value, choices)
+
+    def _validate_silent(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_info(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_warnings(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_errors(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
 
     def _start_run(self):
         datetime_now = datetime.now()
