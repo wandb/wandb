@@ -137,8 +137,7 @@ class Redirect(object):
                 fp.close()
             except Exception:
                 pass  # Stream might be wrapped by another program which doesn't support closing.
-        else:
-            os.dup2(to_fd, self._old_fd)
+        os.dup2(to_fd, self._old_fd)
         if self._io_wrapped:
             if close:
                 setattr(sys, self._stream, getattr(sys, self._stream).output_streams[0])
