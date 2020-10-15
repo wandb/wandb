@@ -289,7 +289,7 @@ class Agent(object):
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
         # self._main_thread.start()
         self._heartbeat_thread.start()
         # self._main_thread.join()
