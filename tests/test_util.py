@@ -237,7 +237,7 @@ def test_matplotlib_contains_images():
     matplotlib figure'''
     # fig true
     fig = utils.matplotlib_with_image()
-    assert utils.matplotlib_contains_images(fig)
+    assert util.matplotlib_contains_images(fig)
     plt.close()
 
     # plt true
