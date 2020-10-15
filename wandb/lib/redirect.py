@@ -104,37 +104,6 @@ class StreamWrapper(object):
             self.installed = False
 
 
-def _pipe_relay(stopped, fd, name, cb, tee, output_writer):
-    while True:
-        try:
-            data = os.read(fd, 4096)
-        except OSError:
-            # TODO(jhr): handle this
-            return
-        if len(data) == 0:
-            break
-        if stopped.isSet():
-            # TODO(jhr): Is this going to capture all timings?
-            if data.endswith(_LAST_WRITE_TOKEN.encode()):
-                logger.info("relay done saw last write: %s", name)
-                break
-        if tee:
-            os.write(tee, data)
-        if output_writer:
-            output_writer.write(data)
-        if cb:
-            try:
-                cb(name, data)
-            except Exception:
-                logger.exception("problem in pipe relay")
-                # Prevent further callbacks
-                # TODO(jhr): how does error get propogated?
-                # cb = None
-                # exc_info = sys.exc_info()
-                # six.reraise(*exc_info)
-    logger.info("relay done done: %s", name)
-
-
 class Redirect(object):
     def __init__(self, src, dest, unbuffered=False, tee=False):
         self._installed = False
