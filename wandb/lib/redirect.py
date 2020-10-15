@@ -165,7 +165,7 @@ class Redirect(object):
 
         logger.info("install start")
 
-        fp = getattr(sys, self._stream)
+        fp = getattr(sys, "__%s__" % self._stream)
         fd = fp.fileno()
         old_fp = os.fdopen(os.dup(fd), "w")
 
