@@ -88,4 +88,8 @@ def check_available(current_version):
             yank_message += "\nReason: %s" % yanked_reason
 
     # A new version is available!
-    return upgrade_message, yank_message, delete_message
+    return {
+        "upgrade_message": upgrade_message,
+        "yank_message": yank_message,
+        "delete_message": delete_message,
+    }
