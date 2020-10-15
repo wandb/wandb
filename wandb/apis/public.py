@@ -2693,25 +2693,27 @@ class Artifact(object):
         """
             % ARTIFACT_FRAGMENT
         )
-        response = self.client.execute(
-            query,
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "name": self.artifact_name,
-            },
-        )
-        if (
-            response is None
-            or response.get("project") is None
-            or response["project"].get("artifact") is None
-        ):
+        try:
+            response = self.client.execute(
+                query,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "name": self.artifact_name,
+                },
+            )
+        except Exception:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
             if ":" not in self.artifact_name and len(self.artifact_name) != 32:
                 raise ValueError(
                     'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
                 )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifact") is None
+        ):
             raise ValueError(
                 'Project %s/%s does not contain artifact: "%s"'
                 % (self.entity, self.project, self.artifact_name)
