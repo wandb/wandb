@@ -981,7 +981,7 @@ class Run(RunBase):
             raise ValueError("File {} not found in {}.".format(name, run_path or root))
         return files[0].download(root=root, replace=True)
 
-    def finish(self, exit_code=None, _sweep=False):
+    def finish(self, exit_code=None):
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
@@ -990,7 +990,7 @@ class Run(RunBase):
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
-        self._atexit_cleanup(exit_code=exit_code, _sweep=_sweep)
+        self._atexit_cleanup(exit_code=exit_code)
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
@@ -1262,7 +1262,7 @@ class Run(RunBase):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code=None, _sweep=False):
+    def _atexit_cleanup(self, exit_code=None):
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return False
@@ -1279,7 +1279,7 @@ class Run(RunBase):
 
         self._exit_code = exit_code
         try:
-            self._on_finish(_sweep=_sweep)
+            self._on_finish()
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
@@ -1399,7 +1399,7 @@ class Run(RunBase):
             time.sleep(2)
         return ret
 
-    def _on_finish(self, _sweep=False):
+    def _on_finish(self):
         trigger.call("on_finished")
 
         if self._run_status_checker:
@@ -1408,8 +1408,7 @@ class Run(RunBase):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        if not _sweep:
-            self._console_stop()  # TODO: there's a race here with jupyter console logging
+        # self._console_stop()  # TODO: there's a race here with jupyter console logging
         pid = self._backend._internal_pid
 
         status_str = "Waiting for W&B process to finish, PID {}".format(pid)
@@ -1786,6 +1785,6 @@ class WriteSerializingFile(object):
             self.lock.release()
 
 
-def finish(exit_code=None, _sweep=False):
+def finish(exit_code=None):
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code, _sweep=_sweep)
+        wandb.run.finish(exit_code=exit_code)
