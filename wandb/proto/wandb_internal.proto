@@ -471,7 +471,5 @@ message CheckVersionRequest {
 }
 
 message CheckVersionResponse {
-  string upgrade_message = 1;
-  string yank_message = 2;
-  string delete_message = 3;
+  string message = 1;
 }
