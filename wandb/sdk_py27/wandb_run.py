@@ -122,6 +122,9 @@ class RunStatusChecker(object):
                 or False
             )
             if status_response.run_should_stop:
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
                 thread.interrupt_main()
                 return
             join_requested = self._join_event.wait(self._polling_interval)
