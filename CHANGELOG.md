@@ -1,3 +1,21 @@
+## 0.10.7 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Fix issue when checking for updated releases on pypi
+
+## 0.10.6 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Make sure code saving is enabled in jupyter environments after login
+- Sweep agents have extended timeout for large sweep configs
+- Support WANDB_SILENT environment variable
+- Warn about missing python package when logging images
+- Fix wandb.restore() to apply diff patch
+- Improve artifact error messages
+- Fix loading of config-defaults.yaml and specified list of yaml config files
+
 ## 0.10.5 (October 7, 2020)
 
 #### :nail_care: Enhancement
