@@ -294,8 +294,6 @@ class Run(RunBase):
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
-        self._upgrade_version_message = None
-        self._check_version_message = None
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -1015,12 +1013,6 @@ class Run(RunBase):
         )
         return visualization
 
-    def _set_upgrade_version_message(self, msg):
-        self._upgrade_version_message = msg
-
-    def _set_check_version_message(self, msg):
-        self._check_version_message = msg
-
     def _add_panel(self, visualize_key, panel_type, panel_config):
         if "visualize" not in self._config["_wandb"]:
             self._config["_wandb"]["visualize"] = dict()
@@ -1317,12 +1309,6 @@ class Run(RunBase):
             self._output_writer.close()
             self._output_writer = None
 
-    def _on_init(self):
-        if self._check_version_message:
-            wandb.termlog(self._check_version_message)
-        if self._upgrade_version_message:
-            wandb.termlog(self._upgrade_version_message)
-
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
@@ -1513,10 +1499,6 @@ class Run(RunBase):
                     "wandb sync {}".format(self._settings._sync_dir), fg="yellow"
                 )
             )
-
-        # display yank/deleted warning
-        if self._check_version_message:
-            wandb.termlog(self._check_version_message)
 
     def _show_summary(self):
         if self._final_summary:
