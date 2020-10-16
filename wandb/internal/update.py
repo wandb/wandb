@@ -20,21 +20,7 @@ def _find_available(current_version):
 
     # Return if no update is available
     pip_prerelease = False
-    deleted = False
-    yanked = False
-    yanked_reason = None
     parsed_current_version = parse_version(current_version)
-
-    # Check if current version has been yanked or deleted
-    if current_version in release_list:
-        for item in data["releases"][current_version]:
-            yanked = yanked or item["yanked"]
-            if item["yanked_reason"]:
-                yanked_reason = item["yanked_reason"]
-    else:
-        deleted = True
-
-    # Check pre-releases
     if parse_version(latest_version) <= parsed_current_version:
         # pre-releases are not included in latest_version
         # so if we are currently running a pre-release we check more
@@ -50,14 +36,13 @@ def _find_available(current_version):
         release_list = sorted(release_list)
         if not release_list:
             return
-
         parsed_latest_version = release_list[-1]
         if parsed_latest_version <= parsed_current_version:
             return
         latest_version = str(parsed_latest_version)
         pip_prerelease = True
 
-    return latest_version, pip_prerelease, deleted, yanked, yanked_reason
+    return (latest_version, pip_prerelease)
 
 
 def check_available(current_version):
@@ -65,9 +50,10 @@ def check_available(current_version):
     if not package_info:
         return
 
-    latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
+    latest_version, pip_prerelease = package_info
 
-    upgrade_message = (
+    # A new version is available!
+    return (
         "%s version %s is available!  To upgrade, please run:\n"
         " $ pip install %s --upgrade%s"
         % (
@@ -77,15 +63,3 @@ def check_available(current_version):
             " --pre" if pip_prerelease else "",
         )
     )
-
-    delete_message = None
-    if deleted:
-        delete_message = "WARNING: your current version has been DELETED"
-    yank_message = None
-    if yanked:
-        yank_message = "WARNING: your current version has been YANKED"
-        if yanked_reason:
-            yank_message += "\nReason: %s" % yanked_reason
-
-    # A new version is available!
-    return upgrade_message, yank_message, delete_message
