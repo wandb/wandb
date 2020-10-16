@@ -256,8 +256,7 @@ def test_artifact_get_path(runner, mock_server, api):
     with runner.isolated_filesystem():
         path = art.get_path("digits.h5")
         res = path.download()
-        path = os.path.join(os.path.expanduser("~"), ".cache", "wandb", "artifacts",
-                            "obj", "md5", "4d", "e489e31c57834a21b8be7111dab613")
+        path = os.path.join(os.getcwd(), "artifacts", art.name, "digits.ht")
         assert res == path
 
 
