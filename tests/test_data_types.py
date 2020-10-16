@@ -241,6 +241,80 @@ def test_matplotlib_image():
     img = wandb.Image(plt)
     assert img._image.width == 640
 
+def test_matplotlib_image_with_multiple_axes():
+    '''Ensures that wandb.Image constructor can accept a pyplot or figure 
+    reference in which the figure has multiple axes. Importantly, there is 
+    no requirement that any of the axes have plotted data.
+    '''
+    for fig in utils.matplotlib_multiple_axes_figures():
+        wandb.Image(fig) # this should not error.
+    
+    for fig in utils.matplotlib_multiple_axes_figures():
+        wandb.Image(plt) # this should not error.
+
+def test_matplotlib_plotly_with_multiple_axes():
+    '''Ensures that wandb.Plotly constructor can accept a plotly figure 
+    reference in which the figure has multiple axes. Importantly, there is 
+    no requirement that any of the axes have plotted data.
+    '''
+    for fig in utils.matplotlib_multiple_axes_figures():
+        wandb.Plotly(fig) # this should not error.
+    
+    for fig in utils.matplotlib_multiple_axes_figures():
+        wandb.Plotly(plt) # this should not error.
+
+def test_plotly_from_matplotlib_with_image():
+    '''Ensures that wandb.Plotly constructor properly errors when
+    a pyplot with image is passed 
+    '''
+    # try the figure version
+    fig = utils.matplotlib_with_image()
+    with pytest.raises(ValueError):
+        wandb.Plotly(fig)
+    plt.close()
+
+    # try the plt version
+    fig = utils.matplotlib_with_image()
+    with pytest.raises(ValueError):
+        wandb.Plotly(plt)
+    plt.close()
+
+def test_image_from_matplotlib_with_image():
+    '''Ensures that wandb.Image constructor supports a pyplot with image is passed 
+    '''
+    # try the figure version
+    fig = utils.matplotlib_with_image()
+    wandb.Image(fig)  # this should not error.
+    plt.close()
+
+    # try the plt version
+    fig = utils.matplotlib_with_image()
+    wandb.Image(plt)  # this should not error.
+    plt.close()
+
+def test_make_plot_media_from_matplotlib_without_image():
+    '''Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
+    there is no image
+    '''
+    fig = utils.matplotlib_without_image()
+    assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Plotly
+    plt.close()
+
+    fig = utils.matplotlib_without_image()
+    assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Plotly
+    plt.close()
+
+def test_make_plot_media_from_matplotlib_with_image():
+    '''Ensures that wand.Plotly.make_plot_media() returns an Image object when
+    there is an image in the matplotlib figure
+    '''
+    fig = utils.matplotlib_with_image()
+    assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Image
+    plt.close()
+
+    fig = utils.matplotlib_with_image()
+    assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Image
+    plt.close()
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy(mocked_run):
