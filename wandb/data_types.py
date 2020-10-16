@@ -1273,21 +1273,25 @@ class Plotly(Media):
     @classmethod
     def make_plot_media(cls, val):
         if util.is_matplotlib_typename(util.get_full_typename(val)):
-            val = util.ensure_matplotlib_figure(val)
-            if any(len(ax.images) > 0 for ax in val.axes):
+            if util.matplotlib_contains_images(val):
                 return Image(val)
-            val = util.ensure_matplotlib_figure(val)
-            # otherwise, convert to plotly figure
-            tools = util.get_module(
-                "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
-            val = tools.mpl_to_plotly(val)
+            val = util.matplotlib_to_plotly(val)
         return cls(val)
 
     def __init__(self, val, **kwargs):
         super(Plotly, self).__init__()
+        # First, check to see if the incoming `val` object is a plotfly figure
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
-            raise ValueError(
-                'Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
+            # If it is not, but it is a matplotlib figure, then attempt to convert it to plotly
+            if util.is_matplotlib_typename(util.get_full_typename(val)):
+                if util.matplotlib_contains_images(val):
+                    raise ValueError(
+                        'Plotly does not currently support converting matplotlib figures containing images. \
+                            You can convert the plot to a static image with `wandb.Image(plt)` ')
+                val = util.matplotlib_to_plotly(val)
+            else:
+                raise ValueError(
+                    'Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly')
 
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + '.plotly.json')
         val = numpy_arrays_to_lists(val.to_plotly_json())
