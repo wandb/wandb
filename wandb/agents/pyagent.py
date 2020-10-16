@@ -321,5 +321,6 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
 
 _INSTANCES = 0
 
+
 def is_running():
     return bool(_INSTANCES)
