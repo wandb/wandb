@@ -194,20 +194,19 @@ class _WandbInit(object):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
         if not hasattr(os, "symlink"):
             return
-
         pid = os.getpid()
-        tmp_name = "%s.%d" % (name, pid)
-        owd = os.getcwd()
-        os.chdir(base)
+        tmp_name = os.path.join(base, "%s.%d" % (name, pid))
+
         if delete:
             try:
-                os.remove(name)
+                os.remove(os.path.join(target, name))
             except OSError:
                 pass
-        target = os.path.relpath(target, base)
-        os.symlink(target, tmp_name)
-        os.rename(tmp_name, name)
-        os.chdir(owd)
+        try:
+            os.symlink(target, tmp_name)
+            os.rename(tmp_name, os.path.join(base, name))
+        except OSError:
+            pass
 
     def _pause_backend(self):
         if self.backend is not None:
