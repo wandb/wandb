@@ -127,6 +127,11 @@ class Agent(object):
     KILL_DELAY = 30
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
+    MAX_FAILURES_AT_START = (
+        int(os.getenv(wandb.env.MAX_FAILURES_AT_START, 5))
+        if isinstance(os.getenv(wandb.env.MAX_FAILURES_AT_START, 5), int)
+        else 5
+    )
 
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
@@ -161,6 +166,12 @@ class Agent(object):
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
+
+    def is_failing(self):
+        return (
+            self._failed >= self._finished
+            and self.MAX_FAILURES_AT_START <= self._failed
+        )
 
     def run(self):  # noqa: C901
 
@@ -214,6 +225,16 @@ class Agent(object):
                             )
                             logger.info(
                                 "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                            )
+                            self._running = False
+                            break
+                        if self.is_failing():
+                            logger.error(
+                                "Detected %i failed runs in a row, shutting down.",
+                                self.MAX_FAILURES_AT_START,
+                            )
+                            logger.info(
+                                "To change this value set WANDB_MAX_FAILURES_AT_START=val"
                             )
                             self._running = False
                             break
