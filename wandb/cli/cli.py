@@ -1306,7 +1306,6 @@ def restore(ctx, run, no_git, branch, project, entity):
     commit, json_config, patch_content, metadata = api.run_config(
         project, run=run, entity=entity
     )
-    print(metadata)
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
     restore_message = (
@@ -1325,6 +1324,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             )
 
     if commit and api.git.enabled:
+        wandb.termlog("Fetching origin and finding commit: {}".format(commit))
         subprocess.check_call(["git", "fetch", "--all"])
         try:
             api.git.repo.commit(commit)
@@ -1378,10 +1378,15 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
-            # we use .call() instead of .check_call() for the same reason
-            # TODO(adrian): this means there is no error checking here
-            subprocess.call(["git", "apply", "--reject", patch_rel_path], cwd=root)
-            wandb.termlog("Applied patch")
+            exit_code = subprocess.call(
+                ["git", "apply", "--reject", patch_rel_path], cwd=root
+            )
+            if exit_code == 0:
+                wandb.termlog("Applied patch")
+            else:
+                wandb.termerror(
+                    "Failed to apply patch, try un-staging any un-committed changes"
+                )
 
     util.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")

@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = '0.10.6.dev1'
+__version__ = '0.10.7.dev1'
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = 'wandb'
@@ -29,7 +29,7 @@ import sys
 from wandb.errors import Error
 
 # This needs to be early as other modules call it.
-from wandb.errors.term import termlog, termerror, termwarn
+from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:

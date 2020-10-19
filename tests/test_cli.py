@@ -667,6 +667,7 @@ def test_local_already_running(runner, docker, local_settings):
     assert "A container named wandb-local is already running" in result.output
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="The patch in mock_server.py doesn't work in windows")
 def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     with open("patch.txt", "w") as f:
         f.write("test")
@@ -680,10 +681,7 @@ def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     assert "Applied patch" in result.output
     assert "Restored config variables to " in result.output
     assert "Launching docker container" in result.output
-    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
-                            wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
-                            ':/app', '-w', '/app', '-e',
-                            'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint + ':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd() + ':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
 
 
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
@@ -691,6 +689,7 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     api = InternalApi({'project': 'test'})
     monkeypatch.setattr(cli, '_api', api)
+
     def bad_commit(cmt):
         raise ValueError()
     monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
