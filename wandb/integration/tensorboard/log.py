@@ -3,6 +3,7 @@ import time
 
 import six
 import wandb
+from wandb.viz import create_custom_chart
 
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
@@ -124,7 +125,19 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             elif plugin_name == "images":
                 img_strs = value.tensor.string_val[2:]  # First two items are dims.
                 encode_images(img_strs, value)
-        elif kind == "image":
+            elif plugin_name == "pr_curves":
+                pr_curve_data = make_ndarray(value.tensor)
+                precision = pr_curve_data[-2, :]
+                recall = pr_curve_data[-1, :]
+                # TODO: (kdg) implement spec for showing additional info in tool tips
+                # true_pos = pr_curve_data[1,:]
+                # false_pos = pr_curve_data[2,:]
+                # true_neg = pr_curve_data[1,:]
+                # false_neg = pr_curve_data[1,:]
+                # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
+                data_table = wandb.Table(data=[precision, recall], columns=['precision', 'recall'])
+                values[namespaced_tag(value.tag, namespace)] = create_custom_chart('wandb/line/v0', data_table, {'x':'recall', 'y':'precision'}, {'title':'Precision v. Recall'})
+                continue
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)
 
@@ -208,6 +221,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """
     global STEPS
     global RATE_LIMIT
+
     history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log

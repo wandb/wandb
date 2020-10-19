@@ -13,6 +13,7 @@ from six.moves import queue
 import wandb
 from wandb import util
 from wandb.internal import run as internal_run
+from wandb.viz import CustomChart, custom_chart_panel_config
 
 
 # Give some time for tensorboard data to be flushed
@@ -315,6 +316,23 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row):
+        chart_key = None
+        for key, item in row.items():
+            if isinstance(item, CustomChart):
+                table = item.table
+                panel_config = custom_chart_panel_config(item, key, key + '_table')
+                config = {"_wandb":{"visualize": {key:{
+                    "panel_type": 'Vega2',
+                    "panel_config": panel_config
+                }}}}
+                print(config)
+                chart_key = key
+                self._tbwatcher._interface.publish_config(config)
+        if chart_key:
+            row.pop(chart_key)
+            row[chart_key + '_table'] = table
+
+
         self._tbwatcher._interface.publish_history(row, run=self._internal_run)
 
 
