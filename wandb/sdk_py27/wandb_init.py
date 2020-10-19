@@ -86,6 +86,7 @@ class _WandbInit(object):
                 if sm_api_key:
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
+                wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
 
@@ -309,6 +310,7 @@ class _WandbInit(object):
                 restore=run.restore,
                 use_artifact=run.use_artifact,
                 log_artifact=run.log_artifact,
+                plot_table=run.plot_table,
             )
             return run
 
@@ -393,6 +395,7 @@ class _WandbInit(object):
             restore=run.restore,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
+            plot_table=run.plot_table,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -459,7 +462,10 @@ def init(
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
                 sentry_exc(e)
-            getcaller()
+            if not (
+                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
+            ):
+                getcaller()
             assert logger
             if wi.settings.problem == "fatal":
                 raise
@@ -472,7 +478,7 @@ def init(
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
-        six.raise_from(Exception("interrupted"), e)
+        raise e
     except Exception as e:
         error_seen = e
         traceback.print_exc()

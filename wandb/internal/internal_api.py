@@ -391,6 +391,7 @@ class Api(object):
             viewer {
                 id
                 entity
+                email
                 flags
                 teams {
                     edges {
@@ -660,10 +661,10 @@ class Api(object):
                 bucket(name: $run) {
                     config
                     commit
-                    patch
-                    files(names: ["wandb-metadata.json"]) {
+                    files(names: ["wandb-metadata.json", "diff.patch"]) {
                         edges {
                             node {
+                                name
                                 directUrl
                             }
                         }
@@ -681,15 +682,19 @@ class Api(object):
             raise CommError("Run {}/{}/{} not found".format(entity, project, run))
         run = response["model"]["bucket"]
         commit = run["commit"]
-        patch = run["patch"]
         config = json.loads(run["config"] or "{}")
+        patch = None
+        metadata = {}
         if len(run["files"]["edges"]) > 0:
-            url = run["files"]["edges"][0]["node"]["directUrl"]
-            res = requests.get(url)
-            res.raise_for_status()
-            metadata = res.json()
-        else:
-            metadata = {}
+            for file_edge in run["files"]["edges"]:
+                name = file_edge["node"]["name"]
+                url = file_edge["node"]["directUrl"]
+                res = requests.get(url)
+                res.raise_for_status()
+                if name == "wandb-metadata.json":
+                    metadata = res.json()
+                elif name == "diff.patch":
+                    patch = res.text
         return (commit, config, patch, metadata)
 
     @normalize_exceptions
@@ -1313,6 +1318,7 @@ class Api(object):
                     "metrics": json.dumps(metrics),
                     "runState": json.dumps(run_states),
                 },
+                timeout=60,
             )
         except Exception as e:
             # GQL raises exceptions with stringified python dictionaries :/

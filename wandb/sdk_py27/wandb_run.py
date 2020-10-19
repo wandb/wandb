@@ -41,7 +41,12 @@ from wandb.lib import (
     sparkline,
 )
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
-from wandb.viz import Visualize
+from wandb.viz import (
+    create_custom_chart,
+    custom_chart_panel_config,
+    CustomChart,
+    Visualize,
+)
 
 from . import wandb_config
 from . import wandb_history
@@ -53,6 +58,10 @@ if wandb.TYPE_CHECKING:  # type: ignore
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
+
+_CONSOLE_REDIRECTED = False
+_OUT_CAP = None
+_ERR_CAP = None
 
 
 class ExitHooks(object):
@@ -113,8 +122,11 @@ class RunStatusChecker(object):
                 or False
             )
             if status_response.run_should_stop:
-                thread.interrupt_main()
-                return
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
+                    thread.interrupt_main()
+                    return
             join_requested = self._join_event.wait(self._polling_interval)
 
     def stop(self):
@@ -291,7 +303,12 @@ class Run(RunBase):
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", self._entity, self._project)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -327,6 +344,7 @@ class Run(RunBase):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+        self._restore_console = True
 
     def _freeze(self):
         self._frozen = True
@@ -416,6 +434,10 @@ class Run(RunBase):
         return self._config
 
     @property
+    def config_static(self):
+        return wandb_config.ConfigStatic(self._config)
+
+    @property
     def name(self):
         if self._name:
             return self._name
@@ -447,9 +469,8 @@ class Run(RunBase):
     def tags(self):
         if self._tags:
             return self._tags
-        if not self._run_obj:
-            return None
-        return self._run_obj.tags
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.tags
 
     @tags.setter
     def tags(self, tags):
@@ -502,6 +523,25 @@ class Run(RunBase):
         return run_obj.project
 
     @property
+    def mode(self):
+        """For compatibility with 0.9.x and earlier, deprecate eventually."""
+        return "dryrun" if self._settings._offline else "run"
+
+    @property
+    def offline(self):
+        return self._settings._offline
+
+    @property
+    def group(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group
+
+    @property
+    def job_type(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.job_type
+
+    @property
     def project(self):
         return self.project_name()
 
@@ -510,6 +550,18 @@ class Run(RunBase):
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
+
+    def get_project_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_project_url()
+
+    def get_sweep_url(self):
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_sweep_url()
 
     @property
     def url(self):
@@ -557,6 +609,7 @@ class Run(RunBase):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
+        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
                 if "viz" not in self._config["_wandb"]:
@@ -567,6 +620,23 @@ class Run(RunBase):
                 }
                 row[k] = row[k].value
                 visualize_persist_config = True
+            elif isinstance(row[k], CustomChart):
+                custom_charts[k] = row[k]
+                custom_chart = row[k]
+
+        for k, custom_chart in custom_charts.items():
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row.pop(k)
+            # add the table under a different key
+            table_key = k + "_table"
+            row[table_key] = custom_chart.table
+            # add the panel
+            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
+            self._add_panel(k, "Vega2", panel_config)
+            visualize_persist_config = True
+
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
@@ -613,7 +683,13 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            entity=run_obj.entity,
+            project=run_obj.project,
+            email=self._settings.email,
+            url=self._get_run_url(),
+        )
 
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj
@@ -903,7 +979,7 @@ class Run(RunBase):
             return None
         # if the file does not exist, the file has an md5 of 0
         if files[0].md5 == "0":
-            raise ValueError("File {} not found.".format(path))
+            raise ValueError("File {} not found in {}.".format(name, run_path or root))
         return files[0].download(root=root, replace=True)
 
     def finish(self, exit_code=None):
@@ -922,6 +998,23 @@ class Run(RunBase):
 
     def join(self, exit_code=None):
         self.finish(exit_code=exit_code)
+
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
+        """Creates a custom plot on a table.
+        Args:
+            vega_spec_name: the name of the spec for the plot
+            table_key: the key used to log the data table
+            data_table: a wandb.Table object containing the data to
+                        be used on the visualization
+            fields: a dict mapping from table keys to fields that the custom
+                    visualization needs
+            string_fields: a dict that provides values for any string constants
+                    the custom visualization needs
+        """
+        visualization = create_custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
+        return visualization
 
     def _add_panel(self, visualize_key, panel_type, panel_config):
         if "visualize" not in self._config["_wandb"]:
@@ -1061,13 +1154,23 @@ class Run(RunBase):
         logger.info("redirect: %s", console)
 
         if console == self._settings.Console.REDIRECT:
+            global _CONSOLE_REDIRECTED, _OUT_CAP, _ERR_CAP
+            if _CONSOLE_REDIRECTED:
+                self._restore_console = False
+                _OUT_CAP._cb = self._redirect_cb
+                _OUT_CAP._output_writer = self._output_writer
+                _ERR_CAP._cb = self._redirect_cb
+                _ERR_CAP._output_writer = self._output_writer
+                return
             logger.info("Redirecting console.")
             out_cap = redirect.Capture(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )
+            _OUT_CAP = out_cap
             err_cap = redirect.Capture(
                 name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
+            _ERR_CAP = err_cap
             out_redir = redirect.Redirect(
                 src="stdout", dest=out_cap, unbuffered=True, tee=True
             )
@@ -1106,6 +1209,8 @@ class Run(RunBase):
             self._out_redir = out_redir
             self._err_redir = err_redir
             logger.info("Redirects installed.")
+            if console == self._settings.Console.REDIRECT:
+                _CONSOLE_REDIRECTED = True
         except Exception as e:
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
@@ -1135,7 +1240,7 @@ class Run(RunBase):
     def _restore(self):
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
+        if self._use_redirect and self._restore_console:
             if self._out_redir:
                 self._out_redir.uninstall()
             if self._err_redir:
@@ -1170,7 +1275,9 @@ class Run(RunBase):
         self._exit_code = exit_code
         try:
             self._on_finish()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            if wandb.wandb_agent._is_running():
+                raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
         except Exception as e:
             self._console_stop()
@@ -1197,8 +1304,9 @@ class Run(RunBase):
 
     def _console_stop(self):
         self._restore()
-        self._output_writer.close()
-        self._output_writer = None
+        if self._output_writer:
+            self._output_writer.close()
+            self._output_writer = None
 
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
@@ -1285,7 +1393,7 @@ class Run(RunBase):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        self._console_stop()  # TODO: there's a race here with jupyter console logging
+        # self._console_stop()  # TODO: there's a race here with jupyter console logging
         pid = self._backend._internal_pid
 
         status_str = "Waiting for W&B process to finish, PID {}".format(pid)

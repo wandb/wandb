@@ -215,7 +215,7 @@ def write_key(settings, key):
 
     # Normal API keys are 40-character hex strings. Onprem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
-    prefix, suffix = key.split("-") if "-" in key else ("", key)
+    prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
 
     if len(suffix) == 40:
         write_netrc(settings.base_url, "user", key)
@@ -225,8 +225,7 @@ def write_key(settings, key):
 
 def api_key(settings=None):
     if not settings:
-        wl = wandb.setup()
-        settings = wl.settings()
+        settings = wandb.setup().settings
     if settings.api_key:
         return settings.api_key
     auth = requests.utils.get_netrc_auth(settings.base_url)

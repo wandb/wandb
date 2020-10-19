@@ -395,19 +395,19 @@ def init(ctx, project, entity, reset):
 @click.option(
     "--include-online/--no-include-online",
     is_flag=True,
-    default=False,
+    default=None,
     help="Include online runs",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
-    default=True,
+    default=None,
     help="Include offline runs",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
-    default=False,
+    default=None,
     help="Include synced runs",
 )
 @click.option(
@@ -468,27 +468,46 @@ def sync(
         exclude_globs = exclude_globs.split(",")
 
     def _summary():
-        sync_items = get_runs()
+        all_items = get_runs(
+            include_online=True,
+            include_offline=True,
+            include_synced=True,
+            include_unsynced=True,
+        )
+        sync_items = get_runs(
+            include_online=include_online if include_online is not None else True,
+            include_offline=include_offline if include_offline is not None else True,
+            include_synced=include_synced if include_synced is not None else False,
+            include_unsynced=True,
+            exclude_globs=exclude_globs,
+            include_globs=include_globs,
+        )
         synced = []
         unsynced = []
-        for item in sync_items:
+        for item in all_items:
             (synced if item.synced else unsynced).append(item)
-        if synced:
-            wandb.termlog("Number of synced runs: {}".format(len(synced)))
-        if unsynced:
-            wandb.termlog("Number of runs to be synced: {}".format(len(unsynced)))
-            if show and show < len(unsynced):
-                wandb.termlog("Showing {} unsynced runs:".format(show))
-            for item in unsynced[: (show or len(unsynced))]:
+        if sync_items:
+            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            if show and show < len(sync_items):
+                wandb.termlog("Showing {} runs to be synced:".format(show))
+            for item in sync_items[: (show or len(sync_items))]:
                 wandb.termlog("  {}".format(item))
+        else:
+            wandb.termlog("No runs to be synced.")
         if synced:
-            if not clean:
-                wandb.termlog(
-                    "NOTE: use sync --clean to cleanup synced runs from local directory."
+            clean_cmd = click.style("wandb sync --clean", fg="yellow")
+            wandb.termlog(
+                "NOTE: use {} to delete {} synced runs from local directory.".format(
+                    clean_cmd, len(synced)
                 )
+            )
         if unsynced:
-            if not path and not sync_all:
-                wandb.termlog("NOTE: use sync --sync-all to sync all unsynced runs.")
+            sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
+            wandb.termlog(
+                "NOTE: use {} to sync {} unsynced runs from local directory.".format(
+                    sync_cmd, len(unsynced)
+                )
+            )
 
     def _sync_path(path):
         if run_id and len(path) > 1:
@@ -512,9 +531,10 @@ def sync(
 
     def _sync_all():
         sync_items = get_runs(
-            include_online=include_online,
-            include_offline=include_offline,
-            include_synced=include_synced,
+            include_online=include_online if include_online is not None else True,
+            include_offline=include_offline if include_offline is not None else True,
+            include_synced=include_synced if include_synced is not None else False,
+            include_unsynced=True,
             exclude_globs=exclude_globs,
             include_globs=include_globs,
         )
@@ -539,9 +559,9 @@ def sync(
             click.echo(click.style("Success!", fg="green"))
             return
         runs = get_runs(
-            include_online=True,
-            include_offline=True,
-            include_synced=True,
+            include_online=include_online if include_online is not None else True,
+            include_offline=include_offline if include_offline is not None else True,
+            include_synced=include_synced if include_synced is not None else True,
             include_unsynced=False,
             exclude_globs=exclude_globs,
             include_globs=include_globs,
@@ -762,7 +782,7 @@ def agent(ctx, project, entity, count, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.run_agent(sweep_id, entity=entity, project=project, count=count)
+    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
@@ -1286,7 +1306,6 @@ def restore(ctx, run, no_git, branch, project, entity):
     commit, json_config, patch_content, metadata = api.run_config(
         project, run=run, entity=entity
     )
-    print(metadata)
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
     restore_message = (
@@ -1305,6 +1324,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             )
 
     if commit and api.git.enabled:
+        wandb.termlog("Fetching origin and finding commit: {}".format(commit))
         subprocess.check_call(["git", "fetch", "--all"])
         try:
             api.git.repo.commit(commit)
@@ -1358,10 +1378,15 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
-            # we use .call() instead of .check_call() for the same reason
-            # TODO(adrian): this means there is no error checking here
-            subprocess.call(["git", "apply", "--reject", patch_rel_path], cwd=root)
-            wandb.termlog("Applied patch")
+            exit_code = subprocess.call(
+                ["git", "apply", "--reject", patch_rel_path], cwd=root
+            )
+            if exit_code == 0:
+                wandb.termlog("Applied patch")
+            else:
+                wandb.termerror(
+                    "Failed to apply patch, try un-staging any un-committed changes"
+                )
 
     util.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")

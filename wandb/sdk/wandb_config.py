@@ -31,6 +31,8 @@ class Config(object):
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
 
+        self._load_defaults()
+
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
 
@@ -114,6 +116,11 @@ class Config(object):
             self._locked[k] = num
             self._items[k] = v
 
+    def _load_defaults(self):
+        conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
+        if conf_dict is not None:
+            self.update(conf_dict)
+
     def _sanitize_dict(self, config_dict, allow_val_change=None):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
@@ -163,3 +170,23 @@ class Config(object):
             if val.__class__.__module__ not in ("builtins", "__builtin__"):
                 val = str(val)
             return val
+
+
+class ConfigStatic(object):
+    def __init__(self, config):
+        object.__setattr__(self, "__dict__", dict(config))
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def __setitem__(self, key, val):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __str__(self):
+        return str(self.__dict__)

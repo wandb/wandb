@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@2.2.0
+  win: circleci/windows@2.4.0
 
 workflows:
   main:
@@ -76,11 +76,16 @@ jobs:
                   command: |
                       pip install tox
             - run:
+                  name: Temporary conda hack
+                  shell: bash.exe
+                  command: |
+                      cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
+            - run:
                   name: Run tests
                   shell: bash.exe
                   command: |
                       tox -v -e py37
-                  no_output_timeout: 5m
+                  no_output_timeout: 10m
     mac:
         macos:
             xcode: 11.4.1

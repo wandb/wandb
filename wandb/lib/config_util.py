@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import six
@@ -6,6 +7,9 @@ from wandb.errors import Error
 from wandb.lib import filesystem
 from wandb.util import load_yaml
 import yaml
+
+
+logger = logging.getLogger("wandb")
 
 
 class ConfigError(Error):  # type: ignore
@@ -43,17 +47,22 @@ def save_config_file_from_dict(config_filename, config_dict):
         conf_file.write(data)
 
 
-def dict_from_config_file(config_filename):
+def dict_from_config_file(filename, must_exist=False):
+    if not os.path.exists(filename):
+        if must_exist:
+            raise ConfigError("config file %s doesn't exist" % filename)
+        logger.debug('no default config file found in %s' % filename)
+        return None
     try:
-        conf_file = open(config_filename)
+        conf_file = open(filename)
     except OSError:
-        raise ConfigError("Couldn't read config file: %s" % config_filename)
+        raise ConfigError("Couldn't read config file: %s" % filename)
     try:
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:
         raise ConfigError("Invalid YAML in config yaml")
     config_version = loaded.pop("wandb_version", None)
-    if config_version != 1:
+    if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
     data = dict()
     for k, v in six.iteritems(loaded):

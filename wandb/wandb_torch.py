@@ -127,7 +127,7 @@ class TorchHistory(object):
         if (isinstance(tensor, tuple) or isinstance(tensor, list)):
             while (isinstance(tensor, tuple) or isinstance(tensor, list)) and (isinstance(tensor[0], tuple) or isinstance(tensor[0], list)):
                 tensor = [item for sublist in tensor for item in sublist]
-            tensor = torch.cat([t.view(-1) for t in tensor])
+            tensor = torch.cat([t.reshape(-1) for t in tensor])
 
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, 'shape'):
@@ -162,7 +162,7 @@ class TorchHistory(object):
             sparse_zeros = all_values - non_zero_values
             tensor = backing_values
 
-        flat = tensor.view(-1)
+        flat = tensor.reshape(-1)
 
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):

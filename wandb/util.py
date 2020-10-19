@@ -95,12 +95,16 @@ def sentry_reraise(exc):
     six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
-def sentry_set_scope(process_context, entity, project, url=None):
-    with configure_scope() as scope:
+def sentry_set_scope(process_context, entity, project, email=None, url=None):
+    # Using GLOBAL_HUB means these tags will persist between threads.
+    # Normally there is one hub per thread.
+    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("process_context", process_context)
         scope.set_tag("entity", entity)
         scope.set_tag("project", project)
-        if url is not None:
+        if email:
+            scope.user = {"email": email}
+        if url:
             scope.set_tag("url", url)
 
 
@@ -330,10 +334,17 @@ def ensure_matplotlib_figure(obj):
             if not isinstance(obj, Figure):
                 raise ValueError(
                     "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted.")
-    if not obj.gca().has_data():
-        raise ValueError(
-            "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
     return obj
+
+def matplotlib_to_plotly(obj):
+    obj = ensure_matplotlib_figure(obj)
+    tools = get_module("plotly.tools", 
+        required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+    return tools.mpl_to_plotly(obj)
+
+def matplotlib_contains_images(obj):
+    obj = ensure_matplotlib_figure(obj)
+    return any(len(ax.images) > 0 for ax in obj.axes)
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
