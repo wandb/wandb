@@ -104,37 +104,6 @@ class StreamWrapper(object):
             self.installed = False
 
 
-def _pipe_relay(stopped, fd, name, cb, tee, output_writer):
-    while True:
-        try:
-            data = os.read(fd, 4096)
-        except OSError:
-            # TODO(jhr): handle this
-            return
-        if len(data) == 0:
-            break
-        if stopped.isSet():
-            # TODO(jhr): Is this going to capture all timings?
-            if data.endswith(_LAST_WRITE_TOKEN.encode()):
-                logger.info("relay done saw last write: %s", name)
-                break
-        if tee:
-            os.write(tee, data)
-        if output_writer:
-            output_writer.write(data)
-        if cb:
-            try:
-                cb(name, data)
-            except Exception:
-                logger.exception("problem in pipe relay")
-                # Prevent further callbacks
-                # TODO(jhr): how does error get propogated?
-                cb = None
-                # exc_info = sys.exc_info()
-                # six.reraise(*exc_info)
-    logger.info("relay done done: %s", name)
-
-
 class Redirect(object):
     def __init__(self, src, dest, unbuffered=False, tee=False):
         self._installed = False
@@ -251,9 +220,9 @@ class Capture(object):
         #     joining, and closing
         read_thread = threading.Thread(
             name=self._name,
-            target=_pipe_relay,
-            args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee,
-                  self._output_writer),
+            target=self._pipe_relay,
+            # args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee,
+            #       self._output_writer),
         )
         read_thread.daemon = True
         read_thread.start()
@@ -276,3 +245,34 @@ class Capture(object):
         logger.info("_stop joined: %s", name)
         os.close(self._pipe_rd)
         logger.info("_stop rd closed: %s", name)
+
+    def _pipe_relay(self):
+        while True:
+            try:
+                data = os.read(self._pipe_rd, 4096)
+            except OSError:
+                # TODO(jhr): handle this
+                return
+            if len(data) == 0:
+                break
+            if self._stopped.isSet():
+                # TODO(jhr): Is this going to capture all timings?
+                if data.endswith(_LAST_WRITE_TOKEN.encode()):
+                    logger.info("relay done saw last write: %s", self._name)
+                    break
+            if self._tee:
+                os.write(self._tee, data)
+            if self._output_writer:
+                self._output_writer.write(data)
+            if self._cb:
+                try:
+                    self._cb(self._name, data)
+                except Exception:
+                    pass
+                    # logger.exception("problem in pipe relay")
+                    # Prevent further callbacks
+                    # TODO(jhr): how does error get propogated?
+                    # cb = None
+                    # exc_info = sys.exc_info()
+                    # six.reraise(*exc_info)
+        logger.info("relay done done: %s", self._name)
