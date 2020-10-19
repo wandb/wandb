@@ -89,10 +89,12 @@ class Agent(object):
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
         self._run_threads = {}
+        self._lock = threading.Lock()
         self._queue = queue.Queue()
         self._stopped_runs = set()
         self._exit_flag = False
         self._errored_runs = {}
+        self._start_time = time.time()
 
     def _register(self):
         logger.debug("Agent._register()")
@@ -122,25 +124,27 @@ class Agent(object):
         self._register()
 
     def _run_status(self):
-        run_status = {}
-        dead_runs = []
-        for k, v in self._run_threads.items():
-            if v.isAlive():
-                run_status[k] = True
-            else:
-                dead_runs.append(k)
-        # clean up dead runs
-        for k in dead_runs:
-            del self._run_threads[k]
-        return run_status
+        with self._lock:
+            run_status = {}
+            dead_runs = []
+            for k, v in self._run_threads.items():
+                if v.isAlive():
+                    run_status[k] = True
+                else:
+                    dead_runs.append(k)
+            # clean up dead runs
+            for k in dead_runs:
+                del self._run_threads[k]
+            return run_status
 
     def _stop_run(self, run_id):
         logger.debug("Stopping run {}.".format(run_id))
         self._stopped_runs.add(run_id)
-        thread = self._run_threads.get(run_id)
-        if thread:
-            _terminate_thread(thread)
-            del self._run_threads[run_id]
+        with self._lock:
+            thread = self._run_threads.get(run_id)
+            if thread:
+                _terminate_thread(thread)
+                del self._run_threads[run_id]
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
@@ -172,79 +176,86 @@ class Agent(object):
                 return
             time.sleep(5)
 
-    def _run_jobs_from_queue(self):
+    def _run_jobs_from_queue(self):  # noqa:C901
+        global _INSTANCES
+        _INSTANCES += 1
         waiting = False
         count = 0
-        while True:
-            if self._exit_flag:
-                return
-            try:
-                try:
-                    job = self._queue.get(timeout=5)
-                    if self._exit_flag:
-                        logger.debug("Exiting main loop due to exit flag.")
-                        wandb.termlog("Sweep Agent: Exiting.")
-                        return
-                except queue.Empty:
-                    if not waiting:
-                        logger.debug("Paused.")
-                        wandb.termlog("Sweep Agent: Waiting for job.")
-                        waiting = True
-                    time.sleep(5)
-                    if self._exit_flag:
-                        logger.debug("Exiting main loop due to exit flag.")
-                        wandb.termlog("Sweep Agent: Exiting.")
-                        return
-                    continue
-                if waiting:
-                    logger.debug("Resumed.")
-                    wandb.termlog("Job received.")
-                    waiting = False
-                count += 1
-                run_id = job.run_id
-                logger.debug("Spawning new thread for run {}.".format(run_id))
-                thread = threading.Thread(target=self._run_job, args=(job,))
-                self._run_threads[run_id] = thread
-                thread.start()
-                thread.join()
-                logger.debug("Thread joined for run {}.".format(run_id))
-                exc = self._errored_runs.get(run_id)
-                if exc:
-                    logger.error("Run {} errored: {}".format(run_id, repr(exc)))
-                    wandb.termerror("Run {} errored: {}".format(run_id, repr(exc)))
-                    if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
-                        self._exit_flag = True
-                        return
-                    elif (
-                        time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS
-                    ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
-                        msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
-                            self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
-                        )
-                        logger.error(msg)
-                        wandb.termerror(msg)
-                        wandb.termlog(
-                            "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
-                        )
-                        self._exit_flag = True
-                        return
-                del self._run_threads[job.run_id]
-                if self._count and self._count == count:
-                    logger.debug("Exiting main loop because max count reached.")
-                    self._exit_flag = True
-                    return
-            except KeyboardInterrupt:
-                logger.debug("Ctrl + C detected. Stopping sweep.")
-                wandb.termlog("Ctrl + C detected. Stopping sweep.")
-                self._exit()
-                return
-            except Exception as e:
+        try:
+            while True:
                 if self._exit_flag:
-                    logger.debug("Exiting main loop due to exit flag.")
-                    wandb.termlog("Sweep Agent: Killed.")
                     return
-                else:
-                    raise e
+                try:
+                    try:
+                        job = self._queue.get(timeout=5)
+                        if self._exit_flag:
+                            logger.debug("Exiting main loop due to exit flag.")
+                            wandb.termlog("Sweep Agent: Exiting.")
+                            return
+                    except queue.Empty:
+                        if not waiting:
+                            logger.debug("Paused.")
+                            wandb.termlog("Sweep Agent: Waiting for job.")
+                            waiting = True
+                        time.sleep(5)
+                        if self._exit_flag:
+                            logger.debug("Exiting main loop due to exit flag.")
+                            wandb.termlog("Sweep Agent: Exiting.")
+                            return
+                        continue
+                    if waiting:
+                        logger.debug("Resumed.")
+                        wandb.termlog("Job received.")
+                        waiting = False
+                    count += 1
+                    run_id = job.run_id
+                    logger.debug("Spawning new thread for run {}.".format(run_id))
+                    thread = threading.Thread(target=self._run_job, args=(job,))
+                    self._run_threads[run_id] = thread
+                    thread.start()
+                    thread.join()
+                    logger.debug("Thread joined for run {}.".format(run_id))
+                    exc = self._errored_runs.get(run_id)
+                    if exc:
+                        logger.error("Run {} errored: {}".format(run_id, repr(exc)))
+                        wandb.termerror("Run {} errored: {}".format(run_id, repr(exc)))
+                        if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
+                            self._exit_flag = True
+                            return
+                        elif (
+                            time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
+                        ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
+                            msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
+                                self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
+                            )
+                            logger.error(msg)
+                            wandb.termerror(msg)
+                            wandb.termlog(
+                                "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                            )
+                            self._exit_flag = True
+                            return
+                    with self._lock:
+                        if run_id in self._run_threads:
+                            self._run_threads[run_id]
+                    if self._count and self._count == count:
+                        logger.debug("Exiting main loop because max count reached.")
+                        self._exit_flag = True
+                        return
+                except KeyboardInterrupt:
+                    logger.debug("Ctrl + C detected. Stopping sweep.")
+                    wandb.termlog("Ctrl + C detected. Stopping sweep.")
+                    self._exit()
+                    return
+                except Exception as e:
+                    if self._exit_flag:
+                        logger.debug("Exiting main loop due to exit flag.")
+                        wandb.termlog("Sweep Agent: Killed.")
+                        return
+                    else:
+                        raise e
+        finally:
+            _INSTANCES -= 1
 
     def _run_job(self, job):
         try:
@@ -306,3 +317,10 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         sweep_id, function=function, entity=entity, project=project, count=count,
     )
     agent.run()
+
+
+_INSTANCES = 0
+
+
+def is_running():
+    return bool(_INSTANCES)
