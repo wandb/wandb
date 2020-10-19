@@ -59,10 +59,6 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
 
-_CONSOLE_REDIRECTED = False
-_OUT_CAP = None
-_ERR_CAP = None
-
 
 class ExitHooks(object):
     def __init__(self):
@@ -122,11 +118,8 @@ class RunStatusChecker(object):
                 or False
             )
             if status_response.run_should_stop:
-                # TODO(frz): This check is required
-                # until WB-3606 is resolved on server side.
-                if not wandb.agents.pyagent.is_running():
-                    thread.interrupt_main()
-                    return
+                thread.interrupt_main()
+                return
             join_requested = self._join_event.wait(self._polling_interval)
 
     def stop(self):
@@ -346,7 +339,6 @@ class Run(RunBase):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
-        self._restore_console = True
 
     def _freeze(self):
         self._frozen = True
@@ -1162,23 +1154,13 @@ class Run(RunBase):
         logger.info("redirect: %s", console)
 
         if console == self._settings.Console.REDIRECT:
-            global _CONSOLE_REDIRECTED, _OUT_CAP, _ERR_CAP
-            if _CONSOLE_REDIRECTED:
-                self._restore_console = False
-                _OUT_CAP._cb = self._redirect_cb
-                _OUT_CAP._output_writer = self._output_writer
-                _ERR_CAP._cb = self._redirect_cb
-                _ERR_CAP._output_writer = self._output_writer
-                return
             logger.info("Redirecting console.")
             out_cap = redirect.Capture(
                 name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )
-            _OUT_CAP = out_cap
             err_cap = redirect.Capture(
                 name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
-            _ERR_CAP = err_cap
             out_redir = redirect.Redirect(
                 src="stdout", dest=out_cap, unbuffered=True, tee=True
             )
@@ -1217,8 +1199,6 @@ class Run(RunBase):
             self._out_redir = out_redir
             self._err_redir = err_redir
             logger.info("Redirects installed.")
-            if console == self._settings.Console.REDIRECT:
-                _CONSOLE_REDIRECTED = True
         except Exception as e:
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
@@ -1248,7 +1228,7 @@ class Run(RunBase):
     def _restore(self):
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect and self._restore_console:
+        if self._use_redirect:
             if self._out_redir:
                 self._out_redir.uninstall()
             if self._err_redir:
@@ -1411,7 +1391,7 @@ class Run(RunBase):
         # make sure all uncommitted history is flushed
         self.history._flush()
 
-        # self._console_stop()  # TODO: there's a race here with jupyter console logging
+        self._console_stop()  # TODO: there's a race here with jupyter console logging
         pid = self._backend._internal_pid
 
         status_str = "Waiting for W&B process to finish, PID {}".format(pid)
