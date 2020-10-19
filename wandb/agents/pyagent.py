@@ -87,6 +87,7 @@ class Agent(object):
         self._api = InternalApi()
         self._agent_id = None
         # if the directory to log to is not set, set it
+        #print("BLAH DIR", os.environ.get(wandb.env.dir))
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
