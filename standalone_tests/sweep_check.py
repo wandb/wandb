@@ -57,7 +57,6 @@ def train_and_check_chdir(**kwargs):
             pass
         os.chdir('./test_chdir')
     run = wandb.init()
-    print(run.dir)
     with run:
         c=dict(run.config)
         root = c.get('root')
@@ -71,8 +70,9 @@ def train_and_check_chdir(**kwargs):
             val = run.config.param0 + run.config.param1 * n + run.config.param2 * n * n
             wandb.log(dict(val_acc=val))
         files = os.listdir(run.dir)
-        print(files)
+        # check files were saved to the right place
         assert set(files) == set(['requirements.txt', 'output.log', 'config.yaml', 'wandb-summary.json', 'wandb-metadata.json']), print(files)
+        # ensure run dir does not contain test_chdir, and no files were saved there
         assert 'test_chdir' not in run.dir
         for root, dir, files in os.walk("."):
             assert files == [], print(files)
@@ -192,6 +192,7 @@ def sweep_grid_hyperband(args):
     # TODO(check stopped)
     check(sweep_id, num=9, result=2 + 4*L + 1.5*L*L, stopped=3)
 
+# test that files are saved in the right place when there is an os.chdir during a sweep function
 def sweep_chdir(args):
     config = dict(
         method="grid",
@@ -203,15 +204,12 @@ def sweep_chdir(args):
             ),
         root=os.getcwd()
         )
-    
+
     sweep_id = wandb.sweep(config, project=PROJECT, entity='kylegoyette')
     wandb.agent(sweep_id, function=train_and_check_chdir, count=2)
     # clean up
     os.chdir('../')
     os.removedirs('./test_chdir')
-    
-    
-
 
 
 def main():
