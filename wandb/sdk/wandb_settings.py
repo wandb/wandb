@@ -631,7 +631,7 @@ class Settings(object):
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later
-        format_dict["wandb_dir"] = self.wandb_dir or "graw_wandb"
+        format_dict["wandb_dir"] = self.wandb_dir or "wandb"
 
         path_items = []
         for p in path:
@@ -654,7 +654,6 @@ class Settings(object):
 
     def __copy__(self):
         """Copy (note that the copied object will not be frozen)."""
-        print("S>E")
         s = Settings()
         s._apply_settings(self)
         return s

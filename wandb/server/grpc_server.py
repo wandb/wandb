@@ -90,6 +90,7 @@ class Backend:
         start_time = time.time()
         start_datetime = datetime.datetime.now()
         timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
+
         wandb_dir = "wandb"
         run_path = "run-{}-server".format(timespec)
         run_dir = os.path.join(wandb_dir, run_path)

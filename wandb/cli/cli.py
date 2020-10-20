@@ -359,7 +359,6 @@ def init(ctx, project, entity, reset):
     api.set_setting("project", project, persist=True)
     api.set_setting("base_url", api.settings().get("base_url"), persist=True)
 
-    print("T.6")
     util.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), ".gitignore"), "w") as file:
         file.write("*\n!settings")

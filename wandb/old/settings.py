@@ -64,7 +64,6 @@ class Settings(object):
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            print("T>clear")
             clear_setting(self._local_settings, Settings._local_path(), persist)
 
     def items(self, section=None):
@@ -94,7 +93,6 @@ class Settings(object):
         settings = configparser.ConfigParser()
         Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
         for key, value in default_settings.items():
-            print("PLEASE.4")
             settings.set(Settings.DEFAULT_SECTION, key, str(value))
         return settings
 

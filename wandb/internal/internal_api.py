@@ -333,7 +333,6 @@ class Api(object):
         )
 
     def set_setting(self, key, value, globally=False, persist=False):
-        print("PLEASE.2")
         self._settings.set(
             Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
         )

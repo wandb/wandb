@@ -711,10 +711,9 @@ def get_log_file_path():
     run directory.
     """
     # TODO(jhr, cvp): refactor
-    print("here?")
     if wandb.run:
         return wandb.run._settings.log_internal
-    return os.path.join("smah_wandb", "debug-internal.log")
+    return os.path.join("wandb", "debug-internal.log")
 
 
 def docker_image_regex(image):

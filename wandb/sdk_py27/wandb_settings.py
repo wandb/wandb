@@ -37,7 +37,6 @@ import socket
 import sys
 import tempfile
 import time
-import traceback
 
 import six
 import wandb

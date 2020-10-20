@@ -367,7 +367,6 @@ class Audio(BatchableMedia):
         sf = util.get_module(
             "soundfile", required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile")
         base_path = os.path.join(run.dir, "media", "audio")
-        print("T.2")
         util.mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
