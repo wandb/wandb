@@ -386,6 +386,12 @@ def json_friendly(obj):
         obj = obj.decode('utf-8')
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
+    elif callable(obj):
+        obj = (
+            '{}.{}'.format(obj.__module__, obj.__qualname__)
+            if hasattr(obj, '__qualname__') and hasattr(obj, '__module__')
+            else str(obj)
+        )
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:

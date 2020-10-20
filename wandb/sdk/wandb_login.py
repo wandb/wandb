@@ -39,7 +39,7 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     Raises:
         UsageError - if api_key can not configured and no tty
     """
-    kwargs = locals()
+    kwargs = dict(locals())
     configured = _login(**kwargs)
     return True if configured else False
 
@@ -162,7 +162,7 @@ def _login(
     _backend=None,
     _silent=None,
 ):
-    kwargs = locals()
+    kwargs = dict(locals())
 
     if wandb.run is not None:
         wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")

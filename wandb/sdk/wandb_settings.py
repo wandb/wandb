@@ -350,7 +350,7 @@ class Settings(object):
         _kaggle=None,
         _except_exit=None,
     ):
-        kwargs = locals()
+        kwargs = dict(locals())
         kwargs.pop("self")
         # Set up entries for all possible parameters
         self.__dict__.update({k: None for k in kwargs})
