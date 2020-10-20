@@ -642,7 +642,6 @@ class LocalFileHandler(StorageHandler):
                 % (local_path, manifest_entry.digest, md5)
             )
 
-        print("T.13")
         util.mkdir_exists_ok(os.path.dirname(path))
         shutil.copy(local_path, path)
         return path

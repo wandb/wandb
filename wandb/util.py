@@ -877,7 +877,6 @@ def download_file_from_url(dest_path, source_url, api_key=None):
     response.raise_for_status()
 
     if os.sep in dest_path:
-        print("B")
         mkdir_exists_ok(os.path.dirname(dest_path))
     with open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):

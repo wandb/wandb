@@ -668,7 +668,6 @@ class Html(BatchableMedia):
     @classmethod
     def seq_to_json(cls, html_list, run, key, step):
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        print("T.3")
         util.mkdir_exists_ok(base_path)
 
         meta = {

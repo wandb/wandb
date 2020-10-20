@@ -888,7 +888,6 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
-        print(args)
         if args.get("resume") is not None:
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
@@ -917,7 +916,6 @@ class Settings(object):
         self.run_id = self.run_id or generate_id()
         # persist our run id incase of failure
         if self.resume == "auto":
-            print("I")
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))

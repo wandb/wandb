@@ -299,6 +299,7 @@ class _WandbInit(object):
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
+
         if s._noop:
             run = RunDummy()
             module.set_global(

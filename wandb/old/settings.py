@@ -99,12 +99,10 @@ class Settings(object):
     @staticmethod
     def _global_path():
         config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
-        print("T.8")
         util.mkdir_exists_ok(config_dir)
         return os.path.join(config_dir, 'settings')
 
     @staticmethod
     def _local_path():
-        print("T.9")
         util.mkdir_exists_ok(wandb_dir())
         return os.path.join(wandb_dir(), 'settings')

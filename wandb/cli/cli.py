@@ -1387,7 +1387,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                 wandb.termerror(
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
-    print("D")
+
     util.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")
     config = Config()
