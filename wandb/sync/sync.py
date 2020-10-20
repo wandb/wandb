@@ -89,6 +89,7 @@ class SyncThread(threading.Thread):
                 run_name=None,
                 run_notes=None,
                 save_code=None,
+                email=None,
             )
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()
@@ -105,15 +106,27 @@ class SyncThread(threading.Thread):
 
             # save exit for final send
             exit_pb = None
-            shown = False
+            run_str = None
+            spinner_states = ["-", "\\", "|", "/"]
+            last_spin_at = time.time()
+            iteration = 0
 
             while True:
+                if run_str and time.time() - last_spin_at > 0.25:
+                    iteration += 1
+                    last_spin_at = time.time()
+                    sys.stdout.write(run_str + spinner_states[iteration % 4] + "\r")
+                    sys.stdout.flush()
                 data = ds.scan_data()
                 if data is None:
                     break
                 pb = wandb_internal_pb2.Record()
                 pb.ParseFromString(data)
                 record_type = pb.WhichOneof("record_type")
+                # Don't sync lines beginning with carriage return
+                # TODO: what about lines ending with a carriage return?
+                if record_type == "output" and pb.output.line.startswith("\r"):
+                    continue
                 if self._view:
                     if self._verbose:
                         print("Record:", pb)
@@ -144,7 +157,7 @@ class SyncThread(threading.Thread):
                 if pb.control.req_resp:
                     result = result_q.get(block=True)
                     result_type = result.WhichOneof("result_type")
-                    if not shown and result_type == "run_result":
+                    if not run_str and result_type == "run_result":
                         r = result.run_result.run
                         # TODO(jhr): hardcode until we have settings in sync
                         url = "{}/{}/{}/runs/{}".format(
@@ -153,9 +166,8 @@ class SyncThread(threading.Thread):
                             url_quote(r.project),
                             url_quote(r.run_id),
                         )
-                        print("Syncing: %s ..." % url, end="")
+                        run_str = "Syncing: %s ... " % url
                         sys.stdout.flush()
-                        shown = True
             sm.finish()
             if self._mark_synced and not self._view:
                 synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)
