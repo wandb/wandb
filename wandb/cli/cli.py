@@ -215,6 +215,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if host or cloud or key:
         relogin = True
 
+    print("S>B")
     wandb.setup(
         settings=wandb.Settings(
             _cli_only_mode=True,
@@ -359,6 +360,7 @@ def init(ctx, project, entity, reset):
     api.set_setting("project", project, persist=True)
     api.set_setting("base_url", api.settings().get("base_url"), persist=True)
 
+    print("T.6")
     util.mkdir_exists_ok(wandb_dir())
     with open(os.path.join(wandb_dir(), ".gitignore"), "w") as file:
         file.write("*\n!settings")
@@ -1387,7 +1389,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                 wandb.termerror(
                     "Failed to apply patch, try un-staging any un-committed changes"
                 )
-
+    print("D")
     util.mkdir_exists_ok(wandb_dir())
     config_path = os.path.join(wandb_dir(), "config.yaml")
     config = Config()

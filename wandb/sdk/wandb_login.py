@@ -57,6 +57,7 @@ class _WandbLogin(object):
         self.kwargs = kwargs
 
         # built up login settings
+        print("S>D")
         login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
         if settings_param:

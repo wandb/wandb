@@ -27,6 +27,7 @@ def _link_and_save_file(path, base_path, interface, settings):
     file_name = os.path.relpath(path, base_path)
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
+    print("G")
     util.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
     if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):

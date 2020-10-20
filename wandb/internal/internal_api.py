@@ -77,6 +77,7 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
+        print("S>C")
         self._settings = Settings(load_settings=load_settings)
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
@@ -333,6 +334,7 @@ class Api(object):
         )
 
     def set_setting(self, key, value, globally=False, persist=False):
+        print("PLEASE.2")
         self._settings.set(
             Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
         )

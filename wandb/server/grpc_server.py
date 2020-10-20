@@ -90,8 +90,10 @@ class Backend:
         start_time = time.time()
         start_datetime = datetime.datetime.now()
         timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
-
-        wandb_dir = "wandb"
+        print("MAKING WANDB")
+        logger = logging.getLogger("wandb")
+        logger.log("ADHKALDHAKJ")
+        wandb_dir = "twandb"
         run_path = "run-{}-server".format(timespec)
         run_dir = os.path.join(wandb_dir, run_path)
         files_dir = os.path.join(run_dir, "files")

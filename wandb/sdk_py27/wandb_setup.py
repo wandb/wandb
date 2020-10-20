@@ -99,6 +99,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
     def _settings_setup(self, settings=None, early_logger=None):
         # TODO: Do a more formal merge of user settings from the backend.
+        print("S>J")
         s = wandb_settings.Settings()
         s._apply_configfiles(_logger=early_logger)
         s._apply_environ(self._environ, _logger=early_logger)

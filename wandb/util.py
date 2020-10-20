@@ -566,6 +566,7 @@ def make_safe_for_json(obj):
     return obj
 
 def mkdir_exists_ok(path):
+    print("making...", path)
     try:
         os.makedirs(path)
         return True
@@ -705,9 +706,10 @@ def get_log_file_path():
     run directory.
     """
     # TODO(jhr, cvp): refactor
+    print("here?")
     if wandb.run:
         return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
+    return os.path.join("smah_wandb", "debug-internal.log")
 
 
 def docker_image_regex(image):
@@ -871,6 +873,7 @@ def download_file_from_url(dest_path, source_url, api_key=None):
     response.raise_for_status()
 
     if os.sep in dest_path:
+        print("B")
         mkdir_exists_ok(os.path.dirname(dest_path))
     with open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):

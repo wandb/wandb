@@ -31,6 +31,7 @@ _REQUEST_POOL_MAXSIZE = 64
 class ArtifactsCache(object):
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
+        print("T.10")
         util.mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
@@ -40,6 +41,7 @@ class ArtifactsCache(object):
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True
+        print("T.11")
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False
 
@@ -47,6 +49,7 @@ class ArtifactsCache(object):
         path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True
+        print("T.12")
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False
 
@@ -642,6 +645,7 @@ class LocalFileHandler(StorageHandler):
                 % (local_path, manifest_entry.digest, md5)
             )
 
+        print("T.13")
         util.mkdir_exists_ok(os.path.dirname(path))
         shutil.copy(local_path, path)
         return path

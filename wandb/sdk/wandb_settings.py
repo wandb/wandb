@@ -37,6 +37,7 @@ import socket
 import sys
 import tempfile
 import time
+import traceback
 
 import six
 import wandb
@@ -155,6 +156,7 @@ def _get_program_relpath_from_gitrepo(program):
 # the setting exposed to users as `dir=` or `WANDB_DIR` is actually
 # the `root_dir`. We add the `__stage_dir__` to it to get the full
 # `wandb_dir`
+
 def get_wandb_dir(root_dir: str):
     # We use the hidden version if it already exists, otherwise non-hidden.
     if os.path.exists(os.path.join(root_dir, ".wandb")):
@@ -167,6 +169,7 @@ def get_wandb_dir(root_dir: str):
         wandb.termwarn("Path %s wasn't writable, using system temp directory" % path)
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
+    print(root_dir, "resulted in Using Path:", path)
     return path
 
 
@@ -631,7 +634,7 @@ class Settings(object):
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later
-        format_dict["wandb_dir"] = self.wandb_dir or "wandb"
+        format_dict["wandb_dir"] = self.wandb_dir or "graw_wandb"
 
         path_items = []
         for p in path:
@@ -654,6 +657,7 @@ class Settings(object):
 
     def __copy__(self):
         """Copy (note that the copied object will not be frozen)."""
+        print("S>E")
         s = Settings()
         s._apply_settings(self)
         return s
@@ -888,6 +892,7 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
+        print(args)
         if args.get("resume") is not None:
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
@@ -916,6 +921,7 @@ class Settings(object):
         self.run_id = self.run_id or generate_id()
         # persist our run id incase of failure
         if self.resume == "auto":
+            print("I")
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))

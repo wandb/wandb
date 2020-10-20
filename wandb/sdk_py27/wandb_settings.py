@@ -654,6 +654,7 @@ class Settings(object):
 
     def __copy__(self):
         """Copy (note that the copied object will not be frozen)."""
+        print("S>I")
         s = Settings()
         s._apply_settings(self)
         return s
@@ -916,6 +917,7 @@ class Settings(object):
         self.run_id = self.run_id or generate_id()
         # persist our run id incase of failure
         if self.resume == "auto":
+            print("T.20")
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))

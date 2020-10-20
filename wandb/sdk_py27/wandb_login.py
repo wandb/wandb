@@ -57,6 +57,7 @@ class _WandbLogin(object):
         self.kwargs = kwargs
 
         # built up login settings
+        print("S>G")
         login_settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
         if settings_param:
@@ -123,6 +124,7 @@ class _WandbLogin(object):
         self._key = key
 
     def update_session(self, key):
+        print("S>H")
         settings = wandb.Settings()
         settings._apply_source_login(dict(api_key=key))
         self._wl._update(settings=settings)
