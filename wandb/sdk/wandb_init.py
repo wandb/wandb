@@ -464,7 +464,7 @@ def init(
 
     """
     assert not wandb._IS_INTERNAL_PROCESS
-    kwargs = locals()
+    kwargs = dict(locals())
     error_seen = None
     except_exit = None
     try:
