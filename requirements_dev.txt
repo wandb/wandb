@@ -4,14 +4,14 @@ coveralls
 tox==3.7
 pip
 Pillow
-pandas
-numpy
+pandas; python_version < '3.9'
+numpy; python_version < '3.9'
 matplotlib; python_version < '3.9'
 soundfile
 boto3
 google-cloud-storage
-moviepy; python_version >= '3.5'
-imageio; python_version >= '3.5'
+moviepy; python_version >= '3.5' and python_version < '3.9'
+imageio; python_version >= '3.5' and python_version < '3.9'
 ipython; python_version >= '3.5'
 ipython==5.4.1; python_version < '3.5'
 ipykernel
