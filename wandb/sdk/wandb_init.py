@@ -479,8 +479,8 @@ def init(
             online.
         allow_val_change (bool, optional): allow config values to be changed after
             setting. Defaults to true in jupyter and false otherwise.
-        resume (bool, str, optional): If set to true, automatically resume the previous 
-            run if script is run from the same machine.  If set to a string (runid) wandb 
+        resume (bool, str, optional): If set to true, automatically resume the previous
+            run if script is run from the same machine.  If set to a string (runid) wandb
             will resume the specified run_id.
             See https://docs.wandb.com/library/advanced/resuming for more detail.
         force (bool, optional): whether to force a user to be logged into wandb when
