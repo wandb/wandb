@@ -19,6 +19,3 @@ def main():
     except:
         print("Issue with calling wandb init in a multithreaded situation")
         assert False
-
-
-    
