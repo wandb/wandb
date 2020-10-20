@@ -74,7 +74,6 @@ class Agent(object):
     def __init__(
         self, sweep_id=None, project=None, entity=None, function=None, count=None
     ):
-        print("ADSBVHAJSDV")
         self._sweep_path = sweep_id
         self._sweep_id = None
         self._project = project
@@ -87,7 +86,6 @@ class Agent(object):
         self._api = InternalApi()
         self._agent_id = None
         # if the directory to log to is not set, set it
-        # print("BLAH DIR", os.environ.get(wandb.env.dir))
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
@@ -186,7 +184,6 @@ class Agent(object):
                 return
             try:
                 try:
-                    print("_runJobs_from_queue", os.getcwd())
                     job = self._queue.get(timeout=5)
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")

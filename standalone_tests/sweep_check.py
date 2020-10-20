@@ -32,7 +32,6 @@ def train(**kwargs):
     run = wandb.init()
     with run:
         c=dict(run.config)
-        print('c', c)
         run.name = '{}-{}-{}'.format(c.get("param0"), c.get("param1"), c.get("param2"))
         run_id = run.id
         print("SweepID", run.sweep_id)
@@ -248,7 +247,6 @@ def main():
             continue
         if args.local and t == 'grid_hyper':
             POKE_LOCAL = True
-        print(args)
         f(args)
 
 

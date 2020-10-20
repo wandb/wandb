@@ -265,7 +265,6 @@ class Agent(object):
                         pass  # if process is already dead
 
     def _process_command(self, command):
-        print("process command", command)
         logger.info(
             "Agent received command: %s"
             % (command["type"] if "type" in command else "Unknown")
