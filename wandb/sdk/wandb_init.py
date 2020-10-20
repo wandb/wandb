@@ -459,8 +459,8 @@ def init(
             be stored.
         config (dict, argparse, or tf.FLAGS, optional): The config parameters
             (typically hyperparameters) to store with the run.
-        project (str, optional): The project to push metrics to.
-        entity (str, optional): The entity to push metrics to.
+        project (str, optional): W&B Project.
+        entity (str, optional): W&B Entity.
         reinit (bool, optional): Allow multiple calls to init in the same process.
         tags (list, optional): A list of tags to apply to the run.
         group (str, optional): A unique string shared by all runs in a given group.
