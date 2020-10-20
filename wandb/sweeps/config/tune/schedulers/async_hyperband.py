@@ -17,7 +17,7 @@ class AsyncHyperband(cfg.SweepConfigElement):
                  grace_period=None,
                  reduction_factor=None,
                  brackets=None):
-        local_args = locals()
+        local_args = dict(locals())
         return self._config("AsyncHyperBandScheduler", [], local_args)
 
 AsyncHyperBandScheduler = AsyncHyperband().AsyncHyperBandScheduler

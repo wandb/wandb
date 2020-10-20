@@ -19,7 +19,7 @@ class Hyperopt(cfg.SweepConfigElement):
         return self._config("hp.choice", args, kwargs)
 
     def loguniform(self, min_bound, max_bound, base=None):
-        local_args = locals()
+        local_args = dict(locals())
         return self._config("loguniform", [], local_args)
 
 
