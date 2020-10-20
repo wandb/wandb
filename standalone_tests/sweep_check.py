@@ -206,7 +206,7 @@ def sweep_chdir(args):
         root=os.getcwd()
         )
 
-    sweep_id = wandb.sweep(config, project=PROJECT, entity='kylegoyette')
+    sweep_id = wandb.sweep(config, project=PROJECT)
     wandb.agent(sweep_id, function=train_and_check_chdir, count=2)
     # clean up
     os.chdir('../')
