@@ -483,8 +483,9 @@ def init(
             run if script is run from the same machine.  If set to a string (runid) wandb
             will resume the specified run_id.
             See https://docs.wandb.com/library/advanced/resuming for more detail.
-        force (bool, optional): whether to force a user to be logged into wandb when
-            running a script. Deaults to false.
+        force (bool, optional): If true, will cause script to crash if user can't or isn't
+            logged in to wandb server.  If false, will cause script to run in offline
+            modes if user can't or isn't logged in to wandb server. Defaults to false.
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or
             tensorboardX. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
