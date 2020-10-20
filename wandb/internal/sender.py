@@ -469,7 +469,6 @@ class SendManager(object):
             "internal",
             entity=self._run.entity,
             project=self._run.project,
-            email=self._settings.email,
         )
         logger.info(
             "run started: %s with start time %s",
