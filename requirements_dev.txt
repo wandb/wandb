@@ -16,7 +16,7 @@ ipython; python_version >= '3.5'
 ipython==5.4.1; python_version < '3.5'
 ipykernel
 nbclient; python_version >= '3.5'
-sklearn
+sklearn; python_version < '3.9'
 tensorflow>=1.15.2; python_version < '3.9'
 pydoc-markdown
 torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
