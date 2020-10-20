@@ -388,7 +388,7 @@ def json_friendly(obj):
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            f'{obj.__module__}.{obj.__qualname__}'
+            '{}.{}'.format(obj.__module__, obj.__qualname__)
             if hasattr(obj, '__qualname__') and hasattr(obj, '__module__')
             else str(obj)
         )
