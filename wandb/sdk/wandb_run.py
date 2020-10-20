@@ -575,6 +575,8 @@ class Run(RunBase):
 
     def _repr_mimebundle_(self, include=None, exclude=None):
         url = self._get_run_url()
+        if url is None:
+            return {}
         style = "border:none;width:100%;height:400px"
         note = ""
         if include or exclude:
@@ -1035,6 +1037,8 @@ class Run(RunBase):
 
     def _get_run_url(self):
         s = self._settings
+        if s._offline:
+            return None
         r = self._run_obj
         app_url = wandb.util.app_url(s.base_url)
         url = "{}/{}/{}/runs/{}".format(
