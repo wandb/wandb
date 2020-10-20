@@ -10,7 +10,21 @@ import json
 import platform
 import subprocess
 import os
+import sys
+import shutil
 from .utils import fixture_open
+
+# Conditional imports of the reload function based on version
+if sys.version_info.major == 2:
+    reloadFn = reload  # noqa: F821
+else:
+    if sys.version_info.minor >= 4:
+        import importlib
+        reloadFn = importlib.reload
+    else:
+        import imp
+        reloadFn = imp.reload
+
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
@@ -154,3 +168,74 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     print(ctx)
     assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
         ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
+
+
+def _default_wandb_dir():
+    return os.path.join(os.getcwd(), "wandb")
+
+
+def _remove_dir_if_exists(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+
+
+def test_dir_on_import(live_mock_server, test_settings):
+    '''Ensures that `import wandb` does not create a `wandb` directory in the
+    current directory'''
+
+    # First remove the existing wandb folder if one exists
+    _remove_dir_if_exists(_default_wandb_dir())
+
+    # reimport wandb
+    reloadFn(wandb)
+
+    # assert that a directory was not made on import
+    assert not os.path.isdir(_default_wandb_dir()), "`import wandb` should not creat a wandb directory"
+
+
+def test_dir_on_first_init_no_dir(live_mock_server, test_settings):
+    '''Ensures that `import wandb` does not create a `wandb` directory in the
+    current directory when configured otherwise'''
+
+    # reimport wandb
+    reloadFn(wandb)
+
+    # remove the existing wandb folder if one exists
+    _remove_dir_if_exists(_default_wandb_dir())
+
+    # initialize in a custom directory
+    print("test_settings.root_dir", test_settings.root_dir)
+    print("test_settings.root_dir", test_settings.)
+    # run = wandb.init(dir="test_dir")
+    # run.join()
+    assert False
+    # assert that a directory was not made on import
+    assert not os.path.isdir(_default_wandb_dir()), "`wandb.init(dir='test_dir')` should not creat a wandb directory"
+
+
+# Case1: on import                                       = no dir
+###
+# Case2: on first init,                                  = wandb dir
+# Case2: on first init, settings object                  = wandb dir
+# Case2: on first init, dir=wandb                        = wandb dir
+# Case2: on first init, dir=custom                       = temp? dir, no wandb dir
+# Case2: on first init, WANDB_DIR=custom                 = temp? dir, no wandb dir
+# Case2: on first init, dir=custom, path exists         = custom dir, no wandb dir
+# Case2: on first init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir
+###
+# Case3: on dup init,                                  = wandb dir
+# Case3: on dup init, settings object                  = wandb dir
+# Case3: on dup init, dir=wandb                        = wandb dir
+# Case3: on dup init, dir=custom                       = temp? dir, no wandb dir
+# Case3: on dup init, WANDB_DIR=custom                 = temp? dir, no wandb dir
+# Case3: on dup init, dir=custom, path exists         = custom dir, no wandb dir
+# Case3: on dup init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir
+###
+# All Case4 cases start with init(dir="junk") on the first init (and junk folder exists)
+# Case4: on dup init,                                  = junk dir, no wandb dir
+# Case4: on dup init, settings object                  = junk dir, no wandb dir
+# Case4: on dup init, dir=wandb                        = wandb dir                  - verify nothing else added to junk dir
+# Case4: on dup init, dir=custom                       = temp? dir, no wandb dir    - verify nothing else added to junk dir
+# Case4: on dup init, WANDB_DIR=custom                 = temp? dir, no wandb dir    - verify nothing else added to junk dir
+# Case4: on dup init, dir=custom, path exists         = custom dir, no wandb dir    - verify nothing else added to junk dir
+# Case4: on dup init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir    - verify nothing else added to junk dir

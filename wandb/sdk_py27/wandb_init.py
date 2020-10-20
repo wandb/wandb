@@ -266,6 +266,7 @@ class _WandbInit(object):
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
         filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
         filesystem._safe_makedirs(settings.files_dir)
+        print("MAKING:", settings.log_user, settings.log_internal, settings.sync_file, settings.files_dir) # not here...
 
         if settings.symlink:
             self._safe_symlink(
@@ -299,7 +300,7 @@ class _WandbInit(object):
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
-
+        print("MAGIC", s)
         if s._noop:
             run = RunDummy()
             module.set_global(
