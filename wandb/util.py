@@ -334,10 +334,17 @@ def ensure_matplotlib_figure(obj):
             if not isinstance(obj, Figure):
                 raise ValueError(
                     "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted.")
-    if not obj.gca().has_data():
-        raise ValueError(
-            "You attempted to log an empty plot, pass a figure directly or ensure the global plot isn't closed.")
     return obj
+
+def matplotlib_to_plotly(obj):
+    obj = ensure_matplotlib_figure(obj)
+    tools = get_module("plotly.tools", 
+        required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+    return tools.mpl_to_plotly(obj)
+
+def matplotlib_contains_images(obj):
+    obj = ensure_matplotlib_figure(obj)
+    return any(len(ax.images) > 0 for ax in obj.axes)
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
@@ -379,6 +386,12 @@ def json_friendly(obj):
         obj = obj.decode('utf-8')
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
+    elif callable(obj):
+        obj = (
+            '{}.{}'.format(obj.__module__, obj.__qualname__)
+            if hasattr(obj, '__qualname__') and hasattr(obj, '__module__')
+            else str(obj)
+        )
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:

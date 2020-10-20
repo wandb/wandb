@@ -12,6 +12,7 @@ import os
 import time
 import traceback
 
+import click
 import six
 import wandb
 from wandb import trigger
@@ -365,8 +366,19 @@ class _WandbInit(object):
             run._set_run_obj_offline(run_proto)
         else:
             ret = backend.interface.communicate_check_version()
-            if ret and ret.message:
-                wandb.termlog(ret.message)
+            if ret:
+                if ret.upgrade_message:
+                    run._set_upgrade_version_message(ret.upgrade_message)
+                # if yanked or deleted, warn at header and footer
+                if ret.delete_message:
+                    run._set_check_version_message(
+                        click.style(ret.delete_message, fg="red")
+                    )
+                elif ret.yank_message:
+                    run._set_check_version_message(
+                        click.style(ret.yank_message, fg="red")
+                    )
+            run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:
@@ -453,7 +465,7 @@ def init(
 
     """
     assert not wandb._IS_INTERNAL_PROCESS
-    kwargs = locals()
+    kwargs = dict(locals())
     error_seen = None
     except_exit = None
     try:

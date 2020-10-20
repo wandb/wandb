@@ -86,7 +86,7 @@ class Tune(cfg.SweepConfigElement):
             return_trials=None,
             ray_auto_init=None,
             sync_function=None):
-        local_args = locals()
+        local_args = dict(locals())
         local_args.pop("self", None)
         for k, v in local_args.items():
             if not tune_run_supported.get(k) and v is not None:
@@ -104,7 +104,7 @@ class Tune(cfg.SweepConfigElement):
         return self._config("uniform", args, kwargs)
 
     def loguniform(self, min_bound, max_bound, base=None):
-        local_args = locals()
+        local_args = dict(locals())
         return self._config("loguniform", [], local_args)
 
 
