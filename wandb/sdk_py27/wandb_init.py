@@ -16,8 +16,12 @@ import click
 import six
 import wandb
 from wandb import trigger
-from wandb.backend.backend import Backend
-from wandb.errors.error import UsageError
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from wandb.backend.backend import Backend
+else:
+    from wandb.backend.backend_py27 import Backend
+from wandb.errors.error import UsageError  # noqa: I202
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.lib import filesystem, module, reporting
