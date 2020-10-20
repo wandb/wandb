@@ -496,7 +496,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String!, $sweep: String!, $specs: [JSONString!]!) {
+        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -878,9 +878,10 @@ class Api(object):
         mutation = gql(
             """
         mutation UpsertBucket(
-            $id: String, $name: String,
+            $id: String,
+            $name: String,
             $project: String,
-            $entity: String!,
+            $entity: String,
             $groupName: String,
             $description: String,
             $displayName: String,
@@ -1358,8 +1359,8 @@ class Api(object):
             $id: ID,
             $config: String,
             $description: String,
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $controller: JSONString,
             $scheduler: JSONString
         ) {
