@@ -449,12 +449,47 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> RunBase:
-    """Initialize a wandb Run.
-
+    """Initialize W&B
+    If called from within Jupyter, initializes a new run and waits for a call to
+    `wandb.log` to begin pushing metrics.  Otherwise, spawns a new process
+    to communicate with W&B.
     Args:
-        entity: alias for team.
-        team: personal user or team to use for Run.
-        project: project name for the Run.
+        job_type (str, optional): The type of job running, defaults to 'train'
+        dir (str, optional): An absolute path to a directory where metadata will
+            be stored.
+        config (dict, argparse, or tf.FLAGS, optional): The config parameters
+            (typically hyperparameters) to store with the run.
+        project (str, optional): The project to push metrics to.
+        entity (str, optional): The entity to push metrics to.
+        reinit (bool, optional): Allow multiple calls to init in the same process.
+        tags (list, optional): A list of tags to apply to the run.
+        group (str, optional): A unique string shared by all runs in a given group.
+        name (str, optional): A display name for the run which does not have to be
+            unique.
+        notes (str, optional): A multiline string associated with the run.
+        magic (bool, dict, or str, optional): magic configuration as bool, dict,
+            json string, yaml filename.
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B
+            when specifying config.
+        config_include_keys (list, optional): string keys to include storing in W&B
+            when specifying config.
+        anonymous (str, optional): Can be "allow", "must", or "never". Controls
+            whether anonymous logging is allowed.  Defaults to never.
+        mode (str, optional): Can be "online", "offline" or "disabled". Defaults to
+            online.
+        allow_val_change (bool, optional): allow config values to be changed after
+            setting. Defaults to true in jupyter and false otherwise.
+        resume (bool, str, optional): Automatically resume this run if run from the
+            same machine, you can also pass a unique run_id.
+        force (bool, optional): Force authentication with wandb. Defaults to False
+        sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or
+            tensorboardX. Defaults to false.
+        monitor_gym: (bool, optional): automatically logs videos of environment when
+            using OpenAI Gym (see https://docs.wandb.com/library/integrations/openai-gym)
+            Defaults to false.
+        save_code (bool, optional): Save the entrypoint or jupyter session history
+            source code.
+        id (str, optional): A globally unique (per project) identifier for the run.
 
     Raises:
         Exception: if problem.
