@@ -6,7 +6,7 @@ pip
 Pillow
 pandas
 numpy
-matplotlib
+matplotlib; python_version < '3.9'
 soundfile
 boto3
 google-cloud-storage

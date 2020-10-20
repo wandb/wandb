@@ -56,8 +56,8 @@ jobs:
                   command: apt-get update && apt-get install -y libsndfile1 ffmpeg
             - restore_cache:
                   keys:
-                      - v0.2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
-                      - v0.2-dependencies-{{ .Environment.CIRCLE_JOB }}
+                      - v0.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                      - v0.3-dependencies-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Install python dependencies
                   command: |
@@ -65,12 +65,12 @@ jobs:
             - save_cache:
                   paths:
                       - ./venv
-                  key: v0.2-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
+                  key: v0.3-dependencies-{{ checksum "setup.py" }}-{{ checksum "requirements_dev.txt" }}-{{ .Environment.CIRCLE_JOB }}
             - run:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 15m
+                  no_output_timeout: 20m
     win:
         executor: win/default
         steps:
