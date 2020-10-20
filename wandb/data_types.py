@@ -805,7 +805,6 @@ class Video(BatchableMedia):
     @classmethod
     def seq_to_json(cls, videos, run, key, step):
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        print("T.4")
         util.mkdir_exists_ok(base_path)
 
         meta = {
@@ -1843,7 +1842,6 @@ def data_frame_to_json(df, run, key, step):
     df['wandb_data_frame_id'] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index)
     frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
-    print("T.5")
     util.mkdir_exists_ok(frames_dir)
     path = os.path.join(frames_dir, '{}-{}.parquet'.format(key, data_frame_id))
     fastparquet.write(path, df)

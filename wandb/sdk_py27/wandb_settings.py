@@ -631,7 +631,7 @@ class Settings(object):
         format_dict["proc"] = os.getpid()
         # TODO(cling): hack to make sure we read from local settings
         #              this is wrong if the run_dir changes later
-        format_dict["wandb_dir"] = self.wandb_dir or "graw_wandb"
+        format_dict["wandb_dir"] = self.wandb_dir or "wandb"
 
         path_items = []
         for p in path:
@@ -654,7 +654,6 @@ class Settings(object):
 
     def __copy__(self):
         """Copy (note that the copied object will not be frozen)."""
-        print("S>E")
         s = Settings()
         s._apply_settings(self)
         return s
@@ -889,7 +888,6 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
-        print(args)
         if args.get("resume") is not None:
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
@@ -918,7 +916,6 @@ class Settings(object):
         self.run_id = self.run_id or generate_id()
         # persist our run id incase of failure
         if self.resume == "auto":
-            print("I")
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
