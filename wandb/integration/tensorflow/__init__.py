@@ -3,5 +3,6 @@
 api.
 """
 
-from .estimator_hook import WandbHook  # noqa: F401
 from wandb.integration.tensorboard import log  # noqa: F401
+
+from .estimator_hook import WandbHook  # noqa: F401
