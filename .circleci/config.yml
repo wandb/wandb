@@ -26,6 +26,10 @@ workflows:
          name: "Python 3.8"
          image: "python:3.8"
          toxenv: "py38"
+      - test:
+         name: "Python 3.9"
+         image: "python:3.9"
+         toxenv: "py39"
       - win:
          name: "Windows (Python 3.7)"
       - mac:
