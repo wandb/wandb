@@ -155,7 +155,6 @@ def _get_program_relpath_from_gitrepo(program):
 # the setting exposed to users as `dir=` or `WANDB_DIR` is actually
 # the `root_dir`. We add the `__stage_dir__` to it to get the full
 # `wandb_dir`
-
 def get_wandb_dir(root_dir: str):
     # We use the hidden version if it already exists, otherwise non-hidden.
     if os.path.exists(os.path.join(root_dir, ".wandb")):
@@ -168,7 +167,6 @@ def get_wandb_dir(root_dir: str):
         wandb.termwarn("Path %s wasn't writable, using system temp directory" % path)
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
-    print(root_dir, "resulted in Using Path:", path)
     return path
 
 

@@ -827,7 +827,6 @@ class Run(Attrs):
         self.sweep = None
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
-            print("making over here!", self.dir)
             os.makedirs(self.dir)
         except OSError:
             pass
@@ -2499,7 +2498,6 @@ class Artifact(object):
                     or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
                 )
                 if need_copy:
-                    print("C")
                     util.mkdir_exists_ok(os.path.dirname(target_path))
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).

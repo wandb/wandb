@@ -38,7 +38,6 @@ class StepChecksum(object):
                 if req.copy:
                     path = os.path.join(self._tempdir.name, '%s-%s' % (
                         wandb.util.generate_id(), req.save_name))
-                    print("E")
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     shutil.copy2(req.path, path)
                 checksum = None

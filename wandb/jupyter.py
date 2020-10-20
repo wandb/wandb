@@ -241,7 +241,6 @@ class Notebook(object):
             state_path = os.path.join("code", "_session_history.ipynb")
             wandb.run.config["_wandb"]["session_history"] = state_path
             wandb.run.config.persist()
-            print("A")
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(
                 os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"

@@ -26,7 +26,6 @@ class Agent(object):
         # glob_config = os.path.expanduser('~/.config/wandb/settings')
         # loc_config = 'wandb/settings'
         # files = (glob_config, loc_config)
-        print("S>K")
         settings = Settings()
         self._api = internal_runqueue.Api()
         self._settings = settings

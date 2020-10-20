@@ -66,7 +66,6 @@ class Meta(object):
 
         root = self._git.root or os.getcwd()
         program_relative = self._settings.program_relpath
-        print("F")
         util.mkdir_exists_ok(
             os.path.join(
                 self._settings.files_dir, "code", os.path.dirname(program_relative)

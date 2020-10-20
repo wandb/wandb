@@ -203,7 +203,6 @@ class Media(WBValue):
         file_path = wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
-        print("T.1")
         util.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:

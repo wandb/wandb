@@ -572,7 +572,6 @@ def make_safe_for_json(obj):
     return obj
 
 def mkdir_exists_ok(path):
-    print("making...", path)
     try:
         os.makedirs(path)
         return True

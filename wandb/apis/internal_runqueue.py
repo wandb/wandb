@@ -67,7 +67,6 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
-        print("S>A")
         self._settings = Settings(load_settings=load_settings)
         # self.git = GitRepo(remote=self.settings("git_remote"))
         self.git = None
@@ -317,7 +316,6 @@ class Api(object):
         )
 
     def set_setting(self, key, value, globally=False, persist=False):
-        print("PLEASE.1")
         self._settings.set(
             Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
         )

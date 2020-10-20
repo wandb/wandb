@@ -215,7 +215,6 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if host or cloud or key:
         relogin = True
 
-    print("S>B")
     wandb.setup(
         settings=wandb.Settings(
             _cli_only_mode=True,

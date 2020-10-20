@@ -33,7 +33,7 @@ warnings.filterwarnings(
 # Temporary directory for copies we make of some file types to
 # reduce the probability that the file gets changed while we're
 # uploading it.
-TMP_DIR = tempfile.TemporaryDirectory("temp_wandb")
+TMP_DIR = tempfile.TemporaryDirectory("wandb")
 
 
 logger = logging.getLogger(__file__)
@@ -52,7 +52,7 @@ class FilePusher(object):
     def __init__(self, api):
         self._api = api
 
-        self._tempdir = tempfile.TemporaryDirectory("temp_2_wandb")
+        self._tempdir = tempfile.TemporaryDirectory("wandb")
 
         self._stats = stats.Stats()
 

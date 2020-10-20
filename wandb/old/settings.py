@@ -22,7 +22,6 @@ class Settings(object):
 
         if load_settings:
             self._global_settings.read([Settings._global_path()])
-            print("T>__init__")
             self._local_settings.read([Settings._local_path()])
 
     def get(self, section, key, fallback=_UNSET):
@@ -42,11 +41,9 @@ class Settings(object):
 
     def set(self, section, key, value, globally=False, persist=False):
         """Persists settings to disk if persist = True"""
-        
         def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
-            # print("PLEASE.3")
             settings.set(section, key, str(value))
             if persist:
                 with open(settings_path, "w+") as f:
@@ -55,7 +52,6 @@ class Settings(object):
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            print("T>set")
             write_setting(self._local_settings, Settings._local_path(), persist)
 
     def clear(self, section, key, globally=False, persist=False):
