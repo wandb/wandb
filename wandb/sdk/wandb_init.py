@@ -479,9 +479,12 @@ def init(
             online.
         allow_val_change (bool, optional): allow config values to be changed after
             setting. Defaults to true in jupyter and false otherwise.
-        resume (bool, str, optional): Automatically resume this run if run from the
-            same machine, you can also pass a unique run_id.
-        force (bool, optional): Force authentication with wandb. Defaults to False
+        resume (bool, str, optional): If set to true, automatically resume the previous 
+            run if script is run from the same machine.  If set to a string (runid) wandb 
+            will resume the specified run_id.
+            See https://docs.wandb.com/library/advanced/resuming for more detail.
+        force (bool, optional): whether to force a user to be logged into wandb when
+            running a script. Deaults to false.
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or
             tensorboardX. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
@@ -489,7 +492,23 @@ def init(
             Defaults to false.
         save_code (bool, optional): Save the entrypoint or jupyter session history
             source code.
-        id (str, optional): A globally unique (per project) identifier for the run.
+        id (str, optional): A globally unique (per project) identifier for the run. This
+            is primarily used for resuming.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+        ```
+
+        Launch multiple runs from the same script
+        ```
+        for x in range(10):
+            run = wandb.init(reinit=True)
+            with run:
+                for y in range(100):
+                    run.log({"metric": x+y})
+        ```
 
     Raises:
         Exception: if problem.
