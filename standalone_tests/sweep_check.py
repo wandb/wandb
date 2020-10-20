@@ -49,6 +49,7 @@ def train(**kwargs):
                 poke()
     shutil.copyfile("wandb/debug.log", "wandb/debug-%s.log" % run_id)
 
+# WB-3321: check if sweeps work when a user uses os.chdir in sweep function
 def train_and_check_chdir(**kwargs):
     if 'test_chdir' not in os.getcwd():
         try:
@@ -70,6 +71,7 @@ def train_and_check_chdir(**kwargs):
             val = run.config.param0 + run.config.param1 * n + run.config.param2 * n * n
             wandb.log(dict(val_acc=val))
         files = os.listdir(run.dir)
+        # TODO: Add a check to restoring from another run in this case, WB-3715. Should restore to run.dir
         # check files were saved to the right place
         assert set(files) == set(['requirements.txt', 'output.log', 'config.yaml', 'wandb-summary.json', 'wandb-metadata.json']), print(files)
         # ensure run dir does not contain test_chdir, and no files were saved there
