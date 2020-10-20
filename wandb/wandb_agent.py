@@ -131,7 +131,6 @@ class Agent(object):
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
     ):
-        print("ASBDJKASBD")
         self._api = api
         self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
