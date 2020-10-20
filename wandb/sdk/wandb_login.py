@@ -30,8 +30,9 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
+        key (string, optional): authentication key.
         relogin (bool, optional): If true, will re-prompt for API key.
-        host (string, optional): The host to connect to
+        host (string, optional): The host to connect to.
 
     Returns:
         bool: if key is configured
