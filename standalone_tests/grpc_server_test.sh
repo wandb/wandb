@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "Stopping all old grpc-server"
 set +e
-ps auxw | grep "wandb grpc-server" | grep -v grep | awk '{print $2}' | xargs kill
+(ps auxw | grep "wandb grpc-server" | grep -v grep | awk '{print $2}' | xargs kill) 2>/dev/null
 set -e
 echo "Wait for servers to be gone..."
 sleep 1
