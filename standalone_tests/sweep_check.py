@@ -23,6 +23,12 @@ def poke():
 
 def train(**kwargs):
     print("train", kwargs)
+    if kwargs["chdir"]:
+        try:
+            os.makedirs('./test_chdir')
+        except:
+            pass
+        os.chdir('./test_chdir')
     run = wandb.init()
     with run:
         c=dict(run.config)
@@ -41,6 +47,36 @@ def train(**kwargs):
             if POKE_LOCAL:
                 poke()
     shutil.copyfile("wandb/debug.log", "wandb/debug-%s.log" % run_id)
+
+# WB-3321: check if sweeps work when a user uses os.chdir in sweep function
+def train_and_check_chdir(**kwargs):
+    if 'test_chdir' not in os.getcwd():
+        try:
+            os.makedirs('./test_chdir')
+        except:
+            pass
+        os.chdir('./test_chdir')
+    run = wandb.init()
+    with run:
+        c=dict(run.config)
+        root = c.get('root')
+        run.name = '{}-{}-{}'.format(c.get("param0"), c.get("param1"), c.get("param2"))
+        run_id = run.id
+        print("SweepID", run.sweep_id)
+        length = run.config.get("length", L)
+        epochs = run.config.get("epochs", 27)
+        for e in range(epochs):
+            n = float(length) * (float(e+1) / epochs)
+            val = run.config.param0 + run.config.param1 * n + run.config.param2 * n * n
+            wandb.log(dict(val_acc=val))
+        files = os.listdir(run.dir)
+        # TODO: Add a check to restoring from another run in this case, WB-3715. Should restore to run.dir
+        # check files were saved to the right place
+        assert set(files) == set(['requirements.txt', 'output.log', 'config.yaml', 'wandb-summary.json', 'wandb-metadata.json']), print(files)
+        # ensure run dir does not contain test_chdir, and no files were saved there
+        assert 'test_chdir' not in run.dir
+        for root, dir, files in os.walk("."):
+            assert files == [], print(files)
 
 
 def check(sweep_id, num=None, result=None, stopped=None):
@@ -157,6 +193,25 @@ def sweep_grid_hyperband(args):
     # TODO(check stopped)
     check(sweep_id, num=9, result=2 + 4*L + 1.5*L*L, stopped=3)
 
+# test that files are saved in the right place when there is an os.chdir during a sweep function
+def sweep_chdir(args):
+    config = dict(
+        method="grid",
+        parameters=dict(
+            param0=dict(values=[2]),
+            param1=dict(values=[0, 1, 4]),
+            param2=dict(values=[0, 0.5, 1.5]),
+            epochs=dict(value=4),
+            ),
+        root=os.getcwd()
+        )
+
+    sweep_id = wandb.sweep(config, project=PROJECT)
+    wandb.agent(sweep_id, function=train_and_check_chdir, count=2)
+    # clean up
+    os.chdir('../')
+    os.removedirs('./test_chdir')
+
 
 def main():
     global POKE_LOCAL
@@ -174,8 +229,9 @@ def main():
             grid=sweep_grid,
             bayes=sweep_bayes,
             grid_hyper=sweep_grid_hyperband,
+            chdir=sweep_chdir,
             )
-    default_tests = ('quick', 'grid', 'bayes',)
+    default_tests = ('quick', 'grid', 'bayes', 'chdir')
     test_list = args.test.split(',') if args.test else default_tests
     exclude_list = args.exclude.split(',') if args.exclude else []
 
