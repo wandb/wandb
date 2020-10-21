@@ -225,22 +225,22 @@ def test_dir_on_init(live_mock_server, test_settings):
     assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
 
     # test for the case that the env variable is set
-    # os.environ["WANDB_DIR"] = custom_env_path
-    # if not os.path.isdir(custom_env_path):
-    #     os.makedirs(custom_env_path)
-    # reloadFn(wandb)
-    # _remove_dir_if_exists(default_path)
-    # run = wandb.init()
-    # run.join()
-    # assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    # assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
-    # # And for the duplicate-run case
-    # _remove_dir_if_exists(default_path)
-    # run = wandb.init()
-    # run.join()
-    # assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    # assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
-    # del(os.environ["WANDB_DIR"])
+    os.environ["WANDB_DIR"] = custom_env_path
+    if not os.path.isdir(custom_env_path):
+        os.makedirs(custom_env_path)
+    reloadFn(wandb)
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
+    # And for the duplicate-run case
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
+    del(os.environ["WANDB_DIR"])
 
     # test for the case that the dir is set
     reloadFn(wandb)
