@@ -211,10 +211,6 @@ def test_dir_on_init(live_mock_server, test_settings):
     run = wandb.init()
     run.join()
     assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
-    # And for the duplicate-run case
-    run = wandb.init()
-    run.join()
-    assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
 
 
 def test_dir_on_init_env(live_mock_server, test_settings):
