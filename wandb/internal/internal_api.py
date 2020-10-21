@@ -77,7 +77,9 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
-        self._settings = Settings(load_settings=load_settings, root_dir=self.default_settings.get("root_dir"))
+        self._settings = Settings(
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+        )
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
@@ -736,7 +738,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1453,8 +1459,7 @@ class Api(object):
         return response["createAnonymousEntity"]["apiKey"]["name"]
 
     def file_current(self, fname, md5):
-        """Checksum a file and compare the md5 with the known md5
-        """
+        """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions
