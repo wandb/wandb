@@ -1,12 +1,13 @@
 import pytest
 import sys
 
-pytestmark = pytest.mark.skipif(sys.version_info >= (3, 9),
-                                reason="python3.9 has problems with numpy and more")
 import wandb
 from wandb import data_types
 
+if sys.version_info >= (3, 9):
+    np = pytest.importorskip("numpy")
 import numpy as np
+
 import PIL
 import os
 import six

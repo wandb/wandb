@@ -1,4 +1,7 @@
 import pytest
+import sys
+if sys.version_info >= (3, 9):
+    pytest.importorskip("sklearn")
 from sklearn.naive_bayes import MultinomialNB
 from wandb.plots.roc import roc
 from wandb.plots.precision_recall import precision_recall
