@@ -127,6 +127,7 @@ class Backend:
             _jupyter=None,
             _kaggle=None,
             _offline=None,
+            email=None,
         )
 
         mp = multiprocessing
