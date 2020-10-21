@@ -170,17 +170,14 @@ def test_network_fault_graphql(live_mock_server, test_settings):
         ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
 
 
-# def _default_wandb_dir():
-#     return os.path.join(os.getcwd(), "wandb")
-
-
 def _remove_dir_if_exists(path):
+    '''Recursively removes directory. Be careful'''
     if os.path.isdir(path):
         shutil.rmtree(path)
 
 
-def test_dir_on_import(live_mock_server):
-    '''Ensures that `import wandb` does not create a local storoage directory'''
+def test_dir_on_import(live_mock_server, test_settings):
+    '''Ensures that `import wandb` does not create a local storage directory'''
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
@@ -190,144 +187,74 @@ def test_dir_on_import(live_mock_server):
     # Test for the base case
     _remove_dir_if_exists(default_path)
     reloadFn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory found at {}".format(default_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
 
     # test for the case that the env variable is set
     os.environ["WANDB_DIR"] = custom_env_path
     _remove_dir_if_exists(default_path)
     reloadFn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory found at {}".format(default_path)
-    assert not os.path.isdir(custom_env_path), "Unexpected directory found at {}".format(custom_env_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert not os.path.isdir(custom_env_path), "Unexpected directory at {}".format(custom_env_path)
 
 
-# def test_dir_on_first_init_no_dir(live_mock_server, test_settings):
-#     '''Ensures that `import wandb` does not create a `wandb` directory in the
-#     current directory when configured otherwise'''
+def test_dir_on_init(live_mock_server, test_settings):
+    '''Ensures that `wandb.init()` creates the proper directory and nothing else on the following cases:
+        - wandb.init() (both initial run and subsiquent run)
+        - wandb.init() w/ env variable set (both initial run and subsiquent run)
+        - wandb.init(dir=DIR) (both initial run and subsiquent run)
+    '''
+    default_path = os.path.join(os.getcwd(), "wandb")
+    custom_env_path = os.path.join(os.getcwd(), "env_custom")
+    dir_name = "dir_custom"
+    custom_dir_path = os.path.join(os.getcwd(), dir_name)
 
-#     # reimport wandb
-#     reloadFn(wandb)
+    # Clear env if set
+    if "WANDB_DIR" in os.environ: 
+        del(os.environ["WANDB_DIR"])
 
-#     # remove the existing wandb folder if one exists
-#     _remove_dir_if_exists(_default_wandb_dir())
+    # Test for the base case
+    reloadFn(wandb)
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
+    # And for the duplicate-run case
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
 
-#     # initialize in a custom directory
-#     print("test_settings.root_dir", test_settings.root_dir)
-#     # print("test_settings.root_dir", test_settings.)
-#     # run = wandb.init(dir="test_dir")
-#     # run.join()
-#     assert False
-#     # assert that a directory was not made on import
-#     assert not os.path.isdir(_default_wandb_dir()), "`wandb.init(dir='test_dir')` should not creat a wandb directory"
+    # test for the case that the env variable is set
+    os.environ["WANDB_DIR"] = custom_env_path
+    if not os.path.isdir(custom_env_path):
+        os.makedirs(custom_env_path)
+    reloadFn(wandb)
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
+    # And for the duplicate-run case
+    _remove_dir_if_exists(default_path)
+    run = wandb.init()
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
 
-# def test_dir(live_mock_server, test_settings):
-#     # Case1: on import                                       = no dir
-#     ###
-#     # Case2A: on first init,                                  = wandb dir
-#     # Case2B: on first init, settings object                  = wandb dir
-#     # Case2C: on first init, dir=wandb                        = wandb dir
-#     # Case2D: on first init, dir=custom                       = temp? dir, no wandb dir
-#     # Case2E: on first init, WANDB_DIR=custom                 = temp? dir, no wandb dir
-#     # Case2F: on first init, dir=custom, path exists         = custom dir, no wandb dir
-#     # Case2G: on first init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir
-#     ###
-#     # Case3A: on dup init,                                  = wandb dir
-#     # Case3B: on dup init, settings object                  = wandb dir
-#     # Case3C: on dup init, dir=wandb                        = wandb dir
-#     # Case3D: on dup init, dir=custom                       = temp? dir, no wandb dir
-#     # Case3E: on dup init, WANDB_DIR=custom                 = temp? dir, no wandb dir
-#     # Case3F: on dup init, dir=custom, path exists         = custom dir, no wandb dir
-#     # Case3G: on dup init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir
-#     ###
-#     # All Case4 cases start with init(dir="junk") on the first init (and junk folder exists)
-#     # Case4A: on dup init,                                  = junk dir, no wandb dir
-#     # Case4B: on dup init, settings object                  = junk dir, no wandb dir
-#     # Case4C: on dup init, dir=wandb                        = wandb dir                  - verify nothing else added to junk dir
-#     # Case4D: on dup init, dir=custom                       = temp? dir, no wandb dir    - verify nothing else added to junk dir
-#     # Case4E: on dup init, WANDB_DIR=custom                 = temp? dir, no wandb dir    - verify nothing else added to junk dir
-#     # Case4F: on dup init, dir=custom, path exists         = custom dir, no wandb dir    - verify nothing else added to junk dir
-#     # Case4G: on dup init, WANDB_DIR=custom, path exists   = custom dir, no wandb dir    - verify nothing else added to junk dir
-
-
-#     os.environ["WANDB_DIR"] = ""
-#     custom_dir_name = "custom"
-#     custom_dir_path = os.path.join(os.getcwd(), custom_dir_name)
-#     default_path = _default_wandb_dir()
-
-#     #Case1
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     assert not os.path.isdir(default_path)
-
-#     #Case2A:
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init()
-#     run.join()
-#     assert os.path.isdir(default_path)
-
-#     #Case2B
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init(dir=custom_dir_name)
-#     run.join()
-#     assert not os.path.isdir(default_path)
-#     assert os.path.isdir(custom_dir_path)
-#     _remove_dir_if_exists(custom_dir_path)
-
-#     #Case2B
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init(dir=custom_dir_name, settings=test_settings)
-#     run.join()
-#     assert not os.path.isdir(default_path)
-#     assert os.path.isdir(custom_dir_path)
-#     _remove_dir_if_exists(custom_dir_path)
-
-#     os.environ["WANDB_DIR"] = "env_custom"
-#     custom_env_path = os.path.join(os.getcwd(), os.environ["WANDB_DIR"])
-#     #Case1
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     assert not os.path.isdir(default_path)
-#     assert not os.path.isdir(custom_env_path)
-
-#     #Case2A:
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init()
-#     run.join()
-#     assert not os.path.isdir(default_path)
-#     assert os.path.isdir(custom_env_path)
-#     _remove_dir_if_exists(custom_env_path)
-
-#     #Case2B
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init(dir=custom_dir_name)
-#     run.join()
-#     assert not os.path.isdir(default_path)
-#     assert not os.path.isdir(custom_env_path)
-#     assert os.path.isdir(custom_dir_path)
-#     _remove_dir_if_exists(custom_dir_path)
-#     _remove_dir_if_exists(custom_env_path)
-
-
-#     #Case2B
-#     _remove_dir_if_exists(default_path)
-#     reloadFn(wandb)
-#     _remove_dir_if_exists(default_path)
-#     run = wandb.init(dir=custom_dir_name, settings=test_settings)
-#     run.join()
-#     assert not os.path.isdir(default_path)
-#     assert not os.path.isdir(custom_env_path)
-#     assert os.path.isdir(custom_dir_path)
-#     _remove_dir_if_exists(custom_dir_path)
-#     _remove_dir_if_exists(custom_env_path)
-
-
-
+    # test for the case that the dir is set
+    del(os.environ["WANDB_DIR"])
+    reloadFn(wandb)
+    _remove_dir_if_exists(default_path)
+    _remove_dir_if_exists(custom_env_path)
+    if not os.path.isdir(custom_dir_path):
+        os.makedirs(custom_dir_path)
+    run = wandb.init(dir="./" + dir_name)
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(custom_dir_path)
+    # And for the duplicate-run case
+    _remove_dir_if_exists(default_path)
+    run = wandb.init(dir="./" + dir_name)
+    run.join()
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(custom_dir_path)
