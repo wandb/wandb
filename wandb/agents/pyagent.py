@@ -70,9 +70,9 @@ class Agent(object):
 
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
-    MAX_FAILURES_AT_START = (
-        int(os.getenv(wandb.env.MAX_FAILURES_AT_START, 5))
-        if isinstance(os.getenv(wandb.env.MAX_FAILURES_AT_START, 5), int)
+    AGENT_MAX_INITIAL_FAILURES = (
+        int(os.getenv(wandb.env.AGENT_MAX_INITIAL_FAILURES, 5))
+        if isinstance(os.getenv(wandb.env.AGENT_MAX_INITIAL_FAILURES, 5), int)
         else 5
     )
 
@@ -238,16 +238,16 @@ class Agent(object):
                         self._exit_flag = True
                         return
                     if (
-                        self.MAX_FAILURES_AT_START < len(self._errored_runs)
+                        self.AGENT_MAX_INITIAL_FAILURES < len(self._errored_runs)
                         and len(self._errored_runs) >= count
                     ):
                         msg = "Detected {} failed runs in a row at start, killing sweep.".format(
-                            self.MAX_FAILURES_AT_START
+                            self.AGENT_MAX_INITIAL_FAILURES
                         )
                         logger.error(msg)
                         wandb.termerror(msg)
                         wandb.termlog(
-                            "To change this value set WANDB_MAX_FAILURES_AT_START=val"
+                            "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
                         )
                         self._exit_flag = True
                         return
