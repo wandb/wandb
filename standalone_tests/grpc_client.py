@@ -148,7 +148,7 @@ def main():
     wic.connect()
 
     run_id = os.environ.get("WANDB_RUN_ID")
-    entity = os.environ.get("WANDB_ENTIT")
+    entity = os.environ.get("WANDB_ENTITY")
     project = os.environ.get("WANDB_PROJECT")
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")
