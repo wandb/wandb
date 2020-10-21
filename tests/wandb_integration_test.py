@@ -198,18 +198,11 @@ def test_dir_on_import(live_mock_server, test_settings):
 
 
 def test_dir_on_init(live_mock_server, test_settings):
-    '''Ensures that `wandb.init()` creates the proper directory and nothing else on the following cases:
-        - wandb.init() (both initial run and subsiquent run)
-        - wandb.init() w/ env variable set (both initial run and subsiquent run)
-        - wandb.init(dir=DIR) (both initial run and subsiquent run)
-    '''
+    '''Ensures that `wandb.init()` creates the proper directory and nothing else'''
     default_path = os.path.join(os.getcwd(), "wandb")
-    custom_env_path = os.path.join(os.getcwd(), "env_custom")
-    dir_name = "dir_custom"
-    custom_dir_path = os.path.join(os.getcwd(), dir_name)
 
     # Clear env if set
-    if "WANDB_DIR" in os.environ: 
+    if "WANDB_DIR" in os.environ:
         del(os.environ["WANDB_DIR"])
 
     # Test for the base case
@@ -223,6 +216,12 @@ def test_dir_on_init(live_mock_server, test_settings):
     run = wandb.init()
     run.join()
     assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
+
+
+def test_dir_on_init_env(live_mock_server, test_settings):
+    '''Ensures that `wandb.init()` w/ env variable set creates the proper directory and nothing else'''
+    default_path = os.path.join(os.getcwd(), "wandb")
+    custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
     # test for the case that the env variable is set
     os.environ["WANDB_DIR"] = custom_env_path
@@ -242,10 +241,17 @@ def test_dir_on_init(live_mock_server, test_settings):
     assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
     del(os.environ["WANDB_DIR"])
 
+
+def test_dir_on_init_dir(live_mock_server, test_settings):
+    '''Ensures that `wandb.init(dir=DIR)` creates the proper directory and nothing else'''
+
+    default_path = os.path.join(os.getcwd(), "wandb")
+    dir_name = "dir_custom"
+    custom_dir_path = os.path.join(os.getcwd(), dir_name)
+
     # test for the case that the dir is set
     reloadFn(wandb)
     _remove_dir_if_exists(default_path)
-    _remove_dir_if_exists(custom_env_path)
     if not os.path.isdir(custom_dir_path):
         os.makedirs(custom_dir_path)
     run = wandb.init(dir="./" + dir_name)
