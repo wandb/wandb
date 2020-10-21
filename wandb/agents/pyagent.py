@@ -85,6 +85,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        # if the directory to log to is not set, set it
+        if os.environ.get(wandb.env.DIR) is None:
+            os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
@@ -254,9 +257,13 @@ class Agent(object):
             config_file = os.path.join(
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
-            config_util.save_config_file_from_dict(config_file, job.config)
             os.environ[wandb.env.RUN_ID] = run_id
-            os.environ[wandb.env.CONFIG_PATHS] = config_file
+            os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
+                os.environ[wandb.env.DIR], config_file
+            )
+            config_util.save_config_file_from_dict(
+                os.environ[wandb.env.CONFIG_PATHS], job.config
+            )
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
