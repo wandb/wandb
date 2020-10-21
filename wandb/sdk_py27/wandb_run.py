@@ -1690,6 +1690,7 @@ class Run(RunBase):
             type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact,
                 defaults to ["latest"]
+
         Returns:
             A :obj:`Artifact` object.
         """
