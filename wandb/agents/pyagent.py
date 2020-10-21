@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _terminate_thread(thread):
-    if not thread.isAlive():
+    if not thread.is_alive():
         return
     tid = getattr(thread, "_thread_id", None)
     if tid is None:
@@ -129,7 +129,7 @@ class Agent(object):
         run_status = {}
         dead_runs = []
         for k, v in self._run_threads.items():
-            if v.isAlive():
+            if v.is_alive():
                 run_status[k] = True
             else:
                 dead_runs.append(k)
@@ -160,7 +160,7 @@ class Agent(object):
         while True:
             if self._exit_flag:
                 return
-            # if not self._main_thread.isAlive():
+            # if not self._main_thread.is_alive():
             #     return
             commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
             if not commands:

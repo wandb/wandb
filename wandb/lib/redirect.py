@@ -270,7 +270,7 @@ class Capture(object):
         logger.info("_stop closed: %s", name)
         # TODO: need to shut this down cleanly since it is a daemon thread
         self._thread.join(timeout=30)
-        if self._thread.isAlive():
+        if self._thread.is_alive():
             logger.error("Thread did not join: %s", self._name)
             # TODO(jhr): do something better
         logger.info("_stop joined: %s", name)

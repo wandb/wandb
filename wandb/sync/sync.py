@@ -206,7 +206,7 @@ class SyncManager:
         self._thread.start()
 
     def is_done(self):
-        return not self._thread.isAlive()
+        return not self._thread.is_alive()
 
     def poll(self):
         time.sleep(1)
