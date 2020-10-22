@@ -1903,6 +1903,49 @@ class Api(object):
             result[node["displayName"]] = node
         return result
 
+    @normalize_exceptions
+    def notify_scriptable_run_alert(self, title, text, level=None, wait_duration=None):
+        mutation = gql(
+            """
+        mutation NotifyScriptableRunAlert(
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String!,
+            $title: String!,
+            $text: String!,
+            $severity: AlertSeverity = INFO,
+            $waitDuration: Duration
+        ) {
+            notifyScriptableRunAlert(input: {
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                title: $title,
+                text: $text,
+                severity: $severity,
+                waitDuration: $waitDuration
+            }) {
+               success
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entityName": self.settings("entity"),
+                "projectName": self.settings("project"),
+                "runName": self.current_run_id,
+                "title": title,
+                "text": text,
+                "severity": level,
+                "waitDuration": wait_duration,
+            },
+        )
+
+        return response["notifyScriptableRunAlert"]["success"]
+
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""
         return requests.put(

@@ -48,6 +48,7 @@ join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
+AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
@@ -129,6 +130,9 @@ log_artifact = _preinit.PreInitCallable(
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
+alert = _preinit.PreInitCallable(
+    "wandb.alert", wandb_sdk.wandb_run.Run.alert
+)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}
@@ -145,6 +149,7 @@ lightgbm = _lazyloader.LazyLoader(
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
+
 
 def ensure_configured():
     global api
