@@ -510,12 +510,12 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
     Examples:
         Run a sample sweep over a function:
         def train():
-            run = wandb.init()
-            print("config:", dict(run.config))
-            for epoch in range(35):
-                print("running", epoch)
-                wandb.log({"metric": run.config.param1, "epoch": epoch})
-                time.sleep(1)
+            with wandb.init() as run:
+                print("config:", dict(run.config))
+                for epoch in range(35):
+                    print("running", epoch)
+                    wandb.log({"metric": run.config.param1, "epoch": epoch})
+                    time.sleep(1)
 
         wandb.agent(sweep_id, function=train)
     """
