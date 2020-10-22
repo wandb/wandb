@@ -683,9 +683,10 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/pypi/<library>/json")
     def pypi(library):
+        version = getattr(wandb, "__hack_pypi_latest_version__", wandb.__version__)
         return json.dumps(
             {
-                "info": {"version": wandb.__version__},
+                "info": {"version": version},
                 "releases": {
                     "88.1.2rc2": [],
                     "88.1.2rc12": [],
@@ -695,6 +696,8 @@ index 30d74d2..9a2c773 100644
                     "0.0.8rc2": [],
                     "0.0.8rc3": [],
                     "0.0.8rc8": [],
+                    "0.0.2": [{"yanked": True}],
+                    "0.0.3": [{"yanked": True, "yanked_reason": "just cuz"}],
                     "0.0.7": [],
                     "0.0.5": [],
                     "0.0.6": [],

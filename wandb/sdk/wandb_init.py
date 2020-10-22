@@ -12,7 +12,6 @@ import os
 import time
 import traceback
 
-import click
 import six
 import wandb
 from wandb import trigger
@@ -365,19 +364,16 @@ class _WandbInit(object):
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
         else:
-            ret = backend.interface.communicate_check_version()
+            ret = backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
             if ret:
                 if ret.upgrade_message:
-                    run._set_upgrade_version_message(ret.upgrade_message)
-                # if yanked or deleted, warn at header and footer
+                    run._set_upgraded_version_message(ret.upgrade_message)
                 if ret.delete_message:
-                    run._set_check_version_message(
-                        click.style(ret.delete_message, fg="red")
-                    )
-                elif ret.yank_message:
-                    run._set_check_version_message(
-                        click.style(ret.yank_message, fg="red")
-                    )
+                    run._set_deleted_version_message(ret.delete_message)
+                if ret.yank_message:
+                    run._set_yanked_version_message(ret.yank_message)
             run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None

@@ -11,6 +11,7 @@ import platform
 import subprocess
 import os
 from .utils import fixture_open
+import sys
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
@@ -154,3 +155,27 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     print(ctx)
     assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
         ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
+
+
+def test_version_upgraded(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.10.2"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "is available!  To upgrade, please run:" in captured.err
+
+
+def test_version_yanked(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.10.0"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
+
+
+def test_version_retired(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.9.99"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "ERROR wandb version 0.9.99 has been retired" in captured.err

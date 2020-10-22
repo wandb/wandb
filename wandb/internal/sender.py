@@ -111,18 +111,20 @@ class SendManager(object):
     def send_request_check_version(self, record):
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
-        current_version = wandb.__version__
+        current_version = (
+            record.request.check_version.current_version or wandb.__version__
+        )
         messages = update.check_available(current_version)
         if messages:
-            result.response.check_version_response.upgrade_message = messages[
-                "upgrade_message"
-            ]
-            result.response.check_version_response.yank_message = messages[
-                "yank_message"
-            ]
-            result.response.check_version_response.delete_message = messages[
-                "delete_message"
-            ]
+            upgrade_message = messages.get("upgrade_message")
+            if upgrade_message:
+                result.response.check_version_response.upgrade_message = upgrade_message
+            yank_message = messages.get("yank_message")
+            if yank_message:
+                result.response.check_version_response.yank_message = yank_message
+            delete_message = messages.get("delete_message")
+            if delete_message:
+                result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
     def send_request_status(self, record):

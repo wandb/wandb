@@ -469,6 +469,7 @@ message RunStartResponse {
  * CheckVersion:
  */
 message CheckVersionRequest {
+  string current_version = 1;
 }
 
 message CheckVersionResponse {
