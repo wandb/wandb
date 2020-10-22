@@ -506,7 +506,9 @@ class Run(RunBase):
 
     @property
     def resumed(self):
-        return self.starting_step > 0
+        if self._run_obj:
+            return self._run_obj.resumed
+        return False
 
     @property
     def step(self):
