@@ -318,3 +318,21 @@ def wandb_init_run(request, runner, mocker, mock_server):
         unset_globals()
         for k, v in args["env"].items():
             del os.environ[k]
+
+
+@pytest.fixture()
+def restore_version():
+    save_current_version = wandb.__version__
+    yield
+    wandb.__version__ = save_current_version
+    try:
+        del wandb.__hack_pypi_latest_version__
+    except AttributeError:
+        pass
+
+
+@pytest.fixture()
+def disable_console():
+    os.environ["WANDB_CONSOLE"] = "off"
+    yield
+    del os.environ["WANDB_CONSOLE"]

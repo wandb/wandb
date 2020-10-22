@@ -5,6 +5,7 @@ import threading
 import time
 import shutil
 
+import wandb
 from wandb.util import mkdir_exists_ok
 from wandb.internal.handler import HandleManager
 from wandb.internal.sender import SendManager
@@ -417,6 +418,50 @@ def test_save_now_twice(mocked_run, mock_server, sender, start_backend, stop_bac
     stop_backend()
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
+
+
+def test_upgrade_upgraded(mocked_run, mock_server, sender, start_backend, stop_backend, restore_version):
+    wandb.__version__ = "0.0.6"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert ret.upgrade_message == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    assert not ret.delete_message
+    assert not ret.yank_message
+
+
+def test_upgrade_yanked(mocked_run, mock_server, sender, start_backend, stop_backend, restore_version):
+    wandb.__version__ = "0.0.2"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert ret.upgrade_message == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    assert not ret.delete_message
+    assert ret.yank_message == "wandb version 0.0.2 has been recalled!  Please upgrade."
+
+
+def test_upgrade_yanked_message(mocked_run, mock_server, sender, start_backend, stop_backend, restore_version):
+    wandb.__version__ = "0.0.3"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert ret.upgrade_message == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    assert not ret.delete_message
+    assert ret.yank_message == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
+
+
+def test_upgrade_removed(mocked_run, mock_server, sender, start_backend, stop_backend, restore_version):
+    wandb.__version__ = "0.0.4"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert ret.upgrade_message == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    assert ret.delete_message == "wandb version 0.0.4 has been retired!  Please upgrade."
+    assert not ret.yank_message
 
 
 # TODO: test other sender methods
