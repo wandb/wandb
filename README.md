@@ -54,11 +54,6 @@ If you have any questions, please don't hesitate to ask in our [Slack community]
 
 **[Explore a W&B dashboard](https://www.youtube.com/watch?v=gnD8BFuyVUA)**
 
-## Testing
-
-To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
-
-We use [circleci](https://circleci.com) for CI.
 
 # Academic Researchers
 
@@ -266,3 +261,9 @@ all directly linked to run.
 ![](https://i.imgur.com/w92cYQm.png)
 
 **Learn about Artifacts [here →](https://www.wandb.com/articles/announcing-artifacts) | Read the [Docs](https://docs.wandb.com/artifacts)**
+
+# Testing
+
+To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
+
+We use [circleci](https://circleci.com) for CI.
