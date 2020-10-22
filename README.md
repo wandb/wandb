@@ -20,9 +20,6 @@ Use W&B to organize and analyze machine learning experiments. It's framework-agn
 
 [Documentation →](https://docs.wandb.com)
 
-[Check out our library of example scripts →**](https://github.com/wandb/examples/tree/master/examples)
-or read on for code snippets and more.
-
 If you have any questions, please don't hesitate to ask in our [Slack community](http://bit.ly/slack-forum).
 
 # 🤝 Simple integration with any framework
