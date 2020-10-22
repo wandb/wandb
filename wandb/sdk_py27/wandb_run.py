@@ -1749,6 +1749,12 @@ class Run(RunBase):
         level = level or wandb.AlertLevel.INFO
         if isinstance(level, wandb.AlertLevel):
             level = level.value
+        if level not in (
+            wandb.AlertLevel.INFO.value,
+            wandb.AlertLevel.WARN.value,
+            wandb.AlertLevel.ERROR.value,
+        ):
+            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
         if isinstance(wait_duration, int) or isinstance(wait_duration, float):
@@ -1759,12 +1765,6 @@ class Run(RunBase):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if level not in (
-            wandb.AlertLevel.INFO.value,
-            wandb.AlertLevel.WARN.value,
-            wandb.AlertLevel.ERROR.value,
-        ):
-            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
         self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
