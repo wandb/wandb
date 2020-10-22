@@ -1,5 +1,9 @@
 ## 0.10.8 (October 22, 2020)
 
+#### :nail_care: Enhancement
+
+- Allow callables to be serialized
+
 #### :bug: Bug Fix
 
 - Fix compatibility issue with python 3.9
