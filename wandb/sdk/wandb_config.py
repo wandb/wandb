@@ -76,8 +76,6 @@ class Config(object):
         args = parser.parse_args()
         wandb.config.update(args)
         ```
-
-
     """
     def __init__(self):
         object.__setattr__(self, "_items", dict())
