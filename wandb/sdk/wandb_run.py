@@ -293,8 +293,9 @@ class Run(RunBase):
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
-        self._upgrade_version_message = None
-        self._check_version_message = None
+        self._upgraded_version_message = None
+        self._deleted_version_message = None
+        self._yanked_version_message = None
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -509,7 +510,9 @@ class Run(RunBase):
 
     @property
     def resumed(self):
-        return self.starting_step > 0
+        if self._run_obj:
+            return self._run_obj.resumed
+        return False
 
     @property
     def step(self):
@@ -1013,11 +1016,14 @@ class Run(RunBase):
         )
         return visualization
 
-    def _set_upgrade_version_message(self, msg):
-        self._upgrade_version_message = msg
+    def _set_upgraded_version_message(self, msg):
+        self._upgraded_version_message = msg
 
-    def _set_check_version_message(self, msg):
-        self._check_version_message = msg
+    def _set_deleted_version_message(self, msg):
+        self._deleted_version_message = msg
+
+    def _set_yanked_version_message(self, msg):
+        self._yanked_version_message = msg
 
     def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
         if "visualize" not in self._config["_wandb"]:
@@ -1304,10 +1310,7 @@ class Run(RunBase):
             self._output_writer = None
 
     def _on_init(self):
-        if self._check_version_message:
-            wandb.termlog(self._check_version_message)
-        if self._upgrade_version_message:
-            wandb.termlog(self._upgrade_version_message)
+        self._show_version_info()
 
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
@@ -1500,9 +1503,20 @@ class Run(RunBase):
                 )
             )
 
-        # display yank/deleted warning
-        if self._check_version_message:
-            wandb.termlog(self._check_version_message)
+        self._show_version_info(footer=True)
+
+    def _show_version_info(self, footer=None):
+        package_problem = False
+        if self._deleted_version_message:
+            wandb.termerror(self._deleted_version_message)
+            package_problem = True
+        elif self._yanked_version_message:
+            wandb.termwarn(self._yanked_version_message)
+            package_problem = True
+        # only display upgrade message if packages are bad or in header
+        if not footer or package_problem:
+            if self._upgraded_version_message:
+                wandb.termlog(self._upgraded_version_message)
 
     def _show_summary(self):
         if self._final_summary:

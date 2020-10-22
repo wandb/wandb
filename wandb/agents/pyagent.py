@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _terminate_thread(thread):
-    if not thread.isAlive():
+    if not thread.is_alive():
         return
     tid = getattr(thread, "_thread_id", None)
     if tid is None:
@@ -85,6 +85,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        # if the directory to log to is not set, set it
+        if os.environ.get(wandb.env.DIR) is None:
+            os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
@@ -93,6 +96,7 @@ class Agent(object):
         self._stopped_runs = set()
         self._exit_flag = False
         self._errored_runs = {}
+        self._lock = threading.Lock()
 
     def _register(self):
         logger.debug("Agent._register()")
@@ -122,25 +126,27 @@ class Agent(object):
         self._register()
 
     def _run_status(self):
-        run_status = {}
-        dead_runs = []
-        for k, v in self._run_threads.items():
-            if v.isAlive():
-                run_status[k] = True
-            else:
-                dead_runs.append(k)
-        # clean up dead runs
-        for k in dead_runs:
-            del self._run_threads[k]
-        return run_status
+        with self._lock:
+            run_status = {}
+            dead_runs = []
+            for k, v in self._run_threads.items():
+                if v.isAlive():
+                    run_status[k] = True
+                else:
+                    dead_runs.append(k)
+            # clean up dead runs
+            for k in dead_runs:
+                del self._run_threads[k]
+            return run_status
 
     def _stop_run(self, run_id):
         logger.debug("Stopping run {}.".format(run_id))
         self._stopped_runs.add(run_id)
-        thread = self._run_threads.get(run_id)
-        if thread:
-            _terminate_thread(thread)
-            del self._run_threads[run_id]
+        with self._lock:
+            thread = self._run_threads.get(run_id)
+            if thread:
+                _terminate_thread(thread)
+                del self._run_threads[run_id]
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
@@ -156,7 +162,7 @@ class Agent(object):
         while True:
             if self._exit_flag:
                 return
-            # if not self._main_thread.isAlive():
+            # if not self._main_thread.is_alive():
             #     return
             commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
             if not commands:
@@ -231,7 +237,9 @@ class Agent(object):
                             )
                             self._exit_flag = True
                             return
-                    del self._run_threads[job.run_id]
+                    with self._lock:
+                        if run_id in self._run_threads:
+                            del self._run_threads[run_id]
                     if self._count and self._count == count:
                         logger.debug("Exiting main loop because max count reached.")
                         self._exit_flag = True
@@ -258,9 +266,13 @@ class Agent(object):
             config_file = os.path.join(
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
-            config_util.save_config_file_from_dict(config_file, job.config)
             os.environ[wandb.env.RUN_ID] = run_id
-            os.environ[wandb.env.CONFIG_PATHS] = config_file
+            os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
+                os.environ[wandb.env.DIR], config_file
+            )
+            config_util.save_config_file_from_dict(
+                os.environ[wandb.env.CONFIG_PATHS], job.config
+            )
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
