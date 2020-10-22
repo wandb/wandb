@@ -96,6 +96,7 @@ class Agent(object):
         self._stopped_runs = set()
         self._exit_flag = False
         self._errored_runs = {}
+        self._start_time = time.time()
         self._lock = threading.Lock()
 
     def _register(self):
@@ -225,7 +226,7 @@ class Agent(object):
                             self._exit_flag = True
                             return
                         elif (
-                            time.time() - wandb.START_TIME < self.FLAPPING_MAX_SECONDS
+                            time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
                         ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
                             msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
                                 self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
