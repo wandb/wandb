@@ -1,11 +1,13 @@
 from pkg_resources import parse_version
 import requests
+import six
 import wandb
 
 
 def _find_available(current_version):
     pypi_url = "https://pypi.org/pypi/%s/json" % wandb._wandb_module
 
+    yanked_dict = {}
     try:
         async_requests_get = wandb.util.async_call(requests.get, timeout=5)
         data, thread = async_requests_get(pypi_url, timeout=3)
@@ -14,6 +16,12 @@ def _find_available(current_version):
         data = data.json()
         latest_version = data["info"]["version"]
         release_list = data["releases"].keys()
+        for version, fields in six.iteritems(data["releases"]):
+            for item in fields:
+                yanked = item.get("yanked")
+                yanked_reason = item.get("yanked_reason")
+                if yanked:
+                    yanked_dict[version] = yanked_reason
     except Exception:
         # Any issues whatsoever, just skip the latest version check.
         return
@@ -26,11 +34,10 @@ def _find_available(current_version):
     parsed_current_version = parse_version(current_version)
 
     # Check if current version has been yanked or deleted
+    # NOTE: we will not return yanked or deleted if there is nothing to upgrade to
     if current_version in release_list:
-        for item in data["releases"][current_version]:
-            yanked = yanked or item["yanked"]
-            if item["yanked_reason"]:
-                yanked_reason = item["yanked_reason"]
+        yanked = current_version in yanked_dict
+        yanked_reason = yanked_dict.get(current_version)
     else:
         deleted = True
 
@@ -80,12 +87,18 @@ def check_available(current_version):
 
     delete_message = None
     if deleted:
-        delete_message = "WARNING: your current version has been DELETED"
+        delete_message = "%s version %s has been retired!  Please upgrade." % (
+            wandb._wandb_module,
+            current_version,
+        )
     yank_message = None
     if yanked:
-        yank_message = "WARNING: your current version has been YANKED"
-        if yanked_reason:
-            yank_message += "\nReason: %s" % yanked_reason
+        reason_message = "(%s)  " % yanked_reason if yanked_reason else ""
+        yank_message = "%s version %s has been recalled!  %sPlease upgrade." % (
+            wandb._wandb_module,
+            current_version,
+            reason_message,
+        )
 
     # A new version is available!
     return {
