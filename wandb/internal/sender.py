@@ -62,6 +62,7 @@ class SendManager(object):
             "runtime": 0,
             "summary": None,
             "config": None,
+            "resumed": False,
         }
 
         # State added when run_exit needs results
@@ -302,8 +303,16 @@ class SendManager(object):
         config = {}
         summary = {}
         try:
-            history = json.loads(json.loads(resume_status["historyTail"])[-1])
-            events = json.loads(json.loads(resume_status["eventsTail"])[-1])
+            events_rt = 0
+            history_rt = 0
+            history = json.loads(resume_status["historyTail"])
+            if history:
+                history = json.loads(history[-1])
+                history_rt = history.get("_runtime", 0)
+            events = json.loads(resume_status["eventsTail"])
+            if events:
+                events = json.loads(events[-1])
+                events_rt = events.get("_runtime", 0)
             config = json.loads(resume_status["config"])
             summary = json.loads(resume_status["summaryMetrics"])
         except (IndexError, ValueError) as e:
@@ -316,15 +325,14 @@ class SendManager(object):
 
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
-        events_rt = events.get("_runtime", 0)
-        history_rt = history.get("_runtime", 0)
         self._resume_state["runtime"] = max(events_rt, history_rt)
-        self._resume_state["step"] = history.get("_step", -1) + 1
+        self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
+        self._resume_state["resumed"] = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return
 
@@ -404,6 +412,8 @@ class SendManager(object):
             commit=repo.last_commit,
         )
         self._run = run
+        if self._resume_state.get("resumed"):
+            self._run.resumed = True
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(start_time)
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
