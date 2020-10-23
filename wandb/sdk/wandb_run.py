@@ -1772,7 +1772,8 @@ def restore(
 
 
 # propigate our doc string to the runs restore method
-Run.restore.__wrapped__ = restore
+if hasattr(Run.restore, "__wrapped__"):
+    Run.restore.__wrapped__ = restore
 Run.restore.__doc__ = restore.__doc__
 
 
