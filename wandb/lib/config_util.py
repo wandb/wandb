@@ -51,7 +51,7 @@ def dict_from_config_file(filename, must_exist=False):
     if not os.path.exists(filename):
         if must_exist:
             raise ConfigError("config file %s doesn't exist" % filename)
-        logger.debug('no default config file found in %s' % filename)
+        logger.debug("no default config file found in %s" % filename)
         return None
     try:
         conf_file = open(filename)
