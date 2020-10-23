@@ -23,7 +23,7 @@ def poke():
 
 def train(**kwargs):
     print("train", kwargs)
-    if kwargs["chdir"]:
+    if kwargs.get("chdir"):
         try:
             os.makedirs('./test_chdir')
         except:

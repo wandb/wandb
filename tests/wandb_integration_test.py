@@ -13,6 +13,7 @@ import os
 import sys
 import shutil
 from .utils import fixture_open
+import sys
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -259,3 +260,27 @@ def test_dir_on_init_dir(live_mock_server, test_settings):
     run.join()
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
     assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(custom_dir_path)
+
+
+def test_version_upgraded(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.10.2"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "is available!  To upgrade, please run:" in captured.err
+
+
+def test_version_yanked(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.10.0"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
+
+
+def test_version_retired(live_mock_server, test_settings, capsys, disable_console, restore_version):
+    wandb.__version__ = "0.9.99"
+    run = wandb.init()
+    run.finish()
+    captured = capsys.readouterr()
+    assert "ERROR wandb version 0.9.99 has been retired" in captured.err

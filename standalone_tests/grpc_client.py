@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import json
 import logging
+import os
 import time
 
 import grpc
@@ -40,6 +41,22 @@ def make_config(config_dict, obj=None):
 
 def make_run_data(data):
     rdata = wandb_internal_pb2.RunRecord()
+    run_id = data.get("run_id")
+    if run_id:
+        rdata.run_id = run_id
+    entity = data.get("entity")
+    if entity:
+        rdata.entity = entity
+    project = data.get("project")
+    if project:
+        rdata.project = project
+    run_group = data.get("group")
+    if run_group:
+        rdata.run_group = run_group
+    job_type = data.get("job_type")
+    if job_type:
+        rdata.job_type = job_type
+    config_dict = data.get("config")
     config_dict = data.get("config")
     if config_dict:
         make_config(config_dict, obj=rdata.config)
@@ -130,7 +147,12 @@ def main():
     wic = WandbInternalClient()
     wic.connect()
 
-    run_result = wic.run_update(dict(config=dict(parm1=2, param2=3)))
+    run_id = os.environ.get("WANDB_RUN_ID")
+    entity = os.environ.get("WANDB_ENTITY")
+    project = os.environ.get("WANDB_PROJECT")
+    group = os.environ.get("WANDB_RUN_GROUP")
+    job_type = os.environ.get("WANDB_JOB_TYPE")
+    run_result = wic.run_update(dict(run_id=run_id, project=project, group=group, job_type=job_type, config=dict(parm1=2, param2=3)))
     run = run_result.run
     base_url = "https://app.wandb.ai"
     print(
