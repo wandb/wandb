@@ -77,6 +77,7 @@ class Config(object):
         wandb.config.update(args)
         ```
     """
+
     def __init__(self):
         object.__setattr__(self, "_items", dict())
         object.__setattr__(self, "_locked", dict())

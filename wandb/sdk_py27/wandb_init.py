@@ -450,14 +450,14 @@ def init(
     settings = None,
 ):
     """Initialize W&B
-    If called from within Jupyter, initializes a new run and waits for a call to
-    `wandb.log` to begin pushing metrics.  Otherwise, spawns a new process
-    to communicate with W&B.
+    Spawns a new process to start or resume a run locally and communicate with a
+    wandb server. Should be called before any calls to wandb.log.
+
     Args:
         job_type (str, optional): The type of job running, defaults to 'train'
         dir (str, optional): An absolute path to a directory where metadata will
             be stored.
-        config (dict, argparse, or tf.FLAGS, optional): The config parameters
+        config (dict, argparse, or absl.flags, optional): The config parameters
             (typically hyperparameters) to store with the run.
         project (str, optional): W&B Project.
         entity (str, optional): W&B Entity.
@@ -479,13 +479,23 @@ def init(
             online.
         allow_val_change (bool, optional): allow config values to be changed after
             setting. Defaults to true in jupyter and false otherwise.
-        resume (bool, str, optional): If set to true, automatically resume the previous
-            run if script is run from the same machine.  If set to a string (runid) wandb
-            will resume the specified run_id.
+        resume (bool, str, optional): Sets the resuming behavior. Should be one of:
+            "allow", "must", "never", or "auto". Defaults to "never".
+            Cases:
+            - "auto" (or True): automatically resume the previous run on the same machine.
+                if the previous run crashed, otherwise starts a new run.
+            - "allow": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will automatically resume the
+                run with the id. Otherwise wandb will start a new run.
+            - "never": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will crash.
+            - "must": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will automatically resume the
+                run with the id. Otherwise wandb will crash.
             See https://docs.wandb.com/library/advanced/resuming for more detail.
         force (bool, optional): If true, will cause script to crash if user can't or isn't
-            logged in to wandb server.  If false, will cause script to run in offline
-            modes if user can't or isn't logged in to wandb server. Defaults to false.
+            logged in to a wandb server.  If false, will cause script to run in offline
+            modes if user can't or isn't logged in to a wandb server. Defaults to false.
         sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or
             tensorboardX. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
@@ -505,8 +515,7 @@ def init(
         Launch multiple runs from the same script
         ```
         for x in range(10):
-            run = wandb.init(reinit=True)
-            with run:
+            with wandb.init(project="my-projo") as run:
                 for y in range(100):
                     run.log({"metric": x+y})
         ```
@@ -515,7 +524,7 @@ def init(
         Exception: if problem.
 
     Returns:
-        wandb Run object
+        A :obj:`Run` object.
 
     """
     assert not wandb._IS_INTERNAL_PROCESS
