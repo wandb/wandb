@@ -363,6 +363,7 @@ class Settings(object):
         self._apply_defaults(class_defaults)
         self._apply_defaults(defaults)
         self._update(kwargs, _source=self.Source.SETTINGS)
+        self.root_dir = os.path.abspath(os.getcwd())
 
     @property
     def _offline(self):
