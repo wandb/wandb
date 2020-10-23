@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import atexit
 import collections
+from datetime import timedelta
 import glob
 import json
 import logging
@@ -22,7 +23,6 @@ import time
 import traceback
 
 import click
-from datetime import timedelta
 from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.urllib.parse import quote as url_quote
