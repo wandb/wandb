@@ -1,25 +1,13 @@
 [tool.black]
 line-length = 88
 exclude = '''
-| wandb/apis/__init__.py
+  wandb/vendor/
+| wandb/sdk_py27/
+| wandb/sweeps/
+| wandb/old/
+| wandb/proto/
+| wandb/docker/wandb-entrypoint.sh
 '''
 include = '''
-  wandb/sdk/
-| wandb/backend/
-| wandb/interface/
-| wandb/internal/
-| wandb/util/
-| wandb/server/
-| wandb/integration/gym/
-| wandb/integration/tensorboard/
-| wandb/cli/
-| wandb/integration/magic.py
-| wandb/integration/keras/
-| wandb/integration/sagemaker/
-| wandb/sync/
-| wandb/agents/
-| wandb/secretagent/
-| wandb/wandb_agent.py
-| wandb/wandb_controller.py
-| wandb/apis/
+  wandb/
 '''

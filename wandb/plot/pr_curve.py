@@ -31,14 +31,21 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
     Example:
     wandb.log({'pr-curve': wandb.plot.pr_curve(y_true, y_probas, labels)})
     """
-    np = util.get_module("numpy", required="roc requires the numpy library, install with `pip install numpy`")
-    scikit = util.get_module("sklearn", "roc requires the scikit library, install with `pip install scikit-learn`")
+    np = util.get_module(
+        "numpy",
+        required="roc requires the numpy library, install with `pip install numpy`",
+    )
+    scikit = util.get_module(
+        "sklearn",
+        "roc requires the scikit library, install with `pip install scikit-learn`",
+    )
 
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
 
-    if (test_missing(y_true=y_true, y_probas=y_probas)
-            and test_types(y_true=y_true, y_probas=y_probas)):
+    if test_missing(y_true=y_true, y_probas=y_probas) and test_types(
+        y_true=y_true, y_probas=y_probas
+    ):
         classes = np.unique(y_true)
         probas = y_probas
 
@@ -47,21 +54,23 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
 
         binarized_y_true = scikit.preprocessing.label_binarize(y_true, classes=classes)
         if len(classes) == 2:
-            binarized_y_true = np.hstack(
-                (1 - binarized_y_true, binarized_y_true))
+            binarized_y_true = np.hstack((1 - binarized_y_true, binarized_y_true))
 
         pr_curves = {}
         indices_to_plot = np.in1d(classes, classes_to_plot)
         for i, to_plot in enumerate(indices_to_plot):
             if to_plot:
                 precision, recall, _ = scikit.metrics.precision_recall_curve(
-                    y_true, probas[:, i], pos_label=classes[i])
+                    y_true, probas[:, i], pos_label=classes[i]
+                )
 
                 samples = 20
                 sample_precision = []
                 sample_recall = []
                 for k in range(samples):
-                    sample_precision.append(precision[int(len(precision) * k / samples)])
+                    sample_precision.append(
+                        precision[int(len(precision) * k / samples)]
+                    )
                     sample_recall.append(recall[int(len(recall) * k / samples)])
 
                 pr_curves[classes[i]] = (sample_precision, sample_recall)
@@ -72,8 +81,9 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
             precision, recall = pr_curves[class_name]
             for p, r in zip(precision, recall):
                 # if class_names are ints and labels are set
-                if labels is not None and (isinstance(class_name, int)
-                                           or isinstance(class_name, np.integer)):
+                if labels is not None and (
+                    isinstance(class_name, int) or isinstance(class_name, np.integer)
+                ):
                     class_name = labels[class_name]
                 # if class_names are ints and labels are not set
                 # or, if class_names have something other than ints
@@ -81,13 +91,15 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
                 data.append([class_name, round(p, 3), round(r, 3)])
                 count += 1
                 if count >= chart_limit:
-                    wandb.termwarn("wandb uses only the first %d datapoints to create the plots." % wandb.Table.MAX_ROWS)
+                    wandb.termwarn(
+                        "wandb uses only the first %d datapoints to create the plots."
+                        % wandb.Table.MAX_ROWS
+                    )
                     break
-        table = wandb.Table(
-            columns=['class', 'precision', 'recall'],
-            data=data)
+        table = wandb.Table(columns=["class", "precision", "recall"], data=data)
         return wandb.plot_table(
-            'wandb/area-under-curve/v0',
+            "wandb/area-under-curve/v0",
             table,
-            {'x': 'recall', 'y': 'precision', 'class': 'class'},
-            {'title': 'Precision v. Recall'})
+            {"x": "recall", "y": "precision", "class": "class"},
+            {"title": "Precision v. Recall"},
+        )
