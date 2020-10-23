@@ -315,8 +315,8 @@ class SendManager(object):
             if events:
                 events = json.loads(events[-1])
                 events_rt = events.get("_runtime", 0)
-            config = json.loads(resume_status["config"])
-            summary = json.loads(resume_status["summaryMetrics"])
+            config = json.loads(resume_status["config"] or "{}")
+            summary = json.loads(resume_status["summaryMetrics"] or "{}")
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
