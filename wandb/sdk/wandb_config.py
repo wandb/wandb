@@ -33,6 +33,10 @@ class Config(object):
     You can create a file called config-defaults.yaml, and it will automatically be
     loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
 
+    You can also load a config YAML file with your custom name and pass the filename
+    into wandb.init(config="special_config.yaml").
+    See https://docs.wandb.com/library/config#file-based-configs.
+
     Examples:
         Basic usage
         ```

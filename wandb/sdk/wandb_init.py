@@ -426,7 +426,9 @@ def getcaller():
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
+    config: Union[
+        Dict, str, None
+    ] = None,  # TODO(jhr): type is a union for argparse/absl
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -457,8 +459,13 @@ def init(
         job_type (str, optional): The type of job running, defaults to 'train'
         dir (str, optional): An absolute path to a directory where metadata will
             be stored.
-        config (dict, argparse, or absl.flags, optional): The config parameters
-            (typically hyperparameters) to store with the run.
+        config (dict, argparse, or absl.flags, str, optional):
+            Sets the config parameters (typically hyperparameters) to store with the
+            run. See also wandb.config.
+            If dict, argparse or absl.flags: will load the key value pairs into
+                the runs config object.
+            If str: will look for a yaml file that includes config parameters and
+                load them into the run's config object.
         project (str, optional): W&B Project.
         entity (str, optional): W&B Entity.
         reinit (bool, optional): Allow multiple calls to init in the same process.
