@@ -89,6 +89,7 @@ class SyncThread(threading.Thread):
                 run_name=None,
                 run_notes=None,
                 save_code=None,
+                email=None,
             )
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()
@@ -206,7 +207,7 @@ class SyncManager:
         self._thread.start()
 
     def is_done(self):
-        return not self._thread.isAlive()
+        return not self._thread.is_alive()
 
     def poll(self):
         time.sleep(1)

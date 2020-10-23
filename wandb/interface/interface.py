@@ -589,8 +589,10 @@ class BackendSender(object):
         result = self._communicate(rec, timeout=timeout)
         return result
 
-    def communicate_check_version(self):
+    def communicate_check_version(self, current_version=None):
         check_version = wandb_internal_pb2.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
         rec = self._make_request(check_version=check_version)
         result = self._communicate(rec)
         if result is None:

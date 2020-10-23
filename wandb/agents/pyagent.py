@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _terminate_thread(thread):
-    if not thread.isAlive():
+    if not thread.is_alive():
         return
     tid = getattr(thread, "_thread_id", None)
     if tid is None:
@@ -85,6 +85,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        # if the directory to log to is not set, set it
+        if os.environ.get(wandb.env.DIR) is None:
+            os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
 
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
@@ -126,7 +129,7 @@ class Agent(object):
         run_status = {}
         dead_runs = []
         for k, v in self._run_threads.items():
-            if v.isAlive():
+            if v.is_alive():
                 run_status[k] = True
             else:
                 dead_runs.append(k)
@@ -157,7 +160,7 @@ class Agent(object):
         while True:
             if self._exit_flag:
                 return
-            # if not self._main_thread.isAlive():
+            # if not self._main_thread.is_alive():
             #     return
             commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
             if not commands:
@@ -254,9 +257,13 @@ class Agent(object):
             config_file = os.path.join(
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
-            config_util.save_config_file_from_dict(config_file, job.config)
             os.environ[wandb.env.RUN_ID] = run_id
-            os.environ[wandb.env.CONFIG_PATHS] = config_file
+            os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
+                os.environ[wandb.env.DIR], config_file
+            )
+            config_util.save_config_file_from_dict(
+                os.environ[wandb.env.CONFIG_PATHS], job.config
+            )
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
