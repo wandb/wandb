@@ -26,6 +26,7 @@ _wandb_module = "wandb"
 
 import sys
 
+import wandb
 from wandb.errors import Error
 
 # This needs to be early as other modules call it.
