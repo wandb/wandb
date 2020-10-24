@@ -28,5 +28,5 @@ def test_row_update(mocked_run):
     m = MockCallback()
     h = wandb_sdk.History(mocked_run)
     h._set_callback(m.callback)
-    h._row_update(dict(this=2)) 
+    h._row_update(dict(this=2))
     assert m.row is None

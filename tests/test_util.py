@@ -6,7 +6,7 @@ import numpy
 import platform
 import tensorflow
 import plotly
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 
 from . import utils
 from wandb import util
@@ -46,8 +46,7 @@ def json_friendly_test(orig_data, obj):
 
 
 def tensorflow_json_friendly_test(orig_data):
-    json_friendly_test(
-        orig_data, tensorflow.convert_to_tensor(orig_data))
+    json_friendly_test(orig_data, tensorflow.convert_to_tensor(orig_data))
     v = tensorflow.Variable(tensorflow.convert_to_tensor(orig_data))
     json_friendly_test(orig_data, v)
 
@@ -163,55 +162,64 @@ def test_tensorflow_json_nd_large():
 
 
 def test_image_from_docker_args_simple():
-    image = util.image_from_docker_args([
-        "run", "-v", "/foo:/bar", "-e", "NICE=foo", "-it", "wandb/deepo", "/bin/bash"])
+    image = util.image_from_docker_args(
+        ["run", "-v", "/foo:/bar", "-e", "NICE=foo", "-it", "wandb/deepo", "/bin/bash"]
+    )
     assert image == "wandb/deepo"
 
 
 def test_image_from_docker_args_simple_no_namespace():
-    image = util.image_from_docker_args([
-        "run", "-e", "NICE=foo", "nginx", "/bin/bash"])
+    image = util.image_from_docker_args(["run", "-e", "NICE=foo", "nginx", "/bin/bash"])
     assert image == "nginx"
 
 
 def test_image_from_docker_args_simple_no_equals():
-    image = util.image_from_docker_args([
-        "run", "--runtime=runc", "ufoym/deepo:cpu-all"])
+    image = util.image_from_docker_args(
+        ["run", "--runtime=runc", "ufoym/deepo:cpu-all"]
+    )
     assert image == "ufoym/deepo:cpu-all"
 
 
 def test_image_from_docker_args_bash_simple():
-    image = util.image_from_docker_args([
-        "run", "ufoym/deepo:cpu-all", "/bin/bash", "-c", "python train.py"])
+    image = util.image_from_docker_args(
+        ["run", "ufoym/deepo:cpu-all", "/bin/bash", "-c", "python train.py"]
+    )
     assert image == "ufoym/deepo:cpu-all"
 
 
 def test_image_from_docker_args_sha():
-    dsha = ("wandb/deepo@sha256:"
-            "3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177")
+    dsha = (
+        "wandb/deepo@sha256:"
+        "3ddd2547d83a056804cac6aac48d46c5394a76df76b672539c4d2476eba38177"
+    )
     image = util.image_from_docker_args([dsha])
     assert image == dsha
 
 
 def test_safe_for_json():
-    res = util.make_safe_for_json({
-        "nan": float("nan"),
-        "inf": float("+inf"),
-        "ninf": float("-inf"),
+    res = util.make_safe_for_json(
+        {
+            "nan": float("nan"),
+            "inf": float("+inf"),
+            "ninf": float("-inf"),
+            "str": "str",
+            "seq": [float("nan"), 1],
+            "map": {"foo": 1, "nan": float("nan")},
+        }
+    )
+    assert res == {
+        "inf": "Infinity",
+        "map": {"foo": 1, "nan": "NaN"},
+        "nan": "NaN",
+        "ninf": "-Infinity",
+        "seq": ["NaN", 1],
         "str": "str",
-        "seq": [float("nan"), 1],
-        "map": {"foo": 1, "nan": float("nan")}
-    })
-    assert res == {'inf': 'Infinity',
-                   'map': {'foo': 1, 'nan': 'NaN'},
-                   'nan': 'NaN',
-                   'ninf': '-Infinity',
-                   'seq': ['NaN', 1],
-                   'str': 'str'}
+    }
 
 
-@pytest.mark.skipif(platform.system() == "Windows",
-                    reason="find_runner is broken on Windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="find_runner is broken on Windows"
+)
 def test_find_runner():
     res = util.find_runner(__file__)
     assert "python" in res[0]
@@ -220,11 +228,7 @@ def test_find_runner():
 def test_parse_sweep_id():
     parts = {"name": "test/test/test"}
     util.parse_sweep_id(parts)
-    assert parts == {
-        "name": "test",
-        "entity": "test",
-        "project": "test"
-    }
+    assert parts == {"name": "test", "entity": "test", "project": "test"}
 
 
 def test_sizeof_fmt():
@@ -232,9 +236,10 @@ def test_sizeof_fmt():
     assert util.sizeof_fmt(1000000) == "976.6KiB"
     assert util.sizeof_fmt(5000000) == "4.8MiB"
 
+
 def test_matplotlib_contains_images():
-    '''Ensures that the utility function can properly detect if immages are in a
-    matplotlib figure'''
+    """Ensures that the utility function can properly detect if immages are in a
+    matplotlib figure"""
     # fig true
     fig = utils.matplotlib_with_image()
     assert util.matplotlib_contains_images(fig)
@@ -255,9 +260,10 @@ def test_matplotlib_contains_images():
     assert not util.matplotlib_contains_images(plt)
     plt.close()
 
+
 def test_matplotlib_to_plotly():
-    '''Ensures that the utility function can properly transform a pyplot object to a
-    plotly object (not the wandb.* versions'''
+    """Ensures that the utility function can properly transform a pyplot object to a
+    plotly object (not the wandb.* versions"""
     fig = utils.matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
     plt.close()
