@@ -16,7 +16,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from wandb.internal.internal import wandb_internal
 else:
     from wandb.interface_py27 import interface
-    from wandb.internal.internal_py27 import wandb_internal
+    from wandb.internal_py27.internal import wandb_internal
 
 logger = logging.getLogger("wandb")
 
