@@ -1,16 +1,20 @@
 import wandb
 import pytest
 import sys
+
 try:
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
 except ImportError:
-    class nn():
+
+    class nn:
         Module = object
 
-pytestmark = pytest.mark.skipif(sys.version_info < (3, 5),
-                                reason="PyTorch no longer supports py2")
+
+pytestmark = pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="PyTorch no longer supports py2"
+)
 
 
 def dummy_torch_tensor(size, requires_grad=True):
@@ -20,14 +24,12 @@ def dummy_torch_tensor(size, requires_grad=True):
 class DynamicModule(nn.Module):
     def __init__(self):
         super(DynamicModule, self).__init__()
-        self.choices = nn.ModuleDict({
-            'conv': nn.Conv2d(10, 10, 3),
-            'pool': nn.MaxPool2d(3)
-        })
-        self.activations = nn.ModuleDict([
-            ['lrelu', nn.LeakyReLU()],
-            ['prelu', nn.PReLU()]
-        ])
+        self.choices = nn.ModuleDict(
+            {"conv": nn.Conv2d(10, 10, 3), "pool": nn.MaxPool2d(3)}
+        )
+        self.activations = nn.ModuleDict(
+            [["lrelu", nn.LeakyReLU()], ["prelu", nn.PReLU()]]
+        )
 
     def forward(self, x, choice, act):
         x = self.choices[choice](x)
@@ -60,7 +62,8 @@ class ParameterModule(nn.Module):
     def __init__(self):
         super(ParameterModule, self).__init__()
         self.params = nn.ParameterList(
-            [nn.Parameter(torch.ones(10, 10)) for i in range(10)])
+            [nn.Parameter(torch.ones(10, 10)) for i in range(10)]
+        )
         self.otherparam = nn.Parameter(torch.Tensor(5))
 
     def forward(self, x):
@@ -118,14 +121,14 @@ class ConvNet(nn.Module):
 
 
 def init_conv_weights(layer, weights_std=0.01, bias=0):
-    '''Initialize weights for subnet convolution'''
+    """Initialize weights for subnet convolution"""
     nn.init.normal_(layer.weight.data, std=weights_std)
     nn.init.constant_(layer.bias.data, val=bias)
     return layer
 
 
 def conv3x3(in_channels, out_channels, **kwargs):
-    '''Return a 3x3 convolutional layer for SubNet'''
+    """Return a 3x3 convolutional layer for SubNet"""
     layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
     layer = init_conv_weights(layer)
 
@@ -140,12 +143,10 @@ def test_all_logging(wandb_init_run):
         grads = torch.ones(32, 10)
         output.backward(grads)
         wandb.log({"a": 2})
-        assert(len(wandb.run._backend.history[0]) == 20)
-        assert(
-            len(wandb.run._backend.history[0]['parameters/fc2.bias']['bins']) == 65)
-        assert(
-            len(wandb.run._backend.history[0]['gradients/fc2.bias']['bins']) == 65)
-    assert(len(wandb.run._backend.history) == 3)
+        assert len(wandb.run._backend.history[0]) == 20
+        assert len(wandb.run._backend.history[0]["parameters/fc2.bias"]["bins"]) == 65
+        assert len(wandb.run._backend.history[0]["gradients/fc2.bias"]["bins"]) == 65
+    assert len(wandb.run._backend.history) == 3
 
 
 def test_double_log(wandb_init_run):
@@ -159,18 +160,18 @@ def test_double_log(wandb_init_run):
 def test_sequence_net(wandb_init_run):
     net = Sequence()
     graph = wandb.wandb_torch.TorchGraph.hook_torch(net)
-    output = net.forward(dummy_torch_tensor(
-        (97, 100)))
+    output = net.forward(dummy_torch_tensor((97, 100)))
     output.backward(torch.zeros((97, 100)))
     graph = graph._to_graph_json()
     assert len(graph["nodes"]) == 3
-    assert len(graph["nodes"][0]['parameters']) == 4
-    assert graph["nodes"][0]['class_name'] == "LSTMCell(1, 51)"
-    assert graph["nodes"][0]['name'] == "lstm1"
+    assert len(graph["nodes"][0]["parameters"]) == 4
+    assert graph["nodes"][0]["class_name"] == "LSTMCell(1, 51)"
+    assert graph["nodes"][0]["name"] == "lstm1"
 
 
-@pytest.mark.skipif(sys.platform == "darwin",
-                    reason="TODO: [Errno 24] Too many open files?!?")
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="TODO: [Errno 24] Too many open files?!?"
+)
 def test_multi_net(wandb_init_run):
     net1 = ConvNet()
     net2 = ConvNet()
@@ -189,8 +190,9 @@ def test_multi_net(wandb_init_run):
 def test_nested_shape():
     shape = wandb.wandb_torch.nested_shape([2, 4, 5])
     assert shape == [[], [], []]
-    shape = wandb.wandb_torch.nested_shape([dummy_torch_tensor((2, 3)),
-                                            dummy_torch_tensor((4, 5))])
+    shape = wandb.wandb_torch.nested_shape(
+        [dummy_torch_tensor((2, 3)), dummy_torch_tensor((4, 5))]
+    )
     assert shape == [[2, 3], [4, 5]]
     # create recursive lists of tensors (t3 includes itself)
     t1 = dummy_torch_tensor((2, 3))

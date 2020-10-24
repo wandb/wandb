@@ -16,13 +16,16 @@ class Settings(object):
 
     _UNSET = object()
 
-    def __init__(self, load_settings=True):
+    def __init__(self, load_settings=True, root_dir=None):
         self._global_settings = Settings._settings()
         self._local_settings = Settings._settings()
+        self.root_dir = root_dir
 
         if load_settings:
             self._global_settings.read([Settings._global_path()])
-            self._local_settings.read([Settings._local_path()])
+            # Only attempt to read if there is a directory existing
+            if os.path.isdir(wandb_dir(self.root_dir)):
+                self._local_settings.read([Settings._local_path(self.root_dir)])
 
     def get(self, section, key, fallback=_UNSET):
         # Try the local settings first. If we can't find the key, then try the global settings.
@@ -52,7 +55,7 @@ class Settings(object):
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            write_setting(self._local_settings, Settings._local_path(), persist)
+            write_setting(self._local_settings, Settings._local_path(self.root_dir), persist)
 
     def clear(self, section, key, globally=False, persist=False):
         def clear_setting(settings, settings_path, persist):
@@ -64,7 +67,7 @@ class Settings(object):
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            clear_setting(self._local_settings, Settings._local_path(), persist)
+            clear_setting(self._local_settings, Settings._local_path(self.root_dir), persist)
 
     def items(self, section=None):
         section = section if section is not None else Settings.DEFAULT_SECTION
@@ -103,6 +106,6 @@ class Settings(object):
         return os.path.join(config_dir, 'settings')
 
     @staticmethod
-    def _local_path():
-        util.mkdir_exists_ok(wandb_dir())
-        return os.path.join(wandb_dir(), 'settings')
+    def _local_path(root_dir=None):
+        util.mkdir_exists_ok(wandb_dir(root_dir))
+        return os.path.join(wandb_dir(root_dir), 'settings')

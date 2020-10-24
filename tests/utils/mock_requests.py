@@ -26,7 +26,7 @@ class ResponseMock(object):
 
     @property
     def text(self):
-        return self.response.data.decode('utf-8')
+        return self.response.data.decode("utf-8")
 
     @property
     def headers(self):
@@ -36,7 +36,7 @@ class ResponseMock(object):
         yield self.response.data
 
     def json(self):
-        str_data = self.response.data.decode('utf-8')
+        str_data = self.response.data.decode("utf-8")
         return json.loads(str_data) if str_data else {}
 
 

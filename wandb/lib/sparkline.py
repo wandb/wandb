@@ -28,16 +28,17 @@ def sparkify(series):
     series = [float(i) for i in series]
     finite_series = [x for x in series if isfinite(x)]
     if not finite_series:
-        return u''
+        return u""
     minimum = min(finite_series)
     maximum = max(finite_series)
     data_range = maximum - minimum
     if data_range == 0.0:
         # Graph a baseline if every input value is equal.
-        return u''.join([spark_chars[0] if isfinite(x) else ' ' for x in series])
+        return u"".join([spark_chars[0] if isfinite(x) else " " for x in series])
     coefficient = (len(spark_chars) - 1.0) / data_range
-    return u''.join([
-        spark_chars[
-            int(round((x - minimum) * coefficient))
-        ] if isfinite(x) else ' ' for x in series
-    ])
+    return u"".join(
+        [
+            spark_chars[int(round((x - minimum) * coefficient))] if isfinite(x) else " "
+            for x in series
+        ]
+    )

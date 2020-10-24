@@ -78,7 +78,8 @@ def auth_token(registry, repo):
         info = {}
     if info.get("bearer"):
         res = requests.get(
-            info["bearer"]["realm"] + "?service={}&scope=repository:{}:pull".format(
+            info["bearer"]["realm"]
+            + "?service={}&scope=repository:{}:pull".format(
                 info["bearer"]["service"], repo
             ),
             auth=auth_info,

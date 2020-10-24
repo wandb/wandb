@@ -38,29 +38,28 @@ class Unbuffered(object):
 
 
 class StreamFork(object):
-
     def __init__(self, output_streams, unbuffered=False):
         self.output_streams = output_streams
         self.unbuffered = unbuffered
 
     def write(self, data):
-        output_streams = object.__getattribute__(self, 'output_streams')
-        unbuffered = object.__getattribute__(self, 'unbuffered')
+        output_streams = object.__getattribute__(self, "output_streams")
+        unbuffered = object.__getattribute__(self, "unbuffered")
         for stream in output_streams:
             stream.write(data)
             if unbuffered:
                 stream.flush()
 
     def writelines(self, datas):
-        output_streams = object.__getattribute__(self, 'output_streams')
-        unbuffered = object.__getattribute__(self, 'unbuffered')
+        output_streams = object.__getattribute__(self, "output_streams")
+        unbuffered = object.__getattribute__(self, "unbuffered")
         for stream in output_streams:
             stream.writelines(datas)
             if unbuffered:
                 stream.flush()
 
     def __getattr__(self, attr):
-        output_streams = object.__getattribute__(self, 'output_streams')
+        output_streams = object.__getattribute__(self, "output_streams")
         return getattr(output_streams[0], attr)
 
 
@@ -85,15 +84,17 @@ class StreamWrapper(object):
             def new_write(data):
                 cb(name, data)
                 old_write(data)
+
         else:
 
             def new_write(data):
                 cb(name, data)
                 old_write(data)
                 try:
-                    output_writer.write(data.encode('utf-8'))
+                    output_writer.write(data.encode("utf-8"))
                 except Exception as e:
                     logger.error("Error while writing to file :" + str(e))
+
         self.stream.write = new_write
         self._old_write = old_write
         self.installed = True
@@ -173,9 +174,14 @@ class Redirect(object):
             if close:
                 setattr(sys, self._stream, getattr(sys, self._stream).output_streams[0])
             else:
-                setattr(sys, self._stream, StreamFork([getattr(sys, self._stream),
-                                                      os.fdopen(self._old_fd, "w")],
-                                                      unbuffered=unbuffered))
+                setattr(
+                    sys,
+                    self._stream,
+                    StreamFork(
+                        [getattr(sys, self._stream), os.fdopen(self._old_fd, "w")],
+                        unbuffered=unbuffered,
+                    ),
+                )
         else:
             setattr(sys, self._stream, os.fdopen(self._old_fd, "w"))
             if unbuffered:
@@ -185,11 +191,13 @@ class Redirect(object):
         if self._installed:
             return
 
-        if os.name == 'nt' and sys.version_info >= (3, 6):
-            legacy_env_var = 'PYTHONLEGACYWINDOWSSTDIO'
+        if os.name == "nt" and sys.version_info >= (3, 6):
+            legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
             if legacy_env_var not in os.environ:
-                msg = "Set %s environment variable to enable"\
+                msg = (
+                    "Set %s environment variable to enable"
                     " console logging on Windows." % legacy_env_var
+                )
                 logger.error(msg)
                 raise Exception(msg)
 
@@ -252,8 +260,14 @@ class Capture(object):
         read_thread = threading.Thread(
             name=self._name,
             target=_pipe_relay,
-            args=(self._stopped, self._pipe_rd, self._name, self._cb, self._tee,
-                  self._output_writer),
+            args=(
+                self._stopped,
+                self._pipe_rd,
+                self._name,
+                self._cb,
+                self._tee,
+                self._output_writer,
+            ),
         )
         read_thread.daemon = True
         read_thread.start()
