@@ -40,14 +40,7 @@ def _fixup_anon_mode(default):
 
 def _prompt_choice():
     try:
-        return (
-            int(
-                input(
-                    "%s: Enter your choice: " % term.LOG_STRING
-                )
-            )
-            - 1  # noqa: W503
-        )
+        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
     except ValueError:
         return -1
 
@@ -84,7 +77,7 @@ def prompt_api_key(  # noqa: C901
     if jupyter or no_create:
         choices.remove(LOGIN_CHOICE_NEW)
 
-    if jupyter and 'google.colab' in sys.modules:
+    if jupyter and "google.colab" in sys.modules:
         log_string = term.LOG_STRING_NOCOLOR
         key = wandb.jupyter.attempt_colab_login(app_url)
         if key is not None:
@@ -148,9 +141,7 @@ def prompt_api_key(  # noqa: C901
         # Jupyter environments don't have a tty, but we can still try logging in using
         # the browser callback if one is supplied.
         key, anonymous = (
-            browser_callback()
-            if jupyter and browser_callback
-            else (None, False)
+            browser_callback() if jupyter and browser_callback else (None, False)
         )
 
         write_key(settings, key)

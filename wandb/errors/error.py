@@ -21,4 +21,5 @@ class CommError(Error):
 
 class UsageError(Error):
     """API Usage Error"""
+
     pass

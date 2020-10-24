@@ -76,7 +76,9 @@ def debug_result(result, prefix=None):
     prefix = prefix or ""
     print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
     print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
-    print("DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2])))
+    print(
+        "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
+    )
 
 
 def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
@@ -188,6 +190,7 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
+
 def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
     onprem_key = "test-" + DUMMY_API_KEY
     with runner.isolated_filesystem():
@@ -200,12 +203,14 @@ def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
             generatedNetrc = f.read()
         assert onprem_key in generatedNetrc
 
+
 def test_login_invalid_key_arg(runner, empty_netrc, local_netrc):
     invalid_key = "test--" + DUMMY_API_KEY
     with runner.isolated_filesystem():
         result = runner.invoke(cli.login, [invalid_key])
         assert "API key must be 40 characters long, yours was" in str(result)
         assert result.exit_code == 1
+
 
 @pytest.mark.skip(reason="Just need to make the mocking work correctly")
 def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
@@ -667,7 +672,10 @@ def test_local_already_running(runner, docker, local_settings):
     assert "A container named wandb-local is already running" in result.output
 
 
-@pytest.mark.skipif(platform.system() == "Windows", reason="The patch in mock_server.py doesn't work in windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="The patch in mock_server.py doesn't work in windows",
+)
 def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     with open("patch.txt", "w") as f:
         f.write("test")
@@ -681,19 +689,45 @@ def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     assert "Applied patch" in result.output
     assert "Restored config variables to " in result.output
     assert "Launching docker container" in result.output
-    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v', wandb.docker.entrypoint + ':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd() + ':/app', '-w', '/app', '-e', 'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+    docker.assert_called_with(
+        [
+            "docker",
+            "run",
+            "-e",
+            "LANG=C.UTF-8",
+            "-e",
+            "WANDB_DOCKER=wandb/deepo@sha256:abc123",
+            "--ipc=host",
+            "-v",
+            wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
+            "--entrypoint",
+            "/wandb-entrypoint.sh",
+            "-v",
+            os.getcwd() + ":/app",
+            "-w",
+            "/app",
+            "-e",
+            "WANDB_API_KEY=test",
+            "-e",
+            "WANDB_COMMAND=python train.py --test foo",
+            "-it",
+            "test/docker",
+            "/bin/bash",
+        ]
+    )
 
 
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    api = InternalApi({'project': 'test'})
-    monkeypatch.setattr(cli, '_api', api)
+    api = InternalApi({"project": "test"})
+    monkeypatch.setattr(cli, "_api", api)
 
     def bad_commit(cmt):
         raise ValueError()
-    monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
-    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: []) 
+
+    monkeypatch.setattr(api.git.repo, "commit", bad_commit)
+    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: [])
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -703,10 +737,10 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
-    git_repo.repo.create_remote('origin', "git@fake.git:foo/bar")
-    monkeypatch.setattr(subprocess, 'check_call', lambda command: True)
+    git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -717,7 +751,7 @@ def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch)
 def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -728,7 +762,7 @@ def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
 def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -738,7 +772,7 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
 
 def test_restore_not_git(runner, mock_server, docker, monkeypatch):
     with runner.isolated_filesystem():
-        monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+        monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
         result = runner.invoke(cli.restore, ["test/abcdef"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
@@ -757,17 +791,27 @@ def test_gc(runner):
         run1_dir = os.path.join("wandb", run1)
         run2_dir = os.path.join("wandb", run2)
         os.mkdir(run1_dir)
-        with open(os.path.join(run1_dir, "run-abcd.wandb"), 'w') as f:
-            f.write('')
-        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), 'w') as f:
-            f.write('')
+        with open(os.path.join(run1_dir, "run-abcd.wandb"), "w") as f:
+            f.write("")
+        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), "w") as f:
+            f.write("")
         os.mkdir(run2_dir)
-        with open(os.path.join(run2_dir, "run-efgh.wandb"), 'w') as f:
-            f.write('')
-        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), 'w') as f:
-            f.write('')
-        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "2"], input='y\n').exit_code == 0
+        with open(os.path.join(run2_dir, "run-efgh.wandb"), "w") as f:
+            f.write("")
+        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), "w") as f:
+            f.write("")
+        assert (
+            runner.invoke(
+                cli.sync, ["--clean", "--clean-old-hours", "2"], input="y\n"
+            ).exit_code
+            == 0
+        )
         assert os.path.exists(run1_dir)
         assert not os.path.exists(run2_dir)
-        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "0"], input='y\n').exit_code == 0
+        assert (
+            runner.invoke(
+                cli.sync, ["--clean", "--clean-old-hours", "0"], input="y\n"
+            ).exit_code
+            == 0
+        )
         assert not os.path.exists(run1_dir)

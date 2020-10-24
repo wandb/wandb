@@ -31,5 +31,5 @@ __all__ = [
     "subdict",
     "matplotlib_multiple_axes_figures",
     "matplotlib_with_image",
-    "matplotlib_without_image"
+    "matplotlib_without_image",
 ]

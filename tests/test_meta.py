@@ -30,8 +30,23 @@ def meta(test_settings, interface):
 
 
 @pytest.fixture()
-def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run, interface):
-    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q, interface=interface)
+def sm(
+    runner,
+    git_repo,
+    record_q,
+    result_q,
+    test_settings,
+    meta,
+    mock_server,
+    mocked_run,
+    interface,
+):
+    sm = SendManager(
+        settings=test_settings,
+        record_q=record_q,
+        result_q=result_q,
+        interface=interface,
+    )
     meta._interface.publish_run(mocked_run)
     sm.send(record_q.get())
     yield sm
