@@ -7,7 +7,12 @@ exclude = '''
 | wandb/old/
 | wandb/proto/
 | wandb/docker/wandb-entrypoint.sh
+| tests/fixtures/
+| tests/wandb_tensorflow_summary.pb
+| tests/logs/cleanup.sh
+| tests/notebooks/
 '''
 include = '''
   wandb/
+| tests/
 '''
