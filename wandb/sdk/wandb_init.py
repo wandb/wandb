@@ -19,7 +19,7 @@ from wandb import trigger
 if wandb.TYPE_CHECKING:  # type: ignore
     from wandb.backend.backend import Backend
 else:
-    from wandb.backend.backend_py27 import Backend
+    from wandb.backend_py27.backend import Backend
 from wandb.errors.error import UsageError  # noqa: I202
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
