@@ -77,7 +77,9 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
-        self._settings = Settings(load_settings=load_settings)
+        self._settings = Settings(
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+        )
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
@@ -496,7 +498,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String!, $sweep: String!, $specs: [JSONString!]!) {
+        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -878,9 +880,10 @@ class Api(object):
         mutation = gql(
             """
         mutation UpsertBucket(
-            $id: String, $name: String,
+            $id: String,
+            $name: String,
             $project: String,
-            $entity: String!,
+            $entity: String,
             $groupName: String,
             $description: String,
             $displayName: String,
@@ -1358,8 +1361,8 @@ class Api(object):
             $id: ID,
             $config: String,
             $description: String,
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $controller: JSONString,
             $scheduler: JSONString
         ) {
@@ -1452,8 +1455,7 @@ class Api(object):
         return response["createAnonymousEntity"]["apiKey"]["name"]
 
     def file_current(self, fname, md5):
-        """Checksum a file and compare the md5 with the known md5
-        """
+        """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions

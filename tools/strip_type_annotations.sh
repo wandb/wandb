@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CODEMOD_DIRS="sdk internal lib interface backend"
+CODEMOD_DIRS="sdk internal interface backend"
 
 CODEMOD_SRC_BASE="wandb"
 CODEMOD_DEST_SUFFIX="_py27"
