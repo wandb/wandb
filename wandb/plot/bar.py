@@ -24,7 +24,5 @@ def bar(table, label, value, title=None):
     wandb.log({'bar-plot1': wandb.plot.bar(table, "class", "acc")})
     """
     return wandb.plot_table(
-        'wandb/bar/v0',
-        table,
-        {'label': label, 'value': value},
-        {'title': title})
+        "wandb/bar/v0", table, {"label": label, "value": value}, {"title": title}
+    )

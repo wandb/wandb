@@ -16,12 +16,12 @@ import json
 import wandb
 from distutils.util import strtobool
 
-CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
-SHOW_RUN = 'WANDB_SHOW_RUN'
-DEBUG = 'WANDB_DEBUG'
-SILENT = 'WANDB_SILENT'
-INITED = 'WANDB_INITED'
-DIR = 'WANDB_DIR'
+CONFIG_PATHS = "WANDB_CONFIG_PATHS"
+SHOW_RUN = "WANDB_SHOW_RUN"
+DEBUG = "WANDB_DEBUG"
+SILENT = "WANDB_SILENT"
+INITED = "WANDB_INITED"
+DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
 DESCRIPTION = 'WANDB_DESCRIPTION'
 NAME = 'WANDB_NAME'
@@ -63,16 +63,40 @@ CONFIG_DIR = 'WANDB_CONFIG_DIR'
 CACHE_DIR = 'WANDB_CACHE_DIR'
 
 # For testing, to be removed in future version
-USE_V1_ARTIFACTS = '_WANDB_USE_V1_ARTIFACTS'
-
+USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 def immutable_keys():
     """These are env keys that shouldn't change within a single process.  We use this to maintain
     certain values between multiple calls to wandb.init within a single process."""
-    return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
-            ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
-            ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            HOST, CACHE_DIR, USE_V1_ARTIFACTS]
+    return [
+        DIR,
+        ENTITY,
+        PROJECT,
+        API_KEY,
+        IGNORE,
+        DISABLE_CODE,
+        DOCKER,
+        MODE,
+        BASE_URL,
+        ERROR_REPORTING,
+        CRASH_NOSYNC_TIME,
+        MAGIC,
+        USERNAME,
+        USER_EMAIL,
+        DIR,
+        SILENT,
+        CONFIG_PATHS,
+        ANONYMOUS,
+        RUN_GROUP,
+        JOB_TYPE,
+        TAGS,
+        RESUME,
+        AGENT_REPORT_INTERVAL,
+        HTTP_TIMEOUT,
+        HOST,
+        CACHE_DIR,
+        USE_V1_ARTIFACTS,
+    ]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -253,7 +277,7 @@ def get_magic(default=None, env=None):
 
 
 def get_cache_dir(env=None):
-    default_dir = os.path.expanduser(os.path.join('~', '.cache', 'wandb'))
+    default_dir = os.path.expanduser(os.path.join("~", ".cache", "wandb"))
     if env is None:
         env = os.environ
     val = env.get(CACHE_DIR, default_dir)

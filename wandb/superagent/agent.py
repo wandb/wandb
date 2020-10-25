@@ -20,7 +20,6 @@ import json
 
 
 class Agent(object):
-
     def __init__(self, spec):
         self._spec = spec
         # glob_config = os.path.expanduser('~/.config/wandb/settings')
@@ -32,8 +31,8 @@ class Agent(object):
 
     def check_queue(self):
         entity, project = self._spec.split("/")
-        #ups = self._api.pop_from_run_queue(entity="jeff", project="super-agent")
-        #print("ent", entity, project)
+        # ups = self._api.pop_from_run_queue(entity="jeff", project="super-agent")
+        # print("ent", entity, project)
         try:
             ups = self._api.pop_from_run_queue(entity=entity, project=project)
         except Exception as e:
@@ -43,19 +42,19 @@ class Agent(object):
 
     def run_job(self, job):
         print("agent: got job", job)
-        #j = json.loads(job)
+        # j = json.loads(job)
         j = job
         cl = j.get("runSpec", {}).get("input", {}).get("config", {})
         c = cl[0]
-        #print("got config", c)
+        # print("got config", c)
         outjson = json.dumps(c)
 
         with open("config.json", "w") as f:
             print(outjson, file=f)
 
         command = ["python", "train.py"]
-        env=os.environ
-        
+        env = os.environ
+
         kwargs = dict()
         popen = subprocess.Popen(command, env=env, **kwargs)
         popen.wait()

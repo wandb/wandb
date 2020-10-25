@@ -10,7 +10,7 @@ import itertools
 import sys
 from weakref import ref
 
-__all__ = ['finalize']
+__all__ = ["finalize"]
 
 
 class finalize(object):
@@ -44,6 +44,7 @@ class finalize(object):
             # We may register the exit function more than once because
             # of a thread race, but that is harmless
             import atexit
+
             atexit.register(self._exitfunc)
             finalize._registered_with_atexit = True
         info = self._Info()
@@ -100,17 +101,21 @@ class finalize(object):
         info = self._registry.get(self)
         obj = info and info.weakref()
         if obj is None:
-            return '<%s object at %#x; dead>' % (type(self).__name__, id(self))
+            return "<%s object at %#x; dead>" % (type(self).__name__, id(self))
         else:
-            return '<%s object at %#x; for %r at %#x>' % \
-                (type(self).__name__, id(self), type(obj).__name__, id(obj))
+            return "<%s object at %#x; for %r at %#x>" % (
+                type(self).__name__,
+                id(self),
+                type(obj).__name__,
+                id(obj),
+            )
 
     @classmethod
     def _select_for_exit(cls):
         # Return live finalizers marked for exit, oldest first
-        L = [(f,i) for (f,i) in cls._registry.items() if i.atexit]
-        L.sort(key=lambda item:item[1].index)
-        return [f for (f,i) in L]
+        L = [(f, i) for (f, i) in cls._registry.items() if i.atexit]
+        L.sort(key=lambda item: item[1].index)
+        return [f for (f, i) in L]
 
     @classmethod
     def _exitfunc(cls):
@@ -121,6 +126,7 @@ class finalize(object):
         try:
             if cls._registry:
                 import gc
+
                 if gc.isenabled():
                     reenable_gc = True
                     gc.disable()
