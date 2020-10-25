@@ -394,3 +394,117 @@ def test_add_reference_unknown_handler(runner):
             "digest": "ref://example.com/somefile.txt",
             "ref": "ref://example.com/somefile.txt",
         }
+
+
+def test_add_obj_wbimage_no_classes(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path)
+        with pytest.raises(ValueError):
+            artifact.add(wb_image, "my-image")
+
+
+def test_add_obj_wbimage(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+
+        assert artifact.digest == "88b85b3f9ce6ec6cc550dc35fb1a51be"
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "my-image.image-file.json": {
+                "digest": "wxaZ0BAFeGdQw2DJrIDzyA==",
+                "size": 196,
+            },
+        }
+
+
+def test_add_obj_wbimage_classes_obj(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        classes = wandb.Classes([{"id": 0, "name": "person"}])
+        wb_image = wandb.Image(im_path, classes=classes)
+        artifact.add(wb_image, "my-image")
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "my-image.image-file.json": {
+                "digest": "wxaZ0BAFeGdQw2DJrIDzyA==",
+                "size": 196,
+            },
+        }
+
+
+def test_add_obj_wbimage_classes_obj_already_added(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        classes = wandb.Classes([{"id": 0, "name": "person"}])
+        artifact.add(classes, "my-classes")
+        wb_image = wandb.Image(im_path, classes=classes)
+        artifact.add(wb_image, "my-image")
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "my-classes.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "my-image.image-file.json": {
+                "digest": "mw3hi+PAyQ4DLgCHB24ElQ==",
+                "size": 207,
+            },
+        }
+
+
+def test_add_obj_wbimage_image_already_added(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_file(im_path)
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+            "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "my-image.image-file.json": {
+                "digest": "WGxWT/u10Y+x2E4AO9MrvQ==",
+                "size": 183,
+            },
+        }
+
+
+def test_add_obj_wbtable_images(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        wb_table = wandb.Table(["examples"])
+        wb_table.add_data(wb_image)
+        wb_table.add_data(wb_image)
+        artifact.add(wb_table, "my-table")
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "my-table.table.json": {"digest": "Mr4uJb8a/BbDZabXyGQt6A==", "size": 477},
+        }

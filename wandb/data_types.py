@@ -178,10 +178,6 @@ class Media(WBValue):
                 )
             )
 
-        with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
-        self._size = os.path.getsize(self._path)
-
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
@@ -219,6 +215,10 @@ class Media(WBValue):
         else:
             extension = self._extension
             rootname = os.path.basename(self._path)[: -len(extension)]
+
+        with open(self._path, "rb") as f:
+            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+        self._size = os.path.getsize(self._path)
 
         if id_ is None:
             id_ = self._sha256[:8]
@@ -349,12 +349,34 @@ class Table(Media):
     def get_media_subdir(cls):
         return os.path.join("media", "table")
 
-    def to_json(self, run):
-        json_dict = super(Table, self).to_json(run)
-        json_dict["_type"] = "table-file"
-        json_dict["ncols"] = len(self.columns)
-        json_dict["nrows"] = len(self.data)
-        return json_dict
+    def to_json(self, run_or_artifact):
+        from wandb.sdk import wandb_run
+        from wandb.sdk import wandb_artifacts
+
+        if isinstance(run_or_artifact, wandb_run.Run):
+            json_dict = super(Image, self).to_json(run)
+            json_dict["_type"] = "table-file"
+            json_dict["ncols"] = len(self.columns)
+            json_dict["nrows"] = len(self.data)
+            return json_dict
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+            mapped_data = []
+            for row in self.data:
+                mapped_row = []
+                for v in row:
+                    if isinstance(v, Media):
+                        mapped_row.append(v.to_json(artifact))
+                    else:
+                        mapped_row.append(v)
+                mapped_data.append(mapped_row)
+            json_dict = {"columns": self.columns, "data": mapped_data}
+            json_dict["_type"] = "table"
+            json_dict["ncols"] = len(self.columns)
+            json_dict["nrows"] = len(mapped_data)
+            return json_dict
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
 
 class Audio(BatchableMedia):
@@ -932,6 +954,30 @@ class Video(BatchableMedia):
             return False
 
 
+class Classes(Media):
+    def __init__(self, class_set):
+        self._class_set = class_set
+        # TODO: validate
+
+    def to_json(self, artifact):
+        return {"_type": "classes", "class_set": self._class_set}
+
+
+class JoinedTable(Media):
+    def __init__(self, table1_path, table2_path, join_key):
+        self._table1_path = table1_path
+        self._table2_path = table2_path
+        self._join_key = join_key
+
+    def to_json(self, artifact):
+        # TODO: assert these are in artifact
+        return {
+            "_type": "joined-table",
+            "table1_path": self._table1_path,
+            "table2_path": self._table2_path,
+        }
+
+
 class Image(BatchableMedia):
     """
         Wandb class for images.
@@ -956,6 +1002,7 @@ class Image(BatchableMedia):
         mode=None,
         caption=None,
         grouping=None,
+        classes=None,
         boxes=None,
         masks=None,
     ):
@@ -968,6 +1015,9 @@ class Image(BatchableMedia):
         self._width = None
         self._height = None
         self._image = None
+        self._classes = classes
+        if classes is not None and not isinstance(self._classes, Classes):
+            self._classes = Classes(self._classes)
 
         self._boxes = None
         if boxes:
@@ -1051,8 +1101,41 @@ class Image(BatchableMedia):
                 kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
                 self._masks[k].bind_to_run(*args, **kwargs)
 
-    def to_json(self, run):
-        json_dict = super(Image, self).to_json(run)
+    def to_json(self, run_or_artifact):
+        from wandb.sdk import wandb_run
+        from wandb.sdk import wandb_artifacts
+
+        if isinstance(run_or_artifact, wandb_run.Run):
+            run = run_or_artifact
+            json_dict = super(Image, self).to_json(run)
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+            if self._classes is None:
+                raise ValueError(
+                    "classes must be passed to wandb.Image when adding to artifacts"
+                )
+
+            # We just put classes in the root.
+            classes_entry = artifact.add(self._classes, "classes.json")
+
+            name = artifact.get_added_local_path_name(self._path)
+            if name is None:
+                name = os.path.join(
+                    self.get_media_subdir(), os.path.basename(self._path)
+                )
+                artifact.add_file(self._path, name=name)
+
+            json_dict = {
+                "path": name,
+                "classes": {
+                    "type": "classes-file",
+                    "path": classes_entry.path,
+                    "digest": classes_entry.digest,
+                },
+            }
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
         json_dict["_type"] = "image-file"
         json_dict["format"] = self.format
 
@@ -1066,11 +1149,11 @@ class Image(BatchableMedia):
             json_dict["caption"] = self._caption
         if self._boxes:
             json_dict["boxes"] = {
-                k: box.to_json(run) for (k, box) in self._boxes.items()
+                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
             }
         if self._masks:
             json_dict["masks"] = {
-                k: mask.to_json(run) for (k, mask) in self._masks.items()
+                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
             }
 
         return json_dict
@@ -1345,6 +1428,17 @@ class BoundingBoxes2D(JSONMetadata):
                 box["box_caption"], six.string_types
             ):
                 raise TypeError("A box's caption must be a string")
+
+    def to_json(self, run_or_artifact):
+        from wandb.sdk import wandb_run
+        from wandb.sdk import wandb_artifacts
+
+        if isinstance(run_or_artifact, wandb_run.Run):
+            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            return self._val
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
 
 class ImageMask(Media):

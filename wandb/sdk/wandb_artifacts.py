@@ -15,8 +15,7 @@ from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 
-# TODO: remove when we switch to actual media
-from wandb.sdk.wandb_media import *
+from wandb.data_types import Media
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -93,6 +92,7 @@ class Artifact(object):
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_new = False
+        self._added_objs = {}
         # You can write into this directory when creating artifact files
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
@@ -216,16 +216,36 @@ class Artifact(object):
     # TODO: name this add_obj?
     def add(self, obj, name):
         if isinstance(obj, Media):
+            obj_id = id(obj)
+            if obj_id in self._added_objs:
+                return self._added_objs[obj_id]
+            val = obj.to_json(self)
+            suffix = val["_type"] + ".json"
+            if not name.endswith(suffix):
+                name = name + "." + suffix
+            entry = self._manifest.get_entry_by_path(name)
+            if entry is not None:
+                return entry
             with self.new_file(name) as f:
                 import json
 
+                # TODO: Do we need to open with utf-8 codec?
                 f.write(json.dumps(obj.to_json(self)))
             # Note, we add the file from our temp directory.
             # It will be added again later on finalize, but succeed since
             # the checksum should match
-            self.add_file(os.path.join(self._artifact_dir.name, name), name)
+            entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+            self._added_objs[obj_id] = entry
+            return entry
         else:
             raise ValueError("Can't add obj to artifact")
+
+    def get_added_local_path_name(self, local_path):
+        """If local_path was already added to artifact, return its internal name."""
+        entry = self._manifest.get_entry_by_local_path(local_path)
+        if entry is None:
+            return None
+        return entry.path
 
     def get_path(self, name):
         raise ValueError("Cannot load paths from an artifact before it has been saved")

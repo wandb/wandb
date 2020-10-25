@@ -71,6 +71,8 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
+from wandb.data_types import Classes
+from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
