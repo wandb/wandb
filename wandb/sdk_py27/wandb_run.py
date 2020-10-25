@@ -1772,7 +1772,11 @@ def restore(
 
 
 # propigate our doc string to the runs restore method
-Run.restore.__doc__ = restore.__doc__
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
 
 
 def huggingface_version():
