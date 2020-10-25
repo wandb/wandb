@@ -76,8 +76,9 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
-def test_keras_resume_best_metric(dummy_model, dummy_data, live_mock_server,
-                                  test_settings):
+def test_keras_resume_best_metric(
+    dummy_model, dummy_data, live_mock_server, test_settings
+):
     res = live_mock_server.set_ctx({"resume": True})
     print("CTX AFTER UPDATE", res)
     print("GET RIGHT AWAY", live_mock_server.get_ctx())
@@ -317,4 +318,3 @@ def test_keras_convert_model_non_sequential():
         ["dense_2", "main_output"],
         ["lstm", "aux_output"],
     ]
-

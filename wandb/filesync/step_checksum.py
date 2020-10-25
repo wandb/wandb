@@ -10,14 +10,26 @@ from wandb.filesync import step_upload
 
 
 RequestUpload = collections.namedtuple(
-    'RequestUpload', ('path', 'save_name', 'artifact_id', 'copy', 'use_prepare_flow', 'save_fn', 'digest'))
+    "RequestUpload",
+    (
+        "path",
+        "save_name",
+        "artifact_id",
+        "copy",
+        "use_prepare_flow",
+        "save_fn",
+        "digest",
+    ),
+)
 RequestStoreManifestFiles = collections.namedtuple(
-    'RequestStoreManifestFiles', ('manifest', 'artifact_id', 'save_fn'))
+    "RequestStoreManifestFiles", ("manifest", "artifact_id", "save_fn")
+)
 RequestCommitArtifact = collections.namedtuple(
-    'RequestCommitArtifact', ('artifact_id', 'before_commit', 'on_commit'))
-RequestFinish = collections.namedtuple('RequestFinish', ())
+    "RequestCommitArtifact", ("artifact_id", "before_commit", "on_commit")
+)
+RequestFinish = collections.namedtuple("RequestFinish", ())
 
-    
+
 class StepChecksum(object):
     def __init__(self, api, tempdir, request_queue, output_queue, stats):
         self._api = api
@@ -36,8 +48,10 @@ class StepChecksum(object):
             if isinstance(req, RequestUpload):
                 path = req.path
                 if req.copy:
-                    path = os.path.join(self._tempdir.name, '%s-%s' % (
-                        wandb.util.generate_id(), req.save_name))
+                    path = os.path.join(
+                        self._tempdir.name,
+                        "%s-%s" % (wandb.util.generate_id(), req.save_name),
+                    )
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     shutil.copy2(req.path, path)
                 checksum = None
@@ -50,15 +64,27 @@ class StepChecksum(object):
                 self._stats.init_file(req.save_name, os.path.getsize(path))
                 self._output_queue.put(
                     step_upload.RequestUpload(
-                        path, req.save_name, req.artifact_id, checksum, req.copy,
-                        req.save_fn, req.digest))
+                        path,
+                        req.save_name,
+                        req.artifact_id,
+                        checksum,
+                        req.copy,
+                        req.save_fn,
+                        req.digest,
+                    )
+                )
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(save_fn, entry):
-                            return lambda progress_callback: save_fn(entry, progress_callback)
-                        self._stats.init_file(entry.local_path, entry.size, is_artifact_file=True)
+                            return lambda progress_callback: save_fn(
+                                entry, progress_callback
+                            )
+
+                        self._stats.init_file(
+                            entry.local_path, entry.size, is_artifact_file=True
+                        )
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
@@ -67,13 +93,19 @@ class StepChecksum(object):
                                 entry.digest,
                                 False,
                                 make_save_fn_with_entry(req.save_fn, entry),
-                                entry.digest))
+                                entry.digest,
+                            )
+                        )
             elif isinstance(req, RequestCommitArtifact):
-                self._output_queue.put(step_upload.RequestCommitArtifact(req.artifact_id, req.before_commit, req.on_commit))
+                self._output_queue.put(
+                    step_upload.RequestCommitArtifact(
+                        req.artifact_id, req.before_commit, req.on_commit
+                    )
+                )
             elif isinstance(req, RequestFinish):
                 break
             else:
-                raise Exception('internal error')
+                raise Exception("internal error")
 
         self._output_queue.put(step_upload.RequestFinish())
 
