@@ -1432,7 +1432,6 @@ class BoundingBoxes2D(JSONMetadata):
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
-
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
@@ -1449,30 +1448,33 @@ class ImageMask(Media):
     def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
 
-        np = util.get_module(
-            "numpy", required="Semantic Segmentation mask support requires numpy"
-        )
-        # Add default class mapping
-        if not "class_labels" in val:
-            classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
-            class_labels = dict((c, "class_" + str(c)) for c in classes)
-            val["class_labels"] = class_labels
+        if "path" in val:
+            self._set_file(val["path"])
+        else:
+            np = util.get_module(
+                "numpy", required="Semantic Segmentation mask support requires numpy"
+            )
+            # Add default class mapping
+            if not "class_labels" in val:
+                classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+                class_labels = dict((c, "class_" + str(c)) for c in classes)
+                val["class_labels"] = class_labels
 
-        self.validate(val)
-        self._val = val
-        self._key = key
+            self.validate(val)
+            self._val = val
+            self._key = key
 
-        ext = "." + self.type_name() + ".png"
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+            ext = "." + self.type_name() + ".png"
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
 
-        PILImage = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
-        image = PILImage.fromarray(val["mask_data"].astype(np.int8), mode="L")
+            PILImage = util.get_module(
+                "PIL.Image",
+                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+            )
+            image = PILImage.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
-        image.save(tmp_path, transparency=None)
-        self._set_file(tmp_path, is_tmp=True, extension=ext)
+            image.save(tmp_path, transparency=None)
+            self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def bind_to_run(self, run, key, step, id_=None):
         # bind_to_run key argument is the Image parent key
@@ -1487,11 +1489,25 @@ class ImageMask(Media):
     def get_media_subdir(self):
         return os.path.join("media", "images", self.type_name())
 
-    def to_json(self, run):
-        json_dict = super(ImageMask, self).to_json(run)
-        json_dict["_type"] = self.type_name()
-
-        return json_dict
+    def to_json(self, run_or_artifact):
+        from wandb.sdk import wandb_run
+        from wandb.sdk import wandb_artifacts
+        if isinstance(run_or_artifact, wandb_run.Run):
+            run = run_or_artifact
+            json_dict = super(ImageMask, self).to_json(run)
+            json_dict["_type"] = self.type_name()
+            return json_dict
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+            mask_name = os.path.join(self.get_media_subdir(), os.path.basename(self._path))
+            mask_entry = artifact.add_file(self._path, name=mask_name)
+            return {
+                "_type": "mask-file",
+                "path": mask_name,
+                "digest": mask_entry.digest
+            }
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     def type_name(self):
         return "mask"
