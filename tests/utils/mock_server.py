@@ -82,7 +82,7 @@ def run(ctx):
 
     return {
         "id": "test",
-        "name": "wild-test",
+        "name": "test",
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',

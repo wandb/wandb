@@ -156,6 +156,10 @@ class RetryingClient(object):
     def __init__(self, client):
         self._client = client
 
+    @property
+    def app_url(self):
+        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+
     @retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
@@ -1270,7 +1274,7 @@ class Run(Attrs):
     def url(self):
         path = self.path
         path.insert(2, "runs")
-        return "https://app.wandb.ai/" + "/".join(path)
+        return self.client.app_url + "/".join(path)
 
     @property
     def lastHistoryStep(self):  # noqa: N802
@@ -1421,7 +1425,7 @@ class Sweep(Attrs):
     def url(self):
         path = self.path
         path.insert(2, "sweeps")
-        return "https://app.wandb.ai/" + "/".join(path)
+        return self.client.app_url + "/".join(path)
 
     @classmethod
     def get(
