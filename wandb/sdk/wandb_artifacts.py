@@ -15,6 +15,9 @@ from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 
+# TODO: remove when we switch to actual media
+from wandb.sdk.wandb_media import *
+
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
 _REQUEST_RETRY_STRATEGY = requests.packages.urllib3.util.retry.Retry(
@@ -151,6 +154,7 @@ class Artifact(object):
             local_path=local_path,
         )
         self._manifest.add_entry(entry)
+        return entry
 
     def add_dir(self, local_path, name=None):
         self._ensure_can_add()
@@ -208,6 +212,20 @@ class Artifact(object):
         )
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
+
+    # TODO: name this add_obj?
+    def add(self, obj, name):
+        if isinstance(obj, Media):
+            with self.new_file(name) as f:
+                import json
+
+                f.write(json.dumps(obj.to_json(self)))
+            # Note, we add the file from our temp directory.
+            # It will be added again later on finalize, but succeed since
+            # the checksum should match
+            self.add_file(os.path.join(self._artifact_dir.name, name), name)
+        else:
+            raise ValueError("Can't add obj to artifact")
 
     def get_path(self, name):
         raise ValueError("Cannot load paths from an artifact before it has been saved")
