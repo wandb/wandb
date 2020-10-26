@@ -9,7 +9,10 @@ Tests for the `wandb.GitRepo` module.
 """
 import platform
 import pytest
-from wandb.lib.git import GitRepo
+
+import wandb
+
+GitRepo = wandb.wandb_lib.git.GitRepo
 
 
 class TestGitRepo:

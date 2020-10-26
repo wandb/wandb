@@ -37,10 +37,11 @@ def mock_server(mocker):
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
+    sdk_path = "wandb.sdk"
     mocker.patch("gql.transport.requests.requests", mock)
-    mocker.patch("wandb.internal.file_stream.requests", mock)
-    mocker.patch("wandb.internal.internal_api.requests", mock)
-    mocker.patch("wandb.internal.update.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)

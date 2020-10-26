@@ -4,12 +4,21 @@ from six.moves import queue
 import threading
 import time
 import shutil
+import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok
-from wandb.internal.handler import HandleManager
-from wandb.internal.sender import SendManager
-from wandb.interface.interface import BackendSender
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.internal.handler import HandleManager
+    from wandb.sdk.internal.sender import SendManager
+    from wandb.sdk.interface.interface import BackendSender
+else:
+    from wandb.sdk_py27.internal.handler import HandleManager
+    from wandb.sdk_py27.internal.sender import SendManager
+    from wandb.sdk_py27.interface.interface import BackendSender
 
 
 @pytest.fixture()
