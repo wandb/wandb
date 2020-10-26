@@ -484,7 +484,7 @@ def init(
         allow_val_change (bool, optional): allow config values to be changed after
             setting. Defaults to true in jupyter and false otherwise.
         resume (bool, str, optional): Sets the resuming behavior. Should be one of:
-            "allow", "must", "never", or "auto". Defaults to "never".
+            "allow", "must", "never", "auto" or None. Defaults to None.
             Cases:
             - "auto" (or True): automatically resume the previous run on the same machine.
                 if the previous run crashed, otherwise starts a new run.
@@ -496,6 +496,8 @@ def init(
             - "must": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
                 and it is identical to a previous run, wandb will automatically resume the
                 run with the id. Otherwise wandb will crash.
+            - None: never resumes - if a run has a duplicate run_id the previous run is
+                overwritten.
             See https://docs.wandb.com/library/advanced/resuming for more detail.
         force (bool, optional): If true, will cause script to crash if user can't or isn't
             logged in to a wandb server.  If false, will cause script to run in offline
