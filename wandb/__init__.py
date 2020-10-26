@@ -38,7 +38,7 @@ if PY3:
 else:
     TYPE_CHECKING = False
     from wandb import sdk_py27 as wandb_sdk
-print("DEBUG wandb_sdk")
+
 import wandb
 
 wandb.wandb_lib = wandb_sdk.lib
@@ -60,7 +60,6 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors.error import CommError, UsageError
 
 _preinit = wandb_lib.preinit
-print("DIR", dir(wandb_lib))
 _lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
 from wandb import util
