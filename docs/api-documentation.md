@@ -6,7 +6,7 @@ title: API Documentation
 <a name="wandb.apis.public"></a>
 # wandb.apis.public
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1)
 
 <a name="wandb.apis.public.Api"></a>
 ## Api Objects
@@ -15,7 +15,7 @@ title: API Documentation
 class Api(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L158)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L168)
 
 Used for querying the wandb server.
 
@@ -40,7 +40,7 @@ You can also set defaults for `entity`, `project`, and `run`.
  | flush()
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L249)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L263)
 
 The api object keeps a local cache of runs, so if the state of the run may
 change while executing your script you must clear the local cache with `api.flush()`
@@ -53,7 +53,7 @@ to get the latest values associated with the run.
  | projects(entity=None, per_page=200)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L312)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L325)
 
 Get projects for a given entity.
 
@@ -76,7 +76,7 @@ A `Projects` object which is an iterable collection of `Project` objects.
  | reports(path="", name=None, per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L332)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L347)
 
 Get reports for a given project path.
 
@@ -101,7 +101,7 @@ A `Reports` object which is an iterable collection of `BetaReport` objects.
  | runs(path="", filters={}, order="-created_at", per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L359)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L380)
 
 Return a set of runs from a project that match the filters provided.
 You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
@@ -153,7 +153,7 @@ A `Runs` object, which is an iterable collection of `Run` objects.
  | run(path="")
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L405)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L432)
 
 Returns a single run by parsing path in the form entity/project/run_id.
 
@@ -176,7 +176,7 @@ A `Run` object.
  | sweep(path="")
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L422)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L449)
 
 Returns a sweep by parsing path in the form entity/project/sweep_id.
 
@@ -199,7 +199,7 @@ A `Sweep` object.
  | artifact(name, type=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L456)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L483)
 
 Returns a single artifact by parsing path in the form entity/project/run_id.
 
@@ -223,7 +223,7 @@ A `Artifact` object.
 class Projects(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L575)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L603)
 
 An iterable collection of `Project` objects.
 
@@ -234,7 +234,7 @@ An iterable collection of `Project` objects.
 class Project(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L631)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L665)
 
 A project is a namespace for runs
 
@@ -245,7 +245,7 @@ A project is a namespace for runs
 class Runs(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L652)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L686)
 
 An iterable collection of runs associated with a project and optional filter.
 This is generally used indirectly via the `Api`.runs method
@@ -257,7 +257,7 @@ This is generally used indirectly via the `Api`.runs method
 class Run(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L737)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L791)
 
 A single run associated with an entity and project.
 
@@ -289,7 +289,7 @@ with `wandb.log({key: value})`
  | __init__(client, entity, project, run_id, attrs={})
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L762)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L816)
 
 Run is always initialized by calling api.runs() where api is an instance of wandb.Api
 
@@ -301,7 +301,7 @@ Run is always initialized by calling api.runs() where api is an instance of wand
  | create(cls, api, run_id=None, project=None, entity=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L820)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L874)
 
 Create a run for the given project
 
@@ -313,7 +313,7 @@ Create a run for the given project
  | update()
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L902)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L980)
 
 Persists changes to the run object to the wandb backend.
 
@@ -325,7 +325,7 @@ Persists changes to the run object to the wandb backend.
  | files(names=[], per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L964)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1057)
 
 **Arguments**:
 
@@ -345,11 +345,33 @@ A `Files` object, which is an iterator over `File` obejcts.
  | file(name)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L976)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1069)
 
 **Arguments**:
 
 - `name` _str_ - name of requested file.
+
+
+**Returns**:
+
+A `File` matching the name argument.
+
+<a name="wandb.apis.public.Run.upload_file"></a>
+#### upload\_file
+
+```python
+ | @normalize_exceptions
+ | upload_file(path, root=".")
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1080)
+
+**Arguments**:
+
+- `path` _str_ - name of file to upload.
+- `root` _str_ - the root path to save the file relative to.  i.e.
+If you want to have the file saved in the run as "my_dir/file.txt"
+and you're currently in "my_dir" you would set root to "../"
 
 
 **Returns**:
@@ -364,7 +386,7 @@ A `File` matching the name argument.
  | history(samples=500, keys=None, x_axis="_step", pandas=True, stream="default")
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L987)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1103)
 
 Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
 the history records being sampled.
@@ -391,7 +413,7 @@ If pandas=False returns a list of dicts of history metrics.
  | scan_history(keys=None, page_size=1000, min_step=None, max_step=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1019)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1137)
 
 Returns an iterable collection of all history records for a run.
 
@@ -417,6 +439,49 @@ losses = [row["Loss"] for row in history]
 
 An iterable collection over history records (dict).
 
+<a name="wandb.apis.public.Run.use_artifact"></a>
+#### use\_artifact
+
+```python
+ | @normalize_exceptions
+ | use_artifact(artifact)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1194)
+
+Declare an artifact as an input to a run.
+
+**Arguments**:
+
+- `artifact` _:obj:`Artifact`_ - An artifact returned from
+`wandb.Api().artifact(name)`
+
+**Returns**:
+
+A `Artifact` object.
+
+<a name="wandb.apis.public.Run.log_artifact"></a>
+#### log\_artifact
+
+```python
+ | @normalize_exceptions
+ | log_artifact(artifact, aliases=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1221)
+
+Declare an artifact as output of a run.
+
+**Arguments**:
+
+- `artifact` _:obj:`Artifact`_ - An artifact returned from
+`wandb.Api().artifact(name)`
+- `aliases` _list, optional_ - Aliases to apply to this artifact
+
+**Returns**:
+
+A `Artifact` object.
+
 <a name="wandb.apis.public.Sweep"></a>
 ## Sweep Objects
 
@@ -424,7 +489,7 @@ An iterable collection over history records (dict).
 class Sweep(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1101)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1301)
 
 A set of runs associated with a sweep
 Instantiate with:
@@ -444,7 +509,7 @@ api.sweep(sweep_path)
  | best_run(order=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1182)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1387)
 
 Returns the best run sorted by the metric defined in config or the order passed in
 
@@ -456,7 +521,7 @@ Returns the best run sorted by the metric defined in config or the order passed 
  | get(cls, client, entity=None, project=None, sid=None, withRuns=True, order=None, query=None, **kwargs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1203)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1421)
 
 Execute a query against the cloud backend
 
@@ -467,7 +532,7 @@ Execute a query against the cloud backend
 class Files(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1242)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1476)
 
 Files is an iterable collection of `File` objects.
 
@@ -478,7 +543,7 @@ Files is an iterable collection of `File` objects.
 class File(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1298)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1542)
 
 File is a class associated with a file saved by wandb.
 
@@ -496,14 +561,15 @@ File is a class associated with a file saved by wandb.
 
 ```python
  | @normalize_exceptions
- | @retriable(retry_timedelta=datetime.timedelta(
- |         seconds=10),
+ | @retriable(
+ |         retry_timedelta=RETRY_TIMEDELTA,
  |         check_retry_fn=util.no_retry_auth,
- |         retryable_exceptions=(RetryError, requests.RequestException))
+ |         retryable_exceptions=(RetryError, requests.RequestException),
+ |     )
  | download(root=".", replace=False)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1354)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1599)
 
 Downloads a file previously saved by a run from the wandb server.
 
@@ -525,7 +591,7 @@ if it exists. Defaults to `False`.
 class Reports(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1376)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1622)
 
 Reports is an iterable collection of `BetaReport` objects.
 
@@ -536,7 +602,7 @@ Reports is an iterable collection of `BetaReport` objects.
 class QueryGenerator(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1441)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1702)
 
 QueryGenerator is a helper object to write filters for runs
 
@@ -547,7 +613,7 @@ QueryGenerator is a helper object to write filters for runs
 class BetaReport(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1540)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L1799)
 
 BetaReport is a class associated with reports created in wandb.
 
@@ -568,7 +634,7 @@ WARNING: this API will likely change in a future release
 class ArtifactType(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1940)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2263)
 
 <a name="wandb.apis.public.ArtifactType.collections"></a>
 #### collections
@@ -578,7 +644,7 @@ class ArtifactType(object)
  | collections(per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L1989)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2318)
 
 Artifact collections
 
@@ -589,7 +655,7 @@ Artifact collections
 class ArtifactCollection(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2000)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2333)
 
 <a name="wandb.apis.public.ArtifactCollection.versions"></a>
 #### versions
@@ -599,7 +665,7 @@ class ArtifactCollection(object)
  | versions(per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2014)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2347)
 
 Artifact versions
 
@@ -610,19 +676,18 @@ Artifact versions
 class Artifact(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2021)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2362)
 
-<a name="wandb.apis.public.Artifact.name"></a>
-#### name
+<a name="wandb.apis.public.Artifact.delete"></a>
+#### delete
 
 ```python
- | @property
- | name()
+ | delete()
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2088)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2451)
 
-Stable name you can use to fetch this artifact.
+Delete artifact and it's files.
 
 <a name="wandb.apis.public.Artifact.download"></a>
 #### download
@@ -631,7 +696,7 @@ Stable name you can use to fetch this artifact.
  | download(root=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2137)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2530)
 
 Download the artifact to dir specified by the <root>
 
@@ -652,7 +717,7 @@ The path to the downloaded contents.
  | file(root=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2178)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2570)
 
 Download a single file artifact to dir specified by the <root>
 
@@ -674,7 +739,7 @@ The full path of the downloaded file
  | save()
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2218)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2605)
 
 Persists artifact changes to the wandb backend.
 
@@ -685,7 +750,7 @@ Persists artifact changes to the wandb backend.
  | verify(root=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2250)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2644)
 
 Verify an artifact by checksumming its downloaded contents.
 
@@ -704,7 +769,7 @@ artifact will be downloaded to './artifacts/<self.name>/'
 class ArtifactVersions(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/apis/public.py#L2338)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/apis/public.py#L2773)
 
 An iterable collection of artifact versions associated with a project and optional filter.
 This is generally used indirectly via the `Api`.artifact_versions method

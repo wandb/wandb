@@ -7,8 +7,7 @@ loaders:
       - wandb.cli.cli
       - wandb.sdk.wandb_run
       - wandb.sdk.wandb_init
-      - wandb.framework.keras.keras
-      - wandb.framework.fastai
+      - wandb.integration.keras.keras
 processors:
   - type: filter
   - type: smart

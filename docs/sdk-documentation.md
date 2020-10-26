@@ -6,7 +6,7 @@ title: SDK Documentation
 <a name="wandb"></a>
 # wandb
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/__init__.py#L2)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/__init__.py#L2)
 
 Wandb is a library to help track machine learning experiments.
 
@@ -24,29 +24,54 @@ For examples usage, see https://docs.wandb.com/library/example-projects
 <a name="wandb.sdk.wandb_run"></a>
 # wandb.sdk.wandb\_run
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L2)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L3)
 
 Run - Run object.
 
 Manage wandb run.
 
-<a name="wandb.sdk.wandb_run.RunManaged"></a>
-## RunManaged Objects
+<a name="wandb.sdk.wandb_run.RunStatusChecker"></a>
+## RunStatusChecker Objects
 
 ```python
-class RunManaged(Run)
+class RunStatusChecker(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L42)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L97)
 
-<a name="wandb.sdk.wandb_run.RunManaged.log"></a>
+Periodically polls the background process for relevant updates.
+
+For now, we just use this to figure out if the user has requested a stop.
+
+<a name="wandb.sdk.wandb_run.Run"></a>
+## Run Objects
+
+```python
+class Run(RunBase)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L242)
+
+<a name="wandb.sdk.wandb_run.Run.mode"></a>
+#### mode
+
+```python
+ | @property
+ | mode()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L523)
+
+For compatibility with 0.9.x and earlier, deprecate eventually.
+
+<a name="wandb.sdk.wandb_run.Run.log"></a>
 #### log
 
 ```python
  | log(data, step=None, commit=None, sync=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L250)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L720)
 
 Log a dict to the global run's history.
 
@@ -158,27 +183,70 @@ For more examples, see https://docs.wandb.com/library/log
 wandb.Error - if called before wandb.init
 ValueError - if invalid data is passed
 
-<a name="wandb.sdk.wandb_run.RunManaged.join"></a>
-#### join
+<a name="wandb.sdk.wandb_run.Run.save"></a>
+#### save
 
 ```python
- | join()
+ | save(glob_str: Optional[str] = None, base_path: Optional[str] = None, policy: str = "live")
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L383)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L855)
+
+Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+
+**Arguments**:
+
+- `glob_str` _string_ - a relative or absolute path to a unix glob or regular
+path.  If this isn't specified the method is a noop.
+- `base_path` _string_ - the base path to run the glob relative to
+- `policy` _string_ - on of "live", "now", or "end"
+- `live` - upload the file as it changes, overwriting the previous version
+- `now` - upload the file once now
+- `end` - only upload file when the run ends
+
+<a name="wandb.sdk.wandb_run.Run.finish"></a>
+#### finish
+
+```python
+ | finish(exit_code=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L950)
 
 Marks a run as finished, and finishes uploading all data.  This is
 used when creating multiple runs in the same process.  We automatically
 call this method when your script exits.
 
-<a name="wandb.sdk.wandb_run.RunManaged.use_artifact"></a>
+<a name="wandb.sdk.wandb_run.Run.plot_table"></a>
+#### plot\_table
+
+```python
+ | plot_table(vega_spec_name, data_table, fields, string_fields=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L967)
+
+Creates a custom plot on a table.
+
+**Arguments**:
+
+- `vega_spec_name` - the name of the spec for the plot
+- `table_key` - the key used to log the data table
+- `data_table` - a wandb.Table object containing the data to
+be used on the visualization
+- `fields` - a dict mapping from table keys to fields that the custom
+visualization needs
+- `string_fields` - a dict that provides values for any string constants
+the custom visualization needs
+
+<a name="wandb.sdk.wandb_run.Run.use_artifact"></a>
 #### use\_artifact
 
 ```python
  | use_artifact(artifact_or_name, type=None, aliases=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L526)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L1599)
 
 Declare an artifact as an input to a run, call `download` or `file` on \
 the returned object to get the contents locally.
@@ -199,14 +267,14 @@ You can also pass an Artifact object created by calling `wandb.Artifact`
 
 A `Artifact` object.
 
-<a name="wandb.sdk.wandb_run.RunManaged.log_artifact"></a>
+<a name="wandb.sdk.wandb_run.Run.log_artifact"></a>
 #### log\_artifact
 
 ```python
  | log_artifact(artifact_or_path, name=None, type=None, aliases=None)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_run.py#L581)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L1654)
 
 Declare an artifact as output of a run.
 
@@ -234,10 +302,54 @@ defaults to ["latest"]
 
 A `Artifact` object.
 
+<a name="wandb.sdk.wandb_run.restore"></a>
+#### restore
+
+```python
+restore(name: str, run_path: Optional[str] = None, replace: bool = False, root: Optional[str] = None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L1722)
+
+Downloads the specified file from cloud storage into the current directory
+or run directory.  By default this will only download the file if it doesn't
+already exist.
+
+**Arguments**:
+
+- `name` - the name of the file
+- `run_path` - optional path to a run to pull files from, i.e. username/project_name/run_id
+if wandb.init has not been called, this is required.
+- `replace` - whether to download the file even if it already exists locally
+- `root` - the directory to download the file to.  Defaults to the current
+directory or the run directory if wandb.init was called.
+
+
+**Returns**:
+
+None if it can't find the file, otherwise a file object open for reading
+
+
+**Raises**:
+
+wandb.CommError if we can't connect to the wandb backend
+ValueError if the file is not found or can't find run_path
+
+<a name="wandb.sdk.wandb_run.WriteSerializingFile"></a>
+## WriteSerializingFile Objects
+
+```python
+class WriteSerializingFile(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_run.py#L1790)
+
+Wrapper for a file object that serializes writes.
+
 <a name="wandb.sdk.wandb_init"></a>
 # wandb.sdk.wandb\_init
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_init.py#L2)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_init.py#L3)
 
 init.
 
@@ -248,7 +360,7 @@ init.
 class _WandbInit(object)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_init.py#L117)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_init.py#L46)
 
 <a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
 #### setup
@@ -257,7 +369,7 @@ class _WandbInit(object)
  | setup(kwargs)
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_init.py#L141)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_init.py#L58)
 
 Complete setup for wandb.init().
 
@@ -268,10 +380,10 @@ logging.
 #### init
 
 ```python
-init(settings: Union[Settings, Dict[str, Any], str, None] = None, entity: Optional[str] = None, team: Optional[str] = None, project: Optional[str] = None, mode: Optional[str] = None, group: Optional[str] = None, job_type: Optional[str] = None, tags: Optional[List] = None, name: Optional[str] = None, config: Union[Dict, None] = None, notes: Optional[str] = None, magic: bool = None, config_exclude_keys=None, config_include_keys=None, reinit: bool = None, anonymous: Optional[str] = None, dir=None, allow_val_change=None, resume=None, force=None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, id=None) -> Run
+init(job_type: Optional[str] = None, dir=None, config: Union[Dict, None] = None, project: Optional[str] = None, entity: Optional[str] = None, reinit: bool = None, tags: Optional[Sequence] = None, group: Optional[str] = None, name: Optional[str] = None, notes: Optional[str] = None, magic: Union[dict, str, bool] = None, config_exclude_keys=None, config_include_keys=None, anonymous: Optional[str] = None, mode: Optional[str] = None, allow_val_change: Optional[bool] = None, resume: Optional[Union[bool, str]] = None, force: Optional[bool] = None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, save_code=None, id=None, settings: Union[Settings, Dict[str, Any], None] = None) -> RunBase
 ```
 
-[[view_source]](https://github.com/wandb/client-ng/blob/3feea9bf29477622c859e456fc3d6adfc09fdd4c/wandb/sdk/wandb_init.py#L525)
+[[view_source]](https://github.com/wandb/client/blob/4345bddbc27a0c416a78ded5324b48e1d7aa0201/wandb/sdk/wandb_init.py#L421)
 
 Initialize a wandb Run.
 
