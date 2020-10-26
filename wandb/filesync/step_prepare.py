@@ -7,14 +7,16 @@ from six.moves import queue
 
 # Request for a file to be prepared.
 RequestPrepare = collections.namedtuple(
-    'RequestPrepare', ('prepare_fn', 'on_prepare', 'response_queue'))
+    "RequestPrepare", ("prepare_fn", "on_prepare", "response_queue")
+)
 
-RequestFinish = collections.namedtuple('RequestFinish', ())
+RequestFinish = collections.namedtuple("RequestFinish", ())
 
 ResponsePrepare = collections.namedtuple(
-    'ResponsePrepare', ('upload_url', 'upload_headers', 'birth_artifact_id'))
+    "ResponsePrepare", ("upload_url", "upload_headers", "birth_artifact_id")
+)
 
-    
+
 class StepPrepare(object):
     """A thread that batches requests to our file prepare API.
 
@@ -40,24 +42,29 @@ class StepPrepare(object):
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
-                name = prepare_request.prepare_fn()['name']
+                name = prepare_request.prepare_fn()["name"]
                 response_file = prepare_response[name]
-                upload_url = response_file['uploadUrl']
-                upload_headers = response_file['uploadHeaders']
-                birth_artifact_id = response_file['artifact']['id']
+                upload_url = response_file["uploadUrl"]
+                upload_headers = response_file["uploadHeaders"]
+                birth_artifact_id = response_file["artifact"]["id"]
                 if prepare_request.on_prepare:
-                    prepare_request.on_prepare(upload_url, upload_headers, birth_artifact_id)
+                    prepare_request.on_prepare(
+                        upload_url, upload_headers, birth_artifact_id
+                    )
                 prepare_request.response_queue.put(
-                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id))
+                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
+                )
             if finish:
                 break
-            
+
     def _gather_batch(self, first_request):
         batch_start_time = time.time()
         batch = [first_request]
         while True:
             try:
-                request = self._request_queue.get(block=True, timeout=self._inter_event_time)
+                request = self._request_queue.get(
+                    block=True, timeout=self._inter_event_time
+                )
                 if isinstance(request, RequestFinish):
                     return True, batch
                 batch.append(request)

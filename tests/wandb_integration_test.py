@@ -21,9 +21,11 @@ if sys.version_info.major == 2:
 else:
     if sys.version_info.minor >= 4:
         import importlib
+
         reloadFn = importlib.reload
     else:
         import imp
+
         reloadFn = imp.reload
 
 
@@ -54,7 +56,9 @@ def test_resume_allow_success(live_mock_server, test_settings):
     # }
 
 
-@pytest.mark.skipif(platform.system() == "Windows", reason="File syncing is somewhat busted in windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
+)
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
 def test_parallel_runs(live_mock_server, test_settings):
     with open("train.py", "w") as f:
@@ -62,18 +66,26 @@ def test_parallel_runs(live_mock_server, test_settings):
     p1 = subprocess.Popen(["python", "train.py"], env=os.environ)
     p2 = subprocess.Popen(["python", "train.py"], env=os.environ)
     exit_codes = [p.wait() for p in (p1, p2)]
-    assert exit_codes == [0,0]
+    assert exit_codes == [0, 0]
     num_runs = 0
     # Assert we've stored 2 runs worth of files
     # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
-    files_sorted = sorted([
-        'wandb-metadata.json', 'code/tests/logs/test_parallel_runs/train.py',
-        'requirements.txt', 'config.yaml',
-        'wandb-summary.json'])
-    for run,files in live_mock_server.get_ctx()["storage"].items():
+    files_sorted = sorted(
+        [
+            "wandb-metadata.json",
+            "code/tests/logs/test_parallel_runs/train.py",
+            "requirements.txt",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
+    for run, files in live_mock_server.get_ctx()["storage"].items():
         num_runs += 1
         print("Files from server", files)
-        assert sorted([f for f in files if not f.endswith(".patch") and f != "output.log"]) == files_sorted
+        assert (
+            sorted([f for f in files if not f.endswith(".patch") and f != "output.log"])
+            == files_sorted
+        )
     assert num_runs == 2
 
 
@@ -156,8 +168,18 @@ def test_network_fault_files(live_mock_server, test_settings):
     run.join()
     ctx = live_mock_server.get_ctx()
     print(ctx)
-    assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
-        ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "requirements.txt",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
 def test_network_fault_graphql(live_mock_server, test_settings):
@@ -167,44 +189,60 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     run.join()
     ctx = live_mock_server.get_ctx()
     print(ctx)
-    assert [f for f in sorted(ctx["storage"][run.id]) if not f.endswith(".patch") and not f.endswith(".py")] == sorted(
-        ['wandb-metadata.json', 'requirements.txt', 'config.yaml', 'wandb-summary.json',])
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "requirements.txt",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
 def _remove_dir_if_exists(path):
-    '''Recursively removes directory. Be careful'''
+    """Recursively removes directory. Be careful"""
     if os.path.isdir(path):
         shutil.rmtree(path)
 
 
 def test_dir_on_import(live_mock_server, test_settings):
-    '''Ensures that `import wandb` does not create a local storage directory'''
+    """Ensures that `import wandb` does not create a local storage directory"""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
     if "WANDB_DIR" in os.environ:
-        del(os.environ["WANDB_DIR"])
+        del os.environ["WANDB_DIR"]
 
     # Test for the base case
     _remove_dir_if_exists(default_path)
     reloadFn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
 
     # test for the case that the env variable is set
     os.environ["WANDB_DIR"] = custom_env_path
     _remove_dir_if_exists(default_path)
     reloadFn(wandb)
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    assert not os.path.isdir(custom_env_path), "Unexpected directory at {}".format(custom_env_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
+    assert not os.path.isdir(custom_env_path), "Unexpected directory at {}".format(
+        custom_env_path
+    )
 
 
 def test_dir_on_init(live_mock_server, test_settings):
-    '''Ensures that `wandb.init()` creates the proper directory and nothing else'''
+    """Ensures that `wandb.init()` creates the proper directory and nothing else"""
     default_path = os.path.join(os.getcwd(), "wandb")
 
     # Clear env if set
     if "WANDB_DIR" in os.environ:
-        del(os.environ["WANDB_DIR"])
+        del os.environ["WANDB_DIR"]
 
     # Test for the base case
     reloadFn(wandb)
@@ -215,7 +253,7 @@ def test_dir_on_init(live_mock_server, test_settings):
 
 
 def test_dir_on_init_env(live_mock_server, test_settings):
-    '''Ensures that `wandb.init()` w/ env variable set creates the proper directory and nothing else'''
+    """Ensures that `wandb.init()` w/ env variable set creates the proper directory and nothing else"""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
@@ -227,19 +265,27 @@ def test_dir_on_init_env(live_mock_server, test_settings):
     _remove_dir_if_exists(default_path)
     run = wandb.init()
     run.join()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
+        custom_env_path
+    )
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb.init()
     run.join()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(custom_env_path)
-    del(os.environ["WANDB_DIR"])
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
+    assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
+        custom_env_path
+    )
+    del os.environ["WANDB_DIR"]
 
 
 def test_dir_on_init_dir(live_mock_server, test_settings):
-    '''Ensures that `wandb.init(dir=DIR)` creates the proper directory and nothing else'''
+    """Ensures that `wandb.init(dir=DIR)` creates the proper directory and nothing else"""
 
     default_path = os.path.join(os.getcwd(), "wandb")
     dir_name = "dir_custom"
@@ -252,17 +298,27 @@ def test_dir_on_init_dir(live_mock_server, test_settings):
         os.makedirs(custom_dir_path)
     run = wandb.init(dir="./" + dir_name)
     run.join()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(custom_dir_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
+    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
+        custom_dir_path
+    )
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb.init(dir="./" + dir_name)
     run.join()
-    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(default_path)
-    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(custom_dir_path)
+    assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+        default_path
+    )
+    assert os.path.isdir(custom_dir_path), "Expected directory at {}".format(
+        custom_dir_path
+    )
 
 
-def test_version_upgraded(live_mock_server, test_settings, capsys, disable_console, restore_version):
+def test_version_upgraded(
+    live_mock_server, test_settings, capsys, disable_console, restore_version
+):
     wandb.__version__ = "0.10.2"
     run = wandb.init()
     run.finish()
@@ -270,7 +326,9 @@ def test_version_upgraded(live_mock_server, test_settings, capsys, disable_conso
     assert "is available!  To upgrade, please run:" in captured.err
 
 
-def test_version_yanked(live_mock_server, test_settings, capsys, disable_console, restore_version):
+def test_version_yanked(
+    live_mock_server, test_settings, capsys, disable_console, restore_version
+):
     wandb.__version__ = "0.10.0"
     run = wandb.init()
     run.finish()
@@ -278,7 +336,9 @@ def test_version_yanked(live_mock_server, test_settings, capsys, disable_console
     assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
 
 
-def test_version_retired(live_mock_server, test_settings, capsys, disable_console, restore_version):
+def test_version_retired(
+    live_mock_server, test_settings, capsys, disable_console, restore_version
+):
     wandb.__version__ = "0.9.99"
     run = wandb.init()
     run.finish()

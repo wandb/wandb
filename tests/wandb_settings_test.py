@@ -74,8 +74,10 @@ def test_ignore_globs_env():
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
 def test_ignore_globs_settings(local_settings):
     with open(os.path.join(os.getcwd(), ".config", "wandb", "settings"), "w") as f:
-        f.write("""[default]
-ignore_globs=foo,bar""")
+        f.write(
+            """[default]
+ignore_globs=foo,bar"""
+        )
     s = Settings(_files=True)
     s.setdefaults()
     assert s.ignore_globs == ("foo", "bar",)
@@ -184,7 +186,7 @@ def test_prio_context_ok():
     s.update(project="pizza", _source=s.Source.ENTITY)
     assert s.project == "pizza"
     with s._as_source(s.Source.PROJECT) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -193,7 +195,7 @@ def test_prio_context_ignore():
     s.update(project="pizza", _source=s.Source.PROJECT)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza"
 
 
@@ -202,7 +204,7 @@ def test_prio_context_over_ok():
     s.update(project="pizza", _source=s.Source.PROJECT)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -211,7 +213,7 @@ def test_prio_context_over_both_ok():
     s.update(project="pizza", _source=s.Source.PROJECT, _override=True)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -220,5 +222,5 @@ def test_prio_context_over_ignore():
     s.update(project="pizza", _source=s.Source.ENTITY, _override=True)
     assert s.project == "pizza"
     with s._as_source(s.Source.PROJECT, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza"

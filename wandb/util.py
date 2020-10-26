@@ -50,21 +50,21 @@ logger = logging.getLogger(__name__)
 _not_importable = set()
 
 
-
-IS_GIT = os.path.exists(
-    os.path.join(os.path.dirname(__file__), '..', '.git'))
+IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla
 if IS_GIT:
-    SENTRY_ENV = 'development'
+    SENTRY_ENV = "development"
 else:
-    SENTRY_ENV = 'production'
+    SENTRY_ENV = "production"
 
 if error_reporting_enabled():
-    sentry_sdk.init(dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
-                    release=wandb.__version__,
-                    default_integrations=False,
-                    environment=SENTRY_ENV)
+    sentry_sdk.init(
+        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        release=wandb.__version__,
+        default_integrations=False,
+        environment=SENTRY_ENV,
+    )
 
 
 def sentry_message(message):
@@ -111,8 +111,11 @@ def sentry_set_scope(process_context, entity, project, email=None, url=None):
 def vendor_setup():
     """This enables us to use the vendor directory for packages we don't depend on"""
     parent_dir = os.path.abspath(os.path.dirname(__file__))
-    vendor_dir = os.path.join(parent_dir, 'vendor')
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1", )
+    vendor_dir = os.path.join(parent_dir, "vendor")
+    vendor_packages = (
+        "gql-0.2.0",
+        "graphql-core-1.1",
+    )
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -149,7 +152,9 @@ class LazyLoader(types.ModuleType):
     """
 
     # The lint error here is incorrect.
-    def __init__(self, local_name, parent_module_globals, name, warning=None):  # pylint: disable=super-on-old-class
+    def __init__(
+        self, local_name, parent_module_globals, name, warning=None
+    ):  # pylint: disable=super-on-old-class
         self._local_name = local_name
         self._parent_module_globals = parent_module_globals
         self._warning = warning
@@ -190,28 +195,32 @@ class PreInitObject(object):
 
     def __getitem__(self, key):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key))
+            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+        )
 
     def __setitem__(self, key, value):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key))
+            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+        )
 
     def __setattr__(self, key, value):
         if not key.startswith("_"):
             raise wandb.Error(
-                'You must call wandb.init() before {}.{}'.format(self._name, key))
+                "You must call wandb.init() before {}.{}".format(self._name, key)
+            )
         else:
             return object.__setattr__(self, key, value)
 
     def __getattr__(self, key):
         if not key.startswith("_"):
             raise wandb.Error(
-                'You must call wandb.init() before {}.{}'.format(self._name, key))
+                "You must call wandb.init() before {}.{}".format(self._name, key)
+            )
         else:
             raise AttributeError()
 
 
-np = get_module('numpy')
+np = get_module("numpy")
 
 MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
@@ -219,12 +228,12 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if '://api.wandb.' in api_url:
+    if "://api.wandb." in api_url:
         # cloud
-        return api_url.replace('://api.', '://')
-    elif '://api.' in api_url:
+        return api_url.replace("://api.", "://")
+    elif "://api." in api_url:
         # onprem cloud
-        return api_url.replace('://api.', '://app.')
+        return api_url.replace("://api.", "://app.")
     # wandb/local
     return api_url
 
@@ -247,33 +256,39 @@ def get_h5_typename(o):
     elif is_pytorch_tensor_typename(typename):
         return "torch.Tensor"
     else:
-        return o.__class__.__module__.split('.')[0] + "." + o.__class__.__name__
+        return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
 
 def is_tf_tensor(obj):
     import tensorflow
+
     return isinstance(obj, tensorflow.Tensor)
 
 
 def is_tf_tensor_typename(typename):
-    return typename.startswith('tensorflow.') and ('Tensor' in typename or 'Variable' in typename)
+    return typename.startswith("tensorflow.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
 
 
 def is_tf_eager_tensor_typename(typename):
-    return typename.startswith('tensorflow.') and ('EagerTensor' in typename)
+    return typename.startswith("tensorflow.") and ("EagerTensor" in typename)
 
 
 def is_pytorch_tensor(obj):
     import torch
+
     return isinstance(obj, torch.Tensor)
 
 
 def is_pytorch_tensor_typename(typename):
-    return typename.startswith('torch.') and ('Tensor' in typename or 'Variable' in typename)
+    return typename.startswith("torch.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
 
 
 def is_pandas_data_frame_typename(typename):
-    return typename.startswith('pandas.') and 'DataFrame' in typename
+    return typename.startswith("pandas.") and "DataFrame" in typename
 
 
 def is_matplotlib_typename(typename):
@@ -285,7 +300,7 @@ def is_plotly_typename(typename):
 
 
 def is_plotly_figure_typename(typename):
-    return typename.startswith("plotly.") and typename.endswith('.Figure')
+    return typename.startswith("plotly.") and typename.endswith(".Figure")
 
 
 def is_numpy_array(obj):
@@ -302,28 +317,31 @@ def ensure_matplotlib_figure(obj):
     """
     import matplotlib
     from matplotlib.figure import Figure
+
     # plotly and matplotlib broke in recent releases,
     # this patches matplotlib to add a removed method that plotly assumes exists
     from matplotlib.spines import Spine
+
     def is_frame_like(self):
         """Return True if directly on axes frame.
 
         This is useful for determining if a spine is the edge of an
         old style MPL plot. If so, this function will return True.
         """
-        position = self._position or ('outward', 0.0)
+        position = self._position or ("outward", 0.0)
         if isinstance(position, str):
-            if position == 'center':
-                position = ('axes', 0.5)
-            elif position == 'zero':
-                position = ('data', 0)
+            if position == "center":
+                position = ("axes", 0.5)
+            elif position == "zero":
+                position = ("data", 0)
         if len(position) != 2:
             raise ValueError("position should be 2-tuple")
         position_type, amount = position
-        if position_type == 'outward' and amount == 0:
+        if position_type == "outward" and amount == 0:
             return True
         else:
             return False
+
     Spine.is_frame_like = is_frame_like
     if obj == matplotlib.pyplot:
         obj = obj.gcf()
@@ -333,18 +351,24 @@ def ensure_matplotlib_figure(obj):
             # Some matplotlib objects have a figure function
             if not isinstance(obj, Figure):
                 raise ValueError(
-                    "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted.")
+                    "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted."
+                )
     return obj
+
 
 def matplotlib_to_plotly(obj):
     obj = ensure_matplotlib_figure(obj)
-    tools = get_module("plotly.tools", 
-        required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+    tools = get_module(
+        "plotly.tools",
+        required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`",
+    )
     return tools.mpl_to_plotly(obj)
+
 
 def matplotlib_contains_images(obj):
     obj = ensure_matplotlib_figure(obj)
     return any(len(ax.images) > 0 for ax in obj.axes)
+
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
@@ -383,19 +407,23 @@ def json_friendly(obj):
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
     elif isinstance(obj, bytes):
-        obj = obj.decode('utf-8')
+        obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            '{}.{}'.format(obj.__module__, obj.__qualname__)
-            if hasattr(obj, '__qualname__') and hasattr(obj, '__module__')
+            "{}.{}".format(obj.__module__, obj.__qualname__)
+            if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
-        wandb.termwarn("Serializing object of type {} that is {} bytes".format(type(obj).__name__, getsizeof(obj)))
+        wandb.termwarn(
+            "Serializing object of type {} that is {} bytes".format(
+                type(obj).__name__, getsizeof(obj)
+            )
+        )
 
     return obj, converted
 
@@ -403,7 +431,9 @@ def json_friendly(obj):
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
-            "plotly.tools", required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`")
+            "plotly.tools",
+            required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`",
+        )
         obj = tools.mpl_to_plotly(obj)
 
     if is_plotly_typename(get_full_typename(obj)):
@@ -421,39 +451,41 @@ def maybe_compress_history(obj):
 
 def maybe_compress_summary(obj, h5_typename):
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
-        return {
-            "_type": h5_typename,  # may not be ndarray
-            "var": np.var(obj).item(),
-            "mean": np.mean(obj).item(),
-            "min": np.amin(obj).item(),
-            "max": np.amax(obj).item(),
-            "10%": np.percentile(obj, 10),
-            "25%": np.percentile(obj, 25),
-            "75%": np.percentile(obj, 75),
-            "90%": np.percentile(obj, 90),
-            "size": obj.size
-        }, True
+        return (
+            {
+                "_type": h5_typename,  # may not be ndarray
+                "var": np.var(obj).item(),
+                "mean": np.mean(obj).item(),
+                "min": np.amin(obj).item(),
+                "max": np.amax(obj).item(),
+                "10%": np.percentile(obj, 10),
+                "25%": np.percentile(obj, 25),
+                "75%": np.percentile(obj, 75),
+                "90%": np.percentile(obj, 90),
+                "size": obj.size,
+            },
+            True,
+        )
     else:
         return obj, False
 
 
 def launch_browser(attempt_launch_browser=True):
     """Decide if we should launch a browser"""
-    _DISPLAY_VARIABLES = ['DISPLAY', 'WAYLAND_DISPLAY', 'MIR_SOCKET']
-    _WEBBROWSER_NAMES_BLACKLIST = [
-        'www-browser', 'lynx', 'links', 'elinks', 'w3m']
+    _DISPLAY_VARIABLES = ["DISPLAY", "WAYLAND_DISPLAY", "MIR_SOCKET"]
+    _WEBBROWSER_NAMES_BLACKLIST = ["www-browser", "lynx", "links", "elinks", "w3m"]
 
     import webbrowser
 
     launch_browser = attempt_launch_browser
     if launch_browser:
-        if ('linux' in sys.platform and
-                not any(os.getenv(var) for var in _DISPLAY_VARIABLES)):
+        if "linux" in sys.platform and not any(
+            os.getenv(var) for var in _DISPLAY_VARIABLES
+        ):
             launch_browser = False
         try:
             browser = webbrowser.get()
-            if (hasattr(browser, 'name')
-                    and browser.name in _WEBBROWSER_NAMES_BLACKLIST):
+            if hasattr(browser, "name") and browser.name in _WEBBROWSER_NAMES_BLACKLIST:
                 launch_browser = False
         except webbrowser.Error:
             launch_browser = False
@@ -463,8 +495,7 @@ def launch_browser(attempt_launch_browser=True):
 
 def generate_id():
     # ~3t run ids (36**8)
-    run_gen = shortuuid.ShortUUID(alphabet=list(
-        "0123456789abcdefghijklmnopqrstuvwxyz"))
+    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
     return run_gen.random(8)
 
 
@@ -498,8 +529,7 @@ class WandBJSONEncoderOld(json.JSONEncoder):
 
     def default(self, obj):
         tmp_obj, converted = json_friendly(obj)
-        tmp_obj, compressed = maybe_compress_summary(
-            tmp_obj, get_h5_typename(obj))
+        tmp_obj, compressed = maybe_compress_summary(tmp_obj, get_h5_typename(obj))
         if converted:
             return tmp_obj
         return json.JSONEncoder.default(self, tmp_obj)
@@ -515,7 +545,7 @@ class WandBHistoryJSONEncoder(json.JSONEncoder):
         if converted:
             return obj
         return json.JSONEncoder.default(self, obj)
-    
+
 
 class JSONEncoderUncompressed(json.JSONEncoder):
     """A JSON Encoder that handles some extra types.
@@ -528,18 +558,22 @@ class JSONEncoderUncompressed(json.JSONEncoder):
             obj = obj.item()
         return json.JSONEncoder.default(self, obj)
 
+
 def json_dump_safer(obj, fp, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+
 
 def json_dumps_safer(obj, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
+
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj, fp, **kwargs):
     """Convert obj to json, with some extra encodable types."""
     return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+
 
 def json_dumps_safer_history(obj, **kwargs):
     """Convert obj to json, with some extra encodable types, including histograms"""
@@ -551,6 +585,7 @@ def make_json_if_not_number(v):
     if isinstance(v, (float, int)):
         return v
     return json_dumps_safer(v)
+
 
 def make_safe_for_json(obj):
     """Replace invalid json floats with strings. Also converts to lists and dicts."""
@@ -564,12 +599,13 @@ def make_safe_for_json(obj):
     elif isinstance(obj, float):
         # W&B backend and UI handle these strings
         if obj != obj:  # standard way to check for NaN
-            return 'NaN'
-        elif obj == float('+inf'):
-            return 'Infinity'
-        elif obj == float('-inf'):
-            return '-Infinity'
+            return "NaN"
+        elif obj == float("+inf"):
+            return "Infinity"
+        elif obj == float("-inf"):
+            return "-Infinity"
     return obj
+
 
 def mkdir_exists_ok(path):
     try:
@@ -611,7 +647,7 @@ def request_with_retry(func, *args, **kwargs):
         *args: passed through to func
         **kwargs: passed through to func
     """
-    max_retries = kwargs.pop('max_retries', 30)
+    max_retries = kwargs.pop("max_retries", 30)
     sleep = 2
     retry_count = 0
     while True:
@@ -619,9 +655,11 @@ def request_with_retry(func, *args, **kwargs):
             response = func(*args, **kwargs)
             response.raise_for_status()
             return response
-        except (requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,
-                requests.exceptions.Timeout) as e:
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.Timeout,
+        ) as e:
             if isinstance(e, requests.exceptions.HTTPError):
                 # Non-retriable HTTP errors.
                 #
@@ -636,20 +674,27 @@ def request_with_retry(func, *args, **kwargs):
                 return e
             retry_count += 1
             delay = sleep + random.random() * 0.25 * sleep
-            if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 429:
-                logger.info(
-                    "Rate limit exceeded, retrying in %s seconds" % delay)
+            if (
+                isinstance(e, requests.exceptions.HTTPError)
+                and e.response.status_code == 429
+            ):
+                logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
-                logger.warning('requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s',
-                               e, args, kwargs)
+                logger.warning(
+                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
+                    e,
+                    args,
+                    kwargs,
+                )
             time.sleep(delay)
             sleep *= 2
             if sleep > MAX_SLEEP_SECONDS:
                 sleep = MAX_SLEEP_SECONDS
         except requests.exceptions.RequestException as e:
-            logger.error(response.json()['error'])  # XXX clean this up
+            logger.error(response.json()["error"])  # XXX clean this up
             logger.exception(
-                'requests_with_retry encountered unretryable exception: %s', e)
+                "requests_with_retry encountered unretryable exception: %s", e
+            )
             return e
 
 
@@ -668,9 +713,9 @@ def find_runner(program):
         except IOError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
-        if first_line.startswith('#!'):
+        if first_line.startswith("#!"):
             return shlex.split(first_line[2:])
-        if program.endswith('.py'):
+        if program.endswith(".py"):
             return [sys.executable]
     return None
 
@@ -692,16 +737,20 @@ def downsample(values, target_length):
         result.append(values[int(i * ratio)])
     return result
 
+
 import numbers
+
+
 def has_num(dictionary, key):
-     return (key in dictionary and isinstance(dictionary[key], numbers.Number))
+    return key in dictionary and isinstance(dictionary[key], numbers.Number)
+
 
 def md5_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode('ascii')
+    return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
 def get_log_file_path():
@@ -719,7 +768,10 @@ def get_log_file_path():
 def docker_image_regex(image):
     "regex for valid docker image names"
     if image:
-        return re.match(r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$", image)
+        return re.match(
+            r"^(?:(?=[^:\/]{1,253})(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-zA-Z0-9-]{1,63}(?<!-))*(?::[0-9]{1,5})?/)?((?![._-])(?:[a-z0-9._-]*)(?<![._-])(?:/(?![._-])[a-z0-9._-]*(?<![._-]))*)(?::(?![.-])[a-zA-Z0-9_.-]{1,128})?$",
+            image,
+        )
 
 
 def image_from_docker_args(args):
@@ -727,8 +779,23 @@ def image_from_docker_args(args):
     If excludes any argments that start with a dash, and the argument after it if it isn't a boolean
     switch.  This can be improved, we currently fallback gracefully when this fails.
     """
-    bool_args = ["-t", "--tty", "--rm", "--privileged", "--oom-kill-disable", "--no-healthcheck", "-i",
-                 "--interactive", "--init", "--help", "--detach", "-d", "--sig-proxy", "-it", "-itd"]
+    bool_args = [
+        "-t",
+        "--tty",
+        "--rm",
+        "--privileged",
+        "--oom-kill-disable",
+        "--no-healthcheck",
+        "-i",
+        "--interactive",
+        "--init",
+        "--help",
+        "--detach",
+        "-d",
+        "--sig-proxy",
+        "-it",
+        "-itd",
+    ]
     last_flag = -2
     last_arg = ""
     possible_images = []
@@ -771,17 +838,24 @@ def image_id_from_k8s():
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     if os.path.exists(token_path):
         k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
-            os.getenv("KUBERNETES_SERVICE_HOST"), os.getenv(
-                "KUBERNETES_PORT_443_TCP_PORT"), os.getenv("HOSTNAME")
+            os.getenv("KUBERNETES_SERVICE_HOST"),
+            os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+            os.getenv("HOSTNAME"),
         )
         try:
-            res = requests.get(k8s_server, verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-                               timeout=3, headers={"Authorization": "Bearer {}".format(open(token_path).read())})
+            res = requests.get(
+                k8s_server,
+                verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+                timeout=3,
+                headers={"Authorization": "Bearer {}".format(open(token_path).read())},
+            )
             res.raise_for_status()
         except requests.RequestException:
             return None
         try:
-            return res.json()["status"]["containerStatuses"][0]["imageID"].strip("docker-pullable://")
+            return res.json()["status"]["containerStatuses"][0]["imageID"].strip(
+                "docker-pullable://"
+            )
         except (ValueError, KeyError, IndexError):
             logger.exception("Error checking kubernetes for image id")
             return None
@@ -804,7 +878,9 @@ def async_call(target, timeout=None):
             q.put(e)
 
     def wrapper(*args, **kwargs):
-        thread = threading.Thread(target=wrapped_target, args=(q,)+args, kwargs=kwargs)
+        thread = threading.Thread(
+            target=wrapped_target, args=(q,) + args, kwargs=kwargs
+        )
         thread.daemon = True
         thread.start()
         try:
@@ -814,6 +890,7 @@ def async_call(target, timeout=None):
             return result, thread
         except queue.Empty:
             return None, thread
+
     return wrapper
 
 
@@ -846,7 +923,10 @@ def stopwatch_now():
 
 def class_colors(class_count):
     # make class 0 black, and the rest equally spaced fully saturated hues
-    return [[0, 0, 0]] + [colorsys.hsv_to_rgb(i / (class_count - 1.), 1.0, 1.0) for i in range(class_count-1)]
+    return [[0, 0, 0]] + [
+        colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)
+        for i in range(class_count - 1)
+    ]
 
 
 def guess_data_type(shape, risky=False):
@@ -857,18 +937,18 @@ def guess_data_type(shape, risky=False):
     """
     # (samples,) or (samples,logits)
     if len(shape) in (1, 2):
-        return 'label'
+        return "label"
     # Assume image mask like fashion mnist: (no color channel)
     # This is risky because RNNs often have 3 dim tensors: batch, time, channels
     if risky and len(shape) == 3:
-        return 'image'
+        return "image"
     if len(shape) == 4:
         if shape[-1] in (1, 3, 4):
             # (samples, height, width, Y \ RGB \ RGBA)
-            return 'image'
+            return "image"
         else:
             # (samples, height, width, logits)
-            return 'segmentation_mask'
+            return "segmentation_mask"
     return None
 
 
@@ -887,15 +967,15 @@ def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
 
-def sizeof_fmt(num, suffix='B'):
+def sizeof_fmt(num, suffix="B"):
     """Pretty print file size
         https://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size
     """
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
+    return "%.1f%s%s" % (num, "Yi", suffix)
 
 
 def auto_project_name(program):
@@ -916,9 +996,9 @@ def auto_project_name(program):
         return repo_name
     project = repo_name
     sub_path = os.path.relpath(prog_dir, root_dir)
-    if sub_path != '.':
-        project += '-' + sub_path
-    return project.replace(os.sep, '_')
+    if sub_path != ".":
+        project += "-" + sub_path
+    return project.replace(os.sep, "_")
 
 
 def parse_sweep_id(parts_dict):
@@ -935,9 +1015,9 @@ def parse_sweep_id(parts_dict):
     project = None
     sweep_id = parts_dict.get("name")
     if not isinstance(sweep_id, six.string_types):
-        return 'Expected string sweep_id'
+        return "Expected string sweep_id"
 
-    sweep_split = sweep_id.split('/')
+    sweep_split = sweep_id.split("/")
     if len(sweep_split) == 1:
         pass
     elif len(sweep_split) == 2:
@@ -948,30 +1028,38 @@ def parse_sweep_id(parts_dict):
         project = split_project or project
         entity = split_entity or entity
     else:
-        return 'Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep'
+        return (
+            "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
+        )
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
+
 
 def to_forward_slash_path(path):
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return path
 
+
 def to_native_slash_path(path):
-    return path.replace('/', os.sep)
+    return path.replace("/", os.sep)
+
 
 def bytes_to_hex(bytestr):
     # Works in python2 / python3
-    return codecs.getencoder('hex')(bytestr)[0].decode('ascii')
+    return codecs.getencoder("hex")(bytestr)[0].decode("ascii")
+
 
 def check_and_warn_old(files):
-    if 'wandb-metadata.json' in files:
+    if "wandb-metadata.json" in files:
         wandb.termwarn("These runs were logged with a previous version of wandb.")
-        wandb.termwarn("Run pip install wandb<0.10.0 to get the old library and sync your runs.")
+        wandb.termwarn(
+            "Run pip install wandb<0.10.0 to get the old library and sync your runs."
+        )
         return True
     return False
 
 
-class ImportMetaHook():
+class ImportMetaHook:
     def __init__(self):
         self.modules = {}
         self.on_import = {}
@@ -1006,7 +1094,9 @@ class ImportMetaHook():
     def get_module(self, module):
         return self.modules[module]
 
+
 _import_hook = None
+
 
 def add_import_hook(fullname, on_import):
     global _import_hook

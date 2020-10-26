@@ -20,7 +20,5 @@ def scatter(table, x, y, title=None):
     wandb.log({'scatter-plot1': wandb.plot.scatter(table, "step", "height")})
     """
     return wandb.plot_table(
-        'wandb/scatter/v0',
-        table,
-        {'x': x, 'y': y},
-        {'title': title})
+        "wandb/scatter/v0", table, {"x": x, "y": y}, {"title": title}
+    )

@@ -21,7 +21,5 @@ def line(table, x, y, stroke=None, title=None):
     wandb.log({'line-plot1': wandb.plot.line(table, "step", "height")})
     """
     return wandb.plot_table(
-        'wandb/line/v0',
-        table,
-        {'x': x, 'y': y, 'stroke': stroke},
-        {'title': title})
+        "wandb/line/v0", table, {"x": x, "y": y, "stroke": stroke}, {"title": title}
+    )

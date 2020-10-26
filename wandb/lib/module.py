@@ -37,9 +37,7 @@ def unset_globals():
     wandb.run = None
     wandb.config = preinit.PreInitObject("wandb.config")
     wandb.summary = preinit.PreInitObject("wandb.summary")
-    wandb.log = preinit.PreInitCallable(
-        "wandb.log", wandb.wandb_sdk.wandb_run.Run.log
-    )
+    wandb.log = preinit.PreInitCallable("wandb.log", wandb.wandb_sdk.wandb_run.Run.log)
     wandb.save = preinit.PreInitCallable(
         "wandb.save", wandb.wandb_sdk.wandb_run.Run.save
     )

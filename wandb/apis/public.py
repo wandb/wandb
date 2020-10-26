@@ -1417,6 +1417,12 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.id)),
         ]
 
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "sweeps")
+        return "https://app.wandb.ai/" + "/".join(path)
+
     @classmethod
     def get(
         cls,
