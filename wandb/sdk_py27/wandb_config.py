@@ -61,12 +61,11 @@ class Config(object):
             # train
         ```
 
-        Using TensorFlow flags
+        Using absl flags
+
         ```
-        flags = tf.app.flags
-        flags.DEFINE_string('data_dir', '/tmp/data')
-        flags.DEFINE_integer('batch_size', 128, 'Batch size.')
-        wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags as config
+        flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
+        wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
         Argparse flags
@@ -79,6 +78,14 @@ class Config(object):
                             help='input batch size for training (default: 8)')
         args = parser.parse_args()
         wandb.config.update(args)
+        ```
+
+        Using TensorFlow flags (deprecated in tensorflow v2)
+        ```
+        flags = tf.app.flags
+        flags.DEFINE_string('data_dir', '/tmp/data')
+        flags.DEFINE_integer('batch_size', 128, 'Batch size.')
+        wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
         ```
     """
 

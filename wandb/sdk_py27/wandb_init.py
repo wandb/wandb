@@ -498,8 +498,8 @@ def init(
         force (bool, optional): If true, will cause script to crash if user can't or isn't
             logged in to a wandb server.  If false, will cause script to run in offline
             modes if user can't or isn't logged in to a wandb server. Defaults to false.
-        sync_tensorboard (bool, optional): Synchronize wandb logs to tensorboard or
-            tensorboardX. Defaults to false.
+        sync_tensorboard (bool, optional): Synchronize wandb logs from tensorboard or
+            tensorboardX and saves the relevant events file. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
             using OpenAI Gym (see https://docs.wandb.com/library/integrations/openai-gym)
             Defaults to false.
