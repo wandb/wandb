@@ -3,7 +3,8 @@ import abc
 
 import six
 import wandb
-from wandb.interface.summary_record import SummaryItem, SummaryRecord
+
+from .interface.summary_record import SummaryItem, SummaryRecord
 
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t

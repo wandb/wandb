@@ -15,14 +15,14 @@ import traceback
 import six
 import wandb
 from wandb import trigger
-from wandb.backend.backend import Backend
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.lib import filesystem, module, reporting
 from wandb.util import sentry_exc
 
 from . import wandb_setup
+from .backend.backend import Backend
+from .lib import filesystem, module, reporting
 from .wandb_helper import parse_config
 from .wandb_run import Run, RunBase, RunDummy
 from .wandb_settings import Settings
