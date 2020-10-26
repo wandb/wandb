@@ -70,11 +70,7 @@ class Agent(object):
 
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
-    AGENT_MAX_INITIAL_FAILURES = (
-        int(os.getenv(wandb.env.AGENT_MAX_INITIAL_FAILURES, 5))
-        if isinstance(os.getenv(wandb.env.AGENT_MAX_INITIAL_FAILURES, 5), int)
-        else 5
-    )
+    MAX_INITIAL_FAILURES = 5
 
     def __init__(
         self, sweep_id=None, project=None, entity=None, function=None, count=None
@@ -90,6 +86,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
+            self.MAX_INITIAL_FAILURES
+        )
         # if the directory to log to is not set, set it
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
@@ -238,11 +237,11 @@ class Agent(object):
                         self._exit_flag = True
                         return
                     if (
-                        self.AGENT_MAX_INITIAL_FAILURES < len(self._errored_runs)
+                        self._max_initial_failures < len(self._errored_runs)
                         and len(self._errored_runs) >= count
                     ):
                         msg = "Detected {} failed runs in a row at start, killing sweep.".format(
-                            self.AGENT_MAX_INITIAL_FAILURES
+                            self._max_initial_failures
                         )
                         logger.error(msg)
                         wandb.termerror(msg)
