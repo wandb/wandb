@@ -3,7 +3,6 @@ import os
 import six
 import wandb
 from wandb import env
-from wandb.lib import apikey
 
 
 def sagemaker_auth(overrides=None, path=".", api_key=None):
@@ -16,7 +15,7 @@ def sagemaker_auth(overrides=None, path=".", api_key=None):
     """
 
     settings = wandb.setup().settings
-    current_api_key = apikey.api_key(settings=settings)
+    current_api_key = wandb.wandb_lib.apikey.api_key(settings=settings)
 
     overrides = overrides or dict()
     api_key = overrides.get(env.API_KEY, api_key or current_api_key)

@@ -1,4 +1,4 @@
-'''
+"""
 plot_summary_metrics
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
@@ -715,9 +715,9 @@ plot_decision_boundaries
     }
   ]
 }
-'''
+"""
 
-'''
+"""
 heatmap/v1
 {
     "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
@@ -765,4 +765,4 @@ heatmap/v1
       }
     ]
 }
-'''
+"""
