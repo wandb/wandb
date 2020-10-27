@@ -68,6 +68,7 @@ def test_parallel_runs(live_mock_server, test_settings):
     exit_codes = [p.wait() for p in (p1, p2)]
     assert exit_codes == [0, 0]
     num_runs = 0
+
     # Assert we've stored 2 runs worth of files
     # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
     files_sorted = sorted(
@@ -85,7 +86,7 @@ def test_parallel_runs(live_mock_server, test_settings):
         assert (
             sorted([f for f in files if not f.endswith(".patch") and f != "output.log"])
             == files_sorted
-        )
+        ), [f for f in files]
     assert num_runs == 2
 
 
