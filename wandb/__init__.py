@@ -39,6 +39,10 @@ else:
     TYPE_CHECKING = False
     from wandb import sdk_py27 as wandb_sdk
 
+import wandb
+
+wandb.wandb_lib = wandb_sdk.lib
+
 init = wandb_sdk.init
 setup = wandb_sdk.setup
 save = wandb_sdk.save
@@ -55,8 +59,8 @@ Config = wandb_sdk.Config
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors.error import CommError, UsageError
 
-from wandb.lib import preinit as _preinit
-from wandb.lib import lazyloader as _lazyloader
+_preinit = wandb_lib.preinit
+_lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
 from wandb import util
 
@@ -97,7 +101,7 @@ def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
 
-from wandb.lib.ipython import _get_python_type
+# from wandb.lib.ipython import _get_python_type
 
 # toplevel:
 # save()
@@ -110,8 +114,12 @@ from wandb.lib.ipython import _get_python_type
 Api = PublicApi
 api = InternalApi()
 run = None
-config = _preinit.PreInitObject("wandb.config")
-summary = _preinit.PreInitObject("wandb.summary")
+config = _preinit.PreInitCallable(
+    _preinit.PreInitObject("wandb.config"), wandb_sdk.wandb_config.Config
+)
+summary = _preinit.PreInitCallable(
+    _preinit.PreInitObject("wandb.summary"), wandb_sdk.wandb_summary.Summary
+)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
 restore = _preinit.PreInitCallable("wandb.restore", wandb_sdk.wandb_run.Run.restore)

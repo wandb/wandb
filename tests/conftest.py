@@ -17,10 +17,17 @@ import git
 import psutil
 import atexit
 import wandb
-from wandb.lib.module import unset_globals
-from wandb.lib.git import GitRepo
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib.module import unset_globals
+    from wandb.sdk.lib.git import GitRepo
+else:
+    from wandb.sdk_py27.lib.module import unset_globals
+    from wandb.sdk_py27.lib.git import GitRepo
 
 try:
     import nbformat
@@ -196,9 +203,9 @@ def runner(monkeypatch, mocker):
         },
     )
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
-    mocker.patch("wandb.lib.apikey.isatty", lambda stream: True)
-    mocker.patch("wandb.lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
+    mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
+    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 

@@ -3,7 +3,8 @@ import abc
 
 import six
 import wandb
-from wandb.interface.summary_record import SummaryItem, SummaryRecord
+
+from .interface.summary_record import SummaryItem, SummaryRecord
 
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
@@ -79,7 +80,35 @@ class SummaryDict(object):
 
 
 class Summary(SummaryDict):
-    """Root node of the summary data structure. Contains the callback."""
+    """Summary
+
+    The summary statistics are used to track single metrics per model. Calling
+    wandb.log({'accuracy': 0.9}) will automatically set wandb.summary['accuracy']
+    to be 0.9 unless the code has changed wandb.summary['accuracy'] manually.
+
+    Setting wandb.summary['accuracy'] manually can be useful if you want to keep
+    a record of the accuracy of the best model while using wandb.log() to keep a
+    record of the accuracy at every step.
+
+    You may want to store evaluation metrics in a runs summary after training has
+    completed. Summary can handle numpy arrays, pytorch tensors or tensorflow tensors.
+    When a value is one of these types we persist the entire tensor in a binary file
+    and store high level metrics in the summary object such as min, mean, variance,
+    95% percentile, etc.
+
+    Examples:
+    ```
+    wandb.init(config=args)
+
+    best_accuracy = 0
+    for epoch in range(1, args.epochs + 1):
+    test_loss, test_accuracy = test()
+    if (test_accuracy > best_accuracy):
+        wandb.run.summary["best_accuracy"] = test_accuracy
+        best_accuracy = test_accuracy
+    ```
+
+    """
 
     # _update_callback: t.Callable
     # _get_current_summary_callback: t.Callable
