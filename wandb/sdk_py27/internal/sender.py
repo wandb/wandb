@@ -604,6 +604,15 @@ class SendManager(object):
             use_after_commit=artifact.use_after_commit,
         )
 
+    def send_alert(self, data):
+        alert = data.alert
+        self._api.notify_scriptable_run_alert(
+            title=alert.title,
+            text=alert.text,
+            level=alert.level,
+            wait_duration=alert.wait_duration,
+        )
+
     def finish(self):
         logger.info("shutting down sender")
         # if self._tb_watcher:

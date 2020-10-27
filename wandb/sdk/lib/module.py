@@ -12,6 +12,7 @@ def set_global(
     restore=None,
     use_artifact=None,
     log_artifact=None,
+    alert=None,
     plot_table=None,
 ):
     if run:
@@ -32,6 +33,8 @@ def set_global(
         wandb.log_artifact = log_artifact
     if plot_table:
         wandb.plot_table = plot_table
+    if alert:
+        wandb.alert = alert
 
 
 def unset_globals():
