@@ -14,10 +14,10 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
+from wandb import wandb_lib
 from wandb import wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
-from wandb.lib import config_util
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -338,7 +338,7 @@ class Agent(object):
         os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
             os.environ.get(wandb.env.DIR), config_file
         )
-        config_util.save_config_file_from_dict(
+        wandb_lib.config_util.save_config_file_from_dict(
             os.environ[wandb.env.CONFIG_PATHS], command["args"]
         )
 

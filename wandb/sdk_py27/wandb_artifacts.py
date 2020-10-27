@@ -8,8 +8,8 @@ from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
 from wandb import env
-from wandb.interface.artifacts import *
-from wandb.internal.progress import Progress
+from .interface.artifacts import *
+from .internal.progress import Progress
 from wandb.apis import InternalApi
 from wandb.errors.error import CommError
 from wandb import util

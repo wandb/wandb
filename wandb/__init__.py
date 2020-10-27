@@ -39,6 +39,10 @@ else:
     TYPE_CHECKING = False
     from wandb import sdk_py27 as wandb_sdk
 
+import wandb
+
+wandb.wandb_lib = wandb_sdk.lib
+
 init = wandb_sdk.init
 setup = wandb_sdk.setup
 save = wandb_sdk.save
@@ -55,8 +59,8 @@ Config = wandb_sdk.Config
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors.error import CommError, UsageError
 
-from wandb.lib import preinit as _preinit
-from wandb.lib import lazyloader as _lazyloader
+_preinit = wandb_lib.preinit
+_lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
 from wandb import util
 
@@ -97,7 +101,7 @@ def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
 
-from wandb.lib.ipython import _get_python_type
+# from wandb.lib.ipython import _get_python_type
 
 # toplevel:
 # save()

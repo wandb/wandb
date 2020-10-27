@@ -9,10 +9,10 @@ import logging
 import six
 from six.moves.collections_abc import Sequence
 import wandb
-from wandb.lib import config_util
 from wandb.util import json_friendly
 
 from . import wandb_helper
+from .lib import config_util
 
 
 logger = logging.getLogger("wandb")

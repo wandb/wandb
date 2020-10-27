@@ -30,16 +30,6 @@ from wandb import trigger
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
-from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import (
-    config_util,
-    filenames,
-    ipython,
-    module,
-    proto_util,
-    redirect,
-    sparkline,
-)
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
@@ -51,6 +41,16 @@ from wandb.viz import (
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
+from .interface.summary_record import SummaryRecord
+from .lib import (
+    config_util,
+    filenames,
+    ipython,
+    module,
+    proto_util,
+    redirect,
+    sparkline,
+)
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Sequence, Tuple

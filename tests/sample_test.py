@@ -3,7 +3,10 @@
 from __future__ import print_function
 
 import pytest
-from wandb.internal import sample
+
+import wandb
+
+sample = wandb.wandb_sdk.internal.sample
 
 
 def doit(num, samples=None):

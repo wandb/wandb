@@ -11,9 +11,9 @@ import logging
 import click
 import wandb
 from wandb.errors.error import UsageError
-from wandb.internal.internal_api import Api
-from wandb.lib import apikey
 
+from .internal.internal_api import Api
+from .lib import apikey
 from .wandb_settings import Settings
 
 logger = logging.getLogger("wandb")
