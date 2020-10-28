@@ -98,24 +98,29 @@ def test_run_retry(mock_server, api):
 
 def test_run_history(mock_server, api):
     run = api.run("test/test/test")
-    assert run.history(pandas=False)[0] == {'acc': 10, 'loss': 90}
+    assert run.history(pandas=False)[0] == {"acc": 10, "loss": 90}
 
 
 def test_run_history_keys(mock_server, api):
     run = api.run("test/test/test")
     assert run.history(keys=["acc", "loss"], pandas=False) == [
-           {"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]
+        {"loss": 0, "acc": 100},
+        {"loss": 1, "acc": 0},
+    ]
 
 
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
-    assert run.config == {'epochs': 10}
+    assert run.config == {"epochs": 10}
 
 
 def test_run_history_system(mock_server, api):
     run = api.run("test/test/test")
     assert run.history(stream="system", pandas=False) == [
-        {'cpu': 10}, {'cpu': 20}, {'cpu': 30}]
+        {"cpu": 10},
+        {"cpu": 20},
+        {"cpu": 30},
+    ]
 
 
 def test_run_summary(mock_server, api):
@@ -127,7 +132,7 @@ def test_run_summary(mock_server, api):
 
 def test_run_create(mock_server, api):
     run = api.create_run(project="test")
-    variables = {'entity': "mock_server_entity", 'name': run.id, 'project': 'test'}
+    variables = {"entity": "mock_server_entity", "name": run.id, "project": "test"}
     assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
 
@@ -334,8 +339,9 @@ def test_artifact_manual_error(runner, mock_server, api):
         run.log_artifact("entity/project/mnist:v0")
 
 
-@pytest.mark.skipif(platform.system() == "Windows",
-                    reason="Verify is broken on Windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Verify is broken on Windows"
+)
 def test_artifact_verify(runner, mock_server, api):
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     art.download()
@@ -347,3 +353,4 @@ def test_sweep(runner, mock_server, api):
     sweep = api.sweep("test/test/test")
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
+    assert sweep.url == "https://app.wandb.ai/test/test/sweeps/test"

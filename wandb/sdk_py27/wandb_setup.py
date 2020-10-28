@@ -19,9 +19,9 @@ import sys
 import threading
 
 import wandb
-from wandb.lib import config_util, server
 
 from . import wandb_settings
+from .lib import config_util, server
 
 
 logger = (

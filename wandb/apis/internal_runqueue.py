@@ -15,9 +15,9 @@ import six
 from six import BytesIO
 import wandb
 from wandb import __version__, env, util
+from wandb import wandb_lib
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
-from wandb.lib.filenames import DIFF_FNAME
 from wandb.old import retry
 from wandb.old.settings import Settings
 import yaml
@@ -67,7 +67,9 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
-        self._settings = Settings(load_settings=load_settings)
+        self._settings = Settings(
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+        )
         # self.git = GitRepo(remote=self.settings("git_remote"))
         self.git = None
         # Mutable settings set by the _file_stream_api
@@ -175,7 +177,7 @@ class Api(object):
         try:
             root = self.git.root
             if self.git.dirty:
-                patch_path = os.path.join(out_dir, DIFF_FNAME)
+                patch_path = os.path.join(out_dir, wandb_lib.filenames.DIFF_FNAME)
                 if self.git.has_submodule_diff:
                     with open(patch_path, "wb") as patch:
                         # we diff against HEAD to ensure we get changes in the index
@@ -1347,8 +1349,7 @@ class Api(object):
         return response["createAnonymousEntity"]["apiKey"]["name"]
 
     def file_current(self, fname, md5):
-        """Checksum a file and compare the md5 with the known md5
-        """
+        """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions

@@ -255,8 +255,7 @@ def test_save_invalid_path(wandb_init_run):
     with open(test_path, "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
-        wandb.save(os.path.join(root, "..", "..", "*.txt"),
-                   base_path=root)
+        wandb.save(os.path.join(root, "..", "..", "*.txt"), base_path=root)
 
 
 def test_restore(runner, mock_server, wandb_init_run):
@@ -353,7 +352,9 @@ def test_run_configstatic(wandb_init_run):
     assert dict(wandb.run.config_static) == dict(this=2, that=3)
 
 
-@pytest.mark.wandb_args(env={"WANDB_ENTITY": "ent1", "WANDB_PROJECT": "proj1", "WANDB_RUN_ID": "run1"})
+@pytest.mark.wandb_args(
+    env={"WANDB_ENTITY": "ent1", "WANDB_PROJECT": "proj1", "WANDB_RUN_ID": "run1"}
+)
 def test_run_path(wandb_init_run):
     assert wandb.run.path == "ent1/proj1/run1"
 
@@ -363,10 +364,12 @@ def test_run_projecturl(wandb_init_run):
     # URL is not available offline
     assert url is None
 
+
 def test_run_sweepurl(wandb_init_run):
     url = wandb.run.get_sweep_url()
     # URL is not available offline
     assert url is None
+
 
 def test_run_url(wandb_init_run):
     url = wandb.run.get_url()
@@ -374,6 +377,7 @@ def test_run_url(wandb_init_run):
     assert url is None
     url = wandb.run.url
     assert url is None
+
 
 # NOTE: not allowed in 0.10.x:
 # run.api
