@@ -114,8 +114,12 @@ def _is_internal_process():
 Api = PublicApi
 api = InternalApi()
 run = None
-config = _preinit.PreInitObject("wandb.config")
-summary = _preinit.PreInitObject("wandb.summary")
+config = _preinit.PreInitCallable(
+    _preinit.PreInitObject("wandb.config"), wandb_sdk.wandb_config.Config
+)
+summary = _preinit.PreInitCallable(
+    _preinit.PreInitObject("wandb.summary"), wandb_sdk.wandb_summary.Summary
+)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
 restore = _preinit.PreInitCallable("wandb.restore", wandb_sdk.wandb_run.Run.restore)
