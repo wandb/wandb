@@ -15,12 +15,18 @@ from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 
+_REQUEST_STATUS_FORCELIST = [308, 408, 409, 429, 500, 502, 503, 504]
+
+_REQUEST_RETRY_WAIT_SECONDS = 1
+
+_REQUEST_RETRY_ATTEMPTS = 8
+
 # This makes the first sleep 1s, and then doubles it up to total times,
-# which makes for ~18 hours.
+# which makes for ~4 minutes.
 _REQUEST_RETRY_STRATEGY = requests.packages.urllib3.util.retry.Retry(
-    backoff_factor=1,
-    total=16,
-    status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
+    backoff_factor=_REQUEST_RETRY_WAIT_SECONDS,
+    total=_REQUEST_RETRY_ATTEMPTS,
+    status_forcelist=_REQUEST_STATUS_FORCELIST,
 )
 
 _REQUEST_POOL_CONNECTIONS = 64
@@ -454,30 +460,37 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit:
             shutil.copyfile(entry.local_path, cache_path)
 
-        resp = preparer.prepare(
-            lambda: {
-                "artifactID": artifact_id,
-                "name": entry.path,
-                "md5": entry.digest,
-            }
-        )
+        r = None
+        for x in range(_REQUEST_RETRY_ATTEMPTS):
+            resp = preparer.prepare(
+                lambda: {
+                    "artifactID": artifact_id,
+                    "name": entry.path,
+                    "md5": entry.digest,
+                }
+            )
 
-        entry.birth_artifact_id = resp.birth_artifact_id
-        exists = resp.upload_url is None
-        if not exists:
-            with open(entry.local_path, "rb") as file:
-                # This fails if we don't send the first byte before the signed URL
-                # expires.
-                r = self._session.put(
-                    resp.upload_url,
-                    headers={
-                        header.split(":", 1)[0]: header.split(":", 1)[1]
-                        for header in (resp.upload_headers or {})
-                    },
-                    data=Progress(file, callback=progress_callback),
-                )
-                r.raise_for_status()
-        return exists
+            entry.birth_artifact_id = resp.birth_artifact_id
+            exists = resp.upload_url is None
+            if not exists:
+                with open(entry.local_path, "rb") as file:
+                    # This fails if we don't send the first byte before the signed URL
+                    # expires.
+                    r = requests.put(
+                        resp.upload_url,
+                        headers={
+                            header.split(":", 1)[0]: header.split(":", 1)[1]
+                            for header in (resp.upload_headers or {})
+                        },
+                        data=Progress(file, callback=progress_callback),
+                    )
+                    if r.status_code in _REQUEST_STATUS_FORCELIST:
+                        time.sleep(_REQUEST_RETRY_WAIT_SECONDS * pow(2, x))
+                        continue
+                    else:
+                        r.raise_for_status()
+            return exists
+        r.raise_for_status()
 
 
 # Don't use this yet!
