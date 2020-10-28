@@ -139,7 +139,9 @@ class Agent(object):
     def _stop_run(self, run_id):
         logger.debug("Stopping run {}.".format(run_id))
         self._run_status[run_id] = RunStatus.STOPPED
-        _terminate_thread(self._run_threads[run_id])
+        thread = self._run_threads.get(run_id)
+        if thread:
+            _terminate_thread(thread)
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
