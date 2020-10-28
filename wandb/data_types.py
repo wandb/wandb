@@ -1525,8 +1525,8 @@ class Graph(Media):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, 'w', encoding='utf-8'))
-        self._set_file(tmp_path, is_tmp=True, extension='.graph.json')
+        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         super(Graph, self).bind_to_run(*args, **kwargs)
 
     @classmethod
