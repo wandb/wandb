@@ -11,9 +11,9 @@ import logging
 import click
 import wandb
 from wandb.errors.error import UsageError
-from wandb.internal.internal_api import Api
-from wandb.lib import apikey
 
+from .internal.internal_api import Api
+from .lib import apikey
 from .wandb_settings import Settings
 
 logger = logging.getLogger("wandb")
@@ -26,13 +26,14 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     """Log in to W&B.
 
     Args:
-        settings (dict, optional): Override settings.
-        relogin (bool, optional): If true, will re-prompt for API key.
-        host (string, optional): The host to connect to
         anonymous (string, optional): Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
+        key (string, optional): authentication key.
+        relogin (bool, optional): If true, will re-prompt for API key.
+        host (string, optional): The host to connect to.
+
     Returns:
         bool: if key is configured
 

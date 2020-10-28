@@ -13,8 +13,15 @@ import wandb
 from wandb import util
 from wandb import data_types
 from wandb.apis.internal import Api
-from wandb.lib.filenames import SUMMARY_FNAME
 from six import string_types
+
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk import lib as wandb_lib
+else:
+    from wandb.sdk_py27 import lib as wandb_lib
 
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
@@ -351,7 +358,7 @@ def upload_h5(file, run_id, entity=None, project=None):
 class FileSummary(Summary):
     def __init__(self, run):
         super(FileSummary, self).__init__(run)
-        self._fname = os.path.join(run.dir, SUMMARY_FNAME)
+        self._fname = os.path.join(run.dir, wandb_lib.filenames.SUMMARY_FNAME)
         self.load()
 
     def load(self):

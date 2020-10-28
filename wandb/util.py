@@ -43,7 +43,6 @@ from wandb.env import error_reporting_enabled
 import wandb
 from wandb.old.core import wandb_dir
 from wandb.errors.error import CommError
-from wandb.lib.git import GitRepo
 from wandb import env
 
 logger = logging.getLogger(__name__)
@@ -980,7 +979,7 @@ def sizeof_fmt(num, suffix="B"):
 
 def auto_project_name(program):
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = GitRepo().root_dir
+    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows

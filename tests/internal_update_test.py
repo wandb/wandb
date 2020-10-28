@@ -5,7 +5,8 @@ wandb/internal/update.py test.
 import pytest  # type: ignore
 
 import wandb
-from wandb.internal import update
+
+update = wandb.wandb_sdk.internal.update
 
 
 def test_check_nothing_new(mock_server):

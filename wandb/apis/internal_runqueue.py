@@ -15,9 +15,9 @@ import six
 from six import BytesIO
 import wandb
 from wandb import __version__, env, util
+from wandb import wandb_lib
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
-from wandb.lib.filenames import DIFF_FNAME
 from wandb.old import retry
 from wandb.old.settings import Settings
 import yaml
@@ -177,7 +177,7 @@ class Api(object):
         try:
             root = self.git.root
             if self.git.dirty:
-                patch_path = os.path.join(out_dir, DIFF_FNAME)
+                patch_path = os.path.join(out_dir, wandb_lib.filenames.DIFF_FNAME)
                 if self.git.has_submodule_diff:
                     with open(patch_path, "wb") as patch:
                         # we diff against HEAD to ensure we get changes in the index

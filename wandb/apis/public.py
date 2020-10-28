@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import sys
 import tempfile
 import time
 
@@ -20,10 +21,17 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.term import termlog
-from wandb.interface import artifacts
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
 import yaml
+
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import artifacts
+else:
+    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -1416,6 +1424,12 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.project)),
             urllib.parse.quote_plus(str(self.id)),
         ]
+
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "sweeps")
+        return "https://app.wandb.ai/" + "/".join(path)
 
     @classmethod
     def get(
