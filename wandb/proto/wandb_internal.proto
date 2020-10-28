@@ -105,6 +105,7 @@ message RunRecord {
 
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
+  bool                      resumed = 18;
 }
 
 message RunUpdateResult {
@@ -468,6 +469,7 @@ message RunStartResponse {
  * CheckVersion:
  */
 message CheckVersionRequest {
+  string current_version = 1;
 }
 
 message CheckVersionResponse {

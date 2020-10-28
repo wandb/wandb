@@ -7,7 +7,8 @@ import logging
 import os
 
 import wandb
-from wandb.lib.ipython import _get_python_type
+
+from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
 

@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import sys
 import tempfile
 import time
 
@@ -20,10 +21,17 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.term import termlog
-from wandb.interface import artifacts
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
 import yaml
+
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import artifacts
+else:
+    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -1417,6 +1425,12 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.id)),
         ]
 
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "sweeps")
+        return "https://app.wandb.ai/" + "/".join(path)
+
     @classmethod
     def get(
         cls,
@@ -2479,6 +2493,7 @@ class Artifact(object):
     def get_path(self, name):
         manifest = self._load_manifest()
         storage_policy = manifest.storage_policy
+        default_root = self._default_root()
 
         entry = manifest.entries.get(name)
         if entry is None:
@@ -2505,6 +2520,7 @@ class Artifact(object):
 
             @staticmethod
             def download(root=None):
+                root = root or default_root
                 if entry.ref is not None:
                     return storage_policy.load_reference(
                         self, name, manifest.entries[name], local=True
@@ -2513,9 +2529,7 @@ class Artifact(object):
                 cache_path = storage_policy.load_file(
                     self, name, manifest.entries[name]
                 )
-                if root is not None:
-                    return ArtifactEntry().copy(cache_path, os.path.join(root, name))
-                return cache_path
+                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
             @staticmethod
             def ref():
@@ -2537,13 +2551,7 @@ class Artifact(object):
         Returns:
             The path to the downloaded contents.
         """
-        dirpath = root
-        if dirpath is None:
-            dirpath = os.path.join(".", "artifacts", self.name)
-            if platform.system() == "Windows":
-                head, tail = os.path.splitdrive(dirpath)
-                dirpath = head + tail.replace(":", "-")
-
+        dirpath = root or self._default_root()
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
@@ -2563,7 +2571,7 @@ class Artifact(object):
         import multiprocessing.dummy  # this uses threads
 
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, dirpath=dirpath), manifest.entries)
+        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
         pool.close()
         pool.join()
 
@@ -2594,11 +2602,18 @@ class Artifact(object):
                 'This artifact contains more than one file, call `.download()` to get all files or call .get_path("filename").download()'
             )
 
-        return self._download_file(list(manifest.entries)[0], root)
+        return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, dirpath):
+    def _download_file(self, name, root):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(dirpath)
+        return self.get_path(name).download(root)
+
+    def _default_root(self):
+        root = os.path.join(".", "artifacts", self.name)
+        if platform.system() == "Windows":
+            head, tail = os.path.splitdrive(root)
+            root = head + tail.replace(":", "-")
+        return root
 
     @normalize_exceptions
     def save(self):

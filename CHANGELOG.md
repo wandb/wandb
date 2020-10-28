@@ -1,3 +1,24 @@
+## 0.10.8 (October 22, 2020)
+
+#### :nail_care: Enhancement
+
+- Allow callables to be serialized
+
+#### :bug: Bug Fix
+
+- Fix compatibility issue with python 3.9
+- Fix `wandb sync` failure introduced in 0.10.6
+- Improve python agent handling of failing runs
+- Fix rare condition where resuming runs does not work
+- Improve symlink handling when called in thread context
+- Fix issues when changing directories before calling wandb.init()
+
+## 0.10.7 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Fix issue when checking for updated releases on pypi
+
 ## 0.10.6 (October 15, 2020)
 
 #### :bug: Bug Fix

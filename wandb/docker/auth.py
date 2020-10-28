@@ -311,9 +311,7 @@ class AuthConfig(dict):
             if data["Username"] == TOKEN_USERNAME:
                 res["IdentityToken"] = data["Secret"]
             else:
-                res.update(
-                    {"Username": data["Username"], "Password": data["Secret"]}
-                )
+                res.update({"Username": data["Username"], "Password": data["Secret"]})
             return res
         except (dockerpycreds.CredentialsNotFound, ValueError):
             log.debug("No entry found")

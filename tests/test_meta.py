@@ -1,12 +1,21 @@
 import os
 import pytest
 import platform
+import sys
 import threading
 
 from six.moves import queue
-from wandb.internal.meta import Meta
-from wandb.internal.sender import SendManager
-from wandb.interface.interface import BackendSender
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.internal.meta import Meta
+    from wandb.sdk.internal.sender import SendManager
+    from wandb.sdk.interface.interface import BackendSender
+else:
+    from wandb.sdk_py27.internal.meta import Meta
+    from wandb.sdk_py27.internal.sender import SendManager
+    from wandb.sdk_py27.interface.interface import BackendSender
 
 
 @pytest.fixture()
@@ -30,8 +39,23 @@ def meta(test_settings, interface):
 
 
 @pytest.fixture()
-def sm(runner, git_repo, record_q, result_q, test_settings, meta, mock_server, mocked_run, interface):
-    sm = SendManager(settings=test_settings, record_q=record_q, result_q=result_q, interface=interface)
+def sm(
+    runner,
+    git_repo,
+    record_q,
+    result_q,
+    test_settings,
+    meta,
+    mock_server,
+    mocked_run,
+    interface,
+):
+    sm = SendManager(
+        settings=test_settings,
+        record_q=record_q,
+        result_q=result_q,
+        interface=interface,
+    )
     meta._interface.publish_run(mocked_run)
     sm.send(record_q.get())
     yield sm
