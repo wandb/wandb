@@ -175,8 +175,9 @@ class Agent(object):
             elif job.type == "stop":
                 self._stop_run(job.run_id)
             elif job.type == "exit":
-                self._exit()
-                return
+                self._queue.put(job)
+                # self._exit()
+                # return
             time.sleep(5)
 
     def _run_jobs_from_queue(self):  # noqa:C901
@@ -191,6 +192,11 @@ class Agent(object):
                 try:
                     try:
                         job = self._queue.get(timeout=5)
+                        if job.type == "exit":
+                            logger.debug("Exit command received.")
+                            wandb.termlog("Sweep Agent: Exiting.")
+                            self._exit()
+                            return
                         if self._exit_flag:
                             logger.debug("Exiting main loop due to exit flag.")
                             wandb.termlog("Sweep Agent: Exiting.")
