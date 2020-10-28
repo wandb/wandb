@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 def _terminate_thread(thread):
     if not thread.is_alive():
         return
+    if hasattr(thread, "_terminated"):
+        return
+    thread._terminated = True
     tid = getattr(thread, "_thread_id", None)
     if tid is None:
         for k, v in threading._active.items():
@@ -66,6 +69,14 @@ class Job(object):
             return "exit"
 
 
+class RunStatus:
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    STOPPED = "STOPPED"
+    ERRORED = "ERRORED"
+    DONE = "DONE"
+
+
 class Agent(object):
 
     FLAPPING_MAX_SECONDS = 60
@@ -92,12 +103,11 @@ class Agent(object):
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
         self._run_threads = {}
+        self._run_status = {}
         self._queue = queue.Queue()
-        self._stopped_runs = set()
         self._exit_flag = False
-        self._errored_runs = {}
+        self._exceptions = {}
         self._start_time = time.time()
-        self._lock = threading.Lock()
 
     def _register(self):
         logger.debug("Agent._register()")
@@ -126,28 +136,10 @@ class Agent(object):
             self._sweep_id = sweep_id
         self._register()
 
-    def _run_status(self):
-        with self._lock:
-            run_status = {}
-            dead_runs = []
-            for k, v in self._run_threads.items():
-                if v.isAlive():
-                    run_status[k] = True
-                else:
-                    dead_runs.append(k)
-            # clean up dead runs
-            for k in dead_runs:
-                del self._run_threads[k]
-            return run_status
-
     def _stop_run(self, run_id):
         logger.debug("Stopping run {}.".format(run_id))
-        self._stopped_runs.add(run_id)
-        with self._lock:
-            thread = self._run_threads.get(run_id)
-            if thread:
-                _terminate_thread(thread)
-                del self._run_threads[run_id]
+        self._run_status[run_id] = RunStatus.STOPPED
+        _terminate_thread(self._run_threads[run_id])
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
@@ -165,19 +157,24 @@ class Agent(object):
                 return
             # if not self._main_thread.is_alive():
             #     return
-            commands = self._api.agent_heartbeat(self._agent_id, {}, self._run_status())
+            run_status = {
+                run: True
+                for run, status in self._run_status.items()
+                if status in (RunStatus.QUEUED, RunStatus.RUNNING)
+            }
+            commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
             if not commands:
                 continue
             job = Job(commands[0])
             logger.debug("Job received: {}".format(job))
             if job.type == "run":
                 self._queue.put(job)
+                self._run_status[job.run_id] = RunStatus.QUEUED
             elif job.type == "stop":
                 self._stop_run(job.run_id)
             elif job.type == "exit":
-                self._queue.put(job)
-                # self._exit()
-                # return
+                self._exit()
+                return
             time.sleep(5)
 
     def _run_jobs_from_queue(self):  # noqa:C901
@@ -192,11 +189,6 @@ class Agent(object):
                 try:
                     try:
                         job = self._queue.get(timeout=5)
-                        if job.type == "exit":
-                            logger.debug("Exit command received.")
-                            wandb.termlog("Sweep Agent: Exiting.")
-                            self._exit()
-                            return
                         if self._exit_flag:
                             logger.debug("Exiting main loop due to exit flag.")
                             wandb.termlog("Sweep Agent: Exiting.")
@@ -218,14 +210,19 @@ class Agent(object):
                         waiting = False
                     count += 1
                     run_id = job.run_id
+                    if self._run_status[run_id] == RunStatus.STOPPED:
+                        continue
                     logger.debug("Spawning new thread for run {}.".format(run_id))
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
                     thread.start()
+                    self._run_status[run_id] = RunStatus.RUNNING
                     thread.join()
                     logger.debug("Thread joined for run {}.".format(run_id))
-                    exc = self._errored_runs.get(run_id)
-                    if exc:
+                    if self._run_status[run_id] == RunStatus.RUNNING:
+                        self._run_status[run_id] = RunStatus.DONE
+                    elif self._run_status[run_id] == RunStatus.ERRORED:
+                        exc = self._exceptions[run_id]
                         logger.error("Run {} errored: {}".format(run_id, repr(exc)))
                         wandb.termerror("Run {} errored: {}".format(run_id, repr(exc)))
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
@@ -233,7 +230,7 @@ class Agent(object):
                             return
                         elif (
                             time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
-                        ) and (len(self._errored_runs) >= self.FLAPPING_MAX_FAILURES):
+                        ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
                             msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
                                 self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
                             )
@@ -244,9 +241,6 @@ class Agent(object):
                             )
                             self._exit_flag = True
                             return
-                    with self._lock:
-                        if run_id in self._run_threads:
-                            del self._run_threads[run_id]
                     if self._count and self._count == count:
                         logger.debug("Exiting main loop because max count reached.")
                         self._exit_flag = True
@@ -293,11 +287,9 @@ class Agent(object):
             raise ki
         except Exception as e:
             wandb.finish(exit_code=1)
-            if run_id in self._stopped_runs:
-                self._stopped_runs.remove(run_id)
-                # wandb.termlog("Stopping run: " + str(run_id))
-            else:
-                self._errored_runs[run_id] = e
+            if self._run_status[run_id] == RunStatus.RUNNING:
+                self._run_status[run_id] = RunStatus.ERRORED
+                self._exceptions[run_id] = e
 
     def run(self):
         logger.info(
