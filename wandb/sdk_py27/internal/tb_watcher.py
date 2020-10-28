@@ -30,11 +30,12 @@ def _link_and_save_file(path, base_path, interface, settings):
     wandb_path = os.path.join(files_dir, file_name)
     util.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
-    if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
-        os.remove(wandb_path)
-        os.symlink(abs_path, wandb_path)
-    elif not os.path.exists(wandb_path):
-        os.symlink(abs_path, wandb_path)
+    if settings.symlink:
+        if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+            os.remove(wandb_path)
+            os.symlink(abs_path, wandb_path)
+        elif not os.path.exists(wandb_path):
+            os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
     interface.publish_files(dict(files=[(file_name, "live")]))
 

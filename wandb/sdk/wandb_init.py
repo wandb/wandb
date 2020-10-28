@@ -9,6 +9,7 @@ from __future__ import print_function
 import datetime
 import logging
 import os
+from shutil import copyfile
 import time
 import traceback
 
@@ -210,6 +211,17 @@ class _WandbInit(object):
         except OSError:
             pass
 
+    def _safe_copy(self, base, target, name, delete=False):
+        if delete:
+            try:
+                os.remove(os.path.join(base, name))
+            except OSError:
+                pass
+        try:
+            copyfile(target, os.path.join(base, name))
+        except OSError:
+            pass
+
     def _pause_backend(self):
         if self.backend is not None:
             logger.info("pausing backend")
@@ -281,6 +293,19 @@ class _WandbInit(object):
                 delete=True,
             )
             self._safe_symlink(
+                os.path.dirname(settings.log_symlink_internal),
+                settings.log_internal,
+                os.path.basename(settings.log_symlink_internal),
+                delete=True,
+            )
+        else:
+            self._safe_copy(
+                os.path.dirname(settings.log_symlink_user),
+                settings.log_user,
+                os.path.basename(settings.log_symlink_user),
+                delete=True,
+            )
+            self._safe_copy(
                 os.path.dirname(settings.log_symlink_internal),
                 settings.log_internal,
                 os.path.basename(settings.log_symlink_internal),

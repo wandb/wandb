@@ -917,11 +917,12 @@ class Run(RunBase):
             wandb_path = os.path.join(self.dir, file_name)
             wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
-            if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
-                os.remove(wandb_path)
-                os.symlink(abs_path, wandb_path)
-            elif not os.path.exists(wandb_path):
-                os.symlink(abs_path, wandb_path)
+            if self._settings.symlink:
+                if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+                    os.remove(wandb_path)
+                    os.symlink(abs_path, wandb_path)
+                elif not os.path.exists(wandb_path):
+                    os.symlink(abs_path, wandb_path)
             files.append(wandb_path)
         if warn:
             file_str = "%i file" % len(files)
