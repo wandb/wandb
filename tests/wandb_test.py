@@ -7,6 +7,7 @@ import pytest
 import tempfile
 import glob
 import os
+import platform
 
 
 def test_log_step(wandb_init_run):
@@ -202,7 +203,9 @@ def test_login_anonymous(mock_server, local_netrc):
     wandb.login(anonymous="must")
     assert wandb.api.api_key == "ANONYMOOSE" * 4
 
-
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="No symlinking in Windows"
+)
 def test_save_policy_symlink(wandb_init_run):
     with open("test.rad", "w") as f:
         f.write("something")
