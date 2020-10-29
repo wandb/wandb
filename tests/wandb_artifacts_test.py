@@ -691,5 +691,5 @@ def test_add_obj_wbtable_images(runner):
 # with wandb.init(project="tester") as run:
 #     downstream_artifact = run.use_artifact("downstream_media:latest")
 #     downstream_path = downstream_artifact.download()
-#     assert os.path.islink(os.path.join(downstream_path, "T2"))
+#     assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
 #     _assert_wandb_image_compare(downstream_artifact.get_obj("T2"))
