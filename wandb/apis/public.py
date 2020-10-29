@@ -2562,6 +2562,10 @@ class Artifact(object):
             raise KeyError("Path not contained in artifact: %s" % name)
 
         class ArtifactEntry(object):
+
+            def __init__(self_):
+                self_.artifact_ref = self
+            
             @staticmethod
             def copy(cache_path, target_path):
                 # can't have colons in Windows
@@ -2614,6 +2618,10 @@ class Artifact(object):
                     )
                 raise ValueError("Only reference entries support ref().")
 
+            @staticmethod
+            def ref_url():
+                return "wandb-artifact://" + self.id + "/" + name
+
         return ArtifactEntry()
 
     def get_obj(self, name):
@@ -2629,8 +2637,41 @@ class Artifact(object):
             if entry is not None:
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
+                if os.path.islink(item_path):
+                    link_path = item_path
+                    if os.path.islink(link_path):
+                        link_path = os.readlink(link_path)
+                        abs_item_path = os.path.abspath(item_path)
+                        abs_link_path = os.path.abspath(link_path)
+                        item_path_parts = []
+                        head = abs_item_path
+                        while head != "" and head != "/":
+                            head, tail = os.path.split(head)
+                            item_path_parts.insert(0,tail)
+                        item_path_parts.insert(0,head)
+
+                        head = abs_link_path
+                        link_path_parts = []
+                        while head != ""and head != "/":
+                            head, tail = os.path.split(head)
+                            link_path_parts.insert(0,tail)
+                        link_path_parts.insert(0,head)
+
+                        shared_path = []
+                        while len(item_path_parts) > 0 and len(link_path_parts) > 0:
+                            comp = link_path_parts.pop(0)
+                            shared_path.append(comp)
+                            if comp != item_path_parts.pop(0):
+                                break
+                        
+                        root = os.path.join(*shared_path)
+                    
                 with open(item_path, "r") as file:
                     result = obj_type.from_json(json.load(file), root)
+                    result._source = {
+                        "artifact": self,
+                        "name": name
+                    }
                 return result
 
     def download(self, root=None):

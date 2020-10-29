@@ -515,6 +515,7 @@ def test_add_obj_wbtable_images(runner):
 
 
 # TODO (tim): Get the mocks working properly. For now, copy this into a notebook/file to test
+######## Artifact1.add_reference(artifact_URL) => recursive reference
 # def test_artifact_add_reference_dependency(runner):
 #     upstream_artifact_name = "upstream_artifact"
 #     middle_artifact_name = "middle_artifact"
@@ -571,7 +572,7 @@ def test_add_obj_wbtable_images(runner):
 #         with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
 #             assert file.read() == file_text
 
-
+####### Artifact1.get_obj(MEDIA_NAME) => media obj
 # classes = [{"id": 0, "name": "person"}]
 # columns = ["examples", "index"]
 
@@ -613,3 +614,82 @@ def test_add_obj_wbtable_images(runner):
 #     _assert_wandb_image_compare(actual_table.data[1][0], "2")
 #     assert actual_table.data[0][1] == 1
 #     assert actual_table.data[1][1] == 2
+
+###### Artifact1.add_reference(artifact2.get_path(file_name))
+# upstream_artifact_name = "upstream_artifact"
+# middle_artifact_name = "middle_artifact"
+# downstream_artifact_name = "downstream_artifact"
+
+# upstream_local_path = "upstream/local/path/"
+
+# upstream_artifact_path = "upstream/artifact/path/"
+# middle_artifact_path = "middle/artifact/path/"
+# downstream_artifact_path = "downstream/artifact/path/"
+
+# upstream_local_file_path = upstream_local_path + "file.txt"
+# upstream_artifact_file_path = upstream_artifact_path + "file.txt"
+# middle_artifact_file_path = middle_artifact_path + "file.txt"
+# downstream_artifact_file_path = downstream_artifact_path + "file.txt"
+
+# file_text = "Luke, I am your Father!!!!!"
+# ## Create a super important file
+# os.makedirs(upstream_local_path, exist_ok=True)
+# with open(upstream_local_file_path, "w") as file:
+#     file.write(file_text)
+
+# ## Create an artifact with such file stored
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact(upstream_artifact_name, "database")
+#     artifact.add_file(upstream_local_file_path, upstream_artifact_file_path)
+#     run.log_artifact(artifact)
+
+# ## Create an middle artifact with such file referenced (notice no need to download)
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact(middle_artifact_name, "database")
+#     upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
+#     artifact.add_reference(upstream_artifact.get_path(upstream_artifact_file_path), middle_artifact_file_path)
+#     run.log_artifact(artifact)
+
+# # Create a downstream artifact that is referencing the middle's reference
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact(downstream_artifact_name, "database")
+#     middle_artifact = run.use_artifact(middle_artifact_name+":latest")
+#     artifact.add_reference(middle_artifact.get_path(middle_artifact_file_path), downstream_artifact_file_path)
+#     run.log_artifact(artifact)
+
+# ## Remove the directories for good measure
+# if os.path.isdir("upstream"):
+#     shutil.rmtree("upstream")
+# if os.path.isdir("artifacts"):
+#     shutil.rmtree("artifacts")
+
+# ## Finally, use the artifact (download it) and enforce that the file is where we want it!
+# with wandb.init(project="tester") as run:
+#     downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
+#     downstream_path = downstream_artifact.download()
+#     assert os.path.islink(os.path.join(downstream_path, downstream_artifact_file_path))
+#     with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
+#         assert file.read() == file_text
+
+####### Artifact1.add(artifact2.get_obj(MEDIA_NAME))
+# ## Create an artifact with such file stored
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact("upstream_media", "database")
+#     artifact.add(_make_wandb_image(), "I1")
+#     run.log_artifact(artifact)
+
+# ## Create an middle artifact with such file referenced (notice no need to download)
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact("downstream_media", "database")
+#     upstream_artifact = run.use_artifact("upstream_media:latest")
+#     artifact.add(upstream_artifact.get_obj("I1"), "T2")
+#     run.log_artifact(artifact)
+
+# if os.path.isdir("artifacts"):
+#     shutil.rmtree("artifacts")
+    
+# with wandb.init(project="tester") as run:
+#     downstream_artifact = run.use_artifact("downstream_media:latest")
+#     downstream_path = downstream_artifact.download()
+#     assert os.path.islink(os.path.join(downstream_path, "T2"))
+#     _assert_wandb_image_compare(downstream_artifact.get_obj("T2"))

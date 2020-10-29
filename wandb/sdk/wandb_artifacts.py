@@ -201,6 +201,12 @@ class Artifact(object):
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+        if isinstance(uri, object):
+            if hasattr(uri, "artifact_ref"):
+                if uri.artifact_ref != self:
+                    ref_url_fn = getattr(uri, "ref_url")
+                    if callable(ref_url_fn):
+                        uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError(
@@ -217,28 +223,32 @@ class Artifact(object):
     # TODO: name this add_obj?
     def add(self, obj, name):
         if isinstance(obj, Media):
-            obj_id = id(obj)
-            if obj_id in self._added_objs:
-                return self._added_objs[obj_id]
-            val = obj.to_json(self)
-            val["_type"] = obj.get_json_suffix()
-            suffix = val["_type"] + ".json"
-            if not name.endswith(suffix):
-                name = name + "." + suffix
-            entry = self._manifest.get_entry_by_path(name)
-            if entry is not None:
-                return entry
-            with self.new_file(name) as f:
-                import json
+            if hasattr(obj, "_source") and obj._source is not None:
+                suffix = "." + obj.get_json_suffix() + ".json"
+                self.add_reference(obj._source["artifact"].get_path(obj._source["name"] + suffix), name + suffix)
+            else:
+                obj_id = id(obj)
+                if obj_id in self._added_objs:
+                    return self._added_objs[obj_id]
+                val = obj.to_json(self)
+                val["_type"] = obj.get_json_suffix()
+                suffix = val["_type"] + ".json"
+                if not name.endswith(suffix):
+                    name = name + "." + suffix
+                entry = self._manifest.get_entry_by_path(name)
+                if entry is not None:
+                    return entry
+                with self.new_file(name) as f:
+                    import json
 
-                # TODO: Do we need to open with utf-8 codec?
-                f.write(json.dumps(obj.to_json(self)))
-            # Note, we add the file from our temp directory.
-            # It will be added again later on finalize, but succeed since
-            # the checksum should match
-            entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
-            self._added_objs[obj_id] = entry
-            return entry
+                    # TODO: Do we need to open with utf-8 codec?
+                    f.write(json.dumps(obj.to_json(self)))
+                # Note, we add the file from our temp directory.
+                # It will be added again later on finalize, but succeed since
+                # the checksum should match
+                entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+                self._added_objs[obj_id] = entry
+                return entry
         else:
             raise ValueError("Can't add obj to artifact")
 

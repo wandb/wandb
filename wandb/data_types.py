@@ -161,11 +161,12 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, caption=None):
+    def __init__(self, caption=None, source=None):
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
         self._caption = caption
+        self._source=source
 
     def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
