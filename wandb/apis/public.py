@@ -2562,10 +2562,9 @@ class Artifact(object):
             raise KeyError("Path not contained in artifact: %s" % name)
 
         class ArtifactEntry(object):
-
             def __init__(self_):
                 self_.artifact_ref = self
-            
+
             @staticmethod
             def copy(cache_path, target_path):
                 # can't have colons in Windows
@@ -2647,15 +2646,15 @@ class Artifact(object):
                         head = abs_item_path
                         while head != "" and head != "/":
                             head, tail = os.path.split(head)
-                            item_path_parts.insert(0,tail)
-                        item_path_parts.insert(0,head)
+                            item_path_parts.insert(0, tail)
+                        item_path_parts.insert(0, head)
 
                         head = abs_link_path
                         link_path_parts = []
-                        while head != ""and head != "/":
+                        while head != "" and head != "/":
                             head, tail = os.path.split(head)
-                            link_path_parts.insert(0,tail)
-                        link_path_parts.insert(0,head)
+                            link_path_parts.insert(0, tail)
+                        link_path_parts.insert(0, head)
 
                         shared_path = []
                         while len(item_path_parts) > 0 and len(link_path_parts) > 0:
@@ -2663,15 +2662,12 @@ class Artifact(object):
                             shared_path.append(comp)
                             if comp != item_path_parts.pop(0):
                                 break
-                        
+
                         root = os.path.join(*shared_path)
-                    
+
                 with open(item_path, "r") as file:
                     result = obj_type.from_json(json.load(file), root)
-                    result._source = {
-                        "artifact": self,
-                        "name": name
-                    }
+                    result._source = {"artifact": self, "name": name}
                 return result
 
     def download(self, root=None):

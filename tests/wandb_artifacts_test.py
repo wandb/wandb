@@ -687,7 +687,7 @@ def test_add_obj_wbtable_images(runner):
 
 # if os.path.isdir("artifacts"):
 #     shutil.rmtree("artifacts")
-    
+
 # with wandb.init(project="tester") as run:
 #     downstream_artifact = run.use_artifact("downstream_media:latest")
 #     downstream_path = downstream_artifact.download()

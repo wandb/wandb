@@ -225,7 +225,10 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
-                self.add_reference(obj._source["artifact"].get_path(obj._source["name"] + suffix), name + suffix)
+                self.add_reference(
+                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
+                    name + suffix,
+                )
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
