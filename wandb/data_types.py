@@ -241,7 +241,7 @@ class Media(WBValue):
     @staticmethod
     def get_json_suffix():
         raise NotImplementedError
-    
+
     @classmethod
     def from_json(cls, json_obj, root="."):
         raise NotImplementedError
@@ -363,14 +363,19 @@ class Table(Media):
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        
-        return cls(json_obj["columns"], data=[
-            [
-                JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, root) if isinstance(item, dict) and item.get("_type") is not None else item
-                for item in row
-            ]
-            for row in json_obj["data"]
-        ])
+
+        return cls(
+            json_obj["columns"],
+            data=[
+                [
+                    JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, root)
+                    if isinstance(item, dict) and item.get("_type") is not None
+                    else item
+                    for item in row
+                ]
+                for row in json_obj["data"]
+            ],
+        )
 
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
@@ -1024,7 +1029,7 @@ class Image(BatchableMedia):
 
     # PIL limit
     MAX_DIMENSION = 65500
-    
+
     @staticmethod
     def get_json_suffix():
         return "image-file"
@@ -1182,7 +1187,7 @@ class Image(BatchableMedia):
                 artifact.add_file(self._path, name=name)
 
             json_dict["path"] = name
-                
+
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
@@ -1482,6 +1487,7 @@ class BoundingBoxes2D(JSONMetadata):
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
+
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
@@ -1542,6 +1548,7 @@ class ImageMask(Media):
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
+
         if isinstance(run_or_artifact, wandb_run.Run):
             run = run_or_artifact
             json_dict = super(ImageMask, self).to_json(run)
@@ -1549,12 +1556,14 @@ class ImageMask(Media):
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            mask_name = os.path.join(self.get_media_subdir(), os.path.basename(self._path))
+            mask_name = os.path.join(
+                self.get_media_subdir(), os.path.basename(self._path)
+            )
             mask_entry = artifact.add_file(self._path, name=mask_name)
             return {
                 "_type": "mask-file",
                 "path": mask_name,
-                "digest": mask_entry.digest
+                "digest": mask_entry.digest,
             }
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
@@ -2221,6 +2230,7 @@ def data_frame_to_json(df, run, key, step):
         "path": path,
     }
 
+
 JSONABLE_MEDIA_CLASSES = [
     Image,
     Classes,
@@ -2229,6 +2239,5 @@ JSONABLE_MEDIA_CLASSES = [
 ]
 
 JSON_SUFFIX_TO_CLASS = {
-    media_class.get_json_suffix():media_class
-    for media_class in JSONABLE_MEDIA_CLASSES
+    media_class.get_json_suffix(): media_class for media_class in JSONABLE_MEDIA_CLASSES
 }

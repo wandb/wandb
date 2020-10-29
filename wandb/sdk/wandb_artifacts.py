@@ -230,6 +230,7 @@ class Artifact(object):
                 return entry
             with self.new_file(name) as f:
                 import json
+
                 # TODO: Do we need to open with utf-8 codec?
                 f.write(json.dumps(obj.to_json(self)))
             # Note, we add the file from our temp directory.
@@ -1134,6 +1135,7 @@ class HTTPHandler(StorageHandler):
             digest = digest[1:-1]  # trim leading and trailing quotes around etag
         return digest, size, extra
 
+
 class WBArtifactHandler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
@@ -1151,29 +1153,35 @@ class WBArtifactHandler(StorageHandler):
         # if hit:
         #     return path
 
-        def get_artifact(artifact_id): #TODO (tim): fix this
+        def get_artifact(artifact_id):  # TODO (tim): fix this
             api = PublicApi()
             return api.artifact_from_id(artifact_id)
-        
-        
+
         # TODO (tim): Make support different schemas
-        artifact_parts = manifest_entry.ref[len(self._scheme) + 3:].split("/")
+        artifact_parts = manifest_entry.ref[len(self._scheme) + 3 :].split("/")
         artifact_id = artifact_parts[0]
         artifact_file_path = os.path.join(*artifact_parts[1:])
         artifact = get_artifact(artifact_id)
         artifact_path = artifact.download()
-        
+
         link_target_path = os.path.join(artifact_path, artifact_file_path)
         link_creation_path = os.path.join(self._cache._cache_dir, link_target_path)
         filesystem._safe_makedirs(os.path.dirname(link_creation_path))
         if os.path.islink(link_creation_path):
             os.unlink(link_creation_path)
         os.symlink(os.path.abspath(link_target_path), link_creation_path)
-        
+
         return link_creation_path
 
-
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
-        #TODO (tim) figure out how to size remote object
+        # TODO (tim) figure out how to size remote object
         size = 1
-        return [ArtifactManifestEntry(name or os.path.basename(path), path, size=size, digest=path, extra={"download_ref": True})]
+        return [
+            ArtifactManifestEntry(
+                name or os.path.basename(path),
+                path,
+                size=size,
+                digest=path,
+                extra={"download_ref": True},
+            )
+        ]

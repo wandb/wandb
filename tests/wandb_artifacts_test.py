@@ -402,11 +402,10 @@ def test_add_obj_wbimage_no_classes(runner):
     im_path = os.path.join(test_folder, "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        wb_image = wandb.Image(im_path, masks={
-            "ground_truth": {
-                "path": os.path.join(test_folder, "2x2.png"),
-            },
-        })
+        wb_image = wandb.Image(
+            im_path,
+            masks={"ground_truth": {"path": os.path.join(test_folder, "2x2.png"),},},
+        )
         with pytest.raises(ValueError):
             artifact.add(wb_image, "my-image")
 
@@ -425,7 +424,10 @@ def test_add_obj_wbimage(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': '4SDhgUz28S9eIL2l44r1QQ==', 'size': 196}
+            "my-image.image-file.json": {
+                "digest": "4SDhgUz28S9eIL2l44r1QQ==",
+                "size": 196,
+            },
         }
 
 
@@ -442,7 +444,10 @@ def test_add_obj_wbimage_classes_obj(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': '4SDhgUz28S9eIL2l44r1QQ==', 'size': 196},
+            "my-image.image-file.json": {
+                "digest": "4SDhgUz28S9eIL2l44r1QQ==",
+                "size": 196,
+            },
         }
 
 
@@ -463,7 +468,10 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 64,
             },
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'V6nFpdY77fpMfHpBvKskiA==', 'size': 207},
+            "my-image.image-file.json": {
+                "digest": "V6nFpdY77fpMfHpBvKskiA==",
+                "size": 207,
+            },
         }
 
 
@@ -480,7 +488,10 @@ def test_add_obj_wbimage_image_already_added(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'jrWWP1XoW6ryRc0jrVHsvQ==', 'size': 183},
+            "my-image.image-file.json": {
+                "digest": "jrWWP1XoW6ryRc0jrVHsvQ==",
+                "size": 183,
+            },
         }
 
 
@@ -499,8 +510,9 @@ def test_add_obj_wbtable_images(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-table.table.json': {'digest': 'jq0OCE0XvYFzhvwS17kD2w==', 'size': 459},
+            "my-table.table.json": {"digest": "jq0OCE0XvYFzhvwS17kD2w==", "size": 459},
         }
+
 
 # TODO (tim): Get the mocks working properly. For now, copy this into a notebook/file to test
 # def test_artifact_add_reference_dependency(runner):
@@ -594,7 +606,7 @@ def test_add_obj_wbtable_images(runner):
 #     artifact = run.use_artifact("A2:latest")
 #     actual_image = artifact.get_obj("I1")
 #     _assert_wandb_image_compare(actual_image)
-    
+
 #     actual_table = artifact.get_obj("T1")
 #     assert actual_table.columns == columns
 #     _assert_wandb_image_compare(actual_table.data[0][0])

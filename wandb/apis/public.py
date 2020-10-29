@@ -2401,27 +2401,38 @@ class Artifact(object):
 
     @classmethod
     def from_id(cls, client, id):
-        response = client.execute(
-            Artifact.QUERY,
-            variable_values={"id": id},
-        )
+        response = client.execute(Artifact.QUERY, variable_values={"id": id},)
 
         name = None
         if response.get("artifact") is not None:
             if response["artifact"].get("aliases") is not None:
                 aliases = response["artifact"]["aliases"]
-                name = ":".join([aliases[0]["artifactCollectionName"], aliases[0]["alias"]])
+                name = ":".join(
+                    [aliases[0]["artifactCollectionName"], aliases[0]["alias"]]
+                )
                 if len(aliases) > 1:
                     for alias in aliases:
                         if alias["alias"] != "latest":
-                            name = ":".join([alias["artifactCollectionName"], alias["alias"]])
+                            name = ":".join(
+                                [alias["artifactCollectionName"], alias["alias"]]
+                            )
                             break
 
-            artifact = cls(client=client, entity=None, project=None, name=name, attrs=response["artifact"])
-            index_file_url = response["artifact"]["currentManifest"]["file"]["directUrl"]
+            artifact = cls(
+                client=client,
+                entity=None,
+                project=None,
+                name=name,
+                attrs=response["artifact"],
+            )
+            index_file_url = response["artifact"]["currentManifest"]["file"][
+                "directUrl"
+            ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
-                artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(artifact, json.loads(req.content))
+                artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    artifact, json.loads(req.content)
+                )
 
             return artifact
 
@@ -2567,7 +2578,9 @@ class Artifact(object):
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).
                     if os.path.islink(cache_path):
-                        os.symlink(os.path.abspath(os.readlink(cache_path)), target_path)
+                        os.symlink(
+                            os.path.abspath(os.readlink(cache_path)), target_path
+                        )
                     else:
                         shutil.copy2(cache_path, target_path)
                 return target_path
@@ -2576,7 +2589,10 @@ class Artifact(object):
             def download(root=None):
                 root = root or default_root
                 if entry.ref is not None:
-                    if "download_ref" in entry.extra and entry.extra["download_ref"] == True:
+                    if (
+                        "download_ref" in entry.extra
+                        and entry.extra["download_ref"] == True
+                    ):
                         cache_path = storage_policy.load_reference(
                             self, name, manifest.entries[name], local=True
                         )
@@ -2607,7 +2623,7 @@ class Artifact(object):
 
         manifest = self._load_manifest()
 
-        for obj_type in JSONABLE_MEDIA_CLASSES:  
+        for obj_type in JSONABLE_MEDIA_CLASSES:
             wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
             entry = manifest.entries.get(wandb_file_name)
             if entry is not None:
