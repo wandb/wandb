@@ -1175,5 +1175,5 @@ class WBArtifactHandler(StorageHandler):
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         #TODO (tim) figure out how to size remote object
-        size = 100 
+        size = 1
         return [ArtifactManifestEntry(name or os.path.basename(path), path, size=size, digest=path, extra={"download_ref": True})]
