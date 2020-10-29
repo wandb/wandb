@@ -159,6 +159,9 @@ class Dummy:
     def __exit__(self, exc_type, exc_val, exc_tb):
         return exc_type is None
 
+    def __repr__(self):
+        return ""
+
 
 class DummyModule(Dummy, ModuleType):
     pass

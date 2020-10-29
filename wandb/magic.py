@@ -1,3 +1,4 @@
+import wandb
 from wandb.integration import magic
 
 
