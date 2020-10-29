@@ -508,3 +508,70 @@ def test_add_obj_wbtable_images(runner):
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
             "my-table.table.json": {"digest": "Mr4uJb8a/BbDZabXyGQt6A==", "size": 477},
         }
+
+
+# def test_artifact_add_reference_dependency(runner, (live_mock_server, test_settings):
+#     """In this use case, the user adds a local file via reference to an artifact which
+#     resides in another artifact. This should cause a reference to occur"""
+    
+#     upstream_local_path = "upstream/local/path/"
+#     upstream_artifact_path = "upstream/artifact/path/"
+#     downstream_artifact_path = "downstream/artifact/path/"
+#     upstream_local_file_path = upstream_local_path + "file.txt"
+#     upstream_artifact_file_path = upstream_artifact_path + "file.txt"
+#     downstream_artifact_file_path = downstream_artifact_path + "file.txt"
+#     os.makedirs(upstream_local_path, exist_ok=True)
+#     with open(upstream_local_path, "wb") as file:
+#         file.write("HELLO!")
+
+#     with wandb.init(settings=test_settings) as run:
+#         artifact = wandb.Artifact("upstream_artifact", "database")
+#         artifact.add_file(upstream_local_path, upstream_artifact_file_path)
+#         run.log_artifact(artifact)
+
+#     with wandb.init(settings=test_settings) as run:
+#         artifact = wandb.Artifact("downstream_artifact", "database")
+#         upstream_artifact = run.use_artifact("upstream_artifact:latest")
+#         upstream_path = upstream_artifact.download()
+#         upstream_artifact = run.use_artifact("upstream_artifact:latest")
+#         artifact.add_reference(os.join("wandb-artifact://", upstream_artifact.id, upstream_artifact_file_path), downstream_artifact_file_path)
+#         run.log_artifact(artifact)
+
+#     with wandb.init(settings=test_settings) as run:
+#         downstream_artifact = run.use_artifact("downstream_artifact:latest")
+#         downstream_path = downstream_artifact.download()
+#         assert os.path.isfile(os.path.join(downstream_path, downstream_artifact_file_path))
+#         assert "upstream_artifact:latest" in downstream_artifact.dependencies()
+
+
+# def test_artifact_add_file_dependency(runner, (live_mock_server, test_settings):
+#     """In this use case, the user adds a local file via filepath to an artifact which
+#     resides in another artifact. This should cause a reference to occur"""
+
+#     upstream_local_path = "upstream/local/path/"
+#     upstream_artifact_path = "upstream/artifact/path/"
+#     downstream_artifact_path = "downstream/artifact/path/"
+#     upstream_local_file_path = upstream_local_path + "file.txt"
+#     upstream_artifact_file_path = upstream_artifact_path + "file.txt"
+#     downstream_artifact_file_path = downstream_artifact_path + "file.txt"
+#     os.makedirs(upstream_local_path, exist_ok=True)
+#     with open(upstream_local_path, "wb") as file:
+#         file.write("HELLO!")
+
+#     with wandb.init(settings=test_settings) as run:
+#         artifact = wandb.Artifact("upstream_artifact", "database")
+#         artifact.add_file(upstream_local_path, upstream_artifact_file_path)
+#         run.log_artifact(artifact)
+
+#     with wandb.init(settings=test_settings) as run:
+#         artifact = wandb.Artifact("downstream_artifact", "database")
+#         upstream_artifact = run.use_artifact("upstream_artifact:latest")
+#         upstream_path = upstream_artifact.download()
+#         artifact.add_file(os.join(upstream_path, upstream_artifact_file_path), downstream_artifact_file_path)
+#         run.log_artifact(artifact)
+
+#     with wandb.init(settings=test_settings) as run:
+#         downstream_artifact = run.use_artifact("downstream_artifact:latest")
+#         downstream_path = downstream_artifact.download()
+#         assert os.path.isfile(os.path.join(downstream_path, downstream_artifact_file_path))
+#         assert "upstream_artifact:latest" in downstream_artifact.dependencies()

@@ -10,10 +10,11 @@ from wandb.compat import tempfile as compat_tempfile
 from wandb import env
 from .interface.artifacts import *
 from .internal.progress import Progress
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, PublicApi
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
+from .lib import filesystem
 
 from wandb.data_types import Media
 
@@ -426,11 +427,12 @@ class WandbStoragePolicy(StoragePolicy):
         gcs = GCSHandler()
         http = HTTPHandler(self._session)
         https = HTTPHandler(self._session, scheme="https")
+        artifact = WBArtifactHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, file_handler,],
+            handlers=[s3, gcs, http, https, artifact, file_handler,],
             default_handler=TrackingHandler(),
         )
 
@@ -1131,3 +1133,47 @@ class HTTPHandler(StorageHandler):
         if digest and digest[:1] == '"' and digest[-1:] == '"':
             digest = digest[1:-1]  # trim leading and trailing quotes around etag
         return digest, size, extra
+
+class WBArtifactHandler(StorageHandler):
+    def __init__(self, scheme=None):
+        self._scheme = scheme or "wandb-artifact"
+        self._cache = get_artifacts_cache()
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    def load_path(self, artifact, manifest_entry, local=False):
+        # TODO (tim): Implement caching similar to below:
+        # path, hit = self._cache.check_etag_obj_path(
+        #     manifest_entry.digest, manifest_entry.size
+        # )
+        # if hit:
+        #     return path
+
+        def get_artifact(artifact_id): #TODO (tim): fix this
+            api = PublicApi()
+            return api.artifact_from_id(artifact_id)
+        
+        
+        # TODO (tim): Make support different schemas
+        artifact_parts = manifest_entry.ref[len(self._scheme) + 3:].split("/")
+        artifact_id = artifact_parts[0]
+        artifact_file_path = os.path.join(*artifact_parts[1:])
+        artifact = get_artifact(artifact_id)
+        artifact_path = artifact.download()
+        
+        link_target_path = os.path.join(artifact_path, artifact_file_path)
+        link_creation_path = os.path.join(self._cache._cache_dir, link_target_path)
+        filesystem._safe_makedirs(os.path.dirname(link_creation_path))
+        if os.path.islink(link_creation_path):
+            os.unlink(link_creation_path)
+        os.symlink(os.path.abspath(link_target_path), link_creation_path)
+        
+        return link_creation_path
+
+
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        #TODO (tim) figure out how to size remote object
+        size = 100 
+        return [ArtifactManifestEntry(name or os.path.basename(path), path, size=size, digest=path, extra={"download_ref": True})]
