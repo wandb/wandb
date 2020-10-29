@@ -16,6 +16,7 @@ import logging
 import numbers
 import os
 import platform
+import shutil
 import sys
 import threading
 import time
@@ -982,6 +983,8 @@ class Run(RunBase):
                     os.symlink(abs_path, wandb_path)
                 elif not os.path.exists(wandb_path):
                     os.symlink(abs_path, wandb_path)
+            else:
+                shutil.copyfile(abs_path, wandb_path)
             files.append(wandb_path)
         if warn:
             file_str = "%i file" % len(files)
