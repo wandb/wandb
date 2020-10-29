@@ -402,7 +402,11 @@ def test_add_obj_wbimage_no_classes(runner):
     im_path = os.path.join(test_folder, "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        wb_image = wandb.Image(im_path)
+        wb_image = wandb.Image(im_path, masks={
+            "ground_truth": {
+                "path": os.path.join(test_folder, "2x2.png"),
+            },
+        })
         with pytest.raises(ValueError):
             artifact.add(wb_image, "my-image")
 
@@ -415,16 +419,13 @@ def test_add_obj_wbimage(runner):
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
         artifact.add(wb_image, "my-image")
 
-        assert artifact.digest == "88b85b3f9ce6ec6cc550dc35fb1a51be"
+        assert artifact.digest == "20de491de6fe059dce7d01011ccd50d9"
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "wxaZ0BAFeGdQw2DJrIDzyA==",
-                "size": 196,
-            },
+            'my-image.image-file.json': {'digest': '4SDhgUz28S9eIL2l44r1QQ==', 'size': 196}
         }
 
 
@@ -441,10 +442,7 @@ def test_add_obj_wbimage_classes_obj(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "wxaZ0BAFeGdQw2DJrIDzyA==",
-                "size": 196,
-            },
+            'my-image.image-file.json': {'digest': '4SDhgUz28S9eIL2l44r1QQ==', 'size': 196},
         }
 
 
@@ -465,10 +463,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 64,
             },
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "mw3hi+PAyQ4DLgCHB24ElQ==",
-                "size": 207,
-            },
+            'my-image.image-file.json': {'digest': 'V6nFpdY77fpMfHpBvKskiA==', 'size': 207},
         }
 
 
@@ -485,10 +480,7 @@ def test_add_obj_wbimage_image_already_added(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "WGxWT/u10Y+x2E4AO9MrvQ==",
-                "size": 183,
-            },
+            'my-image.image-file.json': {'digest': 'jrWWP1XoW6ryRc0jrVHsvQ==', 'size': 183},
         }
 
 
@@ -507,7 +499,7 @@ def test_add_obj_wbtable_images(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-table.table.json": {"digest": "Mr4uJb8a/BbDZabXyGQt6A==", "size": 477},
+            'my-table.table.json': {'digest': 'jq0OCE0XvYFzhvwS17kD2w==', 'size': 459},
         }
 
 # TODO (tim): Get the mocks working properly. For now, copy this into a notebook/file to test
