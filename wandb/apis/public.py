@@ -23,6 +23,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
+from wandb.data_types import JSONABLE_MEDIA_CLASSES
 import yaml
 
 
@@ -2598,6 +2599,23 @@ class Artifact(object):
                 raise ValueError("Only reference entries support ref().")
 
         return ArtifactEntry()
+
+    def get_obj(self, name):
+        root = self._default_root()
+        if not self._is_downloaded:
+            root = self.download()
+
+        manifest = self._load_manifest()
+
+        for obj_type in JSONABLE_MEDIA_CLASSES:  
+            wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
+            entry = manifest.entries.get(wandb_file_name)
+            if entry is not None:
+                item = self.get_path(wandb_file_name)
+                item_path = item.download()
+                with open(item_path, "r") as file:
+                    result = obj_type.from_json(json.load(file), root)
+                return result
 
     def download(self, root=None):
         """Download the artifact to dir specified by the <root>

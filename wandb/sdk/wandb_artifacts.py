@@ -221,6 +221,7 @@ class Artifact(object):
             if obj_id in self._added_objs:
                 return self._added_objs[obj_id]
             val = obj.to_json(self)
+            val["_type"] = obj.get_json_suffix()
             suffix = val["_type"] + ".json"
             if not name.endswith(suffix):
                 name = name + "." + suffix
@@ -229,7 +230,6 @@ class Artifact(object):
                 return entry
             with self.new_file(name) as f:
                 import json
-
                 # TODO: Do we need to open with utf-8 codec?
                 f.write(json.dumps(obj.to_json(self)))
             # Note, we add the file from our temp directory.

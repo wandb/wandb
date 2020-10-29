@@ -567,3 +567,45 @@ def test_add_obj_wbtable_images(runner):
 #         with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
 #             assert file.read() == file_text
 
+
+# classes = [{"id": 0, "name": "person"}]
+# columns = ["examples", "index"]
+
+# def _make_wandb_image(suffix=""):
+#     return wandb.Image("test"+str(suffix)+".png", classes=classes)
+
+# def _assert_wandb_image_compare(image, suffix=""):
+#     assert isinstance(image, wandb.Image)
+#     assert image._image == _make_wandb_image(suffix)._image
+#     assert image._classes._class_set == classes
+
+# def _make_wandb_table():
+#     table = wandb.Table(columns)
+#     table.add_data(_make_wandb_image(), 1)
+#     table.add_data(_make_wandb_image(2), 2)
+#     return table
+
+# def _make_joined_table():
+#     table_1 = _make_wandb_table()
+#     table_2 = _make_wandb_table()
+#     return wandb.JoinedTable(table_1, table_2, "index")
+
+# with wandb.init(project="tester") as run:
+#     artifact = wandb.Artifact("A2", "database")
+#     image = _make_wandb_image()
+#     table = _make_wandb_table()
+#     artifact.add(image, "I1")
+#     artifact.add(table, "T1")
+#     run.log_artifact(artifact)
+
+# with wandb.init(project="tester") as run:
+#     artifact = run.use_artifact("A2:latest")
+#     actual_image = artifact.get_obj("I1")
+#     _assert_wandb_image_compare(actual_image)
+    
+#     actual_table = artifact.get_obj("T1")
+#     assert actual_table.columns == columns
+#     _assert_wandb_image_compare(actual_table.data[0][0])
+#     _assert_wandb_image_compare(actual_table.data[1][0], "2")
+#     assert actual_table.data[0][1] == 1
+#     assert actual_table.data[1][1] == 2

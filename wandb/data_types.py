@@ -238,6 +238,14 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
+    @staticmethod
+    def get_json_suffix():
+        raise NotImplementedError
+    
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        raise NotImplementedError
+
     def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
 
@@ -295,6 +303,10 @@ class Table(Media):
 
     MAX_ROWS = 10000
 
+    @staticmethod
+    def get_json_suffix():
+        return "table"
+
     def __init__(
         self,
         columns=["Input", "Output", "Expected"],
@@ -349,13 +361,23 @@ class Table(Media):
     def get_media_subdir(cls):
         return os.path.join("media", "table")
 
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        
+        return cls(json_obj["columns"], data=[
+            [
+                JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, root) if isinstance(item, dict) and item.get("_type") is not None else item
+                for item in row
+            ]
+            for row in json_obj["data"]
+        ])
+
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
 
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict = super(Image, self).to_json(run)
-            json_dict["_type"] = "table-file"
             json_dict["ncols"] = len(self.columns)
             json_dict["nrows"] = len(self.data)
             return json_dict
@@ -371,7 +393,6 @@ class Table(Media):
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
             json_dict = {"columns": self.columns, "data": mapped_data}
-            json_dict["_type"] = "table"
             json_dict["ncols"] = len(self.columns)
             json_dict["nrows"] = len(mapped_data)
             return json_dict
@@ -959,6 +980,14 @@ class Classes(Media):
         self._class_set = class_set
         # TODO: validate
 
+    @staticmethod
+    def get_json_suffix():
+        return "classes"
+
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        return cls(json_obj.get("class_set"))
+
     def to_json(self, artifact):
         return {"_type": "classes", "class_set": self._class_set}
 
@@ -995,6 +1024,10 @@ class Image(BatchableMedia):
 
     # PIL limit
     MAX_DIMENSION = 65500
+    
+    @staticmethod
+    def get_json_suffix():
+        return "image-file"
 
     def __init__(
         self,
@@ -1085,6 +1118,22 @@ class Image(BatchableMedia):
         self._width, self._height = self._image.size
 
     @classmethod
+    def from_json(cls, json_obj, root="."):
+        classes = None
+        if json_obj.get("classes") is not None:
+            with open(os.path.join(root, json_obj["classes"]["path"])) as file:
+                classes = Classes.from_json(json.load(file), root)
+
+        return cls(
+            os.path.join(root, json_obj["path"]),
+            caption=json_obj.get("caption"),
+            grouping=json_obj.get("grouping"),
+            classes=classes,
+            boxes=json_obj.get("boxes"),
+            masks=json_obj.get("masks"),
+        )
+
+    @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "images")
 
@@ -1110,14 +1159,20 @@ class Image(BatchableMedia):
             json_dict = super(Image, self).to_json(run)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
+            json_dict = {}
             if self._masks != None or self._boxes != None:
                 if self._classes is None:
                     raise ValueError(
                         "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                     )
-
+            if self._classes is not None:
                 # We just put classes in the root.
                 classes_entry = artifact.add(self._classes, "classes.json")
+                json_dict["classes"] = {
+                    "type": "classes-file",
+                    "path": classes_entry.path,
+                    "digest": classes_entry.digest,
+                }
 
             name = artifact.get_added_local_path_name(self._path)
             if name is None:
@@ -1126,18 +1181,12 @@ class Image(BatchableMedia):
                 )
                 artifact.add_file(self._path, name=name)
 
-            json_dict = {
-                "path": name,
-                "classes": {
-                    "type": "classes-file",
-                    "path": classes_entry.path,
-                    "digest": classes_entry.digest,
-                },
-            }
+            json_dict["path"] = name
+                
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
-        json_dict["_type"] = "image-file"
+        json_dict["_type"] = Image.get_json_suffix()
         json_dict["format"] = self.format
 
         if self._width is not None:
@@ -2171,3 +2220,15 @@ def data_frame_to_json(df, run, key, step):
         "run": run.id,
         "path": path,
     }
+
+JSONABLE_MEDIA_CLASSES = [
+    Image,
+    Classes,
+    Table,
+    # JoinedTable
+]
+
+JSON_SUFFIX_TO_CLASS = {
+    media_class.get_json_suffix():media_class
+    for media_class in JSONABLE_MEDIA_CLASSES
+}
