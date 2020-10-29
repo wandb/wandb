@@ -191,3 +191,9 @@ __all__ = [
     "Molecule",
     "Histogram",
 ]
+
+
+# if setup().settings._noop:
+#     from .dummy import disable
+#     import inspect
+#     disable(inspect.stack()[1][0].f_globals)
