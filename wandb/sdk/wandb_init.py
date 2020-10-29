@@ -7,6 +7,7 @@ init.
 from __future__ import print_function
 
 import datetime
+import inspect
 import logging
 import os
 import time
@@ -15,6 +16,7 @@ import traceback
 import six
 import wandb
 from wandb import trigger
+from wandb.dummy import disable, Dummy
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -24,7 +26,7 @@ from . import wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, module, reporting
 from .wandb_helper import parse_config
-from .wandb_run import Run, RunBase, RunDummy
+from .wandb_run import Run
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
@@ -128,9 +130,10 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
-        login_key = wandb.login(anonymous=anonymous, force=force)
-        if not login_key:
-            settings.mode = "offline"
+        if settings.mode != "disabled":
+            login_key = wandb.login(anonymous=anonymous, force=force)
+            if not login_key:
+                settings.mode = "offline"
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
@@ -296,24 +299,12 @@ class _WandbInit(object):
         self._wl._early_logger_flush(logger)
 
     def init(self):
+        if self.settings._noop:
+            disable(inspect.stack()[1][0].f_globals)
+            return Dummy()
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
-
-        if s._noop:
-            run = RunDummy()
-            module.set_global(
-                run=run,
-                config=run.config,
-                log=run.log,
-                summary=run.summary,
-                save=run.save,
-                restore=run.restore,
-                use_artifact=run.use_artifact,
-                log_artifact=run.log_artifact,
-                plot_table=run.plot_table,
-            )
-            return run
 
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
@@ -447,7 +438,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> RunBase:
+) -> Union[Run, Dummy]:
     """Initialize W&B
     Spawns a new process to start or resume a run locally and communicate with a
     wandb server. Should be called before any calls to wandb.log.
@@ -533,6 +524,9 @@ def init(
         A :obj:`Run` object.
 
     """
+    if mode == "disabled":
+        disable(inspect.stack()[1][0].f_globals)
+        return Dummy()
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
     error_seen = None
