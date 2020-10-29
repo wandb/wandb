@@ -1110,13 +1110,14 @@ class Image(BatchableMedia):
             json_dict = super(Image, self).to_json(run)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            if self._classes is None:
-                raise ValueError(
-                    "classes must be passed to wandb.Image when adding to artifacts"
-                )
+            if self._masks != None or self._boxes != None:
+                if self._classes is None:
+                    raise ValueError(
+                        "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
+                    )
 
-            # We just put classes in the root.
-            classes_entry = artifact.add(self._classes, "classes.json")
+                # We just put classes in the root.
+                classes_entry = artifact.add(self._classes, "classes.json")
 
             name = artifact.get_added_local_path_name(self._path)
             if name is None:
