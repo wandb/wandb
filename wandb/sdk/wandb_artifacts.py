@@ -1192,6 +1192,12 @@ class WBArtifactHandler(StorageHandler):
         return link_creation_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        #TODO: recursively resolve the reference until the result is a concrete asset
+        # so that we don't have multiple hops. cc Tim and Shawn. This shouldn't be
+        # too hard, but will require recursively downloading the references. For now,
+        # this allows for multiple reference indirection, which can lead to downloading more
+        # data than desired and more requests to the service.
+
         size = 0
         return [
             ArtifactManifestEntry(
@@ -1199,6 +1205,5 @@ class WBArtifactHandler(StorageHandler):
                 path,
                 size=size,
                 digest=path,
-                extra={"download_ref": True},
             )
         ]
