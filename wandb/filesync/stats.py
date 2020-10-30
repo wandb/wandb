@@ -1,6 +1,6 @@
 import threading
 
-from wandb.lib.filenames import is_wandb_file
+import wandb
 
 
 class Stats(object):
@@ -53,7 +53,7 @@ class Stats(object):
         for save_name, stats in file_stats:
             if stats["artifact_file"]:
                 artifact_files += 1
-            elif is_wandb_file(save_name):
+            elif wandb.wandb_lib.filenames.is_wandb_file(save_name):
                 wandb_files += 1
             elif save_name.startswith("media"):
                 media_files += 1
