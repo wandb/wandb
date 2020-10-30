@@ -22,8 +22,8 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
-from wandb.old.summary import HTTPSummary
 from wandb.data_types import JSONABLE_MEDIA_CLASSES
+from wandb.old.summary import HTTPSummary
 import yaml
 
 
@@ -2553,17 +2553,18 @@ class Artifact(object):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def get_path(self, name):
-        manifest = self._load_manifest()
+        parent_self = self
+        manifest = parent_self._load_manifest()
         storage_policy = manifest.storage_policy
-        default_root = self._default_root()
+        default_root = parent_self._default_root()
 
         entry = manifest.entries.get(name)
         if entry is None:
             raise KeyError("Path not contained in artifact: %s" % name)
 
         class ArtifactEntry(object):
-            def __init__(self_):
-                self_.artifact_ref = self
+            def __init__(self):
+                self.artifact_ref = parent_self
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2593,11 +2594,11 @@ class Artifact(object):
                 root = root or default_root
                 if entry.ref is not None:
                     cache_path = storage_policy.load_reference(
-                        self, name, manifest.entries[name], local=True
+                        parent_self, name, manifest.entries[name], local=True
                     )
                 else:
                     cache_path = storage_policy.load_file(
-                        self, name, manifest.entries[name]
+                        parent_self, name, manifest.entries[name]
                     )
 
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
@@ -2606,13 +2607,13 @@ class Artifact(object):
             def ref():
                 if entry.ref is not None:
                     return storage_policy.load_reference(
-                        self, name, manifest.entries[name], local=False
+                        parent_self, name, manifest.entries[name], local=False
                     )
                 raise ValueError("Only reference entries support ref().")
 
             @staticmethod
             def ref_url():
-                return "wandb-artifact://" + self.id + "/" + name
+                return "wandb-artifact://" + parent_self.id + "/" + name
 
         return ArtifactEntry()
 
