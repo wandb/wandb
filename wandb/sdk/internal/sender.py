@@ -9,9 +9,9 @@ from datetime import datetime
 import json
 import logging
 import os
-from packaging import version
 import time
 
+from packaging import version
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher

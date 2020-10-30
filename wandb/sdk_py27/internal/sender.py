@@ -9,8 +9,9 @@ from datetime import datetime
 import json
 import logging
 import os
-from packaging import version
 import time
+
+from packaging import version
 
 import wandb
 from wandb import util
@@ -608,9 +609,13 @@ class SendManager(object):
     def send_alert(self, data):
         alert = data.alert
         _, server_info = self._api.viewer_server_info()
-        if version.parse(server_info['cliVersionInfo']['max_cli_version']) < version.parse('0.10.9'):
-            wandb.termwarn("This W&B server doesn't support alerts, "
-                           "have your administrator install wandb/local >= 0.9.31")
+        if version.parse(
+            server_info["cliVersionInfo"]["max_cli_version"]
+        ) < version.parse("0.10.9"):
+            wandb.termwarn(
+                "This W&B server doesn't support alerts, "
+                "have your administrator install wandb/local >= 0.9.31"
+            )
         else:
             self._api.notify_scriptable_run_alert(
                 title=alert.title,
