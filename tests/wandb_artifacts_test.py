@@ -583,14 +583,23 @@ def test_artifact_add_reference_via_url():
     with wandb.init(project="tester") as run:
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
-        artifact.add_reference("wandb-artifact://" + upstream_artifact.id + "/" + upstream_artifact_file_path, middle_artifact_file_path)
+        artifact.add_reference(
+            "wandb-artifact://"
+            + upstream_artifact.id
+            + "/"
+            + upstream_artifact_file_path,
+            middle_artifact_file_path,
+        )
         run.log_artifact(artifact)
 
     # Create a downstream artifact that is referencing the middle's reference
     with wandb.init(project="tester") as run:
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
-        artifact.add_reference("wandb-artifact://" + middle_artifact.id + "/" + middle_artifact_file_path, downstream_artifact_file_path)
+        artifact.add_reference(
+            "wandb-artifact://" + middle_artifact.id + "/" + middle_artifact_file_path,
+            downstream_artifact_file_path,
+        )
         run.log_artifact(artifact)
 
     # Remove the directories for good measure
@@ -603,8 +612,12 @@ def test_artifact_add_reference_via_url():
     with wandb.init(project="tester") as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        assert os.path.islink(os.path.join(downstream_path, downstream_artifact_file_path))
-        with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
+        assert os.path.islink(
+            os.path.join(downstream_path, downstream_artifact_file_path)
+        )
+        with open(
+            os.path.join(downstream_path, downstream_artifact_file_path), "r"
+        ) as file:
             assert file.read() == file_text
 
 
@@ -645,14 +658,20 @@ def test_add_reference_via_artifact_entry():
     with wandb.init(project="tester") as run:
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
-        artifact.add_reference(upstream_artifact.get_path(upstream_artifact_file_path), middle_artifact_file_path)
+        artifact.add_reference(
+            upstream_artifact.get_path(upstream_artifact_file_path),
+            middle_artifact_file_path,
+        )
         run.log_artifact(artifact)
 
     # Create a downstream artifact that is referencing the middle's reference
     with wandb.init(project="tester") as run:
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
-        artifact.add_reference(middle_artifact.get_path(middle_artifact_file_path), downstream_artifact_file_path)
+        artifact.add_reference(
+            middle_artifact.get_path(middle_artifact_file_path),
+            downstream_artifact_file_path,
+        )
         run.log_artifact(artifact)
 
     # Remove the directories for good measure
@@ -665,8 +684,12 @@ def test_add_reference_via_artifact_entry():
     with wandb.init(project="tester") as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        assert os.path.islink(os.path.join(downstream_path, downstream_artifact_file_path))
-        with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
+        assert os.path.islink(
+            os.path.join(downstream_path, downstream_artifact_file_path)
+        )
+        with open(
+            os.path.join(downstream_path, downstream_artifact_file_path), "r"
+        ) as file:
             assert file.read() == file_text
 
 

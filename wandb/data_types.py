@@ -31,6 +31,7 @@ from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
 
+
 def _safe_sdk_import():
     PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
     if PY3:
@@ -39,8 +40,9 @@ def _safe_sdk_import():
     else:
         from wandb.sdk_py27 import wandb_run
         from wandb.sdk_py27 import wandb_artifacts
-    
+
     return wandb_run, wandb_artifacts
+
 
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings(
@@ -1026,15 +1028,15 @@ class JoinedTable(Media):
 
         if isinstance(self._table1_path, Table):
             table_name = "t1_" + str(id(self))
-            if hasattr(self._table1_path, '_source'):
-                table_name = os.path.basename(self._table1_path._source['name'])
+            if hasattr(self._table1_path, "_source"):
+                table_name = os.path.basename(self._table1_path._source["name"])
             entry = artifact.add(self._table1_path, table_name)
             table1_path = entry.path
 
         if isinstance(self._table2_path, Table):
             table_name = "t2_" + str(id(self))
-            if hasattr(self._table2_path, '_source'):
-                table_name = os.path.basename(self._table2_path._source['name'])
+            if hasattr(self._table2_path, "_source"):
+                table_name = os.path.basename(self._table2_path._source["name"])
             entry = artifact.add(self._table2_path, table_name)
             table2_path = entry.path
 
