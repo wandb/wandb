@@ -2522,13 +2522,13 @@ class Artifact(object):
             def download(root=None):
                 root = root or default_root
                 if entry.ref is not None:
-                    return storage_policy.load_reference(
+                    cache_path = storage_policy.load_reference(
                         self, name, manifest.entries[name], local=True
                     )
-
-                cache_path = storage_policy.load_file(
-                    self, name, manifest.entries[name]
-                )
+                else:
+                    cache_path = storage_policy.load_file(
+                        self, name, manifest.entries[name]
+                    )
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
             @staticmethod
