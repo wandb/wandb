@@ -324,6 +324,7 @@ class _WandbInit(object):
             run = Dummy()
             run.config = wandb.wandb_sdk.wandb_config.Config()
             run.config.update(config)
+            run.summary = Dict()
             run.log = lambda data, *_, **__: run.summary.update(data)
             module.set_global(
                 run=run,
