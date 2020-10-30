@@ -160,7 +160,7 @@ def write_netrc(host, entity, key):
         return None
     try:
         normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
-        if "." not in normalized_host:
+        if normalized_host != "localhost" and "." not in normalized_host:
             wandb.termerror("Host must be a url in the form https://some.address.com")
             return None
         wandb.termlog(
