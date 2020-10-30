@@ -225,10 +225,14 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
+                path = name + suffix
                 self.add_reference(
                     obj._source["artifact"].get_path(obj._source["name"] + suffix),
-                    name + suffix,
+                    path,
                 )
+                # TODO: ew, returning different type depending on code path...
+                # the problem is add_reference can return an array of entries
+                return path
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
