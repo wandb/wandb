@@ -204,6 +204,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
     if host and not host.startswith("http"):
         raise ClickException("host must start with http(s)://")
+    host = host.rstrip("/")
 
     _api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
@@ -213,7 +214,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
             _api.clear_setting("base_url", persist=True)
     elif host:
         # force relogin if host is specified
-        _api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
+        _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
     if host or cloud or key:
         relogin = True
