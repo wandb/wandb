@@ -303,10 +303,21 @@ class _WandbInit(object):
         s = self.settings
         config = self.config
         if s._noop:
+            # dict which allows . access to mimic Config
+            class Dict(dict):
+                def __getattr__(self, key):
+                    try:
+                        return object.__getattribute__(self, key)
+                    except AttributeError:
+                        return self[key]
+
+                def __setattr__(self, key, value):
+                    self[key] = value
+
             run = Dummy()
-            run.config = config
-            run.summary = dict()
-            run.log = lambda data: run.summary.update(data)
+            run.config = Dict(config)
+            run.summary = Dict()
+            run.log = lambda data, *_, **__: run.summary.update(data)
             module.set_global(
                 run=run,
                 config=run.config,
