@@ -7,8 +7,9 @@ import os
 
 import pytest
 import wandb
-from wandb.internal import datastore
 from wandb.proto import wandb_internal_pb2  # type: ignore
+
+datastore = wandb.wandb_sdk.internal.datastore
 
 
 FNAME = "test.dat"
