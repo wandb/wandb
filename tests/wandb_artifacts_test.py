@@ -11,7 +11,9 @@ columns = ["examples", "index"]
 
 
 def _make_wandb_image(suffix=""):
-    return wandb.Image("test" + str(suffix) + ".png", classes=classes)
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "test" + str(suffix) + ".png")
+    return wandb.Image(im_path, classes=classes)
 
 
 def _assert_wandb_image_compare(image, suffix=""):
@@ -546,7 +548,7 @@ def test_add_obj_wbtable_images(runner):
 
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
-def test_artifact_add_reference_via_url():
+def test_artifact_add_reference_via_url(wandb_init_run):
     """ This test creates three artifacts. The middle artifact references the first artifact's file,
     and the last artifact references the middle artifact's reference. The end result of downloading
     the last artifact in a fresh, forth run, should be that all 3 artifacts are downloaded and that
@@ -622,7 +624,7 @@ def test_artifact_add_reference_via_url():
 
 
 # Artifact1.add_reference(artifact2.get_path(file_name))
-def test_add_reference_via_artifact_entry():
+def test_add_reference_via_artifact_entry(wandb_init_run):
     """This test is the same as test_artifact_add_reference_via_url, but rather
     than passing the direct URL, we pass an Artifact entry, which will automatically
     resolve to the correct URL
@@ -694,14 +696,14 @@ def test_add_reference_via_artifact_entry():
 
 
 # Artifact1.get(MEDIA_NAME) => media obj
-def test_get_artifact_obj_by_name():
+def test_get_artifact_obj_by_name(live_mock_server, test_settings):
     """Tests tests the ability to instantiate a wandb Media object when passed
     the name of such object. This is the logical inverse of Artifact.add(name).
     TODO: test more robustly for every Media type, nested objects (eg. Table -> Image),
     and references
     """
 
-    with wandb.init(project="tester") as run:
+    with wandb.init(project="tester", settings=test_settings) as run:
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()
         table = _make_wandb_table()
@@ -709,7 +711,7 @@ def test_get_artifact_obj_by_name():
         artifact.add(table, "T1")
         run.log_artifact(artifact)
 
-    with wandb.init(project="tester") as run:
+    with wandb.init(project="tester", settings=test_settings) as run:
         artifact = run.use_artifact("A2:latest")
         actual_image = artifact.get("I1")
         _assert_wandb_image_compare(actual_image)
@@ -723,7 +725,7 @@ def test_get_artifact_obj_by_name():
 
 
 # Artifact1.add(artifact2.get(MEDIA_NAME))
-def test_adding_artifact_by_object():
+def test_adding_artifact_by_object(wandb_init_run):
     """This test validates that we can add wandb Media objects
     to an artifact by passing the object itself.
     """

@@ -227,6 +227,13 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
+                path = name + suffix
+                self.add_reference(
+                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
+                    path,
+                )
+                # TODO: what about the case when there are more than 1 entry returned?
+                # the problem is add_reference can return an array of entries
                 return self.add_reference(
                     obj._source["artifact"].get_path(obj._source["name"] + suffix),
                     name + suffix,
