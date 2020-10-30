@@ -11,8 +11,7 @@ import logging
 import os
 import time
 
-from packaging import version
-
+from packaging import version  # type: ignore
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -609,9 +608,12 @@ class SendManager(object):
     def send_alert(self, data):
         alert = data.alert
         _, server_info = self._api.viewer_server_info()
-        if version.parse(
-            server_info["cliVersionInfo"]["max_cli_version"]
-        ) < version.parse("0.10.9"):
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        if max_cli_version is None or version.parse(max_cli_version) < version.parse(
+            "0.10.9"
+        ):
             wandb.termwarn(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"
