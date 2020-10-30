@@ -314,9 +314,16 @@ class _WandbInit(object):
                 def __setattr__(self, key, value):
                     self[key] = value
 
+                def __getitem__(self, key):
+                    val = dict.__getitem__(self, key)
+                    if isinstance(val, dict):
+                        val = Dict(val)
+                        self[key] = val
+                    return val
+
             run = Dummy()
-            run.config = config
-            run.summary = dict()
+            run.config = Dict(config)
+            run.summary = Dict()
             run.log = lambda data, *_, **__: run.summary.update(data)
             module.set_global(
                 run=run,
