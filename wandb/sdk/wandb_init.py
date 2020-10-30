@@ -298,7 +298,7 @@ class _WandbInit(object):
 
         self._wl._early_logger_flush(logger)
 
-    def init(self):
+    def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
@@ -322,7 +322,8 @@ class _WandbInit(object):
                     return val
 
             run = Dummy()
-            run.config = Dict(config)
+            run.config = wandb.wandb_sdk.wandb_config.Config()
+            run.config.update(config)
             run.summary = Dict()
             run.log = lambda data, *_, **__: run.summary.update(data)
             module.set_global(
