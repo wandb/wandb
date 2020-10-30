@@ -31,6 +31,7 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
+from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
@@ -40,6 +41,10 @@ import yaml
 whaaaaat = util.vendor_import("whaaaaat")
 
 
+logging.basicConfig(
+    filename=os.path.join(wandb_dir(env.get_dir()), "debug-cli.log"),
+    level=logging.DEBUG,
+)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
@@ -209,8 +214,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         if os.path.exists(Settings._local_path()):
             _api.clear_setting("base_url", persist=True)
     elif host:
+        host = host.rstrip("/")
         # force relogin if host is specified
-        _api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
+        _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
     if host or cloud or key:
         relogin = True

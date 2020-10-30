@@ -152,14 +152,17 @@ def write_netrc(host, entity, key):
     """Add our host and key to .netrc"""
     key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
-        wandb.termlog(
+        wandb.termerror(
             "API-key must be exactly 40 characters long: {} ({} chars)".format(
                 key_suffix, len(key_suffix)
             )
         )
         return None
     try:
-        normalized_host = host.split("/")[-1].split(":")[0]
+        normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
+        if normalized_host != "localhost" and "." not in normalized_host:
+            wandb.termerror("Host must be a url in the form https://some.address.com")
+            return None
         wandb.termlog(
             "Appending key for {} to your netrc file: {}".format(
                 normalized_host, os.path.expanduser("~/.netrc")
@@ -178,7 +181,9 @@ def write_netrc(host, entity, key):
                 # delete this machine from the file if it's already there.
                 skip = 0
                 for line in orig_lines:
-                    if machine_line in line:
+                    # we fix invalid netrc files with an empty host that we wrote before
+                    # verifying host...
+                    if line == "machine " or machine_line in line:
                         skip = 2
                     elif skip:
                         skip -= 1
