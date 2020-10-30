@@ -1015,11 +1015,13 @@ class JoinedTable(Media):
 
         if isinstance(self._table1_path, Table):
             table1_path = "t1_" + str(id(self))
-            artifact.add(self._table1_path, table1_path)
+            entry = artifact.add(self._table1_path, table1_path)
+            table1_path = entry.path
 
         if isinstance(self._table2_path, Table):
             table2_path = "t2_" + str(id(self))
-            artifact.add(self._table2_path, table2_path)
+            entry = artifact.add(self._table2_path, table2_path)
+            table2_path = entry.path
 
         return {
             "_type": JoinedTable.get_json_suffix(),

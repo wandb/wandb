@@ -220,15 +220,17 @@ class Artifact(object):
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
+        return manifest_entries
+
     # TODO: name this add_obj?
     def add(self, obj, name):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
-                self.add_reference(
+                return self.add_reference(
                     obj._source["artifact"].get_path(obj._source["name"] + suffix),
                     name + suffix,
-                )
+                )[0]
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
