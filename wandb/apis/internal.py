@@ -100,5 +100,8 @@ class Api(object):
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
 
+    def upload_file_retry(self, *args, **kwargs):
+        return self.api.upload_file_retry(*args, **kwargs)
+
 
 __all__ = ["Api"]
