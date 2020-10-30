@@ -161,9 +161,7 @@ def write_netrc(host, entity, key):
     try:
         normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
         if "." not in normalized_host:
-            wandb.termerror(
-                "Host must be a url in the form https://some.address.com"
-            )
+            wandb.termerror("Host must be a url in the form https://some.address.com")
             return None
         wandb.termlog(
             "Appending key for {} to your netrc file: {}".format(

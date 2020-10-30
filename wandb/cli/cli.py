@@ -41,8 +41,10 @@ import yaml
 whaaaaat = util.vendor_import("whaaaaat")
 
 
-logging.basicConfig(filename=os.path.join(wandb_dir(env.get_dir()), "debug-cli.log"),
-                    level=logging.DEBUG)
+logging.basicConfig(
+    filename=os.path.join(wandb_dir(env.get_dir()), "debug-cli.log"),
+    level=logging.DEBUG,
+)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
