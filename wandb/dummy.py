@@ -168,9 +168,9 @@ class DummyModule(Dummy, ModuleType):
 
 
 def disable(globals_=None):
-    '''
+    """
     Replaces all active wandb objects with dummy objects
-    '''
+    """
     import wandb
 
     wandb_module = wandb._wandb_module
