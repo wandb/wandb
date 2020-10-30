@@ -2623,7 +2623,15 @@ class Artifact(object):
 
         return ArtifactEntry()
 
-    def get_obj(self, name):
+    def get(self, name):
+        """Returns the wandb.Media resource stored in the artifact. Media can be
+        stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
+        Args:
+            name (str): name of resource.
+
+        Returns:
+            A :obj:`wandb.Media` which has been stored at `name`
+        """
         root = self._default_root()
         if not self._is_downloaded:
             root = self.download()
@@ -2665,6 +2673,7 @@ class Artifact(object):
 
                         root = os.path.join(*shared_path)
 
+                result = None
                 with open(item_path, "r") as file:
                     result = obj_type.from_json(json.load(file), root)
                     result._source = {"artifact": self, "name": name}

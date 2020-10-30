@@ -572,7 +572,7 @@ def test_add_obj_wbtable_images(runner):
 #         with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
 #             assert file.read() == file_text
 
-####### Artifact1.get_obj(MEDIA_NAME) => media obj
+####### Artifact1.get(MEDIA_NAME) => media obj
 # classes = [{"id": 0, "name": "person"}]
 # columns = ["examples", "index"]
 
@@ -605,10 +605,10 @@ def test_add_obj_wbtable_images(runner):
 
 # with wandb.init(project="tester") as run:
 #     artifact = run.use_artifact("A2:latest")
-#     actual_image = artifact.get_obj("I1")
+#     actual_image = artifact.get("I1")
 #     _assert_wandb_image_compare(actual_image)
 
-#     actual_table = artifact.get_obj("T1")
+#     actual_table = artifact.get("T1")
 #     assert actual_table.columns == columns
 #     _assert_wandb_image_compare(actual_table.data[0][0])
 #     _assert_wandb_image_compare(actual_table.data[1][0], "2")
@@ -671,7 +671,7 @@ def test_add_obj_wbtable_images(runner):
 #     with open(os.path.join(downstream_path, downstream_artifact_file_path), "r") as file:
 #         assert file.read() == file_text
 
-####### Artifact1.add(artifact2.get_obj(MEDIA_NAME))
+####### Artifact1.add(artifact2.get(MEDIA_NAME))
 # ## Create an artifact with such file stored
 # with wandb.init(project="tester") as run:
 #     artifact = wandb.Artifact("upstream_media", "database")
@@ -682,7 +682,7 @@ def test_add_obj_wbtable_images(runner):
 # with wandb.init(project="tester") as run:
 #     artifact = wandb.Artifact("downstream_media", "database")
 #     upstream_artifact = run.use_artifact("upstream_media:latest")
-#     artifact.add(upstream_artifact.get_obj("I1"), "T2")
+#     artifact.add(upstream_artifact.get("I1"), "T2")
 #     run.log_artifact(artifact)
 
 # if os.path.isdir("artifacts"):
@@ -692,4 +692,4 @@ def test_add_obj_wbtable_images(runner):
 #     downstream_artifact = run.use_artifact("downstream_media:latest")
 #     downstream_path = downstream_artifact.download()
 #     assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
-#     _assert_wandb_image_compare(downstream_artifact.get_obj("T2"))
+#     _assert_wandb_image_compare(downstream_artifact.get("T2"))

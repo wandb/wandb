@@ -1004,12 +1004,26 @@ class JoinedTable(Media):
         self._table2_path = table2_path
         self._join_key = join_key
 
+    @staticmethod
+    def get_json_suffix():
+        return "joined-table"
+
     def to_json(self, artifact):
-        # TODO: assert these are in artifact
+        table1_path = self._table1_path
+        table2_path = self._table2_path
+
+        if isinstance(self._table1_path, Table):
+            table1_path = "t1_" + str(id(self))
+            artifact.add(self._table1_path, table1_path)
+
+        if isinstance(self._table2_path, Table):
+            table2_path = "t2_" + str(id(self))
+            artifact.add(self._table2_path, table2_path)
+
         return {
-            "_type": "joined-table",
-            "table1_path": self._table1_path,
-            "table2_path": self._table2_path,
+            "_type": JoinedTable.get_json_suffix(),
+            "table1_path": table1_path,
+            "table2_path": table2_path,
         }
 
 
@@ -1073,7 +1087,10 @@ class Image(BatchableMedia):
                 raise ValueError('Images "masks" argument must be a dictionary')
             masks_final = {}
             for key in masks:
-                masks_final[key] = ImageMask(masks[key], key)
+                if isinstance(masks[key], ImageMask):
+                    masks_final[key] = masks[key]
+                else:
+                    masks_final[key] = ImageMask(masks[key], key)
             self._masks = masks_final
 
         PILImage = util.get_module(
@@ -1130,13 +1147,29 @@ class Image(BatchableMedia):
             with open(os.path.join(root, json_obj["classes"]["path"])) as file:
                 classes = Classes.from_json(json.load(file), root)
 
+        masks = json_obj.get("masks")
+        _masks = None
+        if masks:
+            _masks = {}
+            for key in masks:
+                _masks[key] = ImageMask.from_json(masks[key], root)
+
+        # TODO: (tim): Implement this
+        # boxes = json_obj.get("boxes")
+        # _boxes = None
+        # if boxes:
+        #     _boxes = {}
+        #     for key in boxes:
+        #         _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
+
+
         return cls(
             os.path.join(root, json_obj["path"]),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,
             boxes=json_obj.get("boxes"),
-            masks=json_obj.get("masks"),
+            masks=_masks,
         )
 
     @classmethod
@@ -1545,6 +1578,12 @@ class ImageMask(Media):
 
     def get_media_subdir(self):
         return os.path.join("media", "images", self.type_name())
+
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        return cls({
+            "path": os.path.join(root, json_obj["path"])
+        }, key="") # TODO (tim): Make mask properly log key
 
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
