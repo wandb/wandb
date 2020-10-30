@@ -498,7 +498,7 @@ def magic_install(init_args=None):
     # process system args
     _process_system_args()
     # install argparse wrapper
-    in_jupyter_or_ipython = wandb._get_python_type() != "python"
+    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type != "python"
     if not in_jupyter_or_ipython:
         _monkey_argparse()
 
