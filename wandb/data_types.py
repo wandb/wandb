@@ -384,6 +384,7 @@ class Table(Media):
 
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict = super(Image, self).to_json(run)
+            json_dict["_type"] = "table-file"
             json_dict["ncols"] = len(self.columns)
             json_dict["nrows"] = len(self.data)
             return json_dict
