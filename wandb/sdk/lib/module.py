@@ -9,7 +9,6 @@ def set_global(
     log=None,
     summary=None,
     save=None,
-    restore=None,
     use_artifact=None,
     log_artifact=None,
     alert=None,
@@ -25,8 +24,6 @@ def set_global(
         wandb.summary = summary
     if save:
         wandb.save = save
-    if restore:
-        wandb.restore = restore
     if use_artifact:
         wandb.use_artifact = use_artifact
     if log_artifact:
@@ -44,9 +41,6 @@ def unset_globals():
     wandb.log = preinit.PreInitCallable("wandb.log", wandb.wandb_sdk.wandb_run.Run.log)
     wandb.save = preinit.PreInitCallable(
         "wandb.save", wandb.wandb_sdk.wandb_run.Run.save
-    )
-    wandb.restore = preinit.PreInitCallable(
-        "wandb.restore", wandb.wandb_sdk.wandb_run.Run.restore
     )
     wandb.use_artifact = preinit.PreInitCallable(
         "wandb.use_artifact", wandb.wandb_sdk.wandb_run.Run.use_artifact
