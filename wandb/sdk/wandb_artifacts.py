@@ -8,8 +8,8 @@ from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
 from wandb import env
-from wandb.interface.artifacts import *
-from wandb.internal.progress import Progress
+from .interface.artifacts import *
+from .internal.progress import Progress
 from wandb.apis import InternalApi
 from wandb.errors.error import CommError
 from wandb import util
@@ -468,15 +468,15 @@ class WandbStoragePolicy(StoragePolicy):
             with open(entry.local_path, "rb") as file:
                 # This fails if we don't send the first byte before the signed URL
                 # expires.
-                r = self._session.put(
+                self._api.upload_file_retry(
                     resp.upload_url,
-                    headers={
+                    file,
+                    progress_callback,
+                    extra_headers={
                         header.split(":", 1)[0]: header.split(":", 1)[1]
                         for header in (resp.upload_headers or {})
                     },
-                    data=Progress(file, callback=progress_callback),
                 )
-                r.raise_for_status()
         return exists
 
 

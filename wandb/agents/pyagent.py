@@ -19,7 +19,6 @@ import wandb
 from wandb import util
 from wandb import wandb_sdk
 from wandb.apis import InternalApi
-from wandb.lib import config_util
 
 
 logger = logging.getLogger(__name__)
@@ -261,7 +260,7 @@ class Agent(object):
             os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
                 os.environ[wandb.env.DIR], config_file
             )
-            config_util.save_config_file_from_dict(
+            wandb.wandb_lib.config_util.save_config_file_from_dict(
                 os.environ[wandb.env.CONFIG_PATHS], job.config
             )
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id

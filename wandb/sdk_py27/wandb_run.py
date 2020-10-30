@@ -30,16 +30,6 @@ from wandb import trigger
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
-from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import (
-    config_util,
-    filenames,
-    ipython,
-    module,
-    proto_util,
-    redirect,
-    sparkline,
-)
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
@@ -51,6 +41,16 @@ from wandb.viz import (
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
+from .interface.summary_record import SummaryRecord
+from .lib import (
+    config_util,
+    filenames,
+    ipython,
+    module,
+    proto_util,
+    redirect,
+    sparkline,
+)
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Sequence, Tuple
@@ -240,6 +240,23 @@ class RunDummy(RunBase):
 
 
 class Run(RunBase):
+    """Defines a wandb run, which typically corresponds to an ML experiment.
+
+    A run is created with wandb.init()
+
+    If you do distributed training, each process should be in its own run and
+    the group should be set in wandb.init to link the runs together.
+
+    There is a parallel Run object in wandb's API, eventually it will be merged
+    with this object.
+
+    Attributes:
+        summary (:obj:`Summary`): summary statistics collected as training code
+            runs.
+        history (:obj:`History`): history of data logged with wandb.log associated
+            with run.
+    """
+
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
@@ -422,10 +439,16 @@ class Run(RunBase):
 
     @property
     def dir(self):
+        """str: The directory where all of the files associated with the run are
+        placed.
+        """
         return self._settings.files_dir
 
     @property
     def config(self):
+        """(:obj:`Config`): A config object (similar to a nested dict) of key
+            value pairs associated with the hyperparameters of the run.
+        """
         return self._config
 
     @property
@@ -434,6 +457,8 @@ class Run(RunBase):
 
     @property
     def name(self):
+        """str: the display name of the run. It does not need to be unique
+        and ideally is descriptive."""
         if self._name:
             return self._name
         if not self._run_obj:
@@ -448,6 +473,8 @@ class Run(RunBase):
 
     @property
     def notes(self):
+        """str: notes associated with the run. Notes can be a multiline string
+            and can also use markdown and latex equations inside $$ like $\\{x}"""
         if self._notes:
             return self._notes
         if not self._run_obj:
@@ -462,6 +489,7 @@ class Run(RunBase):
 
     @property
     def tags(self):
+        """Tuple[str]: tags associated with the run"""
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
@@ -475,16 +503,19 @@ class Run(RunBase):
 
     @property
     def id(self):
+        """str: the run_id associated with the run"""
         return self._run_id
 
     @property
     def sweep_id(self):
+        """(str, optional): the sweep id associated with the run or None"""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
 
     @property
     def path(self):
+        """str: the path to the run [entity]/[project]/[run_id]"""
         parts = []
         for e in [self._entity, self._project, self._run_id]:
             if e is not None:
@@ -493,6 +524,7 @@ class Run(RunBase):
 
     @property
     def start_time(self):
+        """int: the unix time stamp in seconds when the run started"""
         if not self._run_obj:
             return self._start_time
         else:
@@ -500,6 +532,7 @@ class Run(RunBase):
 
     @property
     def starting_step(self):
+        """int: the first step of the run"""
         if not self._run_obj:
             return self._starting_step
         else:
@@ -507,12 +540,19 @@ class Run(RunBase):
 
     @property
     def resumed(self):
+        """bool: whether or not the run was resumed"""
+
         if self._run_obj:
             return self._run_obj.resumed
         return False
 
     @property
     def step(self):
+        """int: step counter
+
+        Every time you call wandb.log() it will by default increment the step
+            counter.
+        """
         return self.history._step
 
     def project_name(self, api=None):
@@ -530,6 +570,15 @@ class Run(RunBase):
 
     @property
     def group(self):
+        """str: name of W&B group associated with run.
+
+        Setting a group helps the W&B UI organize runs in a sensible way.
+
+        If you are doing a distributed training you should give all of the
+            runs in the training the same group.
+        If you are doing crossvalidation you should give all the crossvalidation
+            folds the same group.
+        """
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group
 
@@ -540,21 +589,28 @@ class Run(RunBase):
 
     @property
     def project(self):
+        """str: name of W&B project associated with run. """
         return self.project_name()
 
     def get_url(self):
+        """Returns: (str, optional): url for the W&B run or None if the run
+            is offline"""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
 
     def get_project_url(self):
+        """Returns: (str, optional): url for the W&B project associated with
+            the run or None if the run is offline"""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_project_url()
 
     def get_sweep_url(self):
+        """Returns: (str, optional): url for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline."""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return
@@ -562,10 +618,13 @@ class Run(RunBase):
 
     @property
     def url(self):
+        """str: name of W&B url associated with run."""
         return self.get_url()
 
     @property
     def entity(self):
+        """str: name of W&B entity associated with run. Entity is either
+        a user name or an organization name."""
         return self._entity
 
     # def _repr_html_(self):
@@ -994,6 +1053,7 @@ class Run(RunBase):
         module.unset_globals()
 
     def join(self, exit_code=None):
+        """Deprecated alias for finish() - please use finish"""
         self.finish(exit_code=exit_code)
 
     def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
@@ -1052,7 +1112,7 @@ class Run(RunBase):
         """Generate a url for a sweep.
 
         Returns:
-            string - url if the run is part of a sweep
+            str - url if the run is part of a sweep
             None - if the run is not part of the sweep
         """
 
@@ -1704,6 +1764,7 @@ class Run(RunBase):
             type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact,
                 defaults to ["latest"]
+
         Returns:
             A :obj:`Artifact` object.
         """
