@@ -1102,7 +1102,7 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
             self._image = PILImage.open(data_or_path)
-            self._image.load()
+            # self._image.load()
             ext = os.path.splitext(data_or_path)[1][1:]
             self.format = ext
         else:
