@@ -234,7 +234,8 @@ class Artifact(object):
                 if obj_id in self._added_objs:
                     return self._added_objs[obj_id]
                 val = obj.to_json(self)
-                val["_type"] = obj.get_json_suffix()
+                if "_type" not in val:
+                    val["_type"] = obj.get_json_suffix()
                 suffix = val["_type"] + ".json"
                 if not name.endswith(suffix):
                     name = name + "." + suffix
@@ -1159,22 +1160,17 @@ class WBArtifactHandler(StorageHandler):
         return self._scheme
 
     def load_path(self, artifact, manifest_entry, local=False):
-        # TODO (tim): Implement caching similar to below:
-        # path, hit = self._cache.check_etag_obj_path(
-        #     manifest_entry.digest, manifest_entry.size
-        # )
-        # if hit:
-        #     return path
+        path, hit = self._cache.check_etag_obj_path(
+            manifest_entry.digest, manifest_entry.size
+        )
+        if hit:
+            return path
 
-        def get_artifact(artifact_id):  # TODO (tim): fix this
-            api = PublicApi()
-            return api.artifact_from_id(artifact_id)
-
-        # TODO (tim): Make support different schemas
+        # TODO: Make a more robust schema parsing system
         artifact_parts = manifest_entry.ref[len(self._scheme) + 3 :].split("/")
         artifact_id = artifact_parts[0]
         artifact_file_path = os.path.join(*artifact_parts[1:])
-        artifact = get_artifact(artifact_id)
+        artifact = PublicApi().artifact_from_id(artifact_id)
         artifact_path = artifact.download()
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
@@ -1187,8 +1183,7 @@ class WBArtifactHandler(StorageHandler):
         return link_creation_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
-        # TODO (tim) figure out how to size remote object
-        size = 1
+        size = 0
         return [
             ArtifactManifestEntry(
                 name or os.path.basename(path),
