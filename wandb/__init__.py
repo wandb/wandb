@@ -101,8 +101,6 @@ def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
 
-# from wandb.lib.ipython import _get_python_type
-
 # toplevel:
 # save()
 # restore()
