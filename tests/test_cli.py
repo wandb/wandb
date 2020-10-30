@@ -191,6 +191,23 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
+def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        with open("netrc", "w") as f:
+            f.write("machine \n  login user\npassword {}".format(DUMMY_API_KEY))
+        result = runner.invoke(
+            cli.login, ["--host", "https://google.com/", DUMMY_API_KEY]
+        )
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        assert generatedNetrc == (
+            "machine google.com\n"
+            "  login user\n"
+            "  password {}\n".format(DUMMY_API_KEY)
+        )
+
+
 def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
     onprem_key = "test-" + DUMMY_API_KEY
     with runner.isolated_filesystem():

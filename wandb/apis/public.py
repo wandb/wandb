@@ -164,6 +164,10 @@ class RetryingClient(object):
     def __init__(self, client):
         self._client = client
 
+    @property
+    def app_url(self):
+        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+
     @retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
@@ -1278,7 +1282,7 @@ class Run(Attrs):
     def url(self):
         path = self.path
         path.insert(2, "runs")
-        return "https://app.wandb.ai/" + "/".join(path)
+        return self.client.app_url + "/".join(path)
 
     @property
     def lastHistoryStep(self):  # noqa: N802
@@ -1429,7 +1433,7 @@ class Sweep(Attrs):
     def url(self):
         path = self.path
         path.insert(2, "sweeps")
-        return "https://app.wandb.ai/" + "/".join(path)
+        return self.client.app_url + "/".join(path)
 
     @classmethod
     def get(
@@ -2522,13 +2526,13 @@ class Artifact(object):
             def download(root=None):
                 root = root or default_root
                 if entry.ref is not None:
-                    return storage_policy.load_reference(
+                    cache_path = storage_policy.load_reference(
                         self, name, manifest.entries[name], local=True
                     )
-
-                cache_path = storage_policy.load_file(
-                    self, name, manifest.entries[name]
-                )
+                else:
+                    cache_path = storage_policy.load_file(
+                        self, name, manifest.entries[name]
+                    )
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
             @staticmethod

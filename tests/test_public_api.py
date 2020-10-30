@@ -88,6 +88,7 @@ def test_parse_path_proj(mock_server, api):
 def test_run_from_path(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
+    assert run.url == "https://wandb.ai/test/test/runs/test"
 
 
 def test_run_retry(mock_server, api):
@@ -353,4 +354,4 @@ def test_sweep(runner, mock_server, api):
     sweep = api.sweep("test/test/test")
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
-    assert sweep.url == "https://app.wandb.ai/test/test/sweeps/test"
+    assert sweep.url == "https://wandb.ai/test/test/sweeps/test"

@@ -534,7 +534,7 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         wandb_sdk.wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
-        in_jupyter = wandb._get_python_type() != "python"
+        in_jupyter = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
         return run_agent(
             sweep_id,
             function=function,
