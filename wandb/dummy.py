@@ -168,13 +168,16 @@ class DummyModule(Dummy, ModuleType):
 
 
 def disable(globals_=None):
+    '''
+    Replaces all active wandb objects with dummy objects
+    '''
     import wandb
 
     wandb_module = wandb._wandb_module
     for m in sys.modules:
-        if m == wandb_module or (
-            m.startswith(wandb_module + ".")
-            and not m.startswith(wandb_module + ".dummy")
+        # if m == wandb_module or (  # we leave wandb so that wandb.log etc works
+        if m.startswith(wandb_module + ".") and not m.startswith(
+            wandb_module + ".dummy"
         ):
             sys.modules[m] = DummyModule()
     if globals_:
@@ -182,9 +185,9 @@ def disable(globals_=None):
             m = getattr(
                 v, "__module__", v.__name__ if isinstance(v, ModuleType) else ""
             )
-            if m == wandb_module or (
-                m.startswith(wandb_module + ".")
-                and not m.startswith(wandb_module + ".dummy")
+            # if m == wandb_module or (
+            if m.startswith(wandb_module + ".") and not m.startswith(
+                wandb_module + ".dummy"
             ):
                 globals_[k] = Dummy()
 
@@ -198,4 +201,5 @@ def disable(globals_=None):
             sys.modules[fullname] = module
             return module
 
+    # disable importing wandb sub modules
     sys.meta_path.insert(0, ImportHook())

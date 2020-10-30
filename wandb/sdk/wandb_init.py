@@ -130,7 +130,7 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
-        if "disabled" not in (settings.mode, kwargs['mode']):
+        if "disabled" not in (settings.mode, kwargs["mode"]):
             login_key = wandb.login(anonymous=anonymous, force=force)
             if not login_key:
                 settings.mode = "offline"
@@ -318,6 +318,7 @@ class _WandbInit(object):
                 log_artifact=run.log_artifact,
                 plot_table=run.plot_table,
             )
+            disable(inspect.stack()[1][0].f_globals)
             return run
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:

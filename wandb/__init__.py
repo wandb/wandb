@@ -193,6 +193,9 @@ __all__ = [
 ]
 
 
+# TODO(frz): Below code disabled wandb on import instead waiting for init() call,
+# but a bug causes `from wandb.x.y import *` type imports.
+
 # if setup().settings._noop:
 #     from .dummy import disable
 #     import inspect

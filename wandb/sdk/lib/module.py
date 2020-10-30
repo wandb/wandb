@@ -16,11 +16,11 @@ def set_global(
 ):
     if run:
         wandb.run = run
-    if config:
+    if config is not None:
         wandb.config = config
     if log:
         wandb.log = log
-    if summary:
+    if summary is not None:
         wandb.summary = summary
     if save:
         wandb.save = save
