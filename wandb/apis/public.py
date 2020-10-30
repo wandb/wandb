@@ -2674,9 +2674,11 @@ class Artifact(object):
                         root = os.path.join(*shared_path)
 
                 result = None
+                json_obj = {}
                 with open(item_path, "r") as file:
-                    result = obj_type.from_json(json.load(file), root)
-                    result._source = {"artifact": self, "name": name}
+                    json_obj = json.load(file)
+                result = obj_type.from_json(json_obj, root)
+                result._source = {"artifact": self, "name": name}
                 return result
 
     def download(self, root=None):

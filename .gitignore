@@ -14,3 +14,4 @@ docs/.generated-files.txt
 docs/config.toml
 tests/logs/*
 !tests/logs/cleanup.sh
+pip-wheel-metadata

@@ -36,6 +36,7 @@ class Image(Media):
         name = "media/images/%s" % os.path.basename(self._path)
         image_entry = artifact.add_file(self._path, name=name)
         image = PILImage.open(self._path)
+        image.load()
         masks = {}
         if self._masks is not None:
             for k, v in self._masks.items():

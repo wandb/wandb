@@ -1102,6 +1102,7 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
             self._image = PILImage.open(data_or_path)
+            self._image.load()
             ext = os.path.splitext(data_or_path)[1][1:]
             self.format = ext
         else:
@@ -1145,8 +1146,10 @@ class Image(BatchableMedia):
     def from_json(cls, json_obj, root="."):
         classes = None
         if json_obj.get("classes") is not None:
+            child_json_obj ={}
             with open(os.path.join(root, json_obj["classes"]["path"])) as file:
-                classes = Classes.from_json(json.load(file), root)
+                child_json_obj = json.load(file)
+            classes = Classes.from_json(child_json_obj, root)
 
         masks = json_obj.get("masks")
         _masks = None
