@@ -10,10 +10,13 @@ from wandb.compat import tempfile as compat_tempfile
 from wandb import env
 from .interface.artifacts import *
 from .internal.progress import Progress
-from wandb.apis import InternalApi
+from wandb.apis import InternalApi, PublicApi
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
+from .lib import filesystem
+
+from wandb.data_types import Media
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -90,6 +93,7 @@ class Artifact(object):
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_new = False
+        self._added_objs = {}
         # You can write into this directory when creating artifact files
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
@@ -151,6 +155,7 @@ class Artifact(object):
             local_path=local_path,
         )
         self._manifest.add_entry(entry)
+        return entry
 
     def add_dir(self, local_path, name=None):
         self._ensure_can_add()
@@ -196,6 +201,12 @@ class Artifact(object):
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+        if isinstance(uri, object):
+            if hasattr(uri, "artifact_ref"):
+                if uri.artifact_ref != self:
+                    ref_url_fn = getattr(uri, "ref_url")
+                    if callable(ref_url_fn):
+                        uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError(
@@ -208,6 +219,48 @@ class Artifact(object):
         )
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
+
+    # TODO: name this add_obj?
+    def add(self, obj, name):
+        if isinstance(obj, Media):
+            if hasattr(obj, "_source") and obj._source is not None:
+                suffix = "." + obj.get_json_suffix() + ".json"
+                self.add_reference(
+                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
+                    name + suffix,
+                )
+            else:
+                obj_id = id(obj)
+                if obj_id in self._added_objs:
+                    return self._added_objs[obj_id]
+                val = obj.to_json(self)
+                val["_type"] = obj.get_json_suffix()
+                suffix = val["_type"] + ".json"
+                if not name.endswith(suffix):
+                    name = name + "." + suffix
+                entry = self._manifest.get_entry_by_path(name)
+                if entry is not None:
+                    return entry
+                with self.new_file(name) as f:
+                    import json
+
+                    # TODO: Do we need to open with utf-8 codec?
+                    f.write(json.dumps(obj.to_json(self)))
+                # Note, we add the file from our temp directory.
+                # It will be added again later on finalize, but succeed since
+                # the checksum should match
+                entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+                self._added_objs[obj_id] = entry
+                return entry
+        else:
+            raise ValueError("Can't add obj to artifact")
+
+    def get_added_local_path_name(self, local_path):
+        """If local_path was already added to artifact, return its internal name."""
+        entry = self._manifest.get_entry_by_local_path(local_path)
+        if entry is None:
+            return None
+        return entry.path
 
     def get_path(self, name):
         raise ValueError("Cannot load paths from an artifact before it has been saved")
@@ -388,11 +441,12 @@ class WandbStoragePolicy(StoragePolicy):
         gcs = GCSHandler()
         http = HTTPHandler(self._session)
         https = HTTPHandler(self._session, scheme="https")
+        artifact = WBArtifactHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, file_handler,],
+            handlers=[s3, gcs, http, https, artifact, file_handler,],
             default_handler=TrackingHandler(),
         )
 
@@ -1093,3 +1147,54 @@ class HTTPHandler(StorageHandler):
         if digest and digest[:1] == '"' and digest[-1:] == '"':
             digest = digest[1:-1]  # trim leading and trailing quotes around etag
         return digest, size, extra
+
+
+class WBArtifactHandler(StorageHandler):
+    def __init__(self, scheme=None):
+        self._scheme = scheme or "wandb-artifact"
+        self._cache = get_artifacts_cache()
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    def load_path(self, artifact, manifest_entry, local=False):
+        # TODO (tim): Implement caching similar to below:
+        # path, hit = self._cache.check_etag_obj_path(
+        #     manifest_entry.digest, manifest_entry.size
+        # )
+        # if hit:
+        #     return path
+
+        def get_artifact(artifact_id):  # TODO (tim): fix this
+            api = PublicApi()
+            return api.artifact_from_id(artifact_id)
+
+        # TODO (tim): Make support different schemas
+        artifact_parts = manifest_entry.ref[len(self._scheme) + 3 :].split("/")
+        artifact_id = artifact_parts[0]
+        artifact_file_path = os.path.join(*artifact_parts[1:])
+        artifact = get_artifact(artifact_id)
+        artifact_path = artifact.download()
+
+        link_target_path = os.path.join(artifact_path, artifact_file_path)
+        link_creation_path = os.path.join(self._cache._cache_dir, link_target_path)
+        filesystem._safe_makedirs(os.path.dirname(link_creation_path))
+        if os.path.islink(link_creation_path):
+            os.unlink(link_creation_path)
+        os.symlink(os.path.abspath(link_target_path), link_creation_path)
+
+        return link_creation_path
+
+    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        # TODO (tim) figure out how to size remote object
+        size = 1
+        return [
+            ArtifactManifestEntry(
+                name or os.path.basename(path),
+                path,
+                size=size,
+                digest=path,
+                extra={"download_ref": True},
+            )
+        ]

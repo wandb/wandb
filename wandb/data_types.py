@@ -1146,7 +1146,7 @@ class Image(BatchableMedia):
     def from_json(cls, json_obj, root="."):
         classes = None
         if json_obj.get("classes") is not None:
-            child_json_obj ={}
+            child_json_obj = {}
             with open(os.path.join(root, json_obj["classes"]["path"])) as file:
                 child_json_obj = json.load(file)
             classes = Classes.from_json(child_json_obj, root)
@@ -1165,7 +1165,6 @@ class Image(BatchableMedia):
         #     _boxes = {}
         #     for key in boxes:
         #         _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
-
 
         return cls(
             os.path.join(root, json_obj["path"]),
@@ -1585,9 +1584,9 @@ class ImageMask(Media):
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        return cls({
-            "path": os.path.join(root, json_obj["path"])
-        }, key="") # TODO (tim): Make mask properly log key
+        return cls(
+            {"path": os.path.join(root, json_obj["path"])}, key=""
+        )  # TODO (tim): Make mask properly log key
 
     def to_json(self, run_or_artifact):
         from wandb.sdk import wandb_run
