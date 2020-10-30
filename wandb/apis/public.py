@@ -20,9 +20,9 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
+from wandb.data_types import JSONABLE_MEDIA_CLASSES
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
-from wandb.data_types import JSONABLE_MEDIA_CLASSES
 from wandb.old.summary import HTTPSummary
 import yaml
 
