@@ -26,9 +26,21 @@ import uuid
 import json
 import codecs
 import tempfile
+import sys
 from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
+
+def _safe_sdk_import():
+    PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+    if PY3:
+        from wandb.sdk import wandb_run
+        from wandb.sdk import wandb_artifacts
+    else:
+        from wandb.sdk_py27 import wandb_run
+        from wandb.sdk_py27 import wandb_artifacts
+    
+    return wandb_run, wandb_artifacts
 
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings(
@@ -379,8 +391,7 @@ class Table(Media):
         )
 
     def to_json(self, run_or_artifact):
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
+        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict = super(Table, self).to_json(run_or_artifact)
@@ -1195,8 +1206,7 @@ class Image(BatchableMedia):
                 self._masks[k].bind_to_run(*args, **kwargs)
 
     def to_json(self, run_or_artifact):
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
+        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             run = run_or_artifact
@@ -1524,8 +1534,7 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
 
     def to_json(self, run_or_artifact):
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
+        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
@@ -1591,8 +1600,7 @@ class ImageMask(Media):
         )  # TODO (tim): Make mask properly log key
 
     def to_json(self, run_or_artifact):
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
+        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             run = run_or_artifact
