@@ -1028,14 +1028,18 @@ class JoinedTable(Media):
 
         if isinstance(self._table1_path, Table):
             table_name = "t1_" + str(id(self))
-            if hasattr(self._table1_path, "_source") and hasattr(self._table1_path._source, "name"):
+            if hasattr(self._table1_path, "_source") and hasattr(
+                self._table1_path._source, "name"
+            ):
                 table_name = os.path.basename(self._table1_path._source["name"])
             entry = artifact.add(self._table1_path, table_name)
             table1_path = entry.path
 
         if isinstance(self._table2_path, Table):
             table_name = "t2_" + str(id(self))
-            if hasattr(self._table2_path, "_source") and hasattr(self._table2_path._source, "name"):
+            if hasattr(self._table2_path, "_source") and hasattr(
+                self._table2_path._source, "name"
+            ):
                 table_name = os.path.basename(self._table2_path._source["name"])
             entry = artifact.add(self._table2_path, table_name)
             table2_path = entry.path
