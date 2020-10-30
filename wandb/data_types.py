@@ -1038,6 +1038,7 @@ class JoinedTable(Media):
             "_type": JoinedTable.get_json_suffix(),
             "table1_path": table1_path,
             "table2_path": table2_path,
+            "join_key": self._join_key,
         }
 
 
