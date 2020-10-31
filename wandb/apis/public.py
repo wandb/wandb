@@ -2568,7 +2568,7 @@ class Artifact(object):
 
         class ArtifactEntry(object):
             def __init__(self):
-                self.artifact_ref = parent_self
+                self.parent_artifact = parent_self
 
             @staticmethod
             def copy(cache_path, target_path):

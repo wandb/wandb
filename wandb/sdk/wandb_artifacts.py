@@ -202,8 +202,8 @@ class Artifact(object):
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         if isinstance(uri, object):
-            if hasattr(uri, "artifact_ref"):
-                if uri.artifact_ref != self:
+            if hasattr(uri, "parent_artifact"):
+                if uri.parent_artifact != self:
                     ref_url_fn = getattr(uri, "ref_url")
                     if callable(ref_url_fn):
                         uri = ref_url_fn()
@@ -227,17 +227,11 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
+                ref_path = obj._source["artifact"].get_path(obj._source["name"] + suffix)
                 path = name + suffix
-                self.add_reference(
-                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
-                    path,
-                )
                 # TODO: what about the case when there are more than 1 entry returned?
                 # the problem is add_reference can return an array of entries
-                return self.add_reference(
-                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
-                    name + suffix,
-                )[0]
+                return self.add_reference(ref_path,path)[0]
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
