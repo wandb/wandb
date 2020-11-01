@@ -407,8 +407,8 @@ class Table(Media):
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
-            data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)
-            for row in data.data:
+            data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
+            for row in data:
                 mapped_row = []
                 for v in row:
                     if isinstance(v, Media):
