@@ -1181,21 +1181,22 @@ class Image(BatchableMedia):
             _masks = {}
             for key in masks:
                 _masks[key] = ImageMask.from_json(masks[key], root)
+                _masks[key]._key = key
 
-        # TODO: (tim): Implement this
-        # boxes = json_obj.get("boxes")
-        # _boxes = None
-        # if boxes:
-        #     _boxes = {}
-        #     for key in boxes:
-        #         _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
+        boxes = json_obj.get("boxes")
+        _boxes = None
+        if boxes:
+            _boxes = {}
+            for key in boxes:
+                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
+                _boxes[key]._key = key
 
         return cls(
             os.path.join(root, json_obj["path"]),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,
-            boxes=json_obj.get("boxes"),
+            boxes=_boxes,
             masks=_masks,
         )
 
@@ -1554,6 +1555,10 @@ class BoundingBoxes2D(JSONMetadata):
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        return cls(json_obj, "")
+
 
 class ImageMask(Media):
     """
@@ -1608,7 +1613,7 @@ class ImageMask(Media):
     def from_json(cls, json_obj, root="."):
         return cls(
             {"path": os.path.join(root, json_obj["path"])}, key=""
-        )  # TODO (tim): Make mask properly log key
+        )
 
     def to_json(self, run_or_artifact):
         wandb_run, wandb_artifacts = _safe_sdk_import()
