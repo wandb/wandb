@@ -1197,7 +1197,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(manifest_entry.ref)
         artifact = PublicApi().artifact_from_id(artifact_id)
         entry = artifact.get_entry_by_path(artifact_file_path)
-        while entry.ref && urlparse(entry.ref).scheme == WBArtifactHandler.scheme:
+        while entry.ref is not None and urlparse(entry.ref).scheme == WBArtifactHandler.scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
             artifact = PublicApi().artifact_from_id(artifact_id)
             entry = artifact.get_entry_by_path(artifact_file_path)
