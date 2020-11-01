@@ -10,7 +10,7 @@ import six
 try:
     from collections.abc import Sequence
 except ImportError:
-    from collections import Sequenceimport
+    from collections import Sequence
 import wandb
 from wandb.util import json_friendly
 
