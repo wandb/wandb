@@ -317,6 +317,7 @@ class Table(Media):
     """
 
     MAX_ROWS = 10000
+    MAX_ARTIFACT_ROWS = 50000
 
     @staticmethod
     def get_json_suffix():
@@ -358,11 +359,11 @@ class Table(Media):
             )
         self.data.append(list(data))
 
-    def _to_table_json(self):
+    def _to_table_json(self, max_rows=Table.MAX_ROWS):
         # seperate method for testing
-        if len(self.data) > Table.MAX_ROWS:
-            logging.warn("Truncating wandb.Table object to %i rows." % Table.MAX_ROWS)
-        return {"columns": self.columns, "data": self.data[: Table.MAX_ROWS]}
+        if len(self.data) > max_rows:
+            logging.warn("Truncating wandb.Table object to %i rows." % max_rows)
+        return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_table_json()
@@ -404,7 +405,8 @@ class Table(Media):
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
-            for row in self.data:
+            data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)
+            for row in data.data:
                 mapped_row = []
                 for v in row:
                     if isinstance(v, Media):
