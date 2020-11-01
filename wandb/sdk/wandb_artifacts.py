@@ -227,11 +227,13 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
-                ref_path = obj._source["artifact"].get_path(obj._source["name"] + suffix)
+                ref_path = obj._source["artifact"].get_path(
+                    obj._source["name"] + suffix
+                )
                 path = name + suffix
                 # TODO: what about the case when there are more than 1 entry returned?
                 # the problem is add_reference can return an array of entries
-                return self.add_reference(ref_path,path)[0]
+                return self.add_reference(ref_path, path)[0]
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
@@ -1178,7 +1180,9 @@ class WBArtifactHandler(StorageHandler):
         if hit:
             return path
 
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(manifest_entry.ref)
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
+            manifest_entry.ref
+        )
         artifact = PublicApi().artifact_from_id(artifact_id)
         artifact_path = artifact.download()
 
@@ -1194,10 +1198,15 @@ class WBArtifactHandler(StorageHandler):
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         # Resolve the reference until the result is a concrete asset
         # so that we don't have multiple hops.
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(manifest_entry.ref)
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
+            manifest_entry.ref
+        )
         artifact = PublicApi().artifact_from_id(artifact_id)
         entry = artifact.get_entry_by_path(artifact_file_path)
-        while entry.ref is not None and urlparse(entry.ref).scheme == WBArtifactHandler.scheme:
+        while (
+            entry.ref is not None
+            and urlparse(entry.ref).scheme == WBArtifactHandler.scheme
+        ):
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
             artifact = PublicApi().artifact_from_id(artifact_id)
             entry = artifact.get_entry_by_path(artifact_file_path)

@@ -359,8 +359,10 @@ class Table(Media):
             )
         self.data.append(list(data))
 
-    def _to_table_json(self, max_rows=Table.MAX_ROWS):
+    def _to_table_json(self, max_rows=None):
         # seperate method for testing
+        if max_rows is None:
+            max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
             logging.warn("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
@@ -1029,7 +1031,7 @@ class JoinedTable(Media):
         return cls(
             os.path.join(root, json_obj["table1_path"]),
             os.path.join(root, json_obj["table2_path"]),
-            json_obj["join_key"]
+            json_obj["join_key"],
         )
 
     def to_json(self, artifact):
@@ -1621,9 +1623,7 @@ class ImageMask(Media):
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        return cls(
-            {"path": os.path.join(root, json_obj["path"])}, key=""
-        )
+        return cls({"path": os.path.join(root, json_obj["path"])}, key="")
 
     def to_json(self, run_or_artifact):
         wandb_run, wandb_artifacts = _safe_sdk_import()
@@ -2310,12 +2310,7 @@ def data_frame_to_json(df, run, key, step):
     }
 
 
-JSONABLE_MEDIA_CLASSES = [
-    Image,
-    Classes,
-    Table,
-    JoinedTable
-]
+JSONABLE_MEDIA_CLASSES = [Image, Classes, Table, JoinedTable]
 
 JSON_SUFFIX_TO_CLASS = {
     media_class.get_json_suffix(): media_class for media_class in JSONABLE_MEDIA_CLASSES
