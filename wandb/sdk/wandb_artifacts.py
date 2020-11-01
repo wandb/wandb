@@ -1162,6 +1162,15 @@ class WBArtifactHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
+    @staticmethod
+    def parse_path(path):
+        url = urlparse(path)
+        return url.netloc, url.path
+        # artifact_parts = path[len(self._scheme) + 3 :].split("/")
+        # artifact_id = artifact_parts[0]
+        # artifact_file_path = os.path.join(*artifact_parts[1:])
+        # return artifact_id, artifact_file_path
+
     def load_path(self, artifact, manifest_entry, local=False):
         path, hit = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
@@ -1169,10 +1178,7 @@ class WBArtifactHandler(StorageHandler):
         if hit:
             return path
 
-        # TODO: Make a more robust schema parsing system
-        artifact_parts = manifest_entry.ref[len(self._scheme) + 3 :].split("/")
-        artifact_id = artifact_parts[0]
-        artifact_file_path = os.path.join(*artifact_parts[1:])
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(manifest_entry.ref)
         artifact = PublicApi().artifact_from_id(artifact_id)
         artifact_path = artifact.download()
 
@@ -1186,11 +1192,17 @@ class WBArtifactHandler(StorageHandler):
         return link_creation_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
-        # TODO: recursively resolve the reference until the result is a concrete asset
-        # so that we don't have multiple hops. cc Tim and Shawn. This shouldn't be
-        # too hard, but will require recursively downloading the references. For now,
-        # this allows for multiple reference indirection, which can lead to downloading more
-        # data than desired and more requests to the service.
+        # Resolve the reference until the result is a concrete asset
+        # so that we don't have multiple hops.
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(manifest_entry.ref)
+        artifact = PublicApi().artifact_from_id(artifact_id)
+        entry = artifact.get_entry_by_path(artifact_file_path)
+        while entry.ref && urlparse(entry.ref).scheme == WBArtifactHandler.scheme:
+            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
+            artifact = PublicApi().artifact_from_id(artifact_id)
+            entry = artifact.get_entry_by_path(artifact_file_path)
+
+        path = entry.ref_url()
 
         size = 0
         return [

@@ -1022,6 +1022,14 @@ class JoinedTable(Media):
     def get_json_suffix():
         return "joined-table"
 
+    @classmethod
+    def from_json(cls, json_obj, root="."):
+        return cls(
+            os.path.join(root, json_obj["table1_path"]),
+            os.path.join(root, json_obj["table2_path"]),
+            json_obj["join_key"]
+        )
+
     def to_json(self, artifact):
         table1_path = self._table1_path
         table2_path = self._table2_path
@@ -2304,7 +2312,7 @@ JSONABLE_MEDIA_CLASSES = [
     Image,
     Classes,
     Table,
-    # JoinedTable
+    JoinedTable
 ]
 
 JSON_SUFFIX_TO_CLASS = {
