@@ -202,8 +202,8 @@ class Artifact(object):
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         if isinstance(uri, object):
-            if hasattr(uri, "artifact_ref"):
-                if uri.artifact_ref != self:
+            if hasattr(uri, "parent_artifact"):
+                if uri.parent_artifact != self:
                     ref_url_fn = getattr(uri, "ref_url")
                     if callable(ref_url_fn):
                         uri = ref_url_fn()
@@ -227,17 +227,13 @@ class Artifact(object):
         if isinstance(obj, Media):
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
-                path = name + suffix
-                self.add_reference(
-                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
-                    path,
+                ref_path = obj._source["artifact"].get_path(
+                    obj._source["name"] + suffix
                 )
+                path = name + suffix
                 # TODO: what about the case when there are more than 1 entry returned?
                 # the problem is add_reference can return an array of entries
-                return self.add_reference(
-                    obj._source["artifact"].get_path(obj._source["name"] + suffix),
-                    name + suffix,
-                )[0]
+                return self.add_reference(ref_path, path)[0]
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
@@ -1168,6 +1164,15 @@ class WBArtifactHandler(StorageHandler):
     def scheme(self):
         return self._scheme
 
+    @staticmethod
+    def parse_path(path):
+        url = urlparse(path)
+        return url.netloc, url.path
+        # artifact_parts = path[len(self._scheme) + 3 :].split("/")
+        # artifact_id = artifact_parts[0]
+        # artifact_file_path = os.path.join(*artifact_parts[1:])
+        # return artifact_id, artifact_file_path
+
     def load_path(self, artifact, manifest_entry, local=False):
         path, hit = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
@@ -1175,10 +1180,9 @@ class WBArtifactHandler(StorageHandler):
         if hit:
             return path
 
-        # TODO: Make a more robust schema parsing system
-        artifact_parts = manifest_entry.ref[len(self._scheme) + 3 :].split("/")
-        artifact_id = artifact_parts[0]
-        artifact_file_path = os.path.join(*artifact_parts[1:])
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
+            manifest_entry.ref
+        )
         artifact = PublicApi().artifact_from_id(artifact_id)
         artifact_path = artifact.download()
 
@@ -1192,13 +1196,26 @@ class WBArtifactHandler(StorageHandler):
         return link_creation_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+        # Resolve the reference until the result is a concrete asset
+        # so that we don't have multiple hops.
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
+            manifest_entry.ref
+        )
+        artifact = PublicApi().artifact_from_id(artifact_id)
+        entry = artifact.get_entry_by_path(artifact_file_path)
+        while (
+            entry.ref is not None
+            and urlparse(entry.ref).scheme == WBArtifactHandler.scheme
+        ):
+            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
+            artifact = PublicApi().artifact_from_id(artifact_id)
+            entry = artifact.get_entry_by_path(artifact_file_path)
+
+        path = entry.ref_url()
+
         size = 0
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
-                size=size,
-                digest=path,
-                extra={"download_ref": True},
+                name or os.path.basename(path), path, size=size, digest=path,
             )
         ]
