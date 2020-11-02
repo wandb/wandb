@@ -464,7 +464,10 @@ def test_add_obj_wbimage(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'UhZfZLPavGE2tBRdTvIl3Q==', 'size': 196}
+            "my-image.image-file.json": {
+                "digest": "UhZfZLPavGE2tBRdTvIl3Q==",
+                "size": 196,
+            },
         }
 
 
@@ -481,7 +484,10 @@ def test_add_obj_wbimage_classes_obj(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'UhZfZLPavGE2tBRdTvIl3Q==', 'size': 196}
+            "my-image.image-file.json": {
+                "digest": "UhZfZLPavGE2tBRdTvIl3Q==",
+                "size": 196,
+            },
         }
 
 
@@ -502,7 +508,10 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 64,
             },
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'jhtqSTpnbQyr2sL775eEkQ==', 'size': 207}
+            "my-image.image-file.json": {
+                "digest": "jhtqSTpnbQyr2sL775eEkQ==",
+                "size": 207,
+            },
         }
 
 
@@ -519,7 +528,10 @@ def test_add_obj_wbimage_image_already_added(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-image.image-file.json': {'digest': 'Wr7bZ9hy0p7Yc9eYRbSuvg==', 'size': 183}
+            "my-image.image-file.json": {
+                "digest": "Wr7bZ9hy0p7Yc9eYRbSuvg==",
+                "size": 183,
+            },
         }
 
 
@@ -538,7 +550,7 @@ def test_add_obj_wbtable_images(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            'my-table.table.json': {'digest': 'TZhMeYO9IF2WvpKp4/mNDg==', 'size': 459}
+            "my-table.table.json": {"digest": "TZhMeYO9IF2WvpKp4/mNDg==", "size": 459},
         }
 
 

@@ -407,7 +407,11 @@ class Table(Media):
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             for column in self.columns:
                 if "." in column:
-                    raise ValueError("invalid column name: {} - tables added to artifacts must not contain periods (.).".format(column))
+                    raise ValueError(
+                        "invalid column name: {} - tables added to artifacts must not contain periods (.).".format(
+                            column
+                        )
+                    )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
