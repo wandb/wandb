@@ -2,7 +2,7 @@
 echo "RAN with: $*"
 pyenv version
 pip list
-which wandb
+pyenv exec which wandb
 echo "Stopping all old grpc-server"
 set +e
 (ps auxw | grep "wandb grpc-server" | grep -v grep | awk '{print $2}' | xargs kill) 2>/dev/null
