@@ -2380,6 +2380,37 @@ class ArtifactCollection(object):
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
+def _determine_artifact_root(source_path, target_path):
+    """Helper function to determine the artifact root of `target_path` by comparing to
+    an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
+    abs_source_path = os.path.abspath(source_path)
+    abs_target_path = os.path.abspath(target_path)
+    
+    # Break the source path into parts
+    head = abs_source_path
+    source_path_parts = []
+    while head != "" and head != "/":
+        head, tail = os.path.split(head)
+        source_path_parts.insert(0, tail)
+    source_path_parts.insert(0, head)
+
+    # Break the target path into parts
+    head = abs_target_path
+    target_path_parts = []
+    while head != "" and head != "/":
+        head, tail = os.path.split(head)
+        target_path_parts.insert(0, tail)
+    target_path_parts.insert(0, head)
+
+    # Buildup a shared path (ending with the first difference in the target)
+    shared_path = []
+    while len(source_path_parts) > 0 and len(target_path_parts) > 0:
+        comp = target_path_parts.pop(0)
+        shared_path.append(comp)
+        if comp != source_path_parts.pop(0):
+            break
+
+    return os.path.join(*shared_path)
 
 class Artifact(object):
     QUERY = gql(
@@ -2636,42 +2667,22 @@ class Artifact(object):
 
         manifest = self._load_manifest()
 
-        # TODO (tim): Refactor this to be more maintainable
         for obj_type in JSONABLE_MEDIA_CLASSES:
             wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
             entry = manifest.entries.get(wandb_file_name)
             if entry is not None:
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
+
+                # If the item is a symlink, then find the concrete asset at the end of symlinks
                 if os.path.islink(item_path):
                     link_path = item_path
-                    if os.path.islink(link_path):
+                    while os.path.islink(link_path):
                         link_path = os.readlink(link_path)
-                        abs_item_path = os.path.abspath(item_path)
-                        abs_link_path = os.path.abspath(link_path)
-                        item_path_parts = []
-                        head = abs_item_path
-                        while head != "" and head != "/":
-                            head, tail = os.path.split(head)
-                            item_path_parts.insert(0, tail)
-                        item_path_parts.insert(0, head)
 
-                        head = abs_link_path
-                        link_path_parts = []
-                        while head != "" and head != "/":
-                            head, tail = os.path.split(head)
-                            link_path_parts.insert(0, tail)
-                        link_path_parts.insert(0, head)
+                    root = _determine_artifact_root(item_path, link_path)
 
-                        shared_path = []
-                        while len(item_path_parts) > 0 and len(link_path_parts) > 0:
-                            comp = link_path_parts.pop(0)
-                            shared_path.append(comp)
-                            if comp != item_path_parts.pop(0):
-                                break
-
-                        root = os.path.join(*shared_path)
-
+                # Load the object from the JSON blob
                 result = None
                 json_obj = {}
                 with open(item_path, "r") as file:

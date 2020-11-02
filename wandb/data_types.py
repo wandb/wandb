@@ -33,6 +33,8 @@ from wandb.compat import tempfile
 
 
 def _safe_sdk_import():
+    """Safely imports sdks respecting python version"""
+
     PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
     if PY3:
         from wandb.sdk import wandb_run
