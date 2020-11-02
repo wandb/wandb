@@ -137,6 +137,9 @@ class _WandbInit(object):
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
+        # this must happen after applying global state which overrides mode
+        if not login_key:
+            settings.mode = "offline"
 
         settings._apply_init(kwargs)
 
