@@ -348,6 +348,9 @@ class Table(Media):
                     *tuple(dataframe[col].values[row] for col in self.columns)
                 )
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __eq__(self, other):
         if len(self.data) != len(other.data) or self.columns != other.columns:
             return False
@@ -1035,10 +1038,11 @@ class Classes(Media):
     def to_json(self, artifact):
         return {"_type": "classes", "class_set": self._class_set}
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __eq__(self, other):
-        return (
-            super(Classes, self).__eq__(other) and self._class_set == other._class_set
-        )
+        return self._class_set == other._class_set
 
 
 class JoinedTable(Media):
@@ -1093,6 +1097,9 @@ class JoinedTable(Media):
             "table2_path": table2_path,
             "join_key": self._join_key,
         }
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __eq__(self, other):
         return (
@@ -1455,6 +1462,9 @@ class Image(BatchableMedia):
             return [i._caption for i in images]
         else:
             return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __eq__(self, other):
         return (
