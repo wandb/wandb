@@ -80,6 +80,7 @@ class Agent(object):
 
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
+    MAX_INITIAL_FAILURES = 5
 
     def __init__(
         self, sweep_id=None, project=None, entity=None, function=None, count=None
@@ -95,6 +96,9 @@ class Agent(object):
         # files = (glob_config, loc_config)
         self._api = InternalApi()
         self._agent_id = None
+        self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
+            self.MAX_INITIAL_FAILURES
+        )
         # if the directory to log to is not set, set it
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
@@ -239,6 +243,20 @@ class Agent(object):
                             wandb.termerror(msg)
                             wandb.termlog(
                                 "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                            )
+                            self._exit_flag = True
+                            return
+                        if (
+                            self._max_initial_failures < len(self._exceptions)
+                            and len(self._exceptions) >= count
+                        ):
+                            msg = "Detected {} failed runs in a row at start, killing sweep.".format(
+                                self._max_initial_failures
+                            )
+                            logger.error(msg)
+                            wandb.termerror(msg)
+                            wandb.termlog(
+                                "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
                             )
                             self._exit_flag = True
                             return

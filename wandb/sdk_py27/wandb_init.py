@@ -129,11 +129,12 @@ class _WandbInit(object):
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
         login_key = wandb.login(anonymous=anonymous, force=force)
-        if not login_key:
-            settings.mode = "offline"
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
+        # this must happen after applying global state which overrides mode
+        if not login_key:
+            settings.mode = "offline"
 
         settings._apply_init(kwargs)
 
