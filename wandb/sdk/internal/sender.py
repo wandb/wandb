@@ -614,7 +614,7 @@ class SendManager(object):
         if max_cli_version is None or version.parse(max_cli_version) < version.parse(
             "0.10.9"
         ):
-            wandb.termwarn(
+            logger.warning(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"
             )
