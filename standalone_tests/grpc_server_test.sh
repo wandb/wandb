@@ -1,4 +1,5 @@
 #!/bin/bash
+# hack until we fix debug-cli.log
 mkdir -p wandb
 echo "Stopping all old grpc-server"
 set +e
