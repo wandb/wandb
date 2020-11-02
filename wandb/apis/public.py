@@ -2380,12 +2380,13 @@ class ArtifactCollection(object):
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
+
 def _determine_artifact_root(source_path, target_path):
     """Helper function to determine the artifact root of `target_path` by comparing to
     an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
     abs_source_path = os.path.abspath(source_path)
     abs_target_path = os.path.abspath(target_path)
-    
+
     # Break the source path into parts
     head = abs_source_path
     source_path_parts = []
@@ -2411,6 +2412,7 @@ def _determine_artifact_root(source_path, target_path):
             break
 
     return os.path.join(*shared_path)
+
 
 class Artifact(object):
     QUERY = gql(

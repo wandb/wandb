@@ -224,16 +224,25 @@ class Artifact(object):
 
     # TODO: name this add_obj?
     def add(self, obj, name):
+        """adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
+        the artifact to retrieve this object.
+        
+        Arguments:
+        - `obj`:wandb.Media - the object to save
+        - `name`:str - the path to save
+        """
         if isinstance(obj, Media):
+
+            # If the object is coming from another artifact, save it as a reference
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
                 ref_path = obj._source["artifact"].get_path(
                     obj._source["name"] + suffix
                 )
                 path = name + suffix
-                # TODO: what about the case when there are more than 1 entry returned?
-                # the problem is add_reference can return an array of entries
                 return self.add_reference(ref_path, path)[0]
+
+            # Otherwise, save the object directly via json
             else:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
@@ -1156,6 +1165,8 @@ class HTTPHandler(StorageHandler):
 
 
 class WBArtifactHandler(StorageHandler):
+    """Handles loading and storing WandB Artifact reference-type files"""
+
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
         self._cache = get_artifacts_cache()
