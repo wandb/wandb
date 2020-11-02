@@ -167,6 +167,24 @@ class DummyModule(Dummy, ModuleType):
     pass
 
 
+class DummyDict(dict):
+    def __getattr__(self, key):
+        try:
+            return object.__getattribute__(self, key)
+        except AttributeError:
+            return self[key]
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __getitem__(self, key):
+        val = dict.__getitem__(self, key)
+        if isinstance(val, dict):
+            val = DummyDict(val)
+            self[key] = val
+        return val
+
+
 def disable(globals_=None):
     """
     Replaces all active wandb objects with dummy objects

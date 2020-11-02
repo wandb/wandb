@@ -16,7 +16,7 @@ import traceback
 import six
 import wandb
 from wandb import trigger
-from wandb.dummy import disable, Dummy
+from wandb.dummy import disable, Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -303,28 +303,10 @@ class _WandbInit(object):
         s = self.settings
         config = self.config
         if s._noop:
-            # dict which allows . access to mimic Config
-            class Dict(dict):
-                def __getattr__(self, key):
-                    try:
-                        return object.__getattribute__(self, key)
-                    except AttributeError:
-                        return self[key]
-
-                def __setattr__(self, key, value):
-                    self[key] = value
-
-                def __getitem__(self, key):
-                    val = dict.__getitem__(self, key)
-                    if isinstance(val, dict):
-                        val = Dict(val)
-                        self[key] = val
-                    return val
-
             run = Dummy()
             run.config = wandb.wandb_sdk.wandb_config.Config()
             run.config.update(config)
-            run.summary = Dict()
+            run.summary = DummyDict()
             run.log = lambda data, *_, **__: run.summary.update(data)
             module.set_global(
                 run=run,
