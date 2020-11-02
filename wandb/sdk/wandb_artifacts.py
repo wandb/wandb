@@ -384,7 +384,6 @@ class ArtifactManifestV1(ArtifactManifest):
         hasher = hashlib.md5()
         hasher.update("wandb-artifact-manifest-v1\n".encode())
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
-            print("{}:{}\n".format(name, entry.digest))
             hasher.update("{}:{}\n".format(name, entry.digest).encode())
         return hasher.hexdigest()
 
