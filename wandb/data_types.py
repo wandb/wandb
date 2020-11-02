@@ -1046,9 +1046,37 @@ class Classes(Media):
 
 
 class JoinedTable(Media):
-    def __init__(self, table1_path, table2_path, join_key):
-        self._table1_path = table1_path
-        self._table2_path = table2_path
+    """Joins two tables for visualization in the Artifact UI
+
+    Args:
+        table1 (str | wandb.Table):
+            the path of a wandb.Table or the table object
+        table2 (str | wandb.Table):
+            the path of a wandb.Table or the table object
+        join_key (str | [str, str]):
+            key or keys to perform the join
+    """
+
+    def __init__(self, table1, table2, join_key):
+        if not isinstance(join_key, str) and (
+            not isinstance(join_key, list) or len(join_key) != 2
+        ):
+            raise ValueError(
+                "JoinedTable join_key should be a string or a list of two strings"
+            )
+
+        if not isinstance(table1, str) and not isinstance(table1, Table):
+            raise ValueError(
+                "JoinedTable table1 should be a path or wandb.Table object"
+            )
+
+        if not isinstance(table2, str) and not isinstance(table2, Table):
+            raise ValueError(
+                "JoinedTable table2 should be a path or wandb.Table object"
+            )
+
+        self._table1 = table1
+        self._table2 = table2
         self._join_key = join_key
 
     @staticmethod
@@ -1057,12 +1085,12 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        t1 = os.path.join(root, json_obj["table1_path"])
+        t1 = os.path.join(root, json_obj["table1"])
         if os.path.isfile(t1):
             with open(t1, "r") as file:
                 t1 = Table.from_json(json.load(file), root)
 
-        t2 = os.path.join(root, json_obj["table2_path"])
+        t2 = os.path.join(root, json_obj["table2"])
         if os.path.isfile(t2):
             with open(t2, "r") as file:
                 t2 = Table.from_json(json.load(file), root)
@@ -1070,31 +1098,31 @@ class JoinedTable(Media):
         return cls(t1, t2, json_obj["join_key"],)
 
     def to_json(self, artifact):
-        table1_path = self._table1_path
-        table2_path = self._table2_path
+        table1 = self._table1
+        table2 = self._table2
 
-        if isinstance(self._table1_path, Table):
+        if isinstance(self._table1, Table):
             table_name = "t1_" + str(id(self))
-            if hasattr(self._table1_path, "_source") and hasattr(
-                self._table1_path._source, "name"
+            if hasattr(self._table1, "_source") and hasattr(
+                self._table1._source, "name"
             ):
-                table_name = os.path.basename(self._table1_path._source["name"])
-            entry = artifact.add(self._table1_path, table_name)
-            table1_path = entry.path
+                table_name = os.path.basename(self._table1._source["name"])
+            entry = artifact.add(self._table1, table_name)
+            table1 = entry.path
 
-        if isinstance(self._table2_path, Table):
+        if isinstance(self._table2, Table):
             table_name = "t2_" + str(id(self))
-            if hasattr(self._table2_path, "_source") and hasattr(
-                self._table2_path._source, "name"
+            if hasattr(self._table2, "_source") and hasattr(
+                self._table2._source, "name"
             ):
-                table_name = os.path.basename(self._table2_path._source["name"])
-            entry = artifact.add(self._table2_path, table_name)
-            table2_path = entry.path
+                table_name = os.path.basename(self._table2._source["name"])
+            entry = artifact.add(self._table2, table_name)
+            table2 = entry.path
 
         return {
             "_type": JoinedTable.get_json_suffix(),
-            "table1_path": table1_path,
-            "table2_path": table2_path,
+            "table1": table1,
+            "table2": table2,
             "join_key": self._join_key,
         }
 
@@ -1103,8 +1131,8 @@ class JoinedTable(Media):
 
     def __eq__(self, other):
         return (
-            self._table1_path == other._table1_path
-            and self._table2_path == other._table2_path
+            self._table1 == other._table1
+            and self._table2 == other._table2
             and self._join_key == other._join_key
         )
 
