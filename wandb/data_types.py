@@ -346,6 +346,17 @@ class Table(Media):
                     *tuple(dataframe[col].values[row] for col in self.columns)
                 )
 
+    def __eq__(self, other):
+        if len(self.data) != len(other.data) or self.columns != other.columns:
+            return False
+
+        for row_ndx in range(len(self.data)):
+            for col_ndx in range(len(self.data[row_ndx])):
+                if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
+                    return False
+
+        return True
+
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
@@ -1022,6 +1033,11 @@ class Classes(Media):
     def to_json(self, artifact):
         return {"_type": "classes", "class_set": self._class_set}
 
+    def __eq__(self, other):
+        return (
+            super(Classes, self).__eq__(other) and self._class_set == other._class_set
+        )
+
 
 class JoinedTable(Media):
     def __init__(self, table1_path, table2_path, join_key):
@@ -1122,7 +1138,10 @@ class Image(BatchableMedia):
                 raise ValueError('Images "boxes" argument must be a dictionary')
             boxes_final = {}
             for key in boxes:
-                boxes_final[key] = BoundingBoxes2D(boxes[key], key)
+                if isinstance(boxes[key], BoundingBoxes2D):
+                    boxes_final[key] = boxes[key]
+                else:
+                    boxes_final[key] = BoundingBoxes2D(boxes[key], key)
             self._boxes = boxes_final
 
         self._masks = None
@@ -1422,6 +1441,16 @@ class Image(BatchableMedia):
         else:
             return False
 
+    def __eq__(self, other):
+        return (
+            self._grouping == other._grouping
+            and self._caption == other._caption
+            and self._width == other._width
+            and self._height == other._height
+            and self._image == other._image
+            and self._classes == other._classes
+        )
+
 
 # Allows encoding of arbitrary JSON structures
 # as a file
@@ -1570,13 +1599,16 @@ class BoundingBoxes2D(JSONMetadata):
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            return self._val
+            return (
+                self._val
+            )  # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
+            # want to mess with the visualizations that are currently available.
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        return cls(json_obj, "")
+        return cls({"box_data": json_obj}, "")
 
 
 class ImageMask(Media):

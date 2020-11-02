@@ -1167,11 +1167,7 @@ class WBArtifactHandler(StorageHandler):
     @staticmethod
     def parse_path(path):
         url = urlparse(path)
-        return url.netloc, url.path
-        # artifact_parts = path[len(self._scheme) + 3 :].split("/")
-        # artifact_id = artifact_parts[0]
-        # artifact_file_path = os.path.join(*artifact_parts[1:])
-        # return artifact_id, artifact_file_path
+        return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
 
     def load_path(self, artifact, manifest_entry, local=False):
         path, hit = self._cache.check_etag_obj_path(
@@ -1187,7 +1183,9 @@ class WBArtifactHandler(StorageHandler):
         artifact_path = artifact.download()
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
-        link_creation_path = os.path.join(self._cache._cache_dir, link_target_path)
+        link_creation_path = os.path.join(
+            self._cache._cache_dir, "tim", link_target_path
+        )
         filesystem._safe_makedirs(os.path.dirname(link_creation_path))
         if os.path.islink(link_creation_path):
             os.unlink(link_creation_path)
@@ -1198,20 +1196,16 @@ class WBArtifactHandler(StorageHandler):
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         # Resolve the reference until the result is a concrete asset
         # so that we don't have multiple hops.
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
-            manifest_entry.ref
-        )
-        artifact = PublicApi().artifact_from_id(artifact_id)
-        entry = artifact.get_entry_by_path(artifact_file_path)
-        while (
-            entry.ref is not None
-            and urlparse(entry.ref).scheme == WBArtifactHandler.scheme
-        ):
-            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            artifact = PublicApi().artifact_from_id(artifact_id)
-            entry = artifact.get_entry_by_path(artifact_file_path)
+        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
+        target_artifact = PublicApi().artifact_from_id(artifact_id)
+        entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
-        path = entry.ref_url()
+        while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
+            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
+            target_artifact = PublicApi().artifact_from_id(artifact_id)
+            entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
+
+        path = "wandb-artifact://{}/{}".format(str(target_artifact.id), str(entry.path))
 
         size = 0
         return [

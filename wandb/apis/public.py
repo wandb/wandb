@@ -2636,6 +2636,7 @@ class Artifact(object):
 
         manifest = self._load_manifest()
 
+        # TODO (tim): Refactor this to be more maintainable
         for obj_type in JSONABLE_MEDIA_CLASSES:
             wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
             entry = manifest.entries.get(wandb_file_name)
