@@ -458,16 +458,13 @@ def test_add_obj_wbimage(runner):
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
         artifact.add(wb_image, "my-image")
 
-        assert artifact.digest == "20de491de6fe059dce7d01011ccd50d9"
+        assert artifact.digest == "c2e72e6e5261043b8d03461576f8ff88"
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "4SDhgUz28S9eIL2l44r1QQ==",
-                "size": 196,
-            },
+            'my-image.image-file.json': {'digest': 'UhZfZLPavGE2tBRdTvIl3Q==', 'size': 196}
         }
 
 
@@ -484,10 +481,7 @@ def test_add_obj_wbimage_classes_obj(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "4SDhgUz28S9eIL2l44r1QQ==",
-                "size": 196,
-            },
+            'my-image.image-file.json': {'digest': 'UhZfZLPavGE2tBRdTvIl3Q==', 'size': 196}
         }
 
 
@@ -508,10 +502,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 64,
             },
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "V6nFpdY77fpMfHpBvKskiA==",
-                "size": 207,
-            },
+            'my-image.image-file.json': {'digest': 'jhtqSTpnbQyr2sL775eEkQ==', 'size': 207}
         }
 
 
@@ -528,10 +519,7 @@ def test_add_obj_wbimage_image_already_added(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "jrWWP1XoW6ryRc0jrVHsvQ==",
-                "size": 183,
-            },
+            'my-image.image-file.json': {'digest': 'Wr7bZ9hy0p7Yc9eYRbSuvg==', 'size': 183}
         }
 
 
@@ -550,7 +538,7 @@ def test_add_obj_wbtable_images(runner):
         assert manifest["contents"] == {
             "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
             "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-table.table.json": {"digest": "jq0OCE0XvYFzhvwS17kD2w==", "size": 459},
+            'my-table.table.json': {'digest': 'TZhMeYO9IF2WvpKp4/mNDg==', 'size': 459}
         }
 
 
@@ -702,7 +690,7 @@ def test_add_obj_wbtable_images(runner):
 #             assert file.read() == file_text
 
 
-# def _digest_path(content):
+# def _digest_content(content):
 #     path = os.path.join("tmp", "wandb", "digests")
 #     if not os.isdir(path):
 #         os.path.makedirs(path)

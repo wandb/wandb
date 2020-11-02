@@ -251,7 +251,7 @@ class Artifact(object):
                     import json
 
                     # TODO: Do we need to open with utf-8 codec?
-                    f.write(json.dumps(obj.to_json(self)))
+                    f.write(json.dumps(obj.to_json(self), sort_keys=True))
                 # Note, we add the file from our temp directory.
                 # It will be added again later on finalize, but succeed since
                 # the checksum should match
@@ -384,6 +384,7 @@ class ArtifactManifestV1(ArtifactManifest):
         hasher = hashlib.md5()
         hasher.update("wandb-artifact-manifest-v1\n".encode())
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
+            print("{}:{}\n".format(name, entry.digest))
             hasher.update("{}:{}\n".format(name, entry.digest).encode())
         return hasher.hexdigest()
 
