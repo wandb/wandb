@@ -4,6 +4,8 @@ import os
 import time
 import shutil
 import requests
+import binascii
+
 from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
@@ -1164,6 +1166,14 @@ class HTTPHandler(StorageHandler):
         return digest, size, extra
 
 
+def _id_to_hex(id_string):
+    return binascii.hexlify(bytes(str(id_string), "utf-8")).decode("utf-8")
+
+
+def _hex_to_id(hex_string):
+    return binascii.unhexlify(hex_string).decode("utf-8")
+
+
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing WandB Artifact reference-type files"""
 
@@ -1190,12 +1200,12 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
             manifest_entry.ref
         )
-        artifact = PublicApi().artifact_from_id(artifact_id)
+        artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
         artifact_path = artifact.download()
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
         link_creation_path = os.path.join(
-            self._cache._cache_dir, "tim", link_target_path
+            self._cache._cache_dir, "tmp", link_target_path
         )
         filesystem._safe_makedirs(os.path.dirname(link_creation_path))
         if os.path.islink(link_creation_path):
@@ -1208,15 +1218,17 @@ class WBArtifactHandler(StorageHandler):
         # Resolve the reference until the result is a concrete asset
         # so that we don't have multiple hops.
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        target_artifact = PublicApi().artifact_from_id(artifact_id)
+        target_artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
         entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            target_artifact = PublicApi().artifact_from_id(artifact_id)
+            target_artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
-        path = "wandb-artifact://{}/{}".format(str(target_artifact.id), str(entry.path))
+        path = "wandb-artifact://{}/{}".format(
+            _id_to_hex(target_artifact.id), str(entry.path)
+        )
 
         size = 0
         return [

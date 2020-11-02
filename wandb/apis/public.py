@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import time
+import binascii
 
 from gql import Client, gql
 from gql.client import RetryError
@@ -2650,7 +2651,14 @@ class Artifact(object):
 
             @staticmethod
             def ref_url():
-                return "wandb-artifact://" + parent_self.id + "/" + name
+                return (
+                    "wandb-artifact://"
+                    + binascii.hexlify(bytes(str(parent_self.id), "utf-8")).decode(
+                        "utf-8"
+                    )
+                    + "/"
+                    + name
+                )
 
         return ArtifactEntry()
 

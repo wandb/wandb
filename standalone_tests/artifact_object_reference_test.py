@@ -2,10 +2,11 @@
 import shutil
 import wandb
 import os
+import binascii
 
 classes = [{"id": 0, "name": "person"}]
 columns = ["examples", "index"]
-PROJECT_NAME = "test_project_art"
+PROJECT_NAME = "test_project_artifacts__"
 
 
 def _make_wandb_image(suffix=""):
@@ -72,7 +73,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(str(upstream_artifact.id),str(upstream_artifact_file_path)),
+            "wandb-artifact://{}/{}".format(binascii.hexlify(bytes(str(upstream_artifact.id), "utf-8")).decode("utf-8"),str(upstream_artifact_file_path)),
             middle_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -82,7 +83,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(str(middle_artifact.id),str(middle_artifact_file_path)),
+            "wandb-artifact://{}/{}".format(binascii.hexlify(bytes(str(middle_artifact.id), "utf-8")).decode("utf-8"),str(middle_artifact_file_path)),
             downstream_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -239,6 +240,8 @@ def _cleanup():
         shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):
         shutil.rmtree("artifacts")
+    if os.path.isdir("upstream"):
+        shutil.rmtree("upstream")
 
 
 if __name__ == "__main__":
