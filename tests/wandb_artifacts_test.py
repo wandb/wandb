@@ -679,7 +679,7 @@ def _make_wandb_table():
 
 
 def _make_wandb_joinedtable():
-    return wandb.JoinedTable(_make_wandb_table, _make_wandb_table, "id")
+    return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
 
 
 def simulate_artifact_download(artifact):

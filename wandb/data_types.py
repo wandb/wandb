@@ -1051,11 +1051,17 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, root="."):
-        return cls(
-            os.path.join(root, json_obj["table1_path"]),
-            os.path.join(root, json_obj["table2_path"]),
-            json_obj["join_key"],
-        )
+        t1 = os.path.join(root, json_obj["table1_path"])
+        if os.path.isfile(t1):
+            with open(t1, "r") as file:
+                t1 = Table.from_json(json.load(file), root)
+
+        t2 = os.path.join(root, json_obj["table2_path"])
+        if os.path.isfile(t2):
+            with open(t2, "r") as file:
+                t2 = Table.from_json(json.load(file), root)
+
+        return cls(t1, t2, json_obj["join_key"],)
 
     def to_json(self, artifact):
         table1_path = self._table1_path
@@ -1085,6 +1091,13 @@ class JoinedTable(Media):
             "table2_path": table2_path,
             "join_key": self._join_key,
         }
+
+    def __eq__(self, other):
+        return (
+            self._table1_path == other._table1_path
+            and self._table2_path == other._table2_path
+            and self._join_key == other._join_key
+        )
 
 
 class Image(BatchableMedia):
