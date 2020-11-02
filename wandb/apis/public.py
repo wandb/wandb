@@ -1,3 +1,4 @@
+import binascii
 import datetime
 from functools import partial
 import json
@@ -9,7 +10,6 @@ import shutil
 import sys
 import tempfile
 import time
-import binascii
 
 from gql import Client, gql
 from gql.client import RetryError
