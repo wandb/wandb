@@ -1,5 +1,6 @@
 #!/bin/bash
 echo "RAN with: $*"
+mkdir -p wandb
 pyenv version
 pip list
 pyenv exec which wandb
