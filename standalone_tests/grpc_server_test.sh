@@ -10,9 +10,9 @@ set -e
 echo "Wait for servers to be gone..."
 sleep 1
 echo "Running grpc-server in the background..."
-python -m wandb grpc-server &
+pyenv exec wandb grpc-server &
 echo "Wait for server to be up..."
 sleep 1
 echo "Starting grpc client..."
-python grpc_client.py
+pyenv exec python grpc_client.py
 echo "done."
