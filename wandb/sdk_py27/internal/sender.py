@@ -11,7 +11,7 @@ import logging
 import os
 import time
 
-from packaging import version  # type: ignore
+from pkg_resources import parse_version
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -611,7 +611,7 @@ class SendManager(object):
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
-        if max_cli_version is None or version.parse(max_cli_version) < version.parse(
+        if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
         ):
             logger.warning(
