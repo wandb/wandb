@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import base64
+import binascii
 import colorsys
 import codecs
 import errno
@@ -1103,3 +1104,11 @@ def add_import_hook(fullname, on_import):
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
+
+
+def encode_artifact_id(id_string):
+    return binascii.hexlify(bytes(str(id_string), "utf-8")).decode("utf-8")
+
+
+def decode_artifact_id(encoded_string):
+    return binascii.unhexlify(encoded_string).decode("utf-8")

@@ -20,6 +20,7 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
+from wandb.data_types import JSONABLE_MEDIA_CLASSES
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
@@ -512,6 +513,9 @@ class Api(object):
         if type is not None and artifact.type != type:
             raise ValueError("type %s specified but this artifact is of type %s")
         return artifact
+
+    def artifact_from_id(self, id):
+        return Artifact.from_id(self.client, id)
 
 
 class Attrs(object):
@@ -2377,7 +2381,100 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
+def _path_to_parts(head):
+    parts = []
+    while head != "":
+        new_head, tail = os.path.split(head)
+        if new_head == head:
+            break
+        else:
+            head = new_head
+        parts.append(tail)
+    if head != "":
+        parts.append(head)
+    return parts[::-1]
+
+
+def _determine_artifact_root(source_path, target_path):
+    """Helper function to determine the artifact root of `target_path` by comparing to
+    an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
+    abs_source_path = os.path.abspath(source_path)
+    abs_target_path = os.path.abspath(target_path)
+
+    # Break the source path into parts
+    source_path_parts = _path_to_parts(abs_source_path)
+    target_path_parts = _path_to_parts(abs_target_path)
+
+    # Buildup a shared path (ending with the first difference in the target)
+    shared_path = []
+    while len(source_path_parts) > 0 and len(target_path_parts) > 0:
+        comp = target_path_parts.pop(0)
+        shared_path.append(comp)
+        if comp != source_path_parts.pop(0):
+            break
+
+    return os.path.join(*shared_path)
+
+
 class Artifact(object):
+    QUERY = gql(
+        """
+        query Artifact(
+            $id: ID!,
+        ) {
+            artifact(id: $id) {
+                currentManifest {
+                    id
+                    file {
+                        id
+                        directUrl
+                    }
+                }
+                ...ArtifactFragment
+            }
+        }
+        %s
+    """
+        % ARTIFACT_FRAGMENT
+    )
+
+    @classmethod
+    def from_id(cls, client, id):
+        response = client.execute(Artifact.QUERY, variable_values={"id": id},)
+
+        name = None
+        if response.get("artifact") is not None:
+            if response["artifact"].get("aliases") is not None:
+                aliases = response["artifact"]["aliases"]
+                name = ":".join(
+                    [aliases[0]["artifactCollectionName"], aliases[0]["alias"]]
+                )
+                if len(aliases) > 1:
+                    for alias in aliases:
+                        if alias["alias"] != "latest":
+                            name = ":".join(
+                                [alias["artifactCollectionName"], alias["alias"]]
+                            )
+                            break
+
+            artifact = cls(
+                client=client,
+                entity=None,
+                project=None,
+                name=name,
+                attrs=response["artifact"],
+            )
+            index_file_url = response["artifact"]["currentManifest"]["file"][
+                "directUrl"
+            ]
+            with requests.get(index_file_url) as req:
+                req.raise_for_status()
+                artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    artifact, json.loads(req.content)
+                )
+
+            return artifact
+
     def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
         self.entity = entity
@@ -2495,15 +2592,19 @@ class Artifact(object):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def get_path(self, name):
-        manifest = self._load_manifest()
+        parent_self = self
+        manifest = parent_self._load_manifest()
         storage_policy = manifest.storage_policy
-        default_root = self._default_root()
+        default_root = parent_self._default_root()
 
         entry = manifest.entries.get(name)
         if entry is None:
             raise KeyError("Path not contained in artifact: %s" % name)
 
         class ArtifactEntry(object):
+            def __init__(self):
+                self.parent_artifact = parent_self
+
             @staticmethod
             def copy(cache_path, target_path):
                 # can't have colons in Windows
@@ -2519,7 +2620,14 @@ class Artifact(object):
                     util.mkdir_exists_ok(os.path.dirname(target_path))
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).
-                    shutil.copy2(cache_path, target_path)
+                    if os.path.islink(cache_path):
+                        if os.path.islink(target_path):
+                            os.unlink(target_path)
+                        os.symlink(
+                            os.path.abspath(os.readlink(cache_path)), target_path
+                        )
+                    else:
+                        shutil.copy2(cache_path, target_path)
                 return target_path
 
             @staticmethod
@@ -2527,23 +2635,72 @@ class Artifact(object):
                 root = root or default_root
                 if entry.ref is not None:
                     cache_path = storage_policy.load_reference(
-                        self, name, manifest.entries[name], local=True
+                        parent_self, name, manifest.entries[name], local=True
                     )
                 else:
                     cache_path = storage_policy.load_file(
-                        self, name, manifest.entries[name]
+                        parent_self, name, manifest.entries[name]
                     )
+
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
             @staticmethod
             def ref():
                 if entry.ref is not None:
                     return storage_policy.load_reference(
-                        self, name, manifest.entries[name], local=False
+                        parent_self, name, manifest.entries[name], local=False
                     )
                 raise ValueError("Only reference entries support ref().")
 
+            @staticmethod
+            def ref_url():
+                return (
+                    "wandb-artifact://"
+                    + util.encode_artifact_id(parent_self.id)
+                    + "/"
+                    + name
+                )
+
         return ArtifactEntry()
+
+    def get(self, name):
+        """Returns the wandb.Media resource stored in the artifact. Media can be
+        stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
+        Args:
+            name (str): name of resource.
+
+        Returns:
+            A :obj:`wandb.Media` which has been stored at `name`
+        """
+        root = self._default_root()
+        if not self._is_downloaded:
+            root = self.download()
+
+        manifest = self._load_manifest()
+
+        for obj_type in JSONABLE_MEDIA_CLASSES:
+            wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
+            entry = manifest.entries.get(wandb_file_name)
+            if entry is not None:
+                item = self.get_path(wandb_file_name)
+                item_path = item.download()
+
+                # If the item is a symlink, then find the concrete asset at the end of symlinks
+                if os.path.islink(item_path):
+                    link_path = item_path
+                    while os.path.islink(link_path):
+                        link_path = os.readlink(link_path)
+
+                    root = _determine_artifact_root(item_path, link_path)
+
+                # Load the object from the JSON blob
+                result = None
+                json_obj = {}
+                with open(item_path, "r") as file:
+                    json_obj = json.load(file)
+                result = obj_type.from_json(json_obj, root)
+                result._source = {"artifact": self, "name": name}
+                return result
 
     def download(self, root=None):
         """Download the artifact to dir specified by the <root>
