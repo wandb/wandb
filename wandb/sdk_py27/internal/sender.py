@@ -11,6 +11,7 @@ import logging
 import os
 import time
 
+from packaging import version  # type: ignore
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -603,6 +604,27 @@ class SendManager(object):
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,
         )
+
+    def send_alert(self, data):
+        alert = data.alert
+        _, server_info = self._api.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        if max_cli_version is None or version.parse(max_cli_version) < version.parse(
+            "0.10.9"
+        ):
+            logger.warning(
+                "This W&B server doesn't support alerts, "
+                "have your administrator install wandb/local >= 0.9.31"
+            )
+        else:
+            self._api.notify_scriptable_run_alert(
+                title=alert.title,
+                text=alert.text,
+                level=alert.level,
+                wait_duration=alert.wait_duration,
+            )
 
     def finish(self):
         logger.info("shutting down sender")
