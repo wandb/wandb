@@ -53,6 +53,7 @@ DOCKER = "WANDB_DOCKER"
 AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
 AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
 AGENT_DISABLE_FLAPPING = "WANDB_AGENT_DISABLE_FLAPPING"
+AGENT_MAX_INITIAL_FAILURES = "WANDB_AGENT_MAX_INITIAL_FAILURES"
 CRASH_NOSYNC_TIME = "WANDB_CRASH_NOSYNC_TIME"
 MAGIC = "WANDB_MAGIC"
 HOST = "WANDB_HOST"
@@ -288,6 +289,17 @@ def get_use_v1_artifacts(env=None):
     if env is None:
         env = os.environ
     val = env.get(USE_V1_ARTIFACTS, False)
+    return val
+
+
+def get_agent_max_initial_failures(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(AGENT_MAX_INITIAL_FAILURES, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = default
     return val
 
 

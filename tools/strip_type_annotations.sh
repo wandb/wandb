@@ -45,6 +45,7 @@ for dir in $CODEMOD_DIRS; do
     cnt_dest=`wc -l <$dest/$b`
     if [ $cnt_src -ne $cnt_dest ]; then
       echo "ERROR: mismatch file length $b $cnt_src != $cnt_dest"
+      exit 1
     fi
   done
 

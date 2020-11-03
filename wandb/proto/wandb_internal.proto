@@ -31,6 +31,7 @@ message Record {
     StatsRecord    stats = 7;
     ArtifactRecord artifact = 8;
     TBRecord       tbrecord = 9;
+    AlertRecord    alert = 10;
     // Higher numbers for less frequent data
     RunRecord      run = 17;
     RunExitRecord  exit = 18;
@@ -300,6 +301,16 @@ message StoragePolicyConfigItem {
 message TBRecord {
   string log_dir = 1;
   bool   save = 2;
+}
+
+/*
+ * AlertRecord: store alert notifications
+ */
+message AlertRecord {
+  string title = 1;
+  string text = 2;
+  string level = 3;
+  int64  wait_duration = 4;
 }
 
 /************************

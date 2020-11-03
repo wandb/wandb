@@ -53,6 +53,7 @@ join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
+AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
@@ -101,8 +102,6 @@ def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
 
-# from wandb.lib.ipython import _get_python_type
-
 # toplevel:
 # save()
 # restore()
@@ -122,7 +121,7 @@ summary = _preinit.PreInitCallable(
 )
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
-restore = _preinit.PreInitCallable("wandb.restore", wandb_sdk.wandb_run.Run.restore)
+restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
     "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact
 )
@@ -132,6 +131,7 @@ log_artifact = _preinit.PreInitCallable(
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
+alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}

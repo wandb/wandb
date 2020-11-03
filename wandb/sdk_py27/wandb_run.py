@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import atexit
 import collections
+from datetime import timedelta
 import glob
 import json
 import logging
@@ -118,8 +119,11 @@ class RunStatusChecker(object):
                 or False
             )
             if status_response.run_should_stop:
-                thread.interrupt_main()
-                return
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
+                    thread.interrupt_main()
+                    return
             join_requested = self._join_event.wait(self._polling_interval)
 
     def stop(self):
@@ -1004,39 +1008,7 @@ class Run(RunBase):
         replace = False,
         root = None,
     ):
-        """ Downloads the specified file from cloud storage into the current run directory
-        if it doesn't exist.
-
-        Args:
-            name: the name of the file
-            run_path: optional path to a different run to pull files from
-            replace: whether to download the file even if it already exists locally
-            root: the directory to download the file to.  Defaults to the current
-                directory or the run directory if wandb.init was called.
-
-        Returns:
-            None if it can't find the file, otherwise a file object open for reading
-
-        Raises:
-            wandb.CommError if it can't find the run
-            ValueError if the file is not found
-        """
-
-        #  TODO: handle restore outside of a run context?
-        api = public.Api()
-        api_run = api.run(run_path or self.path)
-        if root is None:
-            root = self.dir  # TODO: runless else '.'
-        path = os.path.join(root, name)
-        if os.path.exists(path) and replace is False:
-            return open(path, "r")
-        files = api_run.files([name])
-        if len(files) == 0:
-            return None
-        # if the file does not exist, the file has an md5 of 0
-        if files[0].md5 == "0":
-            raise ValueError("File {} not found in {}.".format(name, run_path or root))
-        return files[0].download(root=root, replace=True)
+        return restore(name, run_path or self.path, replace, root or self.dir)
 
     def finish(self, exit_code=None):
         """Marks a run as finished, and finishes uploading all data.  This is
@@ -1797,6 +1769,37 @@ class Run(RunBase):
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
 
+    def alert(self, title, text, level=None, wait_duration=None):
+        """Launch an alert with the given title and text.
+
+        Args:
+            title (str): The title of the alert, must be less than 64 characters long
+            text (str): The text body of the alert
+            level (str or wandb.AlertLevel, optional): The alert level to use, either: "INFO", "WARN", or "ERROR"
+            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
+                with this title
+        """
+        level = level or wandb.AlertLevel.INFO
+        if isinstance(level, wandb.AlertLevel):
+            level = level.value
+        if level not in (
+            wandb.AlertLevel.INFO.value,
+            wandb.AlertLevel.WARN.value,
+            wandb.AlertLevel.ERROR.value,
+        ):
+            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
+
+        wait_duration = wait_duration or timedelta(minutes=1)
+        if isinstance(wait_duration, int) or isinstance(wait_duration, float):
+            wait_duration = timedelta(seconds=wait_duration)
+        elif not callable(getattr(wait_duration, "total_seconds", None)):
+            raise ValueError(
+                "wait_duration must be an int, float, or datetime.timedelta"
+            )
+        wait_duration = int(wait_duration.total_seconds() * 1000)
+
+        self._backend.interface.publish_alert(title, text, level, wait_duration)
+
     def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
         self._use_redirect = use_redirect
         self._stdout_slave_fd = stdout_slave_fd
@@ -1809,6 +1812,67 @@ class Run(RunBase):
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
+
+
+# We define this outside of the run context to support restoring before init
+def restore(
+    name,
+    run_path = None,
+    replace = False,
+    root = None,
+):
+    """ Downloads the specified file from cloud storage into the current directory
+        or run directory.  By default this will only download the file if it doesn't
+        already exist.
+
+        Args:
+            name: the name of the file
+            run_path: optional path to a run to pull files from, i.e. username/project_name/run_id
+                if wandb.init has not been called, this is required.
+            replace: whether to download the file even if it already exists locally
+            root: the directory to download the file to.  Defaults to the current
+                directory or the run directory if wandb.init was called.
+
+        Returns:
+            None if it can't find the file, otherwise a file object open for reading
+
+        Raises:
+            wandb.CommError if we can't connect to the wandb backend
+            ValueError if the file is not found or can't find run_path
+    """
+
+    if run_path is None:
+        if wandb.run is not None:
+            run_path = wandb.run.path
+        else:
+            raise ValueError(
+                "run_path required when calling wandb.restore before wandb.init"
+            )
+    if root is None:
+        if wandb.run is not None:
+            root = wandb.run.dir
+    api = public.Api()
+    api_run = api.run(run_path)
+    if root is None:
+        root = os.getcwd()
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace is False:
+        return open(path, "r")
+    files = api_run.files([name])
+    if len(files) == 0:
+        return None
+    # if the file does not exist, the file has an md5 of 0
+    if files[0].md5 == "0":
+        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+    return files[0].download(root=root, replace=True)
+
+
+# propigate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
 
 
 def huggingface_version():
