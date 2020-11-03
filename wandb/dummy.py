@@ -168,7 +168,7 @@ class DummyModule(Dummy, ModuleType):
 
 
 class DummyDict(dict):
-    def __getattr__(self, key):
+    def __getattribute__(self, key):
         try:
             return object.__getattribute__(self, key)
         except AttributeError:
