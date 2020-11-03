@@ -7,7 +7,10 @@ config.
 import logging
 
 import six
-from six.moves.collections_abc import Sequence
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
 import wandb
 from wandb.util import json_friendly
 
