@@ -1195,7 +1195,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
             manifest_entry.ref
         )
-        artifact = PublicApi().artifact_from_id(util.decode_artifact_id(artifact_id))
+        artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
         artifact_path = artifact.download()
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
@@ -1213,20 +1213,18 @@ class WBArtifactHandler(StorageHandler):
         # Resolve the reference until the result is a concrete asset
         # so that we don't have multiple hops.
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        target_artifact = PublicApi().artifact_from_id(
-            util.decode_artifact_id(artifact_id)
-        )
+        target_artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
         entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
             target_artifact = PublicApi().artifact_from_id(
-                util.decode_artifact_id(artifact_id)
+                util.hex_to_b64_id(artifact_id)
             )
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         path = "wandb-artifact://{}/{}".format(
-            util.encode_artifact_id(target_artifact.id), str(entry.path)
+            util.b64_to_hex_id(target_artifact.id), str(entry.path)
         )
 
         size = 0

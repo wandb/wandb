@@ -2656,7 +2656,7 @@ class Artifact(object):
             def ref_url():
                 return (
                     "wandb-artifact://"
-                    + util.encode_artifact_id(parent_self.id)
+                    + util.b64_to_hex_id(parent_self.id)
                     + "/"
                     + name
                 )
