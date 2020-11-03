@@ -312,6 +312,7 @@ class _WandbInit(object):
                 use_artifact=run.use_artifact,
                 log_artifact=run.log_artifact,
                 plot_table=run.plot_table,
+                alert=run.alert,
             )
             return run
 
@@ -404,6 +405,7 @@ class _WandbInit(object):
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
             plot_table=run.plot_table,
+            alert=run.alert,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -422,9 +424,7 @@ def getcaller():
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[
-        Dict, str, None
-    ] = None,  # TODO(jhr): type is a union for argparse/absl
+    config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -432,7 +432,7 @@ def init(
     group: Optional[str] = None,
     name: Optional[str] = None,
     notes: Optional[str] = None,
-    magic: Union[dict, str, bool] = None,  # TODO(jhr): type is union
+    magic: Union[dict, str, bool] = None,
     config_exclude_keys=None,
     config_include_keys=None,
     anonymous: Optional[str] = None,
