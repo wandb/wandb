@@ -105,6 +105,9 @@ class HandleManager(object):
     def handle_artifact(self, record):
         self._dispatch_record(record)
 
+    def handle_alert(self, record):
+        self._dispatch_record(record)
+
     def _save_summary(self, summary_dict, flush=False):
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
