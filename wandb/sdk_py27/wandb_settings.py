@@ -40,9 +40,10 @@ import time
 
 import six
 import wandb
-from wandb.lib.git import GitRepo
-from wandb.lib.ipython import _get_python_type
-from wandb.lib.runid import generate_id
+
+from .lib.git import GitRepo
+from .lib.ipython import _get_python_type
+from .lib.runid import generate_id
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (  # noqa: F401 pylint: disable=unused-import

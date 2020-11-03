@@ -7,6 +7,7 @@ import sys
 import shutil
 from contextlib import contextmanager
 from tests import utils
+
 # from multiprocessing import Process
 import subprocess
 import click
@@ -16,10 +17,18 @@ import git
 import psutil
 import atexit
 import wandb
-from wandb.lib.module import unset_globals
-from wandb.lib.git import GitRepo
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib.module import unset_globals
+    from wandb.sdk.lib.git import GitRepo
+else:
+    from wandb.sdk_py27.lib.module import unset_globals
+    from wandb.sdk_py27.lib.git import GitRepo
+
 try:
     import nbformat
 except ImportError:  # TODO: no fancy notebook fun in python2
@@ -30,7 +39,7 @@ try:
 except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
-DUMMY_API_KEY = '1824812581259009ca9981580f8f8a9012409eee'
+DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 server = None
 
 
@@ -53,9 +62,14 @@ def start_mock_server():
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
     logfile = open("tests/logs/live_mock_server.log", "w")
-    server = subprocess.Popen(command, stdout=logfile,
-                              env=env, stderr=subprocess.STDOUT, bufsize=1,
-                              close_fds=True)
+    server = subprocess.Popen(
+        command,
+        stdout=logfile,
+        env=env,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        close_fds=True,
+    )
     server._port = port
     server.base_url = "http://localhost:%i" % server._port
 
@@ -87,8 +101,10 @@ def start_mock_server():
             else:
                 raise ValueError("Server failed to start.")
     if started:
-        print("Mock server listing on %s see tests/logs/live_mock_server.log" %
-              server._port)
+        print(
+            "Mock server listing on %s see tests/logs/live_mock_server.log"
+            % server._port
+        )
     else:
         server.terminate()
         print("Server failed to launch, see tests/logs/live_mock_server.log")
@@ -143,16 +159,18 @@ def test_settings(test_dir, mocker):
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     # TODO: consider making a debugable directory that stays around...
-    settings = wandb.Settings(_start_time=time.time(),
-                              base_url="http://localhost",
-                              root_dir=os.getcwd(),
-                              save_code=True,
-                              project="test",
-                              console="off",
-                              host="test",
-                              api_key=DUMMY_API_KEY,
-                              run_id=wandb.util.generate_id(),
-                              _start_datetime=datetime.datetime.now())
+    settings = wandb.Settings(
+        _start_time=time.time(),
+        base_url="http://localhost",
+        root_dir=os.getcwd(),
+        save_code=True,
+        project="test",
+        console="off",
+        host="test",
+        api_key=DUMMY_API_KEY,
+        run_id=wandb.util.generate_id(),
+        _start_datetime=datetime.datetime.now(),
+    )
     settings.setdefaults()
     yield settings
     # Just incase someone forgets to join in tests
@@ -173,14 +191,21 @@ def runner(monkeypatch, mocker):
     whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(click, 'launch', lambda x: 1)
-    monkeypatch.setattr(whaaaaat, 'prompt', lambda x: {
-                        'project_name': 'test_model', 'files': ['weights.h5'],
-                        'attach': False, 'team_name': 'Manual Entry'})
-    monkeypatch.setattr(webbrowser, 'open_new_tab', lambda x: True)
-    mocker.patch("wandb.lib.apikey.isatty", lambda stream: True)
-    mocker.patch("wandb.lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    monkeypatch.setattr(click, "launch", lambda x: 1)
+    monkeypatch.setattr(
+        whaaaaat,
+        "prompt",
+        lambda x: {
+            "project_name": "test_model",
+            "files": ["weights.h5"],
+            "attach": False,
+            "team_name": "Manual Entry",
+        },
+    )
+    monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
+    mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
+    mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
+    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 
@@ -200,6 +225,7 @@ def local_netrc(monkeypatch):
 
         def expand(path):
             return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+
         monkeypatch.setattr(os.path, "expanduser", expand)
         yield
 
@@ -210,8 +236,7 @@ def local_settings(mocker):
     with CliRunner().isolated_filesystem():
         cfg_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
         mkdir_exists_ok(os.path.join(".config", "wandb"))
-        mocker.patch("wandb.old.settings.Settings._global_path",
-                     return_value=cfg_path)
+        mocker.patch("wandb.old.settings.Settings._global_path", return_value=cfg_path)
         yield
 
 
@@ -244,25 +269,28 @@ def notebook(live_mock_server):
     devs to execute arbitrary cells.  See tests/test_notebooks.py
 
     TODO: we should launch a single server on boot and namespace requests by host"""
+
     @contextmanager
     def notebook_loader(nb_path, kernel_name="wandb_python", **kwargs):
         with open(utils.notebook_path("setup.ipynb")) as f:
             setupnb = nbformat.read(f, as_version=4)
-            setupcell = setupnb['cells'][0]
+            setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
-            new_source = setupcell['source'].replace("__WANDB_BASE_URL__",
-                                                     live_mock_server.base_url)
-            setupcell['source'] = new_source
+            new_source = setupcell["source"].replace(
+                "__WANDB_BASE_URL__", live_mock_server.base_url
+            )
+            setupcell["source"] = new_source
 
         with open(utils.notebook_path(nb_path)) as f:
             nb = nbformat.read(f, as_version=4)
-        nb['cells'].insert(0, setupcell)
+        nb["cells"].insert(0, setupcell)
 
         client = utils.WandbNotebookClient(nb)
         with client.setup_kernel(**kwargs):
             # Run setup commands for mocks
             client.execute_cell(0, store_history=False)
             yield client
+
     notebook_loader.base_url = live_mock_server.base_url
 
     return notebook_loader
@@ -297,7 +325,7 @@ def mocks_from_args(mocker, args, mock_server):
 
 @pytest.fixture
 def wandb_init_run(request, runner, mocker, mock_server):
-    marker = request.node.get_closest_marker('wandb_args')
+    marker = request.node.get_closest_marker("wandb_args")
     args = default_wandb_args()
     if marker:
         args.update(marker.kwargs)
@@ -309,9 +337,11 @@ def wandb_init_run(request, runner, mocker, mock_server):
         wandb._IS_INTERNAL_PROCESS = False
         #  We want to run setup every time in tests
         wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-        mocker.patch('wandb.wandb_sdk.wandb_init.Backend', utils.BackendMock)
-        run = wandb.init(settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
-                         **args["wandb_init"])
+        mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+        run = wandb.init(
+            settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
+            **args["wandb_init"]
+        )
         yield run
         wandb.join()
     finally:

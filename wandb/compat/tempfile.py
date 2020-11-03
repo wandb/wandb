@@ -21,9 +21,11 @@ if sys.version_info < (3, 5):
         """
         Wrap `tempfile.mkdtemp()` to make the suffix and prefix optional.
         """
-        kwargs = {k: v for (k, v) in
-                  dict(suffix=suffix, prefix=prefix, dir=dir).items()
-                  if v is not None}
+        kwargs = {
+            k: v
+            for (k, v) in dict(suffix=suffix, prefix=prefix, dir=dir).items()
+            if v is not None
+        }
         return old_mkdtemp(**kwargs)
 
     # XXX backport: ResourceWarning was added in Python 3.2.
@@ -43,14 +45,18 @@ if sys.version_info < (3, 5):
         in it are removed.
         """
 
-        def __init__(self, suffix=None, prefix=None, dir=None,
-                     missing_ok_on_cleanup=False):
+        def __init__(
+            self, suffix=None, prefix=None, dir=None, missing_ok_on_cleanup=False
+        ):
             self._missing_ok_on_remove = missing_ok_on_cleanup
             self.name = mkdtemp(suffix, prefix, dir)
             self._finalizer = finalize(
-                self, self._cleanup, self.name,
+                self,
+                self._cleanup,
+                self.name,
                 warn_message="Implicitly cleaning up {!r}".format(self),
-                missing_ok_on_cleanup=missing_ok_on_cleanup)
+                missing_ok_on_cleanup=missing_ok_on_cleanup,
+            )
 
         @classmethod
         def _cleanup(cls, name, warn_message, missing_ok_on_cleanup):
@@ -79,6 +85,8 @@ if sys.version_info < (3, 5):
                 except OSError:
                     if not self._missing_ok_on_cleanup:
                         _warnings.warn("Couldn't remove temp directory %s" % self.name)
+
+
 else:
     from tempfile import TemporaryDirectory as RealTemporaryDirectory
 

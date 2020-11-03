@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import sys
 import tempfile
 import time
 
@@ -20,10 +21,17 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.term import termlog
-from wandb.interface import artifacts
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
 import yaml
+
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import artifacts
+else:
+    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +163,10 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
 class RetryingClient(object):
     def __init__(self, client):
         self._client = client
+
+    @property
+    def app_url(self):
+        return util.app_url(self._client.transport.url).replace("/graphql", "/")
 
     @retriable(
         retry_timedelta=RETRY_TIMEDELTA,
@@ -1270,7 +1282,7 @@ class Run(Attrs):
     def url(self):
         path = self.path
         path.insert(2, "runs")
-        return "https://app.wandb.ai/" + "/".join(path)
+        return self.client.app_url + "/".join(path)
 
     @property
     def lastHistoryStep(self):  # noqa: N802
@@ -1416,6 +1428,12 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.project)),
             urllib.parse.quote_plus(str(self.id)),
         ]
+
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "sweeps")
+        return self.client.app_url + "/".join(path)
 
     @classmethod
     def get(
@@ -2508,13 +2526,13 @@ class Artifact(object):
             def download(root=None):
                 root = root or default_root
                 if entry.ref is not None:
-                    return storage_policy.load_reference(
+                    cache_path = storage_policy.load_reference(
                         self, name, manifest.entries[name], local=True
                     )
-
-                cache_path = storage_policy.load_file(
-                    self, name, manifest.entries[name]
-                )
+                else:
+                    cache_path = storage_policy.load_file(
+                        self, name, manifest.entries[name]
+                    )
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
             @staticmethod

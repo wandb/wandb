@@ -19,7 +19,5 @@ def histogram(table, value, title=None):
     wandb.log({'histogram-plot1': wandb.plot.histogram(table, "height")})
     """
     return wandb.plot_table(
-        'wandb/histogram/v0',
-        table,
-        {'value': value},
-        {'title': title})
+        "wandb/histogram/v0", table, {"value": value}, {"title": title}
+    )
