@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import atexit
 import collections
+from datetime import timedelta
 import glob
 import json
 import logging
@@ -1658,6 +1659,37 @@ class Run(object):
         artifact.finalize()
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
+
+    def alert(self, title, text, level=None, wait_duration=None):
+        """Launch an alert with the given title and text.
+
+        Args:
+            title (str): The title of the alert, must be less than 64 characters long
+            text (str): The text body of the alert
+            level (str or wandb.AlertLevel, optional): The alert level to use, either: "INFO", "WARN", or "ERROR"
+            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
+                with this title
+        """
+        level = level or wandb.AlertLevel.INFO
+        if isinstance(level, wandb.AlertLevel):
+            level = level.value
+        if level not in (
+            wandb.AlertLevel.INFO.value,
+            wandb.AlertLevel.WARN.value,
+            wandb.AlertLevel.ERROR.value,
+        ):
+            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
+
+        wait_duration = wait_duration or timedelta(minutes=1)
+        if isinstance(wait_duration, int) or isinstance(wait_duration, float):
+            wait_duration = timedelta(seconds=wait_duration)
+        elif not callable(getattr(wait_duration, "total_seconds", None)):
+            raise ValueError(
+                "wait_duration must be an int, float, or datetime.timedelta"
+            )
+        wait_duration = int(wait_duration.total_seconds() * 1000)
+
+        self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
         self._use_redirect = use_redirect

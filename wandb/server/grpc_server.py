@@ -9,9 +9,7 @@ import os
 import time
 
 import grpc
-from wandb.interface import interface
-from wandb.internal.internal import wandb_internal
-from wandb.lib import runid
+from wandb import wandb_sdk
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
@@ -26,7 +24,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
 
     def RunUpdate(self, run_data, context):  # noqa: N802
         if not run_data.run_id:
-            run_data.run_id = runid.generate_id()
+            run_data.run_id = wandb_sdk.lib.runid.generate_id()
         result = self._backend._interface._communicate_run(run_data)
 
         # initiate run (stats and metadata probing)
@@ -138,7 +136,7 @@ class Backend:
         result_q = mp.Queue()
 
         wandb_process = mp.Process(
-            target=wandb_internal,
+            target=wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
         )
         wandb_process.name = "wandb_internal"
@@ -148,7 +146,7 @@ class Backend:
         self.result_q = result_q
         self.wandb_process = wandb_process
 
-        self._interface = interface.BackendSender(
+        self._interface = wandb_sdk.interface.interface.BackendSender(
             record_q=record_q, result_q=result_q, process=wandb_process,
         )
 
