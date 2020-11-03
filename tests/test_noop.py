@@ -18,9 +18,6 @@ def test_noop():
     assert wandb.summary["foo"].bar.x == "y"
     wandb.summary.foo["bar"].update({"a": "b"})
     assert wandb.summary.foo.bar.a == "b"
-    run = wandb.init(mode="online")
-    assert isinstance(run, wandb.wandb_sdk.wandb_run.Run)
-    run.finish()
 
 
 def test_bad_url():
