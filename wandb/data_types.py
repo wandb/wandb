@@ -1663,6 +1663,10 @@ class BoundingBoxes2D(JSONMetadata):
     def from_json(cls, json_obj, root="."):
         return cls({"box_data": json_obj}, "")
 
+    @staticmethod
+    def get_json_suffix():
+        return "bounding-boxes"
+
 
 class ImageMask(Media):
     """
@@ -1699,6 +1703,10 @@ class ImageMask(Media):
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    @staticmethod
+    def get_json_suffix():
+        return "image-mask"
 
     def bind_to_run(self, run, key, step, id_=None):
         # bind_to_run key argument is the Image parent key
