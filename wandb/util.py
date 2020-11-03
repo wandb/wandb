@@ -1106,9 +1106,9 @@ def add_import_hook(fullname, on_import):
     _import_hook.add(fullname, on_import)
 
 
-def encode_artifact_id(id_string):
-    return binascii.hexlify(bytes(str(id_string), "utf-8")).decode("utf-8")
+def b64_to_hex_id(id_string):
+    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
 
 
-def decode_artifact_id(encoded_string):
-    return binascii.unhexlify(encoded_string).decode("utf-8")
+def hex_to_b64_id(encoded_string):
+    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")

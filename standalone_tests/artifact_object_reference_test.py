@@ -3,6 +3,7 @@ import shutil
 import wandb
 import os
 import binascii
+import base64
 
 classes = [{"id": 0, "name": "person"}]
 columns = ["examples", "index"]
@@ -33,6 +34,8 @@ def _make_joined_table():
     table_2 = _make_wandb_table()
     return wandb.JoinedTable(table_1, table_2, "index")
 
+def _b64_to_hex_id(id_string):
+    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
@@ -73,7 +76,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(binascii.hexlify(bytes(str(upstream_artifact.id), "utf-8")).decode("utf-8"),str(upstream_artifact_file_path)),
+            "wandb-artifact://{}/{}".format(_b64_to_hex_id(upstream_artifact.id),str(upstream_artifact_file_path)),
             middle_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -83,7 +86,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(binascii.hexlify(bytes(str(middle_artifact.id), "utf-8")).decode("utf-8"),str(middle_artifact_file_path)),
+            "wandb-artifact://{}/{}".format(_b64_to_hex_id(middle_artifact.id),str(middle_artifact_file_path)),
             downstream_artifact_file_path,
         )
         run.log_artifact(artifact)
