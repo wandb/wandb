@@ -195,6 +195,10 @@ class Media(WBValue):
                 )
             )
 
+        with open(self._path, "rb") as f:
+            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+        self._size = os.path.getsize(self._path)
+
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
@@ -232,10 +236,6 @@ class Media(WBValue):
         else:
             extension = self._extension
             rootname = os.path.basename(self._path)[: -len(extension)]
-
-        with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
-        self._size = os.path.getsize(self._path)
 
         if id_ is None:
             id_ = self._sha256[:8]
