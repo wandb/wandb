@@ -261,6 +261,18 @@ def test_save_invalid_path(wandb_init_run):
         wandb.save(os.path.join(root, "..", "..", "*.txt"), base_path=root)
 
 
+def test_restore_no_path(mock_server):
+    with pytest.raises(ValueError):
+        wandb.restore("weights.h5")
+
+
+def test_restore_no_init(runner, mock_server):
+    with runner.isolated_filesystem():
+        mock_server.set_context("files", {"weights.h5": 10000})
+        res = wandb.restore("weights.h5", run_path="foo/bar/baz")
+        assert os.path.getsize(res.name) == 10000
+
+
 def test_restore(runner, mock_server, wandb_init_run):
     with runner.isolated_filesystem():
         mock_server.set_context("files", {"weights.h5": 10000})
