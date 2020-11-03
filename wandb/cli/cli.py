@@ -1531,8 +1531,8 @@ def status(settings):
         )
 
 
-@cli.command("disable", help="Disable W&B.")
-def disable():
+@cli.command("disabled", help="Disable W&B.")
+def disabled():
     api = InternalApi()
     try:
         api.set_setting("mode", "disabled", persist=True)
@@ -1543,8 +1543,8 @@ def disable():
         )
 
 
-@cli.command("enable", help="Enable W&B.")
-def enable():
+@cli.command("enabled", help="Enable W&B.")
+def enabled():
     api = InternalApi()
     try:
         api.set_setting("mode", "online", persist=True)
