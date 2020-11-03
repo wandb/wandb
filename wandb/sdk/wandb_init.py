@@ -7,7 +7,6 @@ init.
 from __future__ import print_function
 
 import datetime
-import inspect
 import logging
 import os
 import time
@@ -16,7 +15,7 @@ import traceback
 import six
 import wandb
 from wandb import trigger
-from wandb.dummy import disable, Dummy, DummyDict
+from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -132,8 +131,8 @@ class _WandbInit(object):
         force = kwargs.pop("force", None)
         if "disabled" not in (settings.mode, kwargs["mode"]):
             login_key = wandb.login(anonymous=anonymous, force=force)
-            if not login_key:
-                settings.mode = "offline"
+        else:
+            login_key = None
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
@@ -321,7 +320,7 @@ class _WandbInit(object):
                 log_artifact=run.log_artifact,
                 plot_table=run.plot_table,
             )
-            disable(inspect.stack()[1][0].f_globals)
+            # disable(inspect.stack()[1][0].f_globals)
             return run
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
@@ -330,7 +329,7 @@ class _WandbInit(object):
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
                 self._wl._global_run_stack[-1].finish()
-        elif wandb.run:
+        elif isinstance(wandb.run, Run):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
