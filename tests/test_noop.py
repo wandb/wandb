@@ -20,9 +20,11 @@ def test_noop():
     assert wandb.summary.foo.bar.a == "b"
 
 
-def test_bad_url():
+def test_bad_url(test_settings):
+    test_settings.base_url = "localhost:9000"
+    test_settings.mode = "disabled"
     run = wandb.init(
-        settings=wandb.Settings(base_url="localhost:9000"), mode="disabled"
+        settings=test_settings
     )
     run.log({"acc": 0.9})
     run.finish()
