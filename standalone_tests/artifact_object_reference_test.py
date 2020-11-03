@@ -170,6 +170,7 @@ def test_add_reference_via_artifact_entry():
     with wandb.init(project=PROJECT_NAME) as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
+        downstream_path = downstream_artifact.download() # should not fail on second download.
         assert os.path.islink(
             os.path.join(downstream_path, downstream_artifact_file_path)
         )

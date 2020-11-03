@@ -4,7 +4,6 @@ import os
 import time
 import shutil
 import requests
-import binascii
 
 from six.moves.urllib.parse import urlparse, quote
 
@@ -18,7 +17,7 @@ from wandb import util
 from wandb.errors.term import termwarn, termlog
 from .lib import filesystem
 
-from wandb.data_types import Media
+from wandb.data_types import Media, JSONABLE_MEDIA_CLASSES
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -203,12 +202,14 @@ class Artifact(object):
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
-        if isinstance(uri, object):
-            if hasattr(uri, "parent_artifact"):
-                if uri.parent_artifact != self:
-                    ref_url_fn = getattr(uri, "ref_url")
-                    if callable(ref_url_fn):
-                        uri = ref_url_fn()
+        if (
+            isinstance(uri, object)
+            and hasattr(uri, "parent_artifact")
+            and uri.parent_artifact != self
+        ):
+            ref_url_fn = getattr(uri, "ref_url")
+            if callable(ref_url_fn):
+                uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError(
@@ -245,7 +246,7 @@ class Artifact(object):
                 return self.add_reference(ref_path, path)[0]
 
             # Otherwise, save the object directly via json
-            else:
+            elif type(obj) in JSONABLE_MEDIA_CLASSES:
                 obj_id = id(obj)
                 if obj_id in self._added_objs:
                     return self._added_objs[obj_id]
@@ -269,6 +270,8 @@ class Artifact(object):
                 entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
                 self._added_objs[obj_id] = entry
                 return entry
+            else:
+                ValueError("Can't add obj of type {} to artifact".format(type(obj)))
         else:
             raise ValueError("Can't add obj to artifact")
 
@@ -1166,14 +1169,6 @@ class HTTPHandler(StorageHandler):
         return digest, size, extra
 
 
-def _id_to_hex(id_string):
-    return binascii.hexlify(bytes(str(id_string), "utf-8")).decode("utf-8")
-
-
-def _hex_to_id(hex_string):
-    return binascii.unhexlify(hex_string).decode("utf-8")
-
-
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing WandB Artifact reference-type files"""
 
@@ -1200,7 +1195,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
             manifest_entry.ref
         )
-        artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
+        artifact = PublicApi().artifact_from_id(util.decode_artifact_id(artifact_id))
         artifact_path = artifact.download()
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
@@ -1218,16 +1213,20 @@ class WBArtifactHandler(StorageHandler):
         # Resolve the reference until the result is a concrete asset
         # so that we don't have multiple hops.
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        target_artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
+        target_artifact = PublicApi().artifact_from_id(
+            util.decode_artifact_id(artifact_id)
+        )
         entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            target_artifact = PublicApi().artifact_from_id(_hex_to_id(artifact_id))
+            target_artifact = PublicApi().artifact_from_id(
+                util.decode_artifact_id(artifact_id)
+            )
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         path = "wandb-artifact://{}/{}".format(
-            _id_to_hex(target_artifact.id), str(entry.path)
+            util.encode_artifact_id(target_artifact.id), str(entry.path)
         )
 
         size = 0

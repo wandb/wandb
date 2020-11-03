@@ -1,4 +1,3 @@
-import binascii
 import datetime
 from functools import partial
 import json
@@ -2382,6 +2381,20 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
+def _path_to_parts(head):
+    parts = []
+    while head != "":
+        new_head, tail = os.path.split(head)
+        if new_head == head:
+            break
+        else:
+            head = new_head
+        parts.append(tail)
+    if head != "":
+        parts.append(head)
+    return parts[::-1]
+
+
 def _determine_artifact_root(source_path, target_path):
     """Helper function to determine the artifact root of `target_path` by comparing to
     an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
@@ -2389,20 +2402,8 @@ def _determine_artifact_root(source_path, target_path):
     abs_target_path = os.path.abspath(target_path)
 
     # Break the source path into parts
-    head = abs_source_path
-    source_path_parts = []
-    while head != "" and head != "/":
-        head, tail = os.path.split(head)
-        source_path_parts.insert(0, tail)
-    source_path_parts.insert(0, head)
-
-    # Break the target path into parts
-    head = abs_target_path
-    target_path_parts = []
-    while head != "" and head != "/":
-        head, tail = os.path.split(head)
-        target_path_parts.insert(0, tail)
-    target_path_parts.insert(0, head)
+    source_path_parts = _path_to_parts(abs_source_path)
+    target_path_parts = _path_to_parts(abs_target_path)
 
     # Buildup a shared path (ending with the first difference in the target)
     shared_path = []
@@ -2620,6 +2621,8 @@ class Artifact(object):
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).
                     if os.path.islink(cache_path):
+                        if os.path.islink(target_path):
+                            os.unlink(target_path)
                         os.symlink(
                             os.path.abspath(os.readlink(cache_path)), target_path
                         )
@@ -2653,9 +2656,7 @@ class Artifact(object):
             def ref_url():
                 return (
                     "wandb-artifact://"
-                    + binascii.hexlify(bytes(str(parent_self.id), "utf-8")).decode(
-                        "utf-8"
-                    )
+                    + util.encode_artifact_id(parent_self.id)
                     + "/"
                     + name
                 )

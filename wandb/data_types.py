@@ -2402,7 +2402,14 @@ def data_frame_to_json(df, run, key, step):
     }
 
 
-JSONABLE_MEDIA_CLASSES = [Image, Classes, Table, JoinedTable]
+JSONABLE_MEDIA_CLASSES = [
+    Image,
+    Classes,
+    Table,
+    JoinedTable,
+    BoundingBoxes2D,
+    ImageMask,
+]
 
 JSON_SUFFIX_TO_CLASS = {
     media_class.get_json_suffix(): media_class for media_class in JSONABLE_MEDIA_CLASSES
