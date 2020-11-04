@@ -4,7 +4,7 @@ from types import ModuleType
 
 class Dummy(object):
     def __init__(self, *args, **kwargs):
-        object.__setattr__(self, '___dict', {})
+        object.__setattr__(self, "___dict", {})
 
     def __add__(self, other):
         return Dummy()
@@ -130,7 +130,7 @@ class Dummy(object):
         return self[attr]
 
     def __getitem__(self, key):
-        d = object.__getattribute__(self, '___dict')
+        d = object.__getattribute__(self, "___dict")
         if key in d:
             return d[key]
         dummy = Dummy()
@@ -138,7 +138,7 @@ class Dummy(object):
         return dummy
 
     def __setitem__(self, key, value):
-        object.__getattribute__(self, '___dict')[key] = value
+        object.__getattribute__(self, "___dict")[key] = value
 
     def __setattr__(self, key, value):
         self[key] = value
