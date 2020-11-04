@@ -30,7 +30,8 @@ from .wandb_settings import Settings
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
 
-logger = None  # logger configured during wandb.init()
+# logger configured during wandb.init()
+logger = None
 
 
 def _set_logger(log_object):
@@ -294,6 +295,7 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+        print("early logger flush")
         self._wl._early_logger_flush(logger)
 
     def init(self):
