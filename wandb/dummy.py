@@ -2,9 +2,9 @@ import sys
 from types import ModuleType
 
 
-class Dummy:
+class Dummy(object):
     def __init__(self, *args, **kwargs):
-        self.___dict = {}
+        object.__setattr__(self, '___dict', {})
 
     def __add__(self, other):
         return Dummy()
@@ -127,22 +127,21 @@ class Dummy:
         return True
 
     def __getattr__(self, attr):
-        try:
-            return object.__getattribute__(self, attr)
-        except AttributeError:
-            dummy = Dummy()
-            setattr(self, attr, dummy)
-            return dummy
+        return self[attr]
 
     def __getitem__(self, key):
-        if key in self.___dict:
-            return self.___dict[key]
+        d = object.__getattribute__(self, '___dict')
+        if key in d:
+            return d[key]
         dummy = Dummy()
-        self.___dict[key] = dummy
+        d[key] = dummy
         return dummy
 
     def __setitem__(self, key, value):
-        self.___dict[key] = value
+        object.__getattribute__(self, '___dict')[key] = value
+
+    def __setattr__(self, key, value):
+        self[key] = value
 
     def __call__(self, *args, **kwargs):
         return Dummy()
@@ -162,24 +161,27 @@ class Dummy:
     def __repr__(self):
         return ""
 
+    def __nonzero__(self):
+        return True
+
+    def __bool__(self):
+        return True
+
 
 class DummyModule(Dummy, ModuleType):
     pass
 
 
 class DummyDict(dict):
-    def __getattribute__(self, key):
-        try:
-            return object.__getattribute__(self, key)
-        except AttributeError:
-            return self[key]
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
 
-    def __setattr__(self, key, value):
-        self[key] = value
+    def __getattr__(self, key):
+        return self[key]
 
     def __getitem__(self, key):
         val = dict.__getitem__(self, key)
-        if isinstance(val, dict):
+        if isinstance(val, dict) and not isinstance(val, DummyDict):
             val = DummyDict(val)
             self[key] = val
         return val
