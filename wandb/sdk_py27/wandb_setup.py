@@ -12,7 +12,6 @@ run_id can be resolved.
 """
 
 import copy
-import logging
 import multiprocessing
 import os
 import sys
@@ -22,53 +21,25 @@ import wandb
 
 from . import wandb_settings
 from .lib import config_util, server
+from .lib.earlylogger import EarlyLogger
 
 
-logger = (
-    None  # will be configured to be either a standard logger instance or _EarlyLogger
-)
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import (  # noqa: F401 pylint: disable=unused-import
+        Dict,
+        List,
+        Optional,
+    )
+
+
+# logger will be configured to be either a standard logger instance or _EarlyLogger
+logger = None
 
 
 def _set_logger(log_object):
     """Configure module logger."""
     global logger
     logger = log_object
-
-
-class _EarlyLogger(object):
-    """Early logger which captures logs in memory until logging can be configured."""
-
-    def __init__(self):
-        self._log = []
-        self._exception = []
-
-    def debug(self, msg, *args, **kwargs):
-        self._log.append((logging.DEBUG, msg, args, kwargs))
-
-    def info(self, msg, *args, **kwargs):
-        self._log.append((logging.INFO, msg, args, kwargs))
-
-    def warning(self, msg, *args, **kwargs):
-        self._log.append((logging.WARNING, msg, args, kwargs))
-
-    def error(self, msg, *args, **kwargs):
-        self._log.append((logging.ERROR, msg, args, kwargs))
-
-    def critical(self, msg, *args, **kwargs):
-        self._log.append((logging.CRITICAL, msg, args, kwargs))
-
-    def exception(self, msg, *args, **kwargs):
-        self._exception.append(msg, args, kwargs)
-
-    def log(self, level, msg, *args, **kwargs):
-        self._log.append(level, msg, args, kwargs)
-
-    def _flush(self):
-        assert self is not logger
-        for level, msg, args, kwargs in self._log:
-            logger.log(level, msg, *args, **kwargs)
-        for msg, args, kwargs in self._exception:
-            logger.exception(msg, *args, **kwargs)
 
 
 class _WandbSetup__WandbSetup(object):  # noqa: N801
@@ -86,7 +57,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
-        self._early_logger = _EarlyLogger()
+        self._early_logger = EarlyLogger()
         _set_logger(self._early_logger)
 
         self._settings_setup(settings, self._early_logger)
@@ -97,8 +68,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._check()
         self._setup()
 
-    def _settings_setup(self, settings=None, early_logger=None):
+    def _settings_setup(
+        self, settings, early_logger
+    ):
         # TODO: Do a more formal merge of user settings from the backend.
+        print("early logger setup")
         s = wandb_settings.Settings()
         s._apply_configfiles(_logger=early_logger)
         s._apply_environ(self._environ, _logger=early_logger)
@@ -107,13 +81,13 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s._apply_user(user_settings, _logger=early_logger)
 
         if settings:
-            s._apply_settings(settings, _logger=early_logger)
+            s._apply_settings(settings)
 
         # setup defaults
         s.setdefaults()
-        s._infer_settings_from_env()
+        s._infer_settings_from_env(_logger=early_logger)
         if not s._cli_only_mode:
-            s._infer_run_settings_from_env()
+            s._infer_run_settings_from_env(_logger=early_logger)
 
         # move freeze to later
         # TODO(jhr): is this ok?

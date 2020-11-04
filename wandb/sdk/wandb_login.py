@@ -6,8 +6,6 @@ login.
 
 from __future__ import print_function
 
-import logging
-
 import click
 import wandb
 from wandb.errors.error import UsageError
@@ -16,7 +14,6 @@ from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
 
-logger = logging.getLogger("wandb")
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
@@ -62,7 +59,9 @@ class _WandbLogin(object):
         settings_param = kwargs.pop("_settings", None)
         if settings_param:
             login_settings._apply_settings(settings_param)
-        login_settings._apply_login(kwargs)
+
+        _logger = wandb.setup()._get_logger()
+        login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
@@ -125,7 +124,8 @@ class _WandbLogin(object):
 
     def update_session(self, key):
         settings: Settings = wandb.Settings()
-        settings._apply_source_login(dict(api_key=key))
+        login_args: int = dict(api_key=key)
+        settings._apply_source_login(login_args)
         self._wl._update(settings=settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
