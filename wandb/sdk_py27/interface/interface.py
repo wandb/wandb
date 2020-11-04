@@ -625,6 +625,9 @@ class BackendSender(object):
     def communicate_summary(self):
         record = self._make_request(get_summary=wandb_internal_pb2.GetSummaryRequest())
         result = self._communicate(record)
+        if result is None:
+            # Note: timeouts handled by callers: wandb_run.py
+            return
         get_summary_response = result.response.get_summary_response
         assert get_summary_response
         return get_summary_response

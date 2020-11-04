@@ -659,7 +659,9 @@ class Run(RunBase):
 
     def _summary_get_current_summary_callback(self):
         ret = self._backend.interface.communicate_summary()
-        return proto_util.dict_from_proto_list(ret.item)
+        if ret:
+            return proto_util.dict_from_proto_list(ret.item)
+        return {}
 
     def _datatypes_callback(self, fname):
         files = dict(files=[(fname, "now")])
