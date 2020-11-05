@@ -21,7 +21,7 @@ from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
 
-from . import wandb_setup
+from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, module, reporting
 from .wandb_helper import parse_config
@@ -129,18 +129,21 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
-        if "disabled" not in (settings.mode, kwargs["mode"]):
-            login_key = wandb.login(anonymous=anonymous, force=force)
-        else:
-            login_key = None
+
+        # TODO: move above parameters into apply_init_login
+        settings._apply_init_login(kwargs)
+
+        if not settings._offline and not settings._noop:
+            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
-        # this must happen after applying global state which overrides mode
-        if not login_key:
-            settings.mode = "offline"
 
         settings._apply_init(kwargs)
+
+        if not settings._offline:
+            user_settings = self._wl._load_user_settings()
+            settings._apply_user(user_settings)
 
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
@@ -295,10 +298,9 @@ class _WandbInit(object):
         _set_logger(logging.getLogger("wandb"))
         self._enable_logging(settings.log_user)
 
+        self._wl._early_logger_flush(logger)
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
-
-        self._wl._early_logger_flush(logger)
 
     def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
