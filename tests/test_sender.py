@@ -4,12 +4,21 @@ from six.moves import queue
 import threading
 import time
 import shutil
+import sys
 
+import wandb
 from wandb.util import mkdir_exists_ok
-from wandb.internal.handler import HandleManager
-from wandb.internal.sender import SendManager
-from wandb.interface import constants
-from wandb.interface.interface import BackendSender
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.internal.handler import HandleManager
+    from wandb.sdk.internal.sender import SendManager
+    from wandb.sdk.interface.interface import BackendSender
+else:
+    from wandb.sdk_py27.internal.handler import HandleManager
+    from wandb.sdk_py27.internal.sender import SendManager
+    from wandb.sdk_py27.interface.interface import BackendSender
 
 
 @pytest.fixture()
@@ -43,7 +52,7 @@ def process():
     return MockProcess()
 
 
-class MockProcess():
+class MockProcess:
     def __init__(self):
         pass
 
@@ -53,11 +62,7 @@ class MockProcess():
 
 @pytest.fixture()
 def sender(record_q, result_q, process):
-    return BackendSender(
-        record_q=record_q,
-        result_q=result_q,
-        process=process,
-    )
+    return BackendSender(record_q=record_q, result_q=result_q, process=process,)
 
 
 @pytest.fixture()
@@ -66,19 +71,38 @@ def sm(
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        sm = SendManager(settings=test_settings, record_q=sender_q, result_q=result_q, interface=interface,)
+        sm = SendManager(
+            settings=test_settings,
+            record_q=sender_q,
+            result_q=result_q,
+            interface=interface,
+        )
         yield sm
 
 
 @pytest.fixture()
 def hm(
-    runner, record_q, result_q, test_settings, mock_server, sender_q, writer_q, interface,
+    runner,
+    record_q,
+    result_q,
+    test_settings,
+    mock_server,
+    sender_q,
+    writer_q,
+    interface,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
         stopped = threading.Event()
-        hm = HandleManager(settings=test_settings, record_q=record_q, result_q=result_q, stopped=stopped,
-                sender_q=sender_q, writer_q=writer_q, interface=interface,)
+        hm = HandleManager(
+            settings=test_settings,
+            record_q=record_q,
+            result_q=result_q,
+            stopped=stopped,
+            sender_q=sender_q,
+            writer_q=writer_q,
+            interface=interface,
+        )
         yield hm
 
 
@@ -133,7 +157,9 @@ def start_handle_thread(record_q, get_record):
 
 
 @pytest.fixture()
-def start_backend(mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,):
+def start_backend(
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+):
     def start_backend_func(initial_run=True):
         start_handle_thread(hm)
         start_send_thread(sm)
@@ -144,14 +170,18 @@ def start_backend(mocked_run, hm, sm, sender, start_handle_thread, start_send_th
 
 
 @pytest.fixture()
-def stop_backend(mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,):
+def stop_backend(
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+):
     def stop_backend_func():
         _ = sender.communicate_exit(0)
 
     yield stop_backend_func
 
 
-def test_send_status_request(mock_server, sender, start_backend,):
+def test_send_status_request(
+    mock_server, sender, start_backend,
+):
     mock_server.ctx["stopped"] = True
     start_backend()
 
@@ -160,7 +190,9 @@ def test_send_status_request(mock_server, sender, start_backend,):
     assert status_resp.run_should_stop
 
 
-def test_parallel_requests(mock_server, sender, start_backend,):
+def test_parallel_requests(
+    mock_server, sender, start_backend,
+):
     mock_server.ctx["stopped"] = True
     work_queue = queue.Queue()
     start_backend()
@@ -191,11 +223,7 @@ def test_parallel_requests(mock_server, sender, start_backend,):
 
 
 def test_resume_success(
-    mocked_run,
-    test_settings,
-    mock_server,
-    sender,
-    start_backend,
+    mocked_run, test_settings, mock_server, sender, start_backend,
 ):
     test_settings.resume = "allow"
     mock_server.ctx["resume"] = True
@@ -207,11 +235,7 @@ def test_resume_success(
 
 
 def test_resume_error_never(
-    mocked_run,
-    test_settings,
-    mock_server,
-    sender,
-    start_backend,
+    mocked_run, test_settings, mock_server, sender, start_backend,
 ):
     test_settings.resume = "never"
     mock_server.ctx["resume"] = True
@@ -225,11 +249,7 @@ def test_resume_error_never(
 
 
 def test_resume_error_must(
-    mocked_run,
-    test_settings,
-    mock_server,
-    sender,
-    start_backend,
+    mocked_run, test_settings, mock_server, sender, start_backend,
 ):
     test_settings.resume = "must"
     mock_server.ctx["resume"] = False
@@ -243,7 +263,9 @@ def test_resume_error_must(
     )
 
 
-def test_save_live_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_live_existing_file(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
@@ -252,7 +274,9 @@ def test_save_live_existing_file(mocked_run, mock_server, sender, start_backend,
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_live_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_live_write_after_policy(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "live")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -261,7 +285,9 @@ def test_save_live_write_after_policy(mocked_run, mock_server, sender, start_bac
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_live_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_live_multi_write(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "live")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
@@ -275,7 +301,9 @@ def test_save_live_multi_write(mocked_run, mock_server, sender, start_backend, s
     assert len(mock_server.ctx["storage?file=test.txt"]) == 2
 
 
-def test_save_live_glob_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_live_glob_multi_write(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("checkpoints/*", "live")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
@@ -297,7 +325,9 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, sender, start_backe
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
 
-def test_save_rename_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_rename_file(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "live")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
@@ -311,7 +341,9 @@ def test_save_rename_file(mocked_run, mock_server, sender, start_backend, stop_b
     assert len(mock_server.ctx["storage?file=test-copy.txt"]) == 1
 
 
-def test_save_end_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_end_write_after_policy(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "end")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -320,7 +352,9 @@ def test_save_end_write_after_policy(mocked_run, mock_server, sender, start_back
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_end_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_end_existing_file(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
@@ -329,7 +363,9 @@ def test_save_end_existing_file(mocked_run, mock_server, sender, start_backend, 
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_end_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_end_multi_write(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "end")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
@@ -343,7 +379,9 @@ def test_save_end_multi_write(mocked_run, mock_server, sender, start_backend, st
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_write_after_policy(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_now_write_after_policy(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "now")]})
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -352,7 +390,9 @@ def test_save_now_write_after_policy(mocked_run, mock_server, sender, start_back
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_existing_file(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_now_existing_file(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
         f.write("TEST TEST")
@@ -361,7 +401,9 @@ def test_save_now_existing_file(mocked_run, mock_server, sender, start_backend, 
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_now_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_now_multi_write(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("test.txt", "now")]})
     test_file = os.path.join(mocked_run.dir, "test.txt")
@@ -375,7 +417,9 @@ def test_save_now_multi_write(mocked_run, mock_server, sender, start_backend, st
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
-def test_save_glob_multi_write(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_glob_multi_write(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("checkpoints/*", "now")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
@@ -392,7 +436,9 @@ def test_save_glob_multi_write(mocked_run, mock_server, sender, start_backend, s
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
 
-def test_save_now_relative_path(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_now_relative_path(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     sender.publish_files({"files": [("foo/test.txt", "now")]})
     test_file = os.path.join(mocked_run.dir, "foo", "test.txt")
@@ -404,7 +450,9 @@ def test_save_now_relative_path(mocked_run, mock_server, sender, start_backend, 
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 1
 
 
-def test_save_now_twice(mocked_run, mock_server, sender, start_backend, stop_backend,):
+def test_save_now_twice(
+    mocked_run, mock_server, sender, start_backend, stop_backend,
+):
     start_backend()
     file_path = os.path.join("foo", "test.txt")
     sender.publish_files({"files": [(file_path, "now")]})
@@ -419,6 +467,75 @@ def test_save_now_twice(mocked_run, mock_server, sender, start_backend, stop_bac
     stop_backend()
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
+
+
+def test_upgrade_upgraded(
+    mocked_run, mock_server, sender, start_backend, stop_backend, restore_version
+):
+    wandb.__version__ = "0.0.6"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert (
+        ret.upgrade_message
+        == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    )
+    assert not ret.delete_message
+    assert not ret.yank_message
+
+
+def test_upgrade_yanked(
+    mocked_run, mock_server, sender, start_backend, stop_backend, restore_version
+):
+    wandb.__version__ = "0.0.2"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert (
+        ret.upgrade_message
+        == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    )
+    assert not ret.delete_message
+    assert ret.yank_message == "wandb version 0.0.2 has been recalled!  Please upgrade."
+
+
+def test_upgrade_yanked_message(
+    mocked_run, mock_server, sender, start_backend, stop_backend, restore_version
+):
+    wandb.__version__ = "0.0.3"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert (
+        ret.upgrade_message
+        == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    )
+    assert not ret.delete_message
+    assert (
+        ret.yank_message
+        == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
+    )
+
+
+def test_upgrade_removed(
+    mocked_run, mock_server, sender, start_backend, stop_backend, restore_version
+):
+    wandb.__version__ = "0.0.4"
+    wandb.__hack_pypi_latest_version__ = "0.0.8"
+    start_backend(initial_run=False)
+    ret = sender.communicate_check_version()
+    assert ret
+    assert (
+        ret.upgrade_message
+        == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+    )
+    assert (
+        ret.delete_message == "wandb version 0.0.4 has been retired!  Please upgrade."
+    )
+    assert not ret.yank_message
 
 
 # TODO: test other sender methods

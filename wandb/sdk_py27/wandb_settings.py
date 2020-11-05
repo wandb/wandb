@@ -25,6 +25,7 @@ Override priorities are in the reverse order of non-override settings
 import configparser
 import copy
 from datetime import datetime
+from distutils.util import strtobool
 import enum
 import getpass
 import itertools
@@ -39,9 +40,10 @@ import time
 
 import six
 import wandb
-from wandb.lib.git import GitRepo
-from wandb.lib.ipython import _get_python_type
-from wandb.lib.runid import generate_id
+
+from .lib.git import GitRepo
+from .lib.ipython import _get_python_type
+from .lib.runid import generate_id
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (  # noqa: F401 pylint: disable=unused-import
@@ -60,7 +62,6 @@ logger = logging.getLogger("wandb")
 
 defaults = dict(
     base_url="https://api.wandb.ai",
-    show_warnings=2,
     summary_warnings=5,
     git_remote="origin",
     ignore_globs=(),
@@ -88,6 +89,7 @@ env_settings = dict(
     anonymous=None,
     ignore_globs=None,
     resume=None,
+    silent=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -169,6 +171,14 @@ def get_wandb_dir(root_dir):
     return path
 
 
+def _str_as_bool(val):
+    try:
+        val = bool(strtobool(val))
+    except (AttributeError, ValueError):
+        pass
+    return val if isinstance(val, bool) else None
+
+
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
@@ -206,6 +216,10 @@ class Settings(object):
     sync_symlink_latest_spec = None
     settings_system_spec = None
     settings_workspace_spec = None
+    silent = False
+    show_info = True
+    show_warnings = True
+    show_errors = True
 
     # Private attributes
     # __start_time: Optional[float]
@@ -253,7 +267,7 @@ class Settings(object):
         magic = False,
         run_tags = None,
         sweep_id=None,
-        allow_val_override = None,
+        allow_val_change = None,
         force = None,
         relogin = None,
         # compatibility / error handling
@@ -300,10 +314,12 @@ class Settings(object):
         dev_prod=None,  # in old settings files, TODO: support?
         host=None,
         username=None,
+        email=None,
         docker=None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
+        _disable_viewer=None,  # prevent early viewer query
         console=None,
         disabled=None,  # alias for mode=dryrun, not supported yet
         reinit=None,
@@ -311,7 +327,7 @@ class Settings(object):
         # compute environment
         show_colors=None,
         show_emoji=None,
-        show_console=None,
+        silent=None,
         show_info=None,
         show_warnings=None,
         show_errors=None,
@@ -332,7 +348,7 @@ class Settings(object):
         _kaggle=None,
         _except_exit=None,
     ):
-        kwargs = locals()
+        kwargs = dict(locals())
         kwargs.pop("self")
         # Set up entries for all possible parameters
         self.__dict__.update({k: None for k in kwargs})
@@ -357,6 +373,30 @@ class Settings(object):
         if self.mode in ("dryrun", "offline"):
             ret = True
         return ret
+
+    @property
+    def _silent(self):
+        if not self.silent:
+            return None
+        return _str_as_bool(self.silent)
+
+    @property
+    def _show_info(self):
+        if not self.show_info:
+            return None
+        return _str_as_bool(self.show_info)
+
+    @property
+    def _show_warnings(self):
+        if not self.show_warnings:
+            return None
+        return _str_as_bool(self.show_warnings)
+
+    @property
+    def _show_errors(self):
+        if not self.show_errors:
+            return None
+        return _str_as_bool(self.show_errors)
 
     @property
     def _noop(self):
@@ -386,27 +426,28 @@ class Settings(object):
             if self._jupyter:
                 console = "wrap"
             elif self._windows:
-                legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
-                if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
-                    msg = (
-                        "Set %s environment variable to enable"
-                        " proper console logging on Windows. Falling "
-                        "back to wrapping stdout/err." % legacy_env_var
-                    )
-                    wandb.termwarn(msg)
-                    logger.info(msg)
-                    console = "wrap"
-                if "tensorflow" in sys.modules:
-                    msg = (
-                        "Tensorflow detected. Stream redirection is not supported "
-                        "on Windows when tensorflow is imported. Falling back to "
-                        "wrapping stdout/err."
-                    )
-                    wandb.termlog(msg)
-                    logger.info(msg)
-                    console = "wrap"
-                else:
-                    console = "redirect"
+                console = "wrap"
+                # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
+                # if sys.version_info >= (3, 6) and legacy_env_var not in os.environ:
+                #     msg = (
+                #         "Set %s environment variable to enable"
+                #         " proper console logging on Windows. Falling "
+                #         "back to wrapping stdout/err." % legacy_env_var
+                #     )
+                #     wandb.termwarn(msg)
+                #     logger.info(msg)
+                #     console = "wrap"
+                # if "tensorflow" in sys.modules:
+                #     msg = (
+                #         "Tensorflow detected. Stream redirection is not supported "
+                #         "on Windows when tensorflow is imported. Falling back to "
+                #         "wrapping stdout/err."
+                #     )
+                #     wandb.termlog(msg)
+                #     logger.info(msg)
+                #     console = "wrap"
+                # else:
+                #     console = "redirect"
             else:
                 console = "redirect"
         convert = convert_dict[console]
@@ -495,6 +536,26 @@ class Settings(object):
         if value in choices:
             return
         return _error_choices(value, choices)
+
+    def _validate_silent(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_info(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_warnings(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+
+    def _validate_show_errors(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
 
     def _start_run(self):
         datetime_now = datetime.now()

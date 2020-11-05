@@ -6,13 +6,17 @@ config.
 
 import logging
 
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
+
 import six
-from six.moves.collections_abc import Sequence
 import wandb
-from wandb.lib import config_util
 from wandb.util import json_friendly
 
 from . import wandb_helper
+from .lib import config_util
 
 
 logger = logging.getLogger("wandb")
@@ -22,6 +26,73 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config(object):
+    """Config object
+
+    Config objects are intended to hold all of the hyperparameters associated with
+    a wandb run and are saved with the run object when wandb.init is called.
+
+    We recommend setting wandb.config once at the top of your training experiment or
+    setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
+
+    You can create a file called config-defaults.yaml, and it will automatically be
+    loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
+
+    You can also load a config YAML file with your custom name and pass the filename
+    into wandb.init(config="special_config.yaml").
+    See https://docs.wandb.com/library/config#file-based-configs.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.config.epochs = 4
+        wandb.init()
+        for x in range(wandb.config.epochs):
+            # train
+        ```
+
+        Using wandb.init to set config
+        ```
+        wandb.init(config={"epochs": 4, "batch_size": 32})
+        for x in range(wandb.config.epochs):
+            # train
+        ```
+
+        Nested configs
+        ```
+        wandb.config['train']['epochs] = 4
+        wandb.init()
+        for x in range(wandb.config['train']['epochs']):
+            # train
+        ```
+
+        Using absl flags
+
+        ```
+        flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
+        wandb.config.update(flags.FLAGS) # adds all absl flags to config
+        ```
+
+        Argparse flags
+        ```
+        wandb.init()
+        wandb.config.epochs = 4
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-b', '--batch-size', type=int, default=8, metavar='N',
+                            help='input batch size for training (default: 8)')
+        args = parser.parse_args()
+        wandb.config.update(args)
+        ```
+
+        Using TensorFlow flags (deprecated in tensorflow v2)
+        ```
+        flags = tf.app.flags
+        flags.DEFINE_string('data_dir', '/tmp/data')
+        flags.DEFINE_integer('batch_size', 128, 'Batch size.')
+        wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
+        ```
+    """
+
     def __init__(self):
         object.__setattr__(self, "_items", dict())
         object.__setattr__(self, "_locked", dict())
@@ -30,6 +101,8 @@ class Config(object):
         object.__setattr__(self, "_users_cnt", 0)
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
+
+        self._load_defaults()
 
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
@@ -114,6 +187,11 @@ class Config(object):
             self._locked[k] = num
             self._items[k] = v
 
+    def _load_defaults(self):
+        conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
+        if conf_dict is not None:
+            self.update(conf_dict)
+
     def _sanitize_dict(self, config_dict, allow_val_change=None):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
@@ -163,3 +241,23 @@ class Config(object):
             if val.__class__.__module__ not in ("builtins", "__builtin__"):
                 val = str(val)
             return val
+
+
+class ConfigStatic(object):
+    def __init__(self, config):
+        object.__setattr__(self, "__dict__", dict(config))
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def __setitem__(self, key, val):
+        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __str__(self):
+        return str(self.__dict__)

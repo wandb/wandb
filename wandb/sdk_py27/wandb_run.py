@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import atexit
 import collections
+from datetime import timedelta
 import glob
 import json
 import logging
@@ -30,8 +31,19 @@ from wandb import trigger
 from wandb.apis import internal, public
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
-from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import (
+from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
+from wandb.viz import (
+    create_custom_chart,
+    custom_chart_panel_config,
+    CustomChart,
+    Visualize,
+)
+
+from . import wandb_config
+from . import wandb_history
+from . import wandb_summary
+from .interface.summary_record import SummaryRecord
+from .lib import (
     config_util,
     filenames,
     ipython,
@@ -40,12 +52,6 @@ from wandb.lib import (
     redirect,
     sparkline,
 )
-from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
-from wandb.viz import Visualize
-
-from . import wandb_config
-from . import wandb_history
-from . import wandb_summary
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Sequence, Tuple
@@ -113,8 +119,11 @@ class RunStatusChecker(object):
                 or False
             )
             if status_response.run_should_stop:
-                thread.interrupt_main()
-                return
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
+                    thread.interrupt_main()
+                    return
             join_requested = self._join_event.wait(self._polling_interval)
 
     def stop(self):
@@ -235,6 +244,23 @@ class RunDummy(RunBase):
 
 
 class Run(RunBase):
+    """Defines a wandb run, which typically corresponds to an ML experiment.
+
+    A run is created with wandb.init()
+
+    If you do distributed training, each process should be in its own run and
+    the group should be set in wandb.init to link the runs together.
+
+    There is a parallel Run object in wandb's API, eventually it will be merged
+    with this object.
+
+    Attributes:
+        summary (:obj:`Summary`): summary statistics collected as training code
+            runs.
+        history (:obj:`History`): history of data logged with wandb.log associated
+            with run.
+    """
+
     def __init__(self, config=None, settings=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
@@ -285,13 +311,21 @@ class Run(RunBase):
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
+        self._upgraded_version_message = None
+        self._deleted_version_message = None
+        self._yanked_version_message = None
 
         # Pull info from settings
         self._init_from_settings(settings)
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", self._entity, self._project)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -409,14 +443,26 @@ class Run(RunBase):
 
     @property
     def dir(self):
+        """str: The directory where all of the files associated with the run are
+        placed.
+        """
         return self._settings.files_dir
 
     @property
     def config(self):
+        """(:obj:`Config`): A config object (similar to a nested dict) of key
+            value pairs associated with the hyperparameters of the run.
+        """
         return self._config
 
     @property
+    def config_static(self):
+        return wandb_config.ConfigStatic(self._config)
+
+    @property
     def name(self):
+        """str: the display name of the run. It does not need to be unique
+        and ideally is descriptive."""
         if self._name:
             return self._name
         if not self._run_obj:
@@ -431,6 +477,8 @@ class Run(RunBase):
 
     @property
     def notes(self):
+        """str: notes associated with the run. Notes can be a multiline string
+            and can also use markdown and latex equations inside $$ like $\\{x}"""
         if self._notes:
             return self._notes
         if not self._run_obj:
@@ -445,11 +493,11 @@ class Run(RunBase):
 
     @property
     def tags(self):
+        """Tuple[str]: tags associated with the run"""
         if self._tags:
             return self._tags
-        if not self._run_obj:
-            return None
-        return self._run_obj.tags
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.tags
 
     @tags.setter
     def tags(self, tags):
@@ -459,16 +507,19 @@ class Run(RunBase):
 
     @property
     def id(self):
+        """str: the run_id associated with the run"""
         return self._run_id
 
     @property
     def sweep_id(self):
+        """(str, optional): the sweep id associated with the run or None"""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
 
     @property
     def path(self):
+        """str: the path to the run [entity]/[project]/[run_id]"""
         parts = []
         for e in [self._entity, self._project, self._run_id]:
             if e is not None:
@@ -477,6 +528,7 @@ class Run(RunBase):
 
     @property
     def start_time(self):
+        """int: the unix time stamp in seconds when the run started"""
         if not self._run_obj:
             return self._start_time
         else:
@@ -484,6 +536,7 @@ class Run(RunBase):
 
     @property
     def starting_step(self):
+        """int: the first step of the run"""
         if not self._run_obj:
             return self._starting_step
         else:
@@ -491,10 +544,19 @@ class Run(RunBase):
 
     @property
     def resumed(self):
-        return self.starting_step > 0
+        """bool: whether or not the run was resumed"""
+
+        if self._run_obj:
+            return self._run_obj.resumed
+        return False
 
     @property
     def step(self):
+        """int: step counter
+
+        Every time you call wandb.log() it will by default increment the step
+            counter.
+        """
         return self.history._step
 
     def project_name(self, api=None):
@@ -502,21 +564,71 @@ class Run(RunBase):
         return run_obj.project
 
     @property
+    def mode(self):
+        """For compatibility with 0.9.x and earlier, deprecate eventually."""
+        return "dryrun" if self._settings._offline else "run"
+
+    @property
+    def offline(self):
+        return self._settings._offline
+
+    @property
+    def group(self):
+        """str: name of W&B group associated with run.
+
+        Setting a group helps the W&B UI organize runs in a sensible way.
+
+        If you are doing a distributed training you should give all of the
+            runs in the training the same group.
+        If you are doing crossvalidation you should give all the crossvalidation
+            folds the same group.
+        """
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group
+
+    @property
+    def job_type(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.job_type
+
+    @property
     def project(self):
+        """str: name of W&B project associated with run. """
         return self.project_name()
 
     def get_url(self):
+        """Returns: (str, optional): url for the W&B run or None if the run
+            is offline"""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return
         return self._get_run_url()
 
+    def get_project_url(self):
+        """Returns: (str, optional): url for the W&B project associated with
+            the run or None if the run is offline"""
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_project_url()
+
+    def get_sweep_url(self):
+        """Returns: (str, optional): url for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline."""
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return
+        return self._get_sweep_url()
+
     @property
     def url(self):
+        """str: name of W&B url associated with run."""
         return self.get_url()
 
     @property
     def entity(self):
+        """str: name of W&B entity associated with run. Entity is either
+        a user name or an organization name."""
         return self._entity
 
     # def _repr_html_(self):
@@ -557,6 +669,7 @@ class Run(RunBase):
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
+        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
                 if "viz" not in self._config["_wandb"]:
@@ -567,6 +680,23 @@ class Run(RunBase):
                 }
                 row[k] = row[k].value
                 visualize_persist_config = True
+            elif isinstance(row[k], CustomChart):
+                custom_charts[k] = row[k]
+                custom_chart = row[k]
+
+        for k, custom_chart in custom_charts.items():
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row.pop(k)
+            # add the table under a different key
+            table_key = k + "_table"
+            row[table_key] = custom_chart.table
+            # add the panel
+            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
+            self._add_panel(k, "Vega2", panel_config)
+            visualize_persist_config = True
+
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
@@ -613,7 +743,13 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            entity=run_obj.entity,
+            project=run_obj.project,
+            email=self._settings.email,
+            url=self._get_run_url(),
+        )
 
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj
@@ -872,39 +1008,7 @@ class Run(RunBase):
         replace = False,
         root = None,
     ):
-        """ Downloads the specified file from cloud storage into the current run directory
-        if it doesn't exist.
-
-        Args:
-            name: the name of the file
-            run_path: optional path to a different run to pull files from
-            replace: whether to download the file even if it already exists locally
-            root: the directory to download the file to.  Defaults to the current
-                directory or the run directory if wandb.init was called.
-
-        Returns:
-            None if it can't find the file, otherwise a file object open for reading
-
-        Raises:
-            wandb.CommError if it can't find the run
-            ValueError if the file is not found
-        """
-
-        #  TODO: handle restore outside of a run context?
-        api = public.Api()
-        api_run = api.run(run_path or self.path)
-        if root is None:
-            root = self.dir  # TODO: runless else '.'
-        path = os.path.join(root, name)
-        if os.path.exists(path) and replace is False:
-            return open(path, "r")
-        files = api_run.files([name])
-        if len(files) == 0:
-            return None
-        # if the file does not exist, the file has an md5 of 0
-        if files[0].md5 == "0":
-            raise ValueError("File {} not found.".format(path))
-        return files[0].download(root=root, replace=True)
+        return restore(name, run_path or self.path, replace, root or self.dir)
 
     def finish(self, exit_code=None):
         """Marks a run as finished, and finishes uploading all data.  This is
@@ -921,7 +1025,34 @@ class Run(RunBase):
         module.unset_globals()
 
     def join(self, exit_code=None):
+        """Deprecated alias for finish() - please use finish"""
         self.finish(exit_code=exit_code)
+
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
+        """Creates a custom plot on a table.
+        Args:
+            vega_spec_name: the name of the spec for the plot
+            table_key: the key used to log the data table
+            data_table: a wandb.Table object containing the data to
+                        be used on the visualization
+            fields: a dict mapping from table keys to fields that the custom
+                    visualization needs
+            string_fields: a dict that provides values for any string constants
+                    the custom visualization needs
+        """
+        visualization = create_custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
+        return visualization
+
+    def _set_upgraded_version_message(self, msg):
+        self._upgraded_version_message = msg
+
+    def _set_deleted_version_message(self, msg):
+        self._deleted_version_message = msg
+
+    def _set_yanked_version_message(self, msg):
+        self._yanked_version_message = msg
 
     def _add_panel(self, visualize_key, panel_type, panel_config):
         if "visualize" not in self._config["_wandb"]:
@@ -953,7 +1084,7 @@ class Run(RunBase):
         """Generate a url for a sweep.
 
         Returns:
-            string - url if the run is part of a sweep
+            str - url if the run is part of a sweep
             None - if the run is not part of the sweep
         """
 
@@ -1170,7 +1301,9 @@ class Run(RunBase):
         self._exit_code = exit_code
         try:
             self._on_finish()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            if wandb.wandb_agent._is_running():
+                raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
             if ipython._get_python_type() == "python":
                 os._exit(-1)
@@ -1201,8 +1334,12 @@ class Run(RunBase):
 
     def _console_stop(self):
         self._restore()
-        self._output_writer.close()
-        self._output_writer = None
+        if self._output_writer:
+            self._output_writer.close()
+            self._output_writer = None
+
+    def _on_init(self):
+        self._show_version_info()
 
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
@@ -1395,6 +1532,21 @@ class Run(RunBase):
                 )
             )
 
+        self._show_version_info(footer=True)
+
+    def _show_version_info(self, footer=None):
+        package_problem = False
+        if self._deleted_version_message:
+            wandb.termerror(self._deleted_version_message)
+            package_problem = True
+        elif self._yanked_version_message:
+            wandb.termwarn(self._yanked_version_message)
+            package_problem = True
+        # only display upgrade message if packages are bad or in header
+        if not footer or package_problem:
+            if self._upgraded_version_message:
+                wandb.termlog(self._upgraded_version_message)
+
     def _show_summary(self):
         if self._final_summary:
             logger.info("rendering summary")
@@ -1584,6 +1736,7 @@ class Run(RunBase):
             type (str): The type of artifact to log, examples include "dataset", "model"
             aliases (list, optional): Aliases to apply to this artifact,
                 defaults to ["latest"]
+
         Returns:
             A :obj:`Artifact` object.
         """
@@ -1616,6 +1769,37 @@ class Run(RunBase):
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
 
+    def alert(self, title, text, level=None, wait_duration=None):
+        """Launch an alert with the given title and text.
+
+        Args:
+            title (str): The title of the alert, must be less than 64 characters long
+            text (str): The text body of the alert
+            level (str or wandb.AlertLevel, optional): The alert level to use, either: "INFO", "WARN", or "ERROR"
+            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
+                with this title
+        """
+        level = level or wandb.AlertLevel.INFO
+        if isinstance(level, wandb.AlertLevel):
+            level = level.value
+        if level not in (
+            wandb.AlertLevel.INFO.value,
+            wandb.AlertLevel.WARN.value,
+            wandb.AlertLevel.ERROR.value,
+        ):
+            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
+
+        wait_duration = wait_duration or timedelta(minutes=1)
+        if isinstance(wait_duration, int) or isinstance(wait_duration, float):
+            wait_duration = timedelta(seconds=wait_duration)
+        elif not callable(getattr(wait_duration, "total_seconds", None)):
+            raise ValueError(
+                "wait_duration must be an int, float, or datetime.timedelta"
+            )
+        wait_duration = int(wait_duration.total_seconds() * 1000)
+
+        self._backend.interface.publish_alert(title, text, level, wait_duration)
+
     def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
         self._use_redirect = use_redirect
         self._stdout_slave_fd = stdout_slave_fd
@@ -1628,6 +1812,67 @@ class Run(RunBase):
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
+
+
+# We define this outside of the run context to support restoring before init
+def restore(
+    name,
+    run_path = None,
+    replace = False,
+    root = None,
+):
+    """ Downloads the specified file from cloud storage into the current directory
+        or run directory.  By default this will only download the file if it doesn't
+        already exist.
+
+        Args:
+            name: the name of the file
+            run_path: optional path to a run to pull files from, i.e. username/project_name/run_id
+                if wandb.init has not been called, this is required.
+            replace: whether to download the file even if it already exists locally
+            root: the directory to download the file to.  Defaults to the current
+                directory or the run directory if wandb.init was called.
+
+        Returns:
+            None if it can't find the file, otherwise a file object open for reading
+
+        Raises:
+            wandb.CommError if we can't connect to the wandb backend
+            ValueError if the file is not found or can't find run_path
+    """
+
+    if run_path is None:
+        if wandb.run is not None:
+            run_path = wandb.run.path
+        else:
+            raise ValueError(
+                "run_path required when calling wandb.restore before wandb.init"
+            )
+    if root is None:
+        if wandb.run is not None:
+            root = wandb.run.dir
+    api = public.Api()
+    api_run = api.run(run_path)
+    if root is None:
+        root = os.getcwd()
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace is False:
+        return open(path, "r")
+    files = api_run.files([name])
+    if len(files) == 0:
+        return None
+    # if the file does not exist, the file has an md5 of 0
+    if files[0].md5 == "0":
+        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+    return files[0].download(root=root, replace=True)
+
+
+# propigate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
 
 
 def huggingface_version():

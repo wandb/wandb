@@ -6,9 +6,11 @@ import sys
 from datetime import datetime, timedelta
 import json
 import yaml
+
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
 import wandb
+
 sys.path[0:0] = save_path
 import logging
 from six.moves import urllib
@@ -35,10 +37,11 @@ def mock_server(mocker):
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
+    sdk_path = "wandb.sdk"
     mocker.patch("gql.transport.requests.requests", mock)
-    mocker.patch("wandb.internal.file_stream.requests", mock)
-    mocker.patch("wandb.internal.internal_api.requests", mock)
-    mocker.patch("wandb.internal.update.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
@@ -59,8 +62,8 @@ def run(ctx):
     # for wandb_tests::wandb_restore_name_not_found
     # if there is a fileName query, and this query is for nofile.h5
     # return an empty file. otherwise, return the usual weights.h5
-    if ctx.get('graphql'):
-        fileNames = ctx['graphql'][-1]['variables'].get('fileNames')
+    if ctx.get("graphql"):
+        fileNames = ctx["graphql"][-1]["variables"].get("fileNames")
     else:
         fileNames = None
     if fileNames == ["nofile.h5"]:
@@ -77,10 +80,10 @@ def run(ctx):
             "md5": "XXX",
             "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
         }
-      
+
     return {
         "id": "test",
-        "name": "wild-test",
+        "name": "test",
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
@@ -96,11 +99,7 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [
-                {
-                    "node": fileNode,
-                }
-            ]
+            "edges": [{"node": fileNode,}]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -133,9 +132,7 @@ def artifact(ctx, collection_name="mnist"):
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {
-            "name": collection_name,
-        },
+        "artifactSequence": {"name": collection_name,},
     }
 
 
@@ -199,23 +196,26 @@ def set_ctx(ctx):
 
 def _bucket_config():
     return {
-        'patch': '''
-diff --git a/patch.txt b/patch.txt
-index 30d74d2..9a2c773 100644
---- a/patch.txt
-+++ b/patch.txt
-@@ -1 +1 @@
--test
-\ No newline at end of file
-+testing
-\ No newline at end of file
-        ''',
-        'commit': 'HEAD',
-        'github': 'https://github.com/vanpelt',
-        'config': '{"foo":{"value":"bar"}}',
-        'files': {
-            'edges': [{'node': {'directUrl': request.url_root + "/storage?file=metadata.json"}}]
-        }
+        "commit": "HEAD",
+        "github": "https://github.com/vanpelt",
+        "config": '{"foo":{"value":"bar"}}',
+        "files": {
+            "edges": [
+                {
+                    "node": {
+                        "directUrl": request.url_root
+                        + "/storage?file=wandb-metadata.json",
+                        "name": "wandb-metadata.json",
+                    }
+                },
+                {
+                    "node": {
+                        "directUrl": request.url_root + "/storage?file=diff.patch",
+                        "name": "diff.patch",
+                    }
+                },
+            ]
+        },
     }
 
 
@@ -264,7 +264,9 @@ def create_app(user_ctx=None):
             ctx["current_run"] = body["variables"]["run"]
         if body["variables"].get("files"):
             ctx["requested_file"] = body["variables"]["files"][0]
-            url = request.url_root + "/storage?file={}&run={}".format(urllib.parse.quote(ctx["requested_file"]), ctx["current_run"])
+            url = request.url_root + "/storage?file={}&run={}".format(
+                urllib.parse.quote(ctx["requested_file"]), ctx["current_run"]
+            )
             return json.dumps(
                 {
                     "data": {
@@ -273,7 +275,14 @@ def create_app(user_ctx=None):
                                 "id": "storageid",
                                 "files": {
                                     "uploadHeaders": [],
-                                    "edges": [{"node": {"name": ctx["requested_file"], "url": url}}],
+                                    "edges": [
+                                        {
+                                            "node": {
+                                                "name": ctx["requested_file"],
+                                                "url": url,
+                                            }
+                                        }
+                                    ],
                                 },
                             }
                         }
@@ -426,35 +435,23 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {
-                    "data": {
-                        "createAgent": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            }
-                        }
-                    }
-                }
+                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            },
-                            "commands": json.dumps([
-                                {
-                                    "type": "run",
-                                    "run_id": "mocker-server-run-x9",
-                                    "args": {
-                                        "learning_rate": {
-                                            "value": 0.99124
-                                        }
+                            "agent": {"id": "mock-server-agent-93xy",},
+                            "commands": json.dumps(
+                                [
+                                    {
+                                        "type": "run",
+                                        "run_id": "mocker-server-run-x9",
+                                        "args": {"learning_rate": {"value": 0.99124}},
                                     }
-                                }
-                            ])
+                                ]
+                            ),
                         }
                     }
                 }
@@ -506,11 +503,7 @@ def create_app(user_ctx=None):
         if "mutation CreateArtifact(" in body["query"]:
             collection_name = body["variables"]["artifactCollectionNames"][0]
             return {
-                "data": {
-                    "createArtifact": {
-                        "artifact": artifact(ctx, collection_name)
-                    }
-                }
+                "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
             }
         if "mutation UseArtifact(" in body["query"]:
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
@@ -629,7 +622,7 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        data = request.get_data()
+        request.get_data()
         if file == "wandb_manifest.json":
             return {
                 "version": 1,
@@ -639,8 +632,27 @@ def create_app(user_ctx=None):
                     "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299},
                 },
             }
-        elif file == "metadata.json":
-            return {"docker": "test/docker", "program": "train.py", "args": ["--test", "foo"], "git": ctx.get("git", {})}
+        elif file == "wandb-metadata.json":
+            return {
+                "docker": "test/docker",
+                "program": "train.py",
+                "args": ["--test", "foo"],
+                "git": ctx.get("git", {}),
+            }
+        elif file == "diff.patch":
+            # TODO: make sure the patch is valid for windows as well,
+            # and un skip the test in test_cli.py
+            return """
+diff --git a/patch.txt b/patch.txt
+index 30d74d2..9a2c773 100644
+--- a/patch.txt
++++ b/patch.txt
+@@ -1 +1 @@
+-test
+\ No newline at end of file
++testing
+\ No newline at end of file
+"""
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
@@ -666,9 +678,10 @@ def create_app(user_ctx=None):
 
     @app.route("/pypi/<library>/json")
     def pypi(library):
+        version = getattr(wandb, "__hack_pypi_latest_version__", wandb.__version__)
         return json.dumps(
             {
-                "info": {"version": wandb.__version__},
+                "info": {"version": version},
                 "releases": {
                     "88.1.2rc2": [],
                     "88.1.2rc12": [],
@@ -678,6 +691,8 @@ def create_app(user_ctx=None):
                     "0.0.8rc2": [],
                     "0.0.8rc3": [],
                     "0.0.8rc8": [],
+                    "0.0.2": [{"yanked": True}],
+                    "0.0.3": [{"yanked": True, "yanked_reason": "just cuz"}],
                     "0.0.7": [],
                     "0.0.5": [],
                     "0.0.6": [],

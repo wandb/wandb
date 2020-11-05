@@ -5,11 +5,14 @@ import types
 import six
 from wandb.errors.error import UsageError
 
+from .lib import config_util
+
 
 def parse_config(params, exclude=None, include=None):
     if exclude and include:
         raise UsageError("Expected at most only one of exclude or include")
-
+    if isinstance(params, six.string_types):
+        params = config_util.dict_from_config_file(params, must_exist=True)
     params = _to_dict(params)
     if include:
         params = {key: value for key, value in six.iteritems(params) if key in include}
@@ -17,7 +20,6 @@ def parse_config(params, exclude=None, include=None):
         params = {
             key: value for key, value in six.iteritems(params) if key not in exclude
         }
-
     return params
 
 

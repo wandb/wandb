@@ -19,7 +19,7 @@ class HyperOpt(cfg.SweepConfigElement):
                  random_state_seed=None,
                  gamma=None,
                  **kwargs):
-        local_args = locals()
+        local_args = dict(locals())
         return self._config("hyperopt.HyperOptSearch", [], local_args)
 
 HyperOptSearch = HyperOpt().HyperOptSearch

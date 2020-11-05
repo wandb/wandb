@@ -31,6 +31,7 @@ message Record {
     StatsRecord    stats = 7;
     ArtifactRecord artifact = 8;
     TBRecord       tbrecord = 9;
+    AlertRecord    alert = 10;
     // Higher numbers for less frequent data
     RunRecord      run = 17;
     RunExitRecord  exit = 18;
@@ -105,6 +106,7 @@ message RunRecord {
 
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
+  bool                      resumed = 18;
 }
 
 message RunUpdateResult {
@@ -301,6 +303,16 @@ message TBRecord {
   bool   save = 2;
 }
 
+/*
+ * AlertRecord: store alert notifications
+ */
+message AlertRecord {
+  string title = 1;
+  string text = 2;
+  string level = 3;
+  int64  wait_duration = 4;
+}
+
 /************************
  * Requests and Responses
  ************************/
@@ -468,8 +480,11 @@ message RunStartResponse {
  * CheckVersion:
  */
 message CheckVersionRequest {
+  string current_version = 1;
 }
 
 message CheckVersionResponse {
-  string message = 1;
+  string upgrade_message = 1;
+  string yank_message = 2;
+  string delete_message = 3;
 }

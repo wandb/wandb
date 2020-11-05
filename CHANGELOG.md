@@ -1,3 +1,74 @@
+## 0.10.8 (October 22, 2020)
+
+#### :nail_care: Enhancement
+
+- Allow callables to be serialized
+
+#### :bug: Bug Fix
+
+- Fix compatibility issue with python 3.9
+- Fix `wandb sync` failure introduced in 0.10.6
+- Improve python agent handling of failing runs
+- Fix rare condition where resuming runs does not work
+- Improve symlink handling when called in thread context
+- Fix issues when changing directories before calling wandb.init()
+
+## 0.10.7 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Fix issue when checking for updated releases on pypi
+
+## 0.10.6 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Make sure code saving is enabled in jupyter environments after login
+- Sweep agents have extended timeout for large sweep configs
+- Support WANDB_SILENT environment variable
+- Warn about missing python package when logging images
+- Fix wandb.restore() to apply diff patch
+- Improve artifact error messages
+- Fix loading of config-defaults.yaml and specified list of yaml config files
+
+## 0.10.5 (October 7, 2020)
+
+#### :nail_care: Enhancement
+
+- Add new custom plots: `wandb.plot.*`
+- Add new python based sweep agent: `wandb.agent()`
+
+#### :bug: Bug Fix
+
+- Console log fixes (tqdm on windows, fix close exceptions)
+- Add more attributes to the Run object (group, job_type, urls)
+- Fix sagemaker login issues
+- Fix issue where plots were not uploaded until the end of run
+
+## 0.10.4 (September 29, 2020)
+
+#### :bug: Bug Fix
+
+-  Fix an issue where wandb.init(allow_val_change=) throws exception
+
+## 0.10.3 (September 29, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added warning when trying to sync pre 0.10.0 run dirs
+-  Improved jupyter support for wandb run syncing information
+
+#### :bug: Bug Fix
+
+-  Fix artifact download issues
+-  Fix multiple issues with tensorboard_sync
+-  Fix multiple issues with juypter/python sweeps
+-  Fix issue where login was timing out
+-  Fix issue where config was overwritten when resuming runs
+-  Ported sacred observer to 0.10.x release
+-  Fix predicted bounding boxes overwritten by ground truth boxes
+-  Add missing save_code parameter to wandb.init()
+
 ## 0.10.2 (September 20, 2020)
 
 #### :nail_care: Enhancement

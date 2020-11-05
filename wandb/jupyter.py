@@ -31,6 +31,7 @@ except ImportError:
     def line_cell_magic(*args, **kwargs):
         return lambda *args, **kwargs: None
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,8 +42,11 @@ class Run(object):
     def _repr_html_(self):
         try:
             url = self.run._get_run_url() + "?jupyter=true"
-            return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
-                </iframe>''' % url
+            return (
+                """<iframe src="%s" style="border:none;width:100%%;height:420px">
+                </iframe>"""
+                % url
+            )
         except wandb.Error as e:
             return "Can't display wandb interface<br/>{}".format(e)
 
