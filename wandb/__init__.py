@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.9.dev1"
+__version__ = "0.10.10.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -76,6 +76,8 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
+from wandb.data_types import Classes
+from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
