@@ -138,7 +138,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 @pytest.mark.parametrize("use_dp", [False, True])
 def test_all_logging(wandb_init_run, use_dp):
     net = ConvNet()
-    if use_db:
+    if use_dp:
         net = nn.DataParallel(net)
     wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
