@@ -136,7 +136,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 
 
 @pytest.mark.parametrize("use_dp", [False, True])
-def test_all_logging(wandb_init_run, use_dp=False):
+def test_all_logging(wandb_init_run, use_dp):
     net = ConvNet()
     if use_db:
         net = nn.DataParallel(net)
@@ -153,7 +153,7 @@ def test_all_logging(wandb_init_run, use_dp=False):
 
 
 @pytest.mark.parametrize("use_dp", [False, True])
-def test_double_log(wandb_init_run, use_dp=False):
+def test_double_log(wandb_init_run, use_dp):
     net = ConvNet()
     if use_dp:
         net = nn.DataParallel(net)
@@ -164,7 +164,7 @@ def test_double_log(wandb_init_run, use_dp=False):
 
 @pytest.mark.timeout(120)
 @pytest.mark.parametrize("use_dp", [False, True])
-def test_sequence_net(wandb_init_run, use_dp=False):
+def test_sequence_net(wandb_init_run, use_dp):
     net = Sequence()
     if use_dp:
         net = nn.DataParallel(net)
@@ -182,7 +182,7 @@ def test_sequence_net(wandb_init_run, use_dp=False):
     sys.platform == "darwin", reason="TODO: [Errno 24] Too many open files?!?"
 )
 @pytest.mark.parametrize("use_dp", [False, True])
-def test_multi_net(wandb_init_run):
+def test_multi_net(wandb_init_run, use_dp):
     net1 = ConvNet()
     net2 = ConvNet()
     if use_dp:
