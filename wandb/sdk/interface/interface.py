@@ -436,8 +436,13 @@ class BackendSender(object):
 
     def _communicate(self, rec, timeout=5, local=None):
         assert self._router
-        if timeout is not None:  # adjust for long queue
-            timeout += int(0.015 * self.record_q.qsize())
+        if timeout is not None:
+            try:
+                # adjust for long queue
+                timeout += int(0.015 * self.record_q.qsize())
+            except NotImplementedError:  # qsize() not implemented in MacOS
+                # TODO(frz): Handle this better
+                pass
         future = self._router.send_and_receive(rec, local=local)
         return future.get(timeout)
 
