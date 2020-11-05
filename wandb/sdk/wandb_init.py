@@ -141,7 +141,7 @@ class _WandbInit(object):
 
         settings._apply_init(kwargs)
 
-        if not settings._offline:
+        if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
 
