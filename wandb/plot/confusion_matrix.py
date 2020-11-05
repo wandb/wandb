@@ -28,7 +28,7 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
     assert len(preds) == len(
         y_true
     ), "Number of predictions and label indices must match"
-    if class_names:
+    if class_names is not None:
         n_classes = len(class_names)
         assert max(preds) <= len(
             class_names
