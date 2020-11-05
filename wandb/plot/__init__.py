@@ -4,6 +4,7 @@ from wandb.plot.line import line
 from wandb.plot.pr_curve import pr_curve
 from wandb.plot.roc_curve import roc_curve
 from wandb.plot.scatter import scatter
+from wandb.plot.confusion_matrix import confusion_matrix
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "bar",
     "roc_curve",
     "pr_curve",
+    "confusion_matrix"
 ]
