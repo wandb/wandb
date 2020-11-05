@@ -5,6 +5,7 @@
 - Added artifact media logging (alpha)
 - Add scriptable alerts
 - Add url attribute for sweep public api
+- Update docstrings for wandb sdk functions
 
 #### :bug: Bug Fix
 
