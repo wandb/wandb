@@ -52,7 +52,6 @@ def bump_release_from_dev(current_version):
     if args.debug:
         bump_args += ["--allow-dirty", "--dry-run", "--verbose"]
     bump_args += ["--new-version", new_version, "patch"]
-    print("bump", bump_args)
     bumpversion.main(bump_args)
 
 
