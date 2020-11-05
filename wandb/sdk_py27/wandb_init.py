@@ -321,7 +321,6 @@ class _WandbInit(object):
                 plot_table=run.plot_table,
                 alert=run.alert,
             )
-            # disable(inspect.stack()[1][0].f_globals)
             return run
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
