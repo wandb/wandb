@@ -50,7 +50,7 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
             data.append([class_names[i], class_names[j], counts[i, j]])
 
     fields = {"Actual": "Actual", "Predicted": "Predicted", "nPredictions": "Count"}
-    print("Im returning")
+
     return wandb.plot_table(
         "wandb/confusion_matrix/v0",
         wandb.Table(columns=["Actual", "Predicted", "Count"], data=data),
