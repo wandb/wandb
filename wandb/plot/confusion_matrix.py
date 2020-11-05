@@ -13,7 +13,7 @@ def confusion_matrix(
     Arguments:
     preds (arr): Array of predicted label indices.
     y_true (arr): Array of label indices.
-    class_names (arr): Array of of 
+    class_names (arr): Array of class names.
 
     Returns:
     Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -34,7 +34,7 @@ def confusion_matrix(
         assert max(y_true) <= len(class_names), "Higher label class index than number of classes"
     else:
         n_classes = max(max(preds), max(y_true))
-        class_names = ['Class_{}'.format(i) for i in range(1, n_classes+1)]
+        class_names = ['Class_{}'.format(i) for i in range(1, n_classes + 1)]
 
     counts = np.zeros((n_classes,n_classes))
     for i in range(len(preds)):
@@ -52,7 +52,7 @@ def confusion_matrix(
     }
     print("Im returning")
     return wandb.plot_table(
-        "wandb/confusion_matrix/v0",
+        "wandb/confusimat_test_final_v0",
         wandb.Table(columns=["Actual", "Predicted", "Count"], data=data),
         fields
     )
