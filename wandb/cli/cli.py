@@ -31,7 +31,8 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
-from wandb.old.core import wandb_dir
+
+# from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
@@ -41,10 +42,16 @@ import yaml
 whaaaaat = util.vendor_import("whaaaaat")
 
 
-logging.basicConfig(
-    filename=os.path.join(wandb_dir(env.get_dir()), "debug-cli.log"),
-    level=logging.DEBUG,
-)
+# TODO: turn this on in a cleaner way
+# right now we will litter the filesystem with wandb dirs
+#
+# _wandb_dir = wandb_dir(env.get_dir())
+# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
+# logging.basicConfig(
+#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
+#     level=logging.DEBUG,
+# )
+# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})

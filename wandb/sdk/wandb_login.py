@@ -6,8 +6,6 @@ login.
 
 from __future__ import print_function
 
-import logging
-
 import click
 import wandb
 from wandb.errors.error import UsageError
@@ -15,8 +13,6 @@ from wandb.errors.error import UsageError
 from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
-
-logger = logging.getLogger("wandb")
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
@@ -62,7 +58,8 @@ class _WandbLogin(object):
         settings_param = kwargs.pop("_settings", None)
         if settings_param:
             login_settings._apply_settings(settings_param)
-        login_settings._apply_login(kwargs)
+        _logger = wandb.setup()._get_logger()
+        login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
@@ -124,12 +121,15 @@ class _WandbLogin(object):
         self._key = key
 
     def update_session(self, key):
+        _logger = wandb.setup()._get_logger()
         settings: Settings = wandb.Settings()
-        settings._apply_source_login(dict(api_key=key))
+        login_settings = dict(api_key=key) if key else dict(mode="offline")
+        settings._apply_source_login(login_settings, _logger=_logger)
         self._wl._update(settings=settings)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
-        self._wl._update_user_settings()
+        if not self._wl.settings._offline:
+            self._wl._update_user_settings()
 
     def prompt_api_key(self):
         api = Api()
@@ -161,11 +161,14 @@ def _login(
     force=None,
     _backend=None,
     _silent=None,
+    _disable_warning=None,
 ):
     kwargs = dict(locals())
+    _disable_warning = kwargs.pop("_disable_warning", None)
 
     if wandb.run is not None:
-        wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
+        if not _disable_warning:
+            wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
         return True
 
     wlogin = _WandbLogin()
