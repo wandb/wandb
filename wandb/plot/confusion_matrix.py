@@ -4,9 +4,7 @@ from wandb import util
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(
-    preds=None, y_true=None, class_names=None
-):
+def confusion_matrix(preds=None, y_true=None, class_names=None):
     """
     Computes a multi-run confusion matrix.
 
@@ -27,32 +25,34 @@ def confusion_matrix(
         "numpy",
         required="confusion matrix requires the numpy library, install with `pip install numpy`",
     )
-    assert len(preds) == len(y_true), "Number of predictions and label indices must match"
+    assert len(preds) == len(
+        y_true
+    ), "Number of predictions and label indices must match"
     if class_names:
         n_classes = len(class_names)
-        assert max(preds) <= len(class_names), "Higher predicted index than number of classes"
-        assert max(y_true) <= len(class_names), "Higher label class index than number of classes"
+        assert max(preds) <= len(
+            class_names
+        ), "Higher predicted index than number of classes"
+        assert max(y_true) <= len(
+            class_names
+        ), "Higher label class index than number of classes"
     else:
         n_classes = max(max(preds), max(y_true))
-        class_names = ['Class_{}'.format(i) for i in range(1, n_classes + 1)]
+        class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
 
-    counts = np.zeros((n_classes,n_classes))
+    counts = np.zeros((n_classes, n_classes))
     for i in range(len(preds)):
         counts[y_true[i], preds[i]] += 1
 
     data = []
     for i in range(n_classes):
         for j in range(n_classes):
-            data.append([class_names[i], class_names[j], counts[i,j]])
+            data.append([class_names[i], class_names[j], counts[i, j]])
 
-    fields = {
-        "Actual": "Actual",
-        "Predicted": "Predicted",
-        "nPredictions": "Count"
-    }
+    fields = {"Actual": "Actual", "Predicted": "Predicted", "nPredictions": "Count"}
     print("Im returning")
     return wandb.plot_table(
-        "wandb/confusimat_test_final_v0",
+        "wandb/confusion_matrix/v0",
         wandb.Table(columns=["Actual", "Predicted", "Count"], data=data),
-        fields
+        fields,
     )

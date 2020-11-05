@@ -14,5 +14,5 @@ __all__ = [
     "bar",
     "roc_curve",
     "pr_curve",
-    "confusion_matrix"
+    "confusion_matrix",
 ]
