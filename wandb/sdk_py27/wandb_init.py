@@ -22,7 +22,7 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, module, reporting, ipython
+from .lib import filesystem, ipython, module, reporting
 from .wandb_helper import parse_config
 from .wandb_run import Run, RunBase, RunDummy
 from .wandb_settings import Settings
