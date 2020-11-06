@@ -703,7 +703,7 @@ def assert_json_serialization(obj):
     expected_dict = obj.to_json(artifact)
     simulate_artifact_download(artifact)
 
-    obj_copy = obj.__class__.from_json(expected_dict, artifact._artifact_dir.name)
+    obj_copy = obj.__class__.from_json(expected_dict, artifact)
     assert obj == obj_copy
 
 

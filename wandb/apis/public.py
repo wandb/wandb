@@ -2674,31 +2674,44 @@ class Artifact(object):
         """
         root = self._default_root()
         if not self._is_downloaded:
-            root = self.download()
+            self.download()
 
         manifest = self._load_manifest()
 
         for obj_type in JSONABLE_MEDIA_CLASSES:
-            wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
+            if (
+                name.split(".")[-1] != "json"
+                or name.split(".")[-2] != obj_type.get_json_suffix()
+            ):
+                wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
+            else:
+                wandb_file_name = name
+            # print("trying:", wandb_file_name, wandb_file_name)
             entry = manifest.entries.get(wandb_file_name)
             if entry is not None:
+                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
+                    artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
+                    # print("here", entry.extra["source_path"])
+                    return artifact.get(entry.extra["source_path"])
+
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
 
                 # If the item is a symlink, then find the concrete asset at the end of symlinks
-                if os.path.islink(item_path):
-                    link_path = item_path
-                    while os.path.islink(link_path):
-                        link_path = os.readlink(link_path)
+                # if os.path.islink(item_path):
+                #     link_path = item_path
+                #     while os.path.islink(link_path):
+                #         link_path = os.readlink(link_path)
 
-                    root = _determine_artifact_root(item_path, link_path)
+                #     root = _determine_artifact_root(item_path, link_path)
 
                 # Load the object from the JSON blob
                 result = None
                 json_obj = {}
                 with open(item_path, "r") as file:
                     json_obj = json.load(file)
-                result = obj_type.from_json(json_obj, root)
+                # print("HHHHHEEEE", item_path, json_obj)
+                result = obj_type.from_json(json_obj, self)
                 result._source = {"artifact": self, "name": name}
                 return result
 

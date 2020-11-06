@@ -260,7 +260,7 @@ class Media(WBValue):
         raise NotImplementedError
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
         raise NotImplementedError
 
     def to_json(self, run):
@@ -320,6 +320,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 50000
+    REF_FILE_TYPE = "table-reference-file"
 
     @staticmethod
     def get_json_suffix():
@@ -396,20 +397,31 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
+        data = []
+        for row in json_obj["data"]:
+            row_data = []
+            for item in row:
+                if isinstance(item, dict) and item.get("_type") is not None:
+                    item_type = item.get("_type")
+                    if item.get("_type") == Table.REF_FILE_TYPE:
+                        # obj_path = os.path.join(root, item.get("path"))
+                        # with open(obj_path, "r") as file:
+                        #     item = json.load(file)
+                        # print('item.get("ref_name")' , item.get("ref_name"))
+                        asset = source_artifact.get(item.get("ref_name"))
+                        # print(source_artifact._manifest.entries)
+                        # print(item, asset, source_artifact, item.get("ref_name"))
+                    else:
+                        asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(
+                            item, source_artifact
+                        )
+                else:
+                    asset = item
+                row_data.append(asset)
+            data.append(row_data)
 
-        return cls(
-            json_obj["columns"],
-            data=[
-                [
-                    JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, root)
-                    if isinstance(item, dict) and item.get("_type") is not None
-                    else item
-                    for item in row
-                ]
-                for row in json_obj["data"]
-            ],
-        )
+        return cls(json_obj["columns"], data=data,)
 
     def to_json(self, run_or_artifact):
         wandb_run, wandb_artifacts = _safe_sdk_import()
@@ -435,7 +447,17 @@ class Table(Media):
                 mapped_row = []
                 for v in row:
                     if isinstance(v, Media):
-                        mapped_row.append(v.to_json(artifact))
+                        # TODO: I hate this check. Needs to be helper function
+                        # to determine if it is from a source. used elsewhere
+                        # as well.
+                        if hasattr(v, "_source") and v._source != None and type(v) in JSONABLE_MEDIA_CLASSES:
+                            ref_name = str(id(self)) + "_" + str(id(v))
+                            ref_path = artifact.add(v, ref_name)
+                            mapped_row.append(
+                                {"_type": Table.REF_FILE_TYPE, "ref_name": ref_name}
+                            )
+                        else:
+                            mapped_row.append(v.to_json(artifact))
                     else:
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
@@ -1032,7 +1054,7 @@ class Classes(Media):
         return "classes"
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
         return cls(json_obj.get("class_set"))
 
     def to_json(self, artifact):
@@ -1084,16 +1106,16 @@ class JoinedTable(Media):
         return "joined-table"
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
         t1 = os.path.join(root, json_obj["table1"])
         if os.path.isfile(t1):
             with open(t1, "r") as file:
-                t1 = Table.from_json(json.load(file), root)
+                t1 = Table.from_json(json.load(file), source_artifact)
 
         t2 = os.path.join(root, json_obj["table2"])
         if os.path.isfile(t2):
             with open(t2, "r") as file:
-                t2 = Table.from_json(json.load(file), root)
+                t2 = Table.from_json(json.load(file), source_artifact)
 
         return cls(t1, t2, json_obj["join_key"],)
 
@@ -1255,20 +1277,24 @@ class Image(BatchableMedia):
         self._width, self._height = self._image.size
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
         classes = None
         if json_obj.get("classes") is not None:
             child_json_obj = {}
-            with open(os.path.join(root, json_obj["classes"]["path"])) as file:
+            with open(
+                os.path.join(
+                    source_artifact._default_root(), json_obj["classes"]["path"]
+                )
+            ) as file:
                 child_json_obj = json.load(file)
-            classes = Classes.from_json(child_json_obj, root)
+            classes = Classes.from_json(child_json_obj, source_artifact)
 
         masks = json_obj.get("masks")
         _masks = None
         if masks:
             _masks = {}
             for key in masks:
-                _masks[key] = ImageMask.from_json(masks[key], root)
+                _masks[key] = ImageMask.from_json(masks[key], source_artifact)
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
@@ -1276,11 +1302,11 @@ class Image(BatchableMedia):
         if boxes:
             _boxes = {}
             for key in boxes:
-                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
+                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
                 _boxes[key]._key = key
 
         return cls(
-            os.path.join(root, json_obj["path"]),
+            os.path.join(source_artifact._default_root(), json_obj["path"]),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,
@@ -1660,7 +1686,7 @@ class BoundingBoxes2D(JSONMetadata):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact=None):
         return cls({"box_data": json_obj}, "")
 
     @staticmethod
@@ -1722,8 +1748,11 @@ class ImageMask(Media):
         return os.path.join("media", "images", self.type_name())
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
-        return cls({"path": os.path.join(root, json_obj["path"])}, key="")
+    def from_json(cls, json_obj, source_artifact=None):
+        return cls(
+            {"path": os.path.join(source_artifact._default_root(), json_obj["path"])},
+            key="",
+        )
 
     def to_json(self, run_or_artifact):
         wandb_run, wandb_artifacts = _safe_sdk_import()

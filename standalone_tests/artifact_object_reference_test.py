@@ -34,6 +34,7 @@ def _make_joined_table():
     table_2 = _make_wandb_table()
     return wandb.JoinedTable(table_1, table_2, "index")
 
+
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
 
@@ -239,6 +240,53 @@ def test_adding_artifact_by_object():
         _assert_wandb_image_compare(downstream_artifact.get("T2"))
 
 
+def test_image_reference_artifact():
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact = wandb.Artifact("initial_image", "images")
+        image = _make_wandb_image()
+        artifact.add(image, "image")
+        run.log_artifact(artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_1 = run.use_artifact("initial_image:latest")
+        artifact = wandb.Artifact("reference_image", "images")
+        artifact.add(artifact_1.get("image"), "image_2")
+        run.log_artifact(artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_2 = run.use_artifact("reference_image:latest")
+        artifact_2.download()
+        assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
+
+
+def test_nested_reference_artifact():
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact = wandb.Artifact("initial_image1", "images")
+        image = _make_wandb_image()
+        artifact.add(image, "image")
+        run.log_artifact(artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_1 = run.use_artifact("initial_image1:latest")
+        artifact = wandb.Artifact("reference_table1", "images")
+        table = wandb.Table(["image"], [[artifact_1.get("image")]])
+        artifact.add(table, "table_2")
+        run.log_artifact(artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_3 = run.use_artifact("reference_table1:latest")
+        artifact_3.download()
+        table_2 = artifact_3.get("table_2")
+        print("table_2", table_2)
+        assert not os.path.isdir(os.path.join(artifact_3._default_root(), "media"))
+
+    print(table.data[0][0])
+    print(table_2.data[0][0])
+    assert table == table_2
+
+
 def _cleanup():
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
@@ -250,13 +298,19 @@ def _cleanup():
 
 if __name__ == "__main__":
     try:
-        test_artifact_add_reference_via_url()
-        _cleanup()
-        test_add_reference_via_artifact_entry()
-        _cleanup()
-        test_adding_artifact_by_object()
-        _cleanup()
-        test_get_artifact_obj_by_name()
-        _cleanup()
+        # test_artifact_add_reference_via_url()
+        # _cleanup()
+        # test_add_reference_via_artifact_entry()
+        # _cleanup()
+        # test_adding_artifact_by_object()
+        # _cleanup()
+        # test_get_artifact_obj_by_name()
+        # _cleanup()
+        # test_image_reference_artifact()
+        # _cleanup()
+        test_nested_reference_artifact()
+        # _cleanup()
+
     finally:
+        pass
         _cleanup()
