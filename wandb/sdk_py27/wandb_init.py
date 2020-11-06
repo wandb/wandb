@@ -312,6 +312,7 @@ class _WandbInit(object):
             run.config.update(config)
             run.summary = DummyDict()
             run.log = lambda data, *_, **__: run.summary.update(data)
+            run.finish = lambda *_, **__: module.unset_globals()
             module.set_global(
                 run=run,
                 config=run.config,

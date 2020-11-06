@@ -25,7 +25,7 @@ def test_bad_url(test_settings):
     test_settings._apply_settings(s)
     run = wandb.init(settings=test_settings)
     run.log({"acc": 0.9})
-    run.finish()
+    wandb.join()
 
 
 if __name__ == "__main__":
