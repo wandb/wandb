@@ -80,7 +80,8 @@ def test_fitted(model):
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
     scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
     scikit_utils = util.get_module(
-        "sklearn.utils", required="roc requires the scikit utils submodule, install with `pip install scikit-learn`"
+        "sklearn.utils",
+        required="roc requires the scikit utils submodule, install with `pip install scikit-learn`",
     )
     scikit_exceptions = util.get_module(
         "sklearn.exceptions",
