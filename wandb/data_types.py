@@ -402,20 +402,8 @@ class Table(Media):
         for row in json_obj["data"]:
             row_data = []
             for item in row:
-                if isinstance(item, dict) and item.get("_type") is not None:
-                    item_type = item.get("_type")
-                    if item.get("_type") == Table.REF_FILE_TYPE:
-                        # obj_path = os.path.join(root, item.get("path"))
-                        # with open(obj_path, "r") as file:
-                        #     item = json.load(file)
-                        # print('item.get("ref_name")' , item.get("ref_name"))
-                        asset = source_artifact.get(item.get("ref_name"))
-                        # print(source_artifact._manifest.entries)
-                        # print(item, asset, source_artifact, item.get("ref_name"))
-                    else:
-                        asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(
-                            item, source_artifact
-                        )
+                if isinstance(item, dict) and item.get("_type") is not None and item.get("_type") in JSON_SUFFIX_TO_CLASS:
+                    asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, source_artifact)
                 else:
                     asset = item
                 row_data.append(asset)
@@ -447,17 +435,7 @@ class Table(Media):
                 mapped_row = []
                 for v in row:
                     if isinstance(v, Media):
-                        # TODO: I hate this check. Needs to be helper function
-                        # to determine if it is from a source. used elsewhere
-                        # as well.
-                        if hasattr(v, "_source") and v._source != None and type(v) in JSONABLE_MEDIA_CLASSES:
-                            ref_name = str(id(self)) + "_" + str(id(v))
-                            ref_path = artifact.add(v, ref_name)
-                            mapped_row.append(
-                                {"_type": Table.REF_FILE_TYPE, "ref_name": ref_name}
-                            )
-                        else:
-                            mapped_row.append(v.to_json(artifact))
+                        mapped_row.append(v.to_json(artifact))
                     else:
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
@@ -1359,7 +1337,11 @@ class Image(BatchableMedia):
                 name = os.path.join(
                     self.get_media_subdir(), os.path.basename(self._path)
                 )
-                artifact.add_file(self._path, name=name)
+                if hasattr(self, "_source") and self._source is not None and self._source["artifact"] != artifact:
+                    path = self._source["artifact"].get_path(name)
+                    artifact.add_reference(path.ref_url(), name=name)
+                else:
+                    artifact.add_file(self._path, name=name)
 
             json_dict["path"] = name
 
