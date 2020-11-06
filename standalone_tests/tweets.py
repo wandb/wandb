@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import wandb
 from sklearn.metrics import confusion_matrix
-wandb.init(entity='kylegoyette', project="tweets-test-2")
+wandb.init(project="tweets-test-2")
 
 # Get a pandas DataFrame object of all the data in the csv file:
 df = pd.read_csv('tweets.csv')
