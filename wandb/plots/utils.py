@@ -84,6 +84,7 @@ def test_fitted(model):
     scikit = util.get_module(
         "sklearn", required="Logging plots matrices requires scikit-learn"
     )
+
     try:
         model.predict(np.zeros((7, 3)))
     except scikit.exceptions.NotFittedError:
@@ -121,10 +122,12 @@ def test_fitted(model):
 
 def encode_labels(df):
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
-    scikit = util.get_module(
-        "sklearn", required="Logging plots matrices requires scikit-learn"
+    preprocessing = util.get_module(
+        "sklearn.preprocessing",
+        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
     )
-    le = scikit.preprocessing.LabelEncoder()
+
+    le = preprocessing.LabelEncoder()
     # apply le on categorical feature columns
     categorical_cols = df.select_dtypes(
         exclude=["int", "float", "float64", "float32", "int32", "int64"]
