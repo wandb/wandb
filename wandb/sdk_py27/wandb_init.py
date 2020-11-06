@@ -22,7 +22,7 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, module, reporting
+from .lib import filesystem, module, reporting, ipython
 from .wandb_helper import parse_config
 from .wandb_run import Run, RunBase, RunDummy
 from .wandb_settings import Settings
@@ -327,7 +327,23 @@ class _WandbInit(object):
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
+
+                last_id = self._wl._global_run_stack[-1]._run_id
+                if s._jupyter:
+                    ipython.display_html(
+                        "Finishing last run (ID:{}) before initializing another...".format(
+                            last_id
+                        )
+                    )
+
                 self._wl._global_run_stack[-1].finish()
+
+                if s._jupyter:
+                    ipython.display_html(
+                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                            last_id
+                        )
+                    )
         elif wandb.run:
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
