@@ -30,7 +30,6 @@ import enum
 import getpass
 import itertools
 import json
-import logging
 import os
 import platform
 import socket
@@ -57,8 +56,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Type,
         Sequence,
     )
-
-logger = logging.getLogger("wandb")
 
 defaults: Dict[str, Union[str, int, Tuple]] = dict(
     base_url="https://api.wandb.ai",
@@ -134,7 +131,7 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(program):
+def _get_program_relpath_from_gitrepo(program, _logger=None):
     repo = GitRepo()
     root = repo.root
     if not root:
@@ -145,11 +142,13 @@ def _get_program_relpath_from_gitrepo(program):
     if os.path.exists(full_path_to_program):
         relative_path = os.path.relpath(full_path_to_program, start=root)
         if "../" in relative_path:
-            logger.warning("could not save program above cwd: %s" % program)
+            if _logger:
+                _logger.warning("could not save program above cwd: %s" % program)
             return None
         return relative_path
 
-    logger.warning("could not find program at %s" % program)
+    if _logger:
+        _logger.warning("could not find program at %s" % program)
     return None
 
 
@@ -364,6 +363,8 @@ class Settings(object):
         self._apply_defaults(class_defaults)
         self._apply_defaults(defaults)
         self._update(kwargs, _source=self.Source.SETTINGS)
+        if os.environ.get(wandb.env.DIR) is None:
+            self.root_dir = os.path.abspath(os.getcwd())
 
     @property
     def _offline(self) -> bool:
@@ -400,7 +401,7 @@ class Settings(object):
 
     @property
     def _noop(self) -> bool:
-        return self.mode == "noop"
+        return self.mode == "disabled"
 
     @property
     def _jupyter(self) -> bool:
@@ -507,7 +508,7 @@ class Settings(object):
             "run",
             "offline",
             "online",
-            "noop",
+            "disabled",
         }
         if value in choices:
             return
@@ -579,7 +580,6 @@ class Settings(object):
         self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)
 
     def _apply_environ(self, environ, _logger=None):
-        _logger = _logger or logger
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
         for k, v in six.iteritems(environ):
@@ -592,19 +592,21 @@ class Settings(object):
                     v = conv(v)
                 env_dict[setting_key] = v
             else:
-                _logger.info("Unhandled environment var: {}".format(k))
+                if _logger:
+                    _logger.info("Unhandled environment var: {}".format(k))
 
-        _logger.info("setting env: {}".format(env_dict))
+        if _logger:
+            _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(self, user_settings, _logger=None):
-        _logger = _logger or logger
-        _logger.info("setting user settings: {}".format(user_settings))
+        if _logger:
+            _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
 
     def _apply_source_login(self, login_settings, _logger=None):
-        _logger = _logger or logger
-        _logger.info("setting login settings: {}".format(login_settings))
+        if _logger:
+            _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
     def _path_convert_part(self, path_part, format_dict):
@@ -771,7 +773,7 @@ class Settings(object):
 
         self.update(u)
 
-    def _infer_run_settings_from_env(self):
+    def _infer_run_settings_from_env(self, _logger=None):
         """Modify settings based on environment (for runs only)."""
         if self.disable_code:
             self.update(dict(program="<code saving explicitly disabled>"))
@@ -781,7 +783,7 @@ class Settings(object):
         program = self.program or _get_program()
         if program:
             program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program
+                program, _logger=_logger
             )
             self.update(dict(program=program, program_relpath=program_relpath))
         else:
@@ -861,10 +863,16 @@ class Settings(object):
                 d[k] = d[k].split(",")
         return d
 
-    def _apply_login(self, args):
+    def _apply_login(self, args, _logger=None):
         param_map = dict(key="api_key", host="base_url",)
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
-        self._apply_source_login(args)
+        self._apply_source_login(args, _logger=_logger)
+
+    def _apply_init_login(self, args):
+        # apply some init parameters dealing with login
+        keys = {"mode"}
+        args = {k: v for k, v in six.iteritems(args) if k in keys and v is not None}
+        self._update(args, _source=self.Source.INIT)
 
     def _apply_init(self, args):
         # prevent setting project, entity if in sweep
