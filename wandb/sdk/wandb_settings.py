@@ -401,7 +401,7 @@ class Settings(object):
 
     @property
     def _noop(self) -> bool:
-        return self.mode == "noop"
+        return self.mode == "disabled"
 
     @property
     def _jupyter(self) -> bool:
@@ -508,7 +508,7 @@ class Settings(object):
             "run",
             "offline",
             "online",
-            "noop",
+            "disabled",
         }
         if value in choices:
             return
