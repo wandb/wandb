@@ -1,3 +1,15 @@
+## 0.10.10 (November 9, 2020)
+
+#### :nail_care: Enhancement
+
+- Added confusion matrix plot
+- Better jupyter messages with wandb.init()/reinit/finish
+
+#### :bug: Bug Fix
+
+- Fix for fastai 2.1.5 (removed log_args)
+- Fixed media logging when directories are changed
+
 ## 0.10.9 (November 4, 2020)
 
 #### :nail_care: Enhancement
