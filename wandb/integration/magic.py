@@ -474,6 +474,8 @@ def _magic_init(**kwargs):
 
 
 def magic_install(init_args=None):
+    if wandb.setup().settings._noop:
+        return
     global _run_once
     if _run_once:
         return

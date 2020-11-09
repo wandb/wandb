@@ -15,6 +15,7 @@ import traceback
 import six
 import wandb
 from wandb import trigger
+from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -22,9 +23,9 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, module, reporting
+from .lib import filesystem, ipython, module, reporting
 from .wandb_helper import parse_config
-from .wandb_run import Run, RunBase, RunDummy
+from .wandb_run import Run
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
@@ -132,7 +133,7 @@ class _WandbInit(object):
         # TODO: move above parameters into apply_init_login
         settings._apply_init_login(kwargs)
 
-        if not settings._offline:
+        if not settings._offline and not settings._noop:
             wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
 
         # apply updated global state after login was handled
@@ -140,7 +141,7 @@ class _WandbInit(object):
 
         settings._apply_init(kwargs)
 
-        if not settings._offline:
+        if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
 
@@ -301,13 +302,17 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def init(self):
+    def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
-
         if s._noop:
-            run = RunDummy()
+            run = Dummy()
+            run.config = wandb.wandb_sdk.wandb_config.Config()
+            run.config.update(config)
+            run.summary = DummyDict()
+            run.log = lambda data, *_, **__: run.summary.update(data)
+            run.finish = lambda *_, **__: module.unset_globals()
             module.set_global(
                 run=run,
                 config=run.config,
@@ -320,15 +325,30 @@ class _WandbInit(object):
                 alert=run.alert,
             )
             return run
-
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
+
+                last_id = self._wl._global_run_stack[-1]._run_id
+                if s._jupyter:
+                    ipython.display_html(
+                        "Finishing last run (ID:{}) before initializing another...".format(
+                            last_id
+                        )
+                    )
+
                 self._wl._global_run_stack[-1].finish()
-        elif wandb.run:
+
+                if s._jupyter:
+                    ipython.display_html(
+                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                            last_id
+                        )
+                    )
+        elif isinstance(wandb.run, Run):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
@@ -451,7 +471,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> RunBase:
+) -> Union[Run, Dummy]:
     """Initialize W&B
     Spawns a new process to start or resume a run locally and communicate with a
     wandb server. Should be called before any calls to wandb.log.
