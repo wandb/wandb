@@ -1196,7 +1196,7 @@ class WBArtifactHandler(StorageHandler):
             manifest_entry.ref
         )
         artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
-        artifact_path = artifact.download()
+        artifact_path = artifact.download()  # perf issue
 
         link_target_path = os.path.join(artifact_path, artifact_file_path)
         link_creation_path = os.path.join(
@@ -1228,6 +1228,10 @@ class WBArtifactHandler(StorageHandler):
         )
 
         size = 0
+        # print("extra", {
+        #             "source_artifact_id": target_artifact.id,
+        #             "source_path": artifact_file_path,
+        #         })
         return [
             ArtifactManifestEntry(
                 name or os.path.basename(path),

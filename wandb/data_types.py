@@ -402,8 +402,19 @@ class Table(Media):
         for row in json_obj["data"]:
             row_data = []
             for item in row:
-                if isinstance(item, dict) and item.get("_type") is not None and item.get("_type") in JSON_SUFFIX_TO_CLASS:
-                    asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, source_artifact)
+                if (
+                    isinstance(item, dict)
+                    and item.get("_type") is not None
+                    and item.get("_type") in JSON_SUFFIX_TO_CLASS
+                ):
+                    # source_artifact.get() ## When loading in a resource, if it is an image, we need to intelligrently assigna source so that when that image is later to_jsoned, it knows that it is a ref.
+                    asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(
+                        item, source_artifact
+                    )
+                    asset._source = {
+                        "artifact": source_artifact,
+                        "name": None,
+                    }  # Need to rethink this
                 else:
                     asset = item
                 row_data.append(asset)
@@ -1337,7 +1348,11 @@ class Image(BatchableMedia):
                 name = os.path.join(
                     self.get_media_subdir(), os.path.basename(self._path)
                 )
-                if hasattr(self, "_source") and self._source is not None and self._source["artifact"] != artifact:
+                if (
+                    hasattr(self, "_source")
+                    and self._source is not None
+                    and self._source["artifact"] != artifact
+                ):
                     path = self._source["artifact"].get_path(name)
                     artifact.add_reference(path.ref_url(), name=name)
                 else:

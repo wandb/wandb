@@ -2676,8 +2676,6 @@ class Artifact(object):
         if not self._is_downloaded:
             self.download()
 
-        manifest = self._load_manifest()
-
         for obj_type in JSONABLE_MEDIA_CLASSES:
             if (
                 name.split(".")[-1] != "json"
@@ -2686,8 +2684,7 @@ class Artifact(object):
                 wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
             else:
                 wandb_file_name = name
-            # print("trying:", wandb_file_name, wandb_file_name)
-            entry = manifest.entries.get(wandb_file_name)
+            entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
                     artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])

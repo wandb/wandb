@@ -4,10 +4,11 @@ import wandb
 import os
 import binascii
 import base64
+import time
 
 classes = [{"id": 0, "name": "person"}]
 columns = ["examples", "index"]
-PROJECT_NAME = "test_project_artifacts__"
+PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
 
 
 def _make_wandb_image(suffix=""):
@@ -255,7 +256,7 @@ def test_image_reference_artifact():
 
     _cleanup()
     with wandb.init(project=PROJECT_NAME) as run:
-        artifact_2 = run.use_artifact("reference_image:latest")
+        artifact_2 = run.use_artifact("reference_data:latest")
         artifact_2.download()
         assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
 
@@ -279,12 +280,51 @@ def test_nested_reference_artifact():
         artifact_3 = run.use_artifact("reference_data:latest")
         artifact_3.download()
         table_2 = artifact_3.get("table_2")
-        print("table_2", table_2)
-        assert not os.path.isdir(os.path.join(artifact_3._default_root(), "media"))
+        assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
 
-    print(table.data[0][0])
-    print(table_2.data[0][0])
     assert table == table_2
+
+def test_table_slice_reference_artifact():
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact = wandb.Artifact("table_data", "data")
+        table = _make_wandb_table()
+        artifact.add(table, "table")
+        run.log_artifact(artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_1 = run.use_artifact("table_data:latest")
+        t1 = artifact_1.get("table")
+        artifact = wandb.Artifact("intermediate_data", "data")
+        i1 = wandb.Table(t1.columns, t1.data[:1])
+        i2 = wandb.Table(t1.columns, t1.data[1:])
+        artifact.add(i1, "table1")
+        artifact.add(i2, "table2")
+        run.log_artifact(artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_2 = run.use_artifact("intermediate_data:latest")
+        i1 = artifact_2.get("table1")
+        i2 = artifact_2.get("table2")
+        artifact = wandb.Artifact("reference_data", "data")
+        table1 = wandb.Table(t1.columns, i1.data)
+        table2 = wandb.Table(t1.columns, i2.data)
+        artifact.add(table1, "table1")
+        artifact.add(table2, "table2")
+        run.log_artifact(artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_3 = run.use_artifact("reference_data:latest")
+        artifact_3.download()
+        table1 = artifact_3.get("table1")
+        table2 = artifact_3.get("table2")
+    
+    assert not os.path.isdir(os.path.join(artifact_2._default_root()))
+    assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
+    assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
+    assert t1.data[:1] == table1.data
+    assert t1.data[1:] == table2.data
+
 
 
 def _cleanup():
@@ -298,19 +338,19 @@ def _cleanup():
 
 if __name__ == "__main__":
     try:
-        # test_artifact_add_reference_via_url()
-        # _cleanup()
-        # test_add_reference_via_artifact_entry()
-        # _cleanup()
-        # test_adding_artifact_by_object()
-        # _cleanup()
-        # test_get_artifact_obj_by_name()
-        # _cleanup()
-        # test_image_reference_artifact()
-        # _cleanup()
+        test_artifact_add_reference_via_url()
+        _cleanup()
+        test_add_reference_via_artifact_entry()
+        _cleanup()
+        test_adding_artifact_by_object()
+        _cleanup()
+        test_get_artifact_obj_by_name()
+        _cleanup()
+        test_image_reference_artifact()
+        _cleanup()
         test_nested_reference_artifact()
-        # _cleanup()
-
+        _cleanup()
+        test_table_slice_reference_artifact()
+        _cleanup()
     finally:
-        pass
         _cleanup()
