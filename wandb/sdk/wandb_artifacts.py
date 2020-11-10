@@ -1234,10 +1234,6 @@ class WBArtifactHandler(StorageHandler):
         )
 
         size = 0
-        # print("extra", {
-        #             "source_artifact_id": target_artifact.id,
-        #             "source_path": artifact_file_path,
-        #         })
         return [
             ArtifactManifestEntry(
                 name or os.path.basename(path),

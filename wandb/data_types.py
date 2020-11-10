@@ -320,7 +320,6 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 50000
-    REF_FILE_TYPE = "table-reference-file"
 
     @staticmethod
     def get_json_suffix():

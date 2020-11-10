@@ -2688,26 +2688,16 @@ class Artifact(object):
             if entry is not None:
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
                     artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
-                    # print("here", entry.extra["source_path"])
                     return artifact.get(entry.extra["source_path"])
 
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
-
-                # If the item is a symlink, then find the concrete asset at the end of symlinks
-                # if os.path.islink(item_path):
-                #     link_path = item_path
-                #     while os.path.islink(link_path):
-                #         link_path = os.readlink(link_path)
-
-                #     root = _determine_artifact_root(item_path, link_path)
 
                 # Load the object from the JSON blob
                 result = None
                 json_obj = {}
                 with open(item_path, "r") as file:
                     json_obj = json.load(file)
-                # print("HHHHHEEEE", item_path, json_obj)
                 result = obj_type.from_json(json_obj, self)
                 result._source = {"artifact": self, "name": name}
                 return result
