@@ -349,6 +349,15 @@ def test_nested_reference_artifact():
 
     assert table == table_2
 
+
+def _cleanup():
+    if os.path.isdir("wandb"):
+        shutil.rmtree("wandb")
+    if os.path.isdir("artifacts"):
+        shutil.rmtree("artifacts")
+    if os.path.isdir("upstream"):
+        shutil.rmtree("upstream")
+
 def test_table_slice_reference_artifact():
     with wandb.init(project=PROJECT_NAME) as run:
         artifact = wandb.Artifact("table_data", "data")
@@ -389,14 +398,6 @@ def test_table_slice_reference_artifact():
     assert t1.data[:1] == table1.data
     assert t1.data[1:] == table2.data
 
-def _cleanup():
-    if os.path.isdir("wandb"):
-        shutil.rmtree("wandb")
-    if os.path.isdir("artifacts"):
-        shutil.rmtree("artifacts")
-    if os.path.isdir("upstream"):
-        shutil.rmtree("upstream")
-
 # General helper function which will perform the following:
 #   Add the object to an artifact
 #       Validate that "getting" this asset returns an object that is equal to the first
@@ -420,7 +421,7 @@ def assert_media_obj_referential_equality(obj):
         obj1 = orig_artifact_ref.get("obj")
 
     assert obj1 == obj
-    target_path = os.path.join(orig_dir, "obj." + type(obj).get_json_suffix() + ".json")
+    target_path = os.path.join(orig_dir, "obj." + type(obj).type_str() + ".json")
     assert os.path.isfile(target_path)
 
     with wandb.init(project=PROJECT_NAME) as run:
@@ -437,7 +438,7 @@ def assert_media_obj_referential_equality(obj):
         obj2 = mid_artifact_ref.get("obj2")
 
     assert obj2 == obj
-    start_path = os.path.join(mid_dir, "obj2." + type(obj).get_json_suffix() + ".json")
+    start_path = os.path.join(mid_dir, "obj2." + type(obj).type_str() + ".json")
     assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -456,7 +457,7 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
-    start_path = os.path.join(down_dir, "obj3." + type(obj).get_json_suffix() + ".json")
+    start_path = os.path.join(down_dir, "obj3." + type(obj).type_str() + ".json")
     assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -473,23 +474,6 @@ def test_joinedtable_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 
-def test_table_slice_reference(): # this is not catching the issue in notebook
-    with wandb.init(project=PROJECT_NAME) as run:
-        orig_artifact = wandb.Artifact("raw_data", "database")
-        orig_artifact.add(_make_wandb_table(), "raw_examples")
-        run.log_artifact(orig_artifact)
-
-    with wandb.init(project=PROJECT_NAME) as run:
-        orig_artifact = run.use_artifact("raw_data:latest")
-        data_table = orig_artifact.get("raw_examples")
-        ref_artifact = wandb.Artifact("train_data", "database")
-        ref_artifact.add(wandb.Table(columns=data_table.columns, data=data_table.data[:3]), "train_table")
-        run.log_artifact(ref_artifact)
-
-    with wandb.init(project=PROJECT_NAME) as run:
-        ref_artifact = run.use_artifact("train_data:latest")
-        table = ref_artifact.get("train_table")
-
 
 if __name__ == "__main__":
     _cleanup()
@@ -504,7 +488,6 @@ if __name__ == "__main__":
         test_image_refs,
         test_table_refs,
         test_joinedtable_refs,
-        test_table_slice_reference,
     ]:
         try:
             test_fn()

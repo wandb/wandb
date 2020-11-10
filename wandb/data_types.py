@@ -143,7 +143,7 @@ class WBValue(object):
                 class_option = frontier.pop()
                 WBValue.TYPE_MAPPING[class_option.type_str()] = class_option
                 explored.add(class_option)
-                for subclass in class_option.__subclasses__:
+                for subclass in class_option.__subclasses__():
                     if subclass not in frontier and subclass not in explored:
                         frontier.add(subclass)
         return WBValue.TYPE_MAPPING
@@ -162,10 +162,13 @@ class WBValue(object):
 
     @artifact_source.setter
     def artifact_source(self, artifact_source):
-        self._artifact_source = {
-            "artifact": artifact_source["artifact"] or None,
-            "name": artifact_source["name"] or None,
-        }
+        self._artifact_source = {}
+
+        if artifact_source.get("artifact") is not None:
+            self._artifact_source["artifact"] = artifact_source.get("artifact")
+
+        if artifact_source.get("name") is not None:
+            self._artifact_source["name"] = artifact_source.get("name")
 
 
 class Histogram(WBValue):
@@ -250,6 +253,7 @@ class Media(WBValue):
     """
 
     def __init__(self, caption=None):
+        super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
@@ -333,28 +337,30 @@ class Media(WBValue):
 
         The resulting dict lets you load this object into other W&B runs.
         """
-        if not self.is_bound():
-            raise RuntimeError(
-                "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                    type(self).__name__
-                )
-            )
-
-        assert (
-            self._run is run
-        ), "We don't support referring to media files across runs."
-
         json_obj = super(Media, self).to_json(run)
-        json_obj.update(
-            {
-                "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-                "path": util.to_forward_slash_path(
-                    os.path.relpath(self._path, self._run.dir)
-                ),
-                "sha256": self._sha256,
-                "size": self._size,
-            }
-        )
+        wandb_run, _ = _safe_sdk_import()
+        if isinstance(run, wandb_run.Run):
+            if not self.is_bound():
+                raise RuntimeError(
+                    "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                        type(self).__name__
+                    )
+                )
+
+            assert (
+                self._run is run
+            ), "We don't support referring to media files across runs."
+
+            json_obj.update(
+                {
+                    "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
+                    "path": util.to_forward_slash_path(
+                        os.path.relpath(self._path, self._run.dir)
+                    ),
+                    "sha256": self._sha256,
+                    "size": self._size,
+                }
+            )
 
         return json_obj
 
@@ -366,6 +372,9 @@ class BatchableMedia(Media):
     Apart from images, we just use these batches to help organize files by name
     in the media directory.
     """
+
+    def __init__(self):
+        super(BatchableMedia, self).__init__()
 
     @classmethod
     def seq_to_json(self, seq, run, key, step):
@@ -1095,6 +1104,7 @@ class Video(BatchableMedia):
 
 class Classes(Media):
     def __init__(self, class_set):
+        super(Classes, self).__init__()
         self._class_set = class_set
         # TODO: validate
 
@@ -1108,7 +1118,7 @@ class Classes(Media):
 
     def to_json(self, artifact):
         json_obj = super(Classes, self).to_json(artifact)
-        json_obj["classes"] = self._class_set
+        json_obj["class_set"] = self._class_set
         return json_obj
 
     def __ne__(self, other):
@@ -1131,6 +1141,8 @@ class JoinedTable(Media):
     """
 
     def __init__(self, table1, table2, join_key):
+        super(JoinedTable, self).__init__()
+
         if not isinstance(join_key, str) and (
             not isinstance(join_key, list) or len(join_key) != 2
         ):
@@ -1396,9 +1408,8 @@ class Image(BatchableMedia):
 
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, wandb_run.Run):
-            json_dict = super(Image, self).to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
             if (self._masks != None or self._boxes != None) and self._classes is None:
                 raise ValueError(
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
@@ -1429,7 +1440,7 @@ class Image(BatchableMedia):
                     artifact.add_file(self._path, name=name)
 
             json_dict["path"] = name
-        else:
+        elif not isinstance(run_or_artifact, wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         # TODO: Boxes and Masks can be refactored into their own objects like classes

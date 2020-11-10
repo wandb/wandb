@@ -259,31 +259,31 @@ class Artifact(object):
         # If the object is coming from another artifact, save it as a reference
         if obj.artifact_source is not None:
             ref_path = obj.artifact_source["artifact"].get_path(
-                type(obj).with_json_suffix(obj.artifact_source["name"])
+                type(obj).with_suffix(obj.artifact_source["name"])
             )
-            return self.add_reference(ref_path, type(obj).with_json_suffix(name))[0]
+            return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
-        try:
-            val = obj.to_json(self)
-            name = obj.with_suffix(name)
-            entry = self._manifest.get_entry_by_path(name)
-            if entry is not None:
-                return entry
-            with self.new_file(name) as f:
-                import json
-
-                # TODO: Do we need to open with utf-8 codec?
-                f.write(json.dumps(obj.to_json(self), sort_keys=True))
-
-            # Note, we add the file from our temp directory.
-            # It will be added again later on finalize, but succeed since
-            # the checksum should match
-            entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
-            self._added_objs[obj_id] = entry
-
+        # try:
+        val = obj.to_json(self)
+        name = obj.with_suffix(name)
+        entry = self._manifest.get_entry_by_path(name)
+        if entry is not None:
             return entry
-        except:
-            ValueError("Can't add obj of type {} to artifact".format(type(obj)))
+        with self.new_file(name) as f:
+            import json
+
+            # TODO: Do we need to open with utf-8 codec?
+            f.write(json.dumps(obj.to_json(self), sort_keys=True))
+
+        # Note, we add the file from our temp directory.
+        # It will be added again later on finalize, but succeed since
+        # the checksum should match
+        entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+        self._added_objs[obj_id] = entry
+
+        return entry
+        # except:
+        #     ValueError("Can't add obj of type {} to artifact".format(type(obj)))
 
     def get_added_local_path_name(self, local_path):
         """If local_path was already added to artifact, return its internal name."""

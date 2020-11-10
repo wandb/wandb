@@ -20,7 +20,7 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
-from wandb.data_types import JSONABLE_MEDIA_CLASSES
+from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
@@ -2675,7 +2675,9 @@ class Artifact(object):
         if not self._is_downloaded:
             self.download()
 
-        for type_str, WBClass in WBValue.type_mapping():
+        type_mapping = WBValue.type_mapping()
+        for type_str in type_mapping:
+            WBClass = type_mapping[type_str]
             wandb_file_name = WBClass.with_suffix(name)
             entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
