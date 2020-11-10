@@ -307,6 +307,14 @@ def test_adding_artifact_by_object():
         assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
+def _cleanup():
+    if os.path.isdir("wandb"):
+        shutil.rmtree("wandb")
+    if os.path.isdir("artifacts"):
+        shutil.rmtree("artifacts")
+    if os.path.isdir("upstream"):
+        shutil.rmtree("upstream")
+
 
 def test_image_reference_artifact():
     with wandb.init(project=PROJECT_NAME) as run:
@@ -349,14 +357,6 @@ def test_nested_reference_artifact():
 
     assert table == table_2
 
-
-def _cleanup():
-    if os.path.isdir("wandb"):
-        shutil.rmtree("wandb")
-    if os.path.isdir("artifacts"):
-        shutil.rmtree("artifacts")
-    if os.path.isdir("upstream"):
-        shutil.rmtree("upstream")
 
 def test_table_slice_reference_artifact():
     with wandb.init(project=PROJECT_NAME) as run:
@@ -474,20 +474,49 @@ def test_joinedtable_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 
+def test_join_table_referencial():
+    src_image_1 = _make_wandb_image()
+    src_image_2 = _make_wandb_image()
+    src_image_3 = _make_wandb_image()
+    src_image_4 = _make_wandb_image()
+    src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
+    src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
+    src_jt_1 = wandb.JoinedTable(src_table_1, src_table_2, "id")
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact = wandb.Artifact("art1", "database")
+        orig_artifact.add(src_jt_1, "src_jt_1")
+        run.log_artifact(orig_artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        art1 = run.use_artifact("art1:latest")
+        src_jt_1 = art1.get("src_jt_1")
+        src_jt_2 = wandb.JoinedTable(src_jt_1._table1, src_jt_1._table2, "id")
+        art2 = wandb.Artifact("art2", "database")
+        art2.add(src_jt_2, "src_jt_2")
+        run.log_artifact(art2)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        art2 = run.use_artifact("art2:latest")
+        src_jt_2 = art2.get("src_jt_2")
+        assert src_jt_1 == src_jt_2
+
 
 if __name__ == "__main__":
     _cleanup()
     for test_fn in [
-        test_artifact_add_reference_via_url,
-        test_add_reference_via_artifact_entry,
-        test_adding_artifact_by_object,
-        test_get_artifact_obj_by_name,
-        test_image_reference_artifact,
-        test_nested_reference_artifact,
-        test_table_slice_reference_artifact,
-        test_image_refs,
-        test_table_refs,
-        test_joinedtable_refs,
+        # test_artifact_add_reference_via_url,
+        # test_add_reference_via_artifact_entry,
+        # test_adding_artifact_by_object,
+        # test_get_artifact_obj_by_name,
+        # test_image_reference_artifact,
+        # test_nested_reference_artifact,
+        # test_table_slice_reference_artifact,
+        # test_image_refs,
+        # test_table_refs,
+        # test_joinedtable_refs,
+        test_join_table_referencial,
     ]:
         try:
             test_fn()

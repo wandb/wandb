@@ -1414,16 +1414,6 @@ class Image(BatchableMedia):
                 raise ValueError(
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
-            if self._classes is not None:
-                classes_entry = artifact.add(
-                    self._classes,
-                    os.path.join("media", "classes", str(id(self)) + "_cls"),
-                )
-                json_dict["classes"] = {
-                    "type": "classes-file",
-                    "path": classes_entry.path,
-                    "digest": classes_entry.digest,
-                }
 
             name = artifact.get_added_local_path_name(self._path)
             if name is None:
@@ -1440,6 +1430,20 @@ class Image(BatchableMedia):
                     artifact.add_file(self._path, name=name)
 
             json_dict["path"] = name
+
+            if self._classes is not None:
+                classes_entry = artifact.add(
+                    self._classes,
+                    os.path.join(
+                        "media", "classes", os.path.basename(self._path) + "_cls"
+                    ),
+                )
+                json_dict["classes"] = {
+                    "type": "classes-file",
+                    "path": classes_entry.path,
+                    "digest": classes_entry.digest,
+                }
+
         elif not isinstance(run_or_artifact, wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
