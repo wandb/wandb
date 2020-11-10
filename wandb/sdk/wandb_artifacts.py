@@ -261,9 +261,7 @@ class Artifact(object):
             ref_path = obj.artifact_source["artifact"].get_path(
                 type(obj).with_json_suffix(obj.artifact_source["name"])
             )
-            return self.add_reference(
-                ref_path, type(obj).with_json_suffix(name)
-            )[0]
+            return self.add_reference(ref_path, type(obj).with_json_suffix(name))[0]
 
         try:
             val = obj.to_json(self)
@@ -276,7 +274,7 @@ class Artifact(object):
 
                 # TODO: Do we need to open with utf-8 codec?
                 f.write(json.dumps(obj.to_json(self), sort_keys=True))
-    
+
             # Note, we add the file from our temp directory.
             # It will be added again later on finalize, but succeed since
             # the checksum should match

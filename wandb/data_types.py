@@ -141,11 +141,10 @@ class WBValue(object):
             while len(frontier) > 0:
                 class_option = frontier.pop()
                 WBValue.TYPE_MAPPING[class_option.type_str()] = class_option
-                else:
-                    explored.add(class_option)
-                    for subclass in class_option.__subclasses__:
-                        if subclass not in frontier and subclass not in explored:
-                            frontier.add(subclass)
+                explored.add(class_option)
+                for subclass in class_option.__subclasses__:
+                    if subclass not in frontier and subclass not in explored:
+                        frontier.add(subclass)
         return WBValue.TYPE_MAPPING
 
 
