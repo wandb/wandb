@@ -250,7 +250,7 @@ def test_add_reference_via_artifact_entry():
         ) as file:
             assert file.read() == file_text
 
-# Artifact1.get(MEDIA_NAME) => media obj
+# # Artifact1.get(MEDIA_NAME) => media obj
 def test_get_artifact_obj_by_name():
     """Tests tests the ability to instantiate a wandb Media object when passed
     the name of such object. This is the logical inverse of Artifact.add(name).
@@ -269,14 +269,13 @@ def test_get_artifact_obj_by_name():
     with wandb.init(project=PROJECT_NAME) as run:
         artifact = run.use_artifact("A2:latest")
         actual_image = artifact.get("I1")
-        _assert_wandb_image_compare(actual_image)
+        assert actual_image == image
 
         actual_table = artifact.get("T1")
         assert actual_table.columns == columns
-        _assert_wandb_image_compare(actual_table.data[0][0])
-        _assert_wandb_image_compare(actual_table.data[1][0], "2")
-        assert actual_table.data[0][1] == 1
-        assert actual_table.data[1][1] == 2
+        assert actual_table.data[0][4] == image
+        assert actual_table.data[1][4] == _make_wandb_image("2")
+        assert actual_table == _make_wandb_table()
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
@@ -304,7 +303,7 @@ def test_adding_artifact_by_object():
         downstream_artifact = run.use_artifact("downstream_media:latest")
         downstream_path = downstream_artifact.download()
         assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
-        _assert_wandb_image_compare(downstream_artifact.get("T2"))
+        assert downstream_artifact.get("T2") == _make_wandb_image()
 
 
 def test_image_reference_artifact():
@@ -341,10 +340,8 @@ def test_nested_reference_artifact():
         artifact.add(table, "table_2")
         run.log_artifact(artifact)
 
-    _cleanup()
     with wandb.init(project=PROJECT_NAME) as run:
         artifact_3 = run.use_artifact("reference_data:latest")
-        artifact_3.download()
         table_2 = artifact_3.get("table_2")
         assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
 
@@ -381,7 +378,6 @@ def test_table_slice_reference_artifact():
     _cleanup()
     with wandb.init(project=PROJECT_NAME) as run:
         artifact_3 = run.use_artifact("reference_data:latest")
-        artifact_3.download()
         table1 = artifact_3.get("table1")
         table2 = artifact_3.get("table2")
     
@@ -391,50 +387,6 @@ def test_table_slice_reference_artifact():
     assert t1.data[:1] == table1.data
     assert t1.data[1:] == table2.data
 
-
-def assert_json_serialization(obj):
-    with wandb.init(project=PROJECT_NAME) as run:
-        orig_artifact = wandb.Artifact("orig_artifact", "database")
-        orig_artifact.add(obj, "obj")
-        run.log_artifact(orig_artifact)
-
-    # with wandb.init(project=PROJECT_NAME) as run:
-    #     orig_artifact_ref = run.use_artifact("orig_artifact:latest")
-    #     mid_artifact = wandb.Artifact("mid_artifact", "database")
-    #     mid_obj = orig_artifact_ref.get("obj")
-    #     mid_artifact.add(mid_obj, "obj2")
-    #     run.log_artifact(mid_artifact)
-
-    # with wandb.init(project=PROJECT_NAME) as run:
-    #     mid_artifact_ref = run.use_artifact("mid_artifact:latest")
-    #     down_artifact = wandb.Artifact("down_artifact", "database")
-    #     down_obj = mid_artifact_ref.get("obj2")
-    #     down_artifact.add(down_obj, "obj3")
-    #     run.log_artifact(down_artifact)
-
-    # _cleanup()
-    # with wandb.init(project=PROJECT_NAME) as run:
-    #     down_artifact_ref = run.use_artifact("down_artifact:latest")
-    #     obj3 = down_artifact_ref.get("obj3")
-
-    # assert obj3 == obj
-    # assert not os.path.isdir(os.path.join("artifacts", "mid_artifact:v0"))
-    # assert os.path.islink(os.path.join("artifacts", "down_artifact:v0", "obj3"))
-    # assert os.readlink(os.path.join("artifacts", "down_artifact:v0", "obj3")) == os.path.join("artifacts", "orig_artifact:v0", "obj")
-
-
-def test_table_json_serialization():
-    assert_json_serialization(_make_wandb_table())
-
-
-def test_image_json_serialization():
-    assert_json_serialization(_make_wandb_image())
-
-
-def test_joinedtable_json_serialization():
-    assert_json_serialization(_make_wandb_joinedtable())
-
-
 def _cleanup():
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
@@ -443,19 +395,95 @@ def _cleanup():
     if os.path.isdir("upstream"):
         shutil.rmtree("upstream")
 
+# General helper function which will perform the following:
+#   Add the object to an artifact
+#       Validate that "getting" this asset returns an object that is equal to the first
+#   Add a reference to this asset in an intermediate artifact
+#       Validate that "getting" this reference asset returns an object that is equal to the first
+#       Validate that the symbolic links are proper
+#   Add a reference to the intermediate reference in yet a third artifact
+#       Validate that "getting" this new reference asset returns an object that is equal to the first
+#       Validate that the intermediate object is not downloaded - there are no "leftover" assets (eg. classes.json)
+#       Validate that the symbolic links are proper
+def assert_media_obj_referential_equality(obj):
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact = wandb.Artifact("orig_artifact", "database")
+        orig_artifact.add(obj, "obj")
+        run.log_artifact(orig_artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact_ref = run.use_artifact("orig_artifact:latest")
+        orig_dir = orig_artifact_ref._default_root()
+        obj1 = orig_artifact_ref.get("obj")
+
+    assert obj1 == obj
+    target_path = os.path.join(orig_dir, "obj." + type(obj).get_json_suffix() + ".json")
+    assert os.path.isfile(target_path)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact_ref = run.use_artifact("orig_artifact:latest")
+        mid_artifact = wandb.Artifact("mid_artifact", "database")
+        mid_obj = orig_artifact_ref.get("obj")
+        mid_artifact.add(mid_obj, "obj2")
+        run.log_artifact(mid_artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        mid_artifact_ref = run.use_artifact("mid_artifact:latest")
+        mid_dir = mid_artifact_ref._default_root()
+        obj2 = mid_artifact_ref.get("obj2")
+
+    assert obj2 == obj
+    start_path = os.path.join(mid_dir, "obj2." + type(obj).get_json_suffix() + ".json")
+    assert os.path.islink(start_path)
+    assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        mid_artifact_ref = run.use_artifact("mid_artifact:latest")
+        down_artifact = wandb.Artifact("down_artifact", "database")
+        down_obj = mid_artifact_ref.get("obj2")
+        down_artifact.add(down_obj, "obj3")
+        run.log_artifact(down_artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        down_artifact_ref = run.use_artifact("down_artifact:latest")
+        down_dir = down_artifact_ref._default_root()
+        obj3 = down_artifact_ref.get("obj3")
+
+    assert obj3 == obj
+    assert not os.path.isdir(os.path.join(mid_dir))
+    start_path = os.path.join(down_dir, "obj3." + type(obj).get_json_suffix() + ".json")
+    assert os.path.islink(start_path)
+    assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
+
+
+def test_table_json_serialization():
+    assert_media_obj_referential_equality(_make_wandb_table())
+
+
+def test_image_json_serialization():
+    assert_media_obj_referential_equality(_make_wandb_image())
+
+
+def test_joinedtable_json_serialization():
+    assert_media_obj_referential_equality(_make_wandb_joinedtable())
+
 
 if __name__ == "__main__":
+    _cleanup()
     for test_fn in [
         test_artifact_add_reference_via_url,
-        # test_add_reference_via_artifact_entry,
-        # test_adding_artifact_by_object,
-        # test_get_artifact_obj_by_name,
-        # test_image_reference_artifact,
-        # test_nested_reference_artifact,
-        # test_table_slice_reference_artifact,
-        # test_table_json_serialization,
-        # test_image_json_serialization,
-        # test_joinedtable_json_serialization,
+        test_add_reference_via_artifact_entry,
+        test_adding_artifact_by_object,
+        test_get_artifact_obj_by_name,
+        test_image_reference_artifact,
+        test_nested_reference_artifact,
+        test_table_slice_reference_artifact,
+        test_table_json_serialization,
+        test_image_json_serialization,
+        test_joinedtable_json_serialization,
     ]:
         try:
             test_fn()

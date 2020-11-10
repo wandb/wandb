@@ -234,15 +234,21 @@ class Artifact(object):
         - `obj`:wandb.Media - the object to save
         - `name`:str - the path to save
         """
+
+        def with_suffix(name, suffix):
+            if len(name) <= len(suffix) or name[-len(suffix) :] != suffix:
+                return name + suffix
+            return name
+
         if isinstance(obj, Media):
 
             # If the object is coming from another artifact, save it as a reference
             if hasattr(obj, "_source") and obj._source is not None:
                 suffix = "." + obj.get_json_suffix() + ".json"
                 ref_path = obj._source["artifact"].get_path(
-                    obj._source["name"] + suffix
+                    with_suffix(obj._source["name"], suffix)
                 )
-                path = name + suffix
+                path = with_suffix(name, suffix)
                 return self.add_reference(ref_path, path)[0]
 
             # Otherwise, save the object directly via json

@@ -407,14 +407,13 @@ class Table(Media):
                     and item.get("_type") is not None
                     and item.get("_type") in JSON_SUFFIX_TO_CLASS
                 ):
-                    # source_artifact.get() ## When loading in a resource, if it is an image, we need to intelligrently assigna source so that when that image is later to_jsoned, it knows that it is a ref.
                     asset = JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(
                         item, source_artifact
                     )
                     asset._source = {
                         "artifact": source_artifact,
                         "name": None,
-                    }  # Need to rethink this
+                    }
                 else:
                     asset = item
                 row_data.append(asset)
@@ -1096,13 +1095,13 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact=None):
-        
+
         t1 = source_artifact.get(json_obj["table1"])
-        if t1 is not None:
+        if t1 is None:
             t1 = json_obj["table1"]
 
         t2 = source_artifact.get(json_obj["table2"])
-        if t2 is not None:
+        if t2 is None:
             t2 = json_obj["table2"]
 
         return cls(t1, t2, json_obj["join_key"],)
@@ -1269,8 +1268,6 @@ class Image(BatchableMedia):
         classes = None
         if json_obj.get("classes") is not None:
             child_json_obj = {}
-            print(source_artifact)
-            print(type(source_artifact))
             classes = source_artifact.get(json_obj["classes"]["path"])
 
         masks = json_obj.get("masks")
@@ -1331,7 +1328,7 @@ class Image(BatchableMedia):
                     )
             if self._classes is not None:
                 # We just put classes in the root.
-                classes_entry = artifact.add(self._classes, str(id(self)) + "_classes.json")
+                classes_entry = artifact.add(self._classes, str(id(self)) + "_classes")
                 json_dict["classes"] = {
                     "type": "classes-file",
                     "path": classes_entry.path,
