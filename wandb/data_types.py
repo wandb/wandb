@@ -90,6 +90,7 @@ class WBValue(object):
         JSON-friendly `dict` representation of this object that can later be
             serialized to a string.
     """
+
     TYPE_MAPPING = None
 
     def __init__(self):
@@ -128,7 +129,7 @@ class WBValue(object):
             obj = class_option.from_json(json_obj, source_artifact)
             obj.artifact_source = {"artifact": source_artifact}
             return obj
-        
+
         return None
 
     @staticmethod
@@ -146,8 +147,6 @@ class WBValue(object):
                     if subclass not in frontier and subclass not in explored:
                         frontier.add(subclass)
         return WBValue.TYPE_MAPPING
-
-
 
     def __eq__(self, other):
         """recommend to override equality comparison to evaluate equality of internal properties"""
@@ -236,10 +235,9 @@ class Histogram(WBValue):
 
     def to_json(self, run=None):
         json_obj = super(Histogram, self).to_json(run)
-        json_obj.update({
-            "values": self.histogram,
-            "bins": self.bins,
-        })
+        json_obj.update(
+            {"values": self.histogram, "bins": self.bins,}
+        )
         return json_obj
 
 
@@ -328,7 +326,6 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-
     def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
 
@@ -348,14 +345,16 @@ class Media(WBValue):
         ), "We don't support referring to media files across runs."
 
         json_obj = super(Media, self).to_json(run)
-        json_obj.update({
-            "_type":"file" , # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            "path":util.to_forward_slash_path(
-            os.path.relpath(self._path, self._run.dir)
-        ),
-            "sha256":self._sha256,
-            "size":self._size,
-        })
+        json_obj.update(
+            {
+                "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
+                "path": util.to_forward_slash_path(
+                    os.path.relpath(self._path, self._run.dir)
+                ),
+                "sha256": self._sha256,
+                "size": self._size,
+            }
+        )
 
         return json_obj
 
@@ -478,12 +477,14 @@ class Table(Media):
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
-            json_dict.update({
-                "_type": "table-file"
-                "ncols": len(self.columns)
-                "nrows": len(self.data)
-            })
-            
+            json_dict.update(
+                {
+                    "_type": "table-file",
+                    "ncols": len(self.columns),
+                    "nrows": len(self.data),
+                }
+            )
+
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             for column in self.columns:
                 if "." in column:
@@ -503,15 +504,17 @@ class Table(Media):
                     else:
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
-            json_dict.update({
-                "columns": self.columns
-                "data": mapped_data
-                "ncols": len(self.columns)
-                "nrows": len(mapped_data)
-            })
+            json_dict.update(
+                {
+                    "columns": self.columns,
+                    "data": mapped_data,
+                    "ncols": len(self.columns),
+                    "nrows": len(mapped_data),
+                }
+            )
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-        
+
         return json_dict
 
 
@@ -1173,24 +1176,32 @@ class JoinedTable(Media):
 
         if isinstance(self._table1, Table):
             table_name = "t1_" + str(id(self))
-            if self._table1.artifact_source is not None and self._table1.artifact_source["name"] is not None:
+            if (
+                self._table1.artifact_source is not None
+                and self._table1.artifact_source["name"] is not None
+            ):
                 table_name = os.path.basename(self._table1.artifact_source["name"])
             entry = artifact.add(self._table1, table_name)
             table1 = entry.path
 
         if isinstance(self._table2, Table):
             table_name = "t2_" + str(id(self))
-            if self._table2.artifact_source is not None and self._table2.artifact_source["name"] is not None:
+            if (
+                self._table2.artifact_source is not None
+                and self._table2.artifact_source["name"] is not None
+            ):
                 table_name = os.path.basename(self._table2.artifact_source["name"])
             entry = artifact.add(self._table2, table_name)
             table2 = entry.path
-        
-        json_obj.update({
-            "_type": JoinedTable.type_str(),
-            "table1": table1,
-            "table2": table2,
-            "join_key": self._join_key,
-        })
+
+        json_obj.update(
+            {
+                "_type": JoinedTable.type_str(),
+                "table1": table1,
+                "table2": table2,
+                "join_key": self._join_key,
+            }
+        )
         return json_obj
 
     def __ne__(self, other):
@@ -1408,7 +1419,10 @@ class Image(BatchableMedia):
                 name = os.path.join(
                     self.get_media_subdir(), os.path.basename(self._path)
                 )
-                if self.artifact_source is not None and self.artifact_source["artifact"] != artifact:
+                if (
+                    self.artifact_source is not None
+                    and self.artifact_source["artifact"] != artifact
+                ):
                     path = self.artifact_source["artifact"].get_path(name)
                     artifact.add_reference(path.ref_url(), name=name)
                 else:
