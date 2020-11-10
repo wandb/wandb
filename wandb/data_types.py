@@ -1425,6 +1425,14 @@ class Image(BatchableMedia):
         width, height = images[0]._image.size
         format = jsons[0]["format"]
 
+        def size_equals_image(image):
+            img_width, img_height = image._image.size
+            return img_width == width and img_height == height
+
+        sizes_match = all(size_equals_image(img) for img in images)
+        if not sizes_match:
+            logging.warning("Images sizes do not match. This will causes images to be display incorrectly in the UI.")
+
         meta = {
             "_type": "images/separated",
             "width": width,
