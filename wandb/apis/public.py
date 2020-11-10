@@ -2677,8 +2677,8 @@ class Artifact(object):
 
         type_mapping = WBValue.type_mapping()
         for type_str in type_mapping:
-            WBClass = type_mapping[type_str]
-            wandb_file_name = WBClass.with_suffix(name)
+            wb_class = type_mapping[type_str]
+            wandb_file_name = wb_class.with_suffix(name)
             entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
                 # If the entry is a reference from another artifact, then get it directly from that artifact
@@ -2695,7 +2695,7 @@ class Artifact(object):
                 json_obj = {}
                 with open(item_path, "r") as file:
                     json_obj = json.load(file)
-                result = WBClass.from_json(json_obj, self)
+                result = wb_class.from_json(json_obj, self)
                 result.artifact_source = {"artifact": self, "name": name}
                 return result
 

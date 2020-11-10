@@ -1236,7 +1236,7 @@ class WBArtifactHandler(StorageHandler):
         # Setup a new symlink to return to the caller
         link_target_path = os.path.join(artifact_path, artifact_file_path)
         link_creation_path = os.path.join(
-            self._cache._cache_dir, "tmp", link_target_path
+            self._cache._cache_dir, "tmp", str(id(self)), link_target_path
         )
         filesystem._safe_makedirs(os.path.dirname(link_creation_path))
         if os.path.islink(link_creation_path):
