@@ -9,11 +9,7 @@ import numpy as np
 
 PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
 
-classes = [
-        {"id": 0, "name": "tree"},
-        {"id": 1, "name": "car"},
-        {"id": 3, "name": "road"},
-    ]
+
 columns = ["id", "bool", "int", "float", "Image"]
 
 def _make_wandb_image(suffix=""):
@@ -22,7 +18,11 @@ def _make_wandb_image(suffix=""):
     im_path = os.path.join(test_folder, "..", "assets", "test{}.png".format(suffix))
     return wandb.Image(
         im_path,
-        classes=classes,
+        classes=wandb.Classes([
+        {"id": 0, "name": "tree"},
+        {"id": 1, "name": "car"},
+        {"id": 3, "name": "road"},
+    ]),
         boxes={
             "predictions": {
                 "box_data": [
@@ -94,6 +94,8 @@ def _make_wandb_table():
         columns=columns,
         data=[
             ["string", True, 1, 1.4, _make_wandb_image()],
+            ["string", True, 1, 1.4, _make_wandb_image()],
+            ["string2", False, -0, -1.4, _make_wandb_image("2")],
             ["string2", False, -0, -1.4, _make_wandb_image("2")],
         ],
     )
@@ -459,16 +461,34 @@ def assert_media_obj_referential_equality(obj):
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
-def test_table_json_serialization():
+def test_table_refs():
     assert_media_obj_referential_equality(_make_wandb_table())
 
 
-def test_image_json_serialization():
+def test_image_refs():
     assert_media_obj_referential_equality(_make_wandb_image())
 
 
-def test_joinedtable_json_serialization():
+def test_joinedtable_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
+
+
+def test_table_slice_reference(): # this is not catching the issue in notebook
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact = wandb.Artifact("raw_data", "database")
+        orig_artifact.add(_make_wandb_table(), "raw_examples")
+        run.log_artifact(orig_artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact = run.use_artifact("raw_data:latest")
+        data_table = orig_artifact.get("raw_examples")
+        ref_artifact = wandb.Artifact("train_data", "database")
+        ref_artifact.add(wandb.Table(columns=data_table.columns, data=data_table.data[:3]), "train_table")
+        run.log_artifact(ref_artifact)
+
+    with wandb.init(project=PROJECT_NAME) as run:
+        ref_artifact = run.use_artifact("train_data:latest")
+        table = ref_artifact.get("train_table")
 
 
 if __name__ == "__main__":
@@ -481,9 +501,10 @@ if __name__ == "__main__":
         test_image_reference_artifact,
         test_nested_reference_artifact,
         test_table_slice_reference_artifact,
-        test_table_json_serialization,
-        test_image_json_serialization,
-        test_joinedtable_json_serialization,
+        test_image_refs,
+        test_table_refs,
+        test_joinedtable_refs,
+        test_table_slice_reference,
     ]:
         try:
             test_fn()

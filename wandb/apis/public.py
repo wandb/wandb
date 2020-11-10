@@ -2672,24 +2672,19 @@ class Artifact(object):
         Returns:
             A :obj:`wandb.Media` which has been stored at `name`
         """
-        root = self._default_root()
         if not self._is_downloaded:
             self.download()
 
-        for obj_type in JSONABLE_MEDIA_CLASSES:
-            if (
-                name.split(".")[-1] != "json"
-                or name.split(".")[-2] != obj_type.get_json_suffix()
-            ):
-                wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
-            else:
-                wandb_file_name = name
+        for type_str, WBClass in WBValue.type_mapping():
+            wandb_file_name = WBClass.with_suffix(name)
             entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
+                # If the entry is a reference from another artifact, then get it directly from that artifact
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
                     artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
                     return artifact.get(entry.extra["source_path"])
 
+                # Get the ArtifactEntry
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
 
@@ -2698,8 +2693,8 @@ class Artifact(object):
                 json_obj = {}
                 with open(item_path, "r") as file:
                     json_obj = json.load(file)
-                result = obj_type.from_json(json_obj, self)
-                result._source = {"artifact": self, "name": name}
+                result = WBClass.from_json(json_obj, self)
+                result.artifact_source = {"artifact": self, "name": name}
                 return result
 
     def download(self, root=None):
