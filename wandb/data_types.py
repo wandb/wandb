@@ -137,15 +137,15 @@ class WBValue(object):
         """Looks through all subclasses and returns the first class that matches this type_str."""
         if WBValue.TYPE_MAPPING is None:
             WBValue.TYPE_MAPPING = {}
-            frontier = set([WBValue])
+            frontier = [WBValue]
             explored = set([])
             while len(frontier) > 0:
                 class_option = frontier.pop()
                 WBValue.TYPE_MAPPING[class_option.type_str()] = class_option
                 explored.add(class_option)
                 for subclass in class_option.__subclasses__():
-                    if subclass not in frontier and subclass not in explored:
-                        frontier.add(subclass)
+                    if subclass not in explored:
+                        frontier.append(subclass)
         return WBValue.TYPE_MAPPING
 
     def __eq__(self, other):

@@ -4,6 +4,7 @@ import os
 import time
 import shutil
 import requests
+import threading
 
 from six.moves.urllib.parse import urlparse, quote
 
@@ -1188,6 +1189,7 @@ class WBArtifactHandler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
         self._cache = get_artifacts_cache()
+        self._reference_cache = {}
 
     @property
     def scheme(self):
@@ -1203,6 +1205,12 @@ class WBArtifactHandler(StorageHandler):
 
         url = urlparse(path)
         return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
+
+    def get_artifact_by_id(self, artifact_id):
+        if self._reference_cache.get(artifact_id) is None:
+            artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
+            self._reference_cache[artifact_id] = artifact
+        return self._reference_cache[artifact_id]
 
     def load_path(self, artifact, manifest_entry, local=False):
         """
@@ -1227,8 +1235,7 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
             manifest_entry.ref
         )
-        # TODO: This needs to be improved so it doesn't make multiple calls for already downloaded artifacts
-        artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
+        artifact = self.get_artifact_by_id(artifact_id)
         artifact_path = artifact._default_root()
         if not os.path.isdir(artifact_path):
             artifact_path = artifact.download()
@@ -1236,12 +1243,22 @@ class WBArtifactHandler(StorageHandler):
         # Setup a new symlink to return to the caller
         link_target_path = os.path.join(artifact_path, artifact_file_path)
         link_creation_path = os.path.join(
-            self._cache._cache_dir, "tmp", str(id(self)), link_target_path
+            # This tmp directory is created in order to have a place to put the symlink.
+            # Since this is a threaded operation, I was getting collisions and needed to create
+            # a unique directory which would not collide even with the same reference target.
+            self._cache._cache_dir,
+            "symcache",
+            str(id(self)),
+            str(threading.get_native_id()),
+            link_target_path,
         )
+        link_target_path = os.path.abspath(link_target_path)
+        link_creation_path = os.path.abspath(link_creation_path)
         filesystem._safe_makedirs(os.path.dirname(link_creation_path))
-        if os.path.islink(link_creation_path):
-            os.unlink(link_creation_path)
-        os.symlink(os.path.abspath(link_target_path), link_creation_path)
+        if not os.path.islink(link_creation_path) and not os.path.exists(
+            link_creation_path
+        ):
+            os.symlink(link_target_path, link_creation_path)
 
         return link_creation_path
 
@@ -1263,16 +1280,13 @@ class WBArtifactHandler(StorageHandler):
 
         # retrieve the entry of interest
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        # TODO: This needs to be improved so it doesn't make multiple calls for already downloaded artifacts
-        target_artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
+        target_artifact = self.get_artifact_by_id(artifact_id)
         entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         # Recursively resolve the reference until a concrete asset is found
         while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            target_artifact = PublicApi().artifact_from_id(
-                util.hex_to_b64_id(artifact_id)
-            )
+            target_artifact = self.get_artifact_by_id(artifact_id)
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         # Create the path reference
