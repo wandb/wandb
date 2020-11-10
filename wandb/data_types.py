@@ -1096,15 +1096,14 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact=None):
-        t1 = os.path.join(root, json_obj["table1"])
-        if os.path.isfile(t1):
-            with open(t1, "r") as file:
-                t1 = Table.from_json(json.load(file), source_artifact)
+        
+        t1 = source_artifact.get(json_obj["table1"])
+        if t1 is not None:
+            t1 = json_obj["table1"]
 
-        t2 = os.path.join(root, json_obj["table2"])
-        if os.path.isfile(t2):
-            with open(t2, "r") as file:
-                t2 = Table.from_json(json.load(file), source_artifact)
+        t2 = source_artifact.get(json_obj["table2"])
+        if t2 is not None:
+            t2 = json_obj["table2"]
 
         return cls(t1, t2, json_obj["join_key"],)
 
@@ -1270,13 +1269,9 @@ class Image(BatchableMedia):
         classes = None
         if json_obj.get("classes") is not None:
             child_json_obj = {}
-            with open(
-                os.path.join(
-                    source_artifact._default_root(), json_obj["classes"]["path"]
-                )
-            ) as file:
-                child_json_obj = json.load(file)
-            classes = Classes.from_json(child_json_obj, source_artifact)
+            print(source_artifact)
+            print(type(source_artifact))
+            classes = source_artifact.get(json_obj["classes"]["path"])
 
         masks = json_obj.get("masks")
         _masks = None
@@ -1295,7 +1290,7 @@ class Image(BatchableMedia):
                 _boxes[key]._key = key
 
         return cls(
-            os.path.join(source_artifact._default_root(), json_obj["path"]),
+            source_artifact.get_path(json_obj["path"]).download(),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,
@@ -1336,7 +1331,7 @@ class Image(BatchableMedia):
                     )
             if self._classes is not None:
                 # We just put classes in the root.
-                classes_entry = artifact.add(self._classes, "classes.json")
+                classes_entry = artifact.add(self._classes, str(id(self)) + "_classes.json")
                 json_dict["classes"] = {
                     "type": "classes-file",
                     "path": classes_entry.path,
