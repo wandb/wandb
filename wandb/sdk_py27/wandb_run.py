@@ -1732,16 +1732,18 @@ def restore(
             ValueError if the file is not found or can't find run_path
     """
 
+    is_disabled = isinstance(run, Dummy)
+    run = None if is_disabled else wandb.run
     if run_path is None:
-        if wandb.run is not None:
-            run_path = wandb.run.path
+        if run is not None:
+            run_path = run.path
         else:
             raise ValueError(
                 "run_path required when calling wandb.restore before wandb.init"
             )
     if root is None:
-        if wandb.run is not None:
-            root = wandb.run.dir
+        if run is not None:
+            root = run.dir
     api = public.Api()
     api_run = api.run(run_path)
     if root is None:
@@ -1749,6 +1751,8 @@ def restore(
     path = os.path.join(root, name)
     if os.path.exists(path) and replace is False:
         return open(path, "r")
+    if is_disabled:
+        return None
     files = api_run.files([name])
     if len(files) == 0:
         return None
