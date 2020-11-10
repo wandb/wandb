@@ -237,8 +237,8 @@ class Histogram(WBValue):
     def to_json(self, run=None):
         json_obj = super(Histogram, self).to_json(run)
         json_obj.update({
-            "values": self.histogram
-            "bins": self.bins
+            "values": self.histogram,
+            "bins": self.bins,
         })
         return json_obj
 
