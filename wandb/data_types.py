@@ -1431,7 +1431,9 @@ class Image(BatchableMedia):
 
         sizes_match = all(size_equals_image(img) for img in images)
         if not sizes_match:
-            logging.warning("Images sizes do not match. This will causes images to be display incorrectly in the UI.")
+            logging.warning(
+                "Images sizes do not match. This will causes images to be display incorrectly in the UI."
+            )
 
         meta = {
             "_type": "images/separated",
