@@ -33,40 +33,6 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 
-class ArtifactsCache(object):
-    def __init__(self, cache_dir):
-        self._cache_dir = cache_dir
-        util.mkdir_exists_ok(self._cache_dir)
-        self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
-        self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-
-    def check_md5_obj_path(self, b64_md5, size):
-        hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
-        path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True
-        util.mkdir_exists_ok(os.path.dirname(path))
-        return path, False
-
-    def check_etag_obj_path(self, etag, size):
-        path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True
-        util.mkdir_exists_ok(os.path.dirname(path))
-        return path, False
-
-
-_artifacts_cache = None
-
-
-def get_artifacts_cache():
-    global _artifacts_cache
-    if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
-    return _artifacts_cache
-
-
 class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
 
@@ -1235,13 +1201,10 @@ class WBArtifactHandler(StorageHandler):
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
             manifest_entry.ref
         )
-        artifact = self.get_artifact_by_id(artifact_id)
-        artifact_path = artifact._default_root()
-        if not os.path.isdir(artifact_path):
-            artifact_path = artifact.download()
 
-        # Setup a new symlink to return to the caller
-        link_target_path = os.path.join(artifact_path, artifact_file_path)
+        dep_artifact = self._cache.downloaded_artifacts[util.hex_to_b64_id(artifact_id)]
+        dep_artifact_path = dep_artifact.get_path(artifact_file_path)
+        link_target_path = os.path.join(dep_artifact._default_root(), artifact_file_path)
         link_creation_path = os.path.join(
             # This tmp directory is created in order to have a place to put the symlink.
             # Since this is a threaded operation, I was getting collisions and needed to create
@@ -1280,13 +1243,19 @@ class WBArtifactHandler(StorageHandler):
 
         # retrieve the entry of interest
         artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        target_artifact = self.get_artifact_by_id(artifact_id)
+        if artifact_id in self._cache.downloaded_artifacts:
+            target_artifact = self._cache.downloaded_artifacts[artifact_id]
+        else:
+            target_artifact = self.get_artifact_by_id(artifact_id)
         entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         # Recursively resolve the reference until a concrete asset is found
         while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            target_artifact = self.get_artifact_by_id(artifact_id)
+            if artifact_id in self._cache.downloaded_artifacts:
+                target_artifact = self._cache.downloaded_artifacts[artifact_id]
+            else:
+                target_artifact = self.get_artifact_by_id(artifact_id)
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
         # Create the path reference

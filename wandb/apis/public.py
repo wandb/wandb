@@ -515,6 +515,7 @@ class Api(object):
         return artifact
 
     def artifact_from_id(self, id):
+        print("Getting {} by id".format(id))
         return Artifact.from_id(self.client, id)
 
 
@@ -2495,6 +2496,7 @@ class Artifact(object):
         ]
         self._manifest = None
         self._is_downloaded = False
+        self._artifact_dependencies = {}
 
     @property
     def id(self):
@@ -2604,6 +2606,7 @@ class Artifact(object):
         class ArtifactEntry(object):
             def __init__(self):
                 self.parent_artifact = parent_self
+                self.name = name
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2672,6 +2675,7 @@ class Artifact(object):
         Returns:
             A :obj:`wandb.Media` which has been stored at `name`
         """
+        cache = artifacts.get_artifacts_cache()
         if not self._is_downloaded:
             self.download()
 
@@ -2683,7 +2687,11 @@ class Artifact(object):
             if entry is not None:
                 # If the entry is a reference from another artifact, then get it directly from that artifact
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
-                    artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
+                    if entry.extra["source_artifact_id"] not in cache.downloaded_artifacts:
+                        artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
+                        artifact.download()
+                    else:
+                        artifact = cache.downloaded_artifacts[entry.extra["source_artifact_id"]]
                     return artifact.get(entry.extra["source_path"])
 
                 # Get the ArtifactEntry
@@ -2709,34 +2717,46 @@ class Artifact(object):
         Returns:
             The path to the downloaded contents.
         """
+        cache = artifacts.get_artifacts_cache()
         dirpath = root or self._default_root()
-        manifest = self._load_manifest()
-        nfiles = len(manifest.entries)
-        size = sum(e.size for e in manifest.entries.values())
-        log = False
-        if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
-        if log:
-            termlog(
-                "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self.artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
-            )
-        start_time = time.time()
+        if self.id not in cache.downloaded_artifacts:
+            manifest = self._load_manifest()
+            nfiles = len(manifest.entries)
+            size = sum(e.size for e in manifest.entries.values())
+            log = False
+            if nfiles > 5000 or size > 50 * 1024 * 1024:
+                log = True
+            if log:
+                termlog(
+                    "Downloading large artifact %s, %.2fMB. %s files... "
+                    % (self.artifact_name, size / (1024 * 1024), nfiles),
+                    newline=False,
+                )
+            start_time = time.time()
 
-        # Force all the files to download into the same directory.
-        # Download in parallel
-        import multiprocessing.dummy  # this uses threads
+            # Make sure dependencies are available
+            for entry in manifest.entries:
+                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra and entry.extra["source_artifact_id"] not in cache.downloaded_artifacts:
+                    artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
+                    artifact.download()
 
-        pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
-        pool.close()
-        pool.join()
+            # Force all the files to download into the same directory.
+            # Download in parallel
+            import multiprocessing.dummy  # this uses threads
 
-        self._is_downloaded = True
+            pool = multiprocessing.dummy.Pool(32)
+            pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+            pool.close()
+            pool.join()
 
-        if log:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            self._is_downloaded = True
+            cache.downloaded_artifacts[self.id] = self
+
+            if log:
+                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+        else:
+            self._manifest = cache.downloaded_artifacts[self.id]._manifest
+            self._is_downloaded = True
         return dirpath
 
     def file(self, root=None):
