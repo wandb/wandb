@@ -5,35 +5,101 @@ import os
 import binascii
 import base64
 import time
+import numpy as np
 
-classes = [{"id": 0, "name": "person"}]
-columns = ["examples", "index"]
 PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
 
+classes = [
+        {"id": 0, "name": "tree"},
+        {"id": 1, "name": "car"},
+        {"id": 3, "name": "road"},
+    ]
+columns = ["id", "bool", "int", "float", "Image"]
 
 def _make_wandb_image(suffix=""):
+    class_labels = {1: "tree", 2: "car", 3: "road"}
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "test" + str(suffix) + ".png")
-    return wandb.Image(im_path, classes=classes)
-
-
-def _assert_wandb_image_compare(image, suffix=""):
-    assert isinstance(image, wandb.Image)
-    assert image._image == _make_wandb_image(suffix)._image
-    assert image._classes._class_set == classes
+    im_path = os.path.join(test_folder, "..", "assets", "test{}.png".format(suffix))
+    return wandb.Image(
+        im_path,
+        classes=classes,
+        boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 2,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 2,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+        masks={
+            "predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "ground_truth": {"path": im_path, "class_labels": class_labels},
+        },
+    )
 
 
 def _make_wandb_table():
-    table = wandb.Table(columns)
-    table.add_data(_make_wandb_image(), 1)
-    table.add_data(_make_wandb_image(2), 2)
-    return table
+    return wandb.Table(
+        columns=columns,
+        data=[
+            ["string", True, 1, 1.4, _make_wandb_image()],
+            ["string2", False, -0, -1.4, _make_wandb_image("2")],
+        ],
+    )
 
-
-def _make_joined_table():
-    table_1 = _make_wandb_table()
-    table_2 = _make_wandb_table()
-    return wandb.JoinedTable(table_1, table_2, "index")
+def _make_wandb_joinedtable():
+    return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
 
 
 def _b64_to_hex_id(id_string):
@@ -326,6 +392,48 @@ def test_table_slice_reference_artifact():
     assert t1.data[1:] == table2.data
 
 
+def assert_json_serialization(obj):
+    with wandb.init(project=PROJECT_NAME) as run:
+        orig_artifact = wandb.Artifact("orig_artifact", "database")
+        orig_artifact.add(obj, "obj")
+        run.log_artifact(orig_artifact)
+
+    # with wandb.init(project=PROJECT_NAME) as run:
+    #     orig_artifact_ref = run.use_artifact("orig_artifact:latest")
+    #     mid_artifact = wandb.Artifact("mid_artifact", "database")
+    #     mid_obj = orig_artifact_ref.get("obj")
+    #     mid_artifact.add(mid_obj, "obj2")
+    #     run.log_artifact(mid_artifact)
+
+    # with wandb.init(project=PROJECT_NAME) as run:
+    #     mid_artifact_ref = run.use_artifact("mid_artifact:latest")
+    #     down_artifact = wandb.Artifact("down_artifact", "database")
+    #     down_obj = mid_artifact_ref.get("obj2")
+    #     down_artifact.add(down_obj, "obj3")
+    #     run.log_artifact(down_artifact)
+
+    # _cleanup()
+    # with wandb.init(project=PROJECT_NAME) as run:
+    #     down_artifact_ref = run.use_artifact("down_artifact:latest")
+    #     obj3 = down_artifact_ref.get("obj3")
+
+    # assert obj3 == obj
+    # assert not os.path.isdir(os.path.join("artifacts", "mid_artifact:v0"))
+    # assert os.path.islink(os.path.join("artifacts", "down_artifact:v0", "obj3"))
+    # assert os.readlink(os.path.join("artifacts", "down_artifact:v0", "obj3")) == os.path.join("artifacts", "orig_artifact:v0", "obj")
+
+
+def test_table_json_serialization():
+    assert_json_serialization(_make_wandb_table())
+
+
+def test_image_json_serialization():
+    assert_json_serialization(_make_wandb_image())
+
+
+def test_joinedtable_json_serialization():
+    assert_json_serialization(_make_wandb_joinedtable())
+
 
 def _cleanup():
     if os.path.isdir("wandb"):
@@ -337,20 +445,19 @@ def _cleanup():
 
 
 if __name__ == "__main__":
-    try:
-        test_artifact_add_reference_via_url()
-        _cleanup()
-        test_add_reference_via_artifact_entry()
-        _cleanup()
-        test_adding_artifact_by_object()
-        _cleanup()
-        test_get_artifact_obj_by_name()
-        _cleanup()
-        test_image_reference_artifact()
-        _cleanup()
-        test_nested_reference_artifact()
-        _cleanup()
-        test_table_slice_reference_artifact()
-        _cleanup()
-    finally:
-        _cleanup()
+    for test_fn in [
+        test_artifact_add_reference_via_url,
+        # test_add_reference_via_artifact_entry,
+        # test_adding_artifact_by_object,
+        # test_get_artifact_obj_by_name,
+        # test_image_reference_artifact,
+        # test_nested_reference_artifact,
+        # test_table_slice_reference_artifact,
+        # test_table_json_serialization,
+        # test_image_json_serialization,
+        # test_joinedtable_json_serialization,
+    ]:
+        try:
+            test_fn()
+        finally:
+            _cleanup()
