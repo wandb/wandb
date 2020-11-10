@@ -37,7 +37,7 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
             class_names
         ), "Higher label class index than number of classes"
     else:
-        n_classes = max(max(preds), max(y_true))
+        n_classes = max(max(preds), max(y_true)) + 1
         class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
 
     counts = np.zeros((n_classes, n_classes))
