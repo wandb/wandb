@@ -1,0 +1,5 @@
+---
+menu: main
+title: Artifacts
+---
+

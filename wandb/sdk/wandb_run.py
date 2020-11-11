@@ -1,9 +1,8 @@
 #
 # -*- coding: utf-8 -*-
-"""Run - Run object.
-
-Manage wandb run.
-
+"""
+The run object corresponds to a single execution of your script,
+typically this is an ML experiment. Create a run with wandb.init().
 """
 
 from __future__ import print_function
@@ -251,9 +250,9 @@ class Run(RunBase):
     with this object.
 
     Attributes:
-        summary (:obj:`Summary`): summary statistics collected as training code
+        summary (#Summary): summary statistics collected as training code
             runs.
-        history (:obj:`History`): history of data logged with wandb.log associated
+        history (#History): history of data logged with wandb.log associated
             with run.
     """
 
@@ -1703,7 +1702,7 @@ class Run(RunBase):
             type (str, optional): The type of artifact to use.
             aliases (list, optional): Aliases to apply to this artifact
         Returns:
-            A :obj:`Artifact` object.
+            A #Artifact object.
         """
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
