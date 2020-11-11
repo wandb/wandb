@@ -1200,10 +1200,22 @@ class Run(Attrs):
 
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
+        """
+        Get all of the artifacts logged by the run with log_artifact.
+
+        Returns:
+            An iterable collection over logged artifacts.
+        """
         return RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
+        """
+        Get all of the artifacts userd by the run with use_artifact.
+
+        Returns:
+            An iterable collection over used artifcats artifacts.
+        """
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
@@ -1276,6 +1288,7 @@ class Run(Attrs):
 
     @property
     def path(self):
+        """Unique identifier: entity/project/id"""
         return [
             urllib.parse.quote_plus(str(self.entity)),
             urllib.parse.quote_plus(str(self.project)),
@@ -1284,6 +1297,7 @@ class Run(Attrs):
 
     @property
     def url(self):
+        """Link to the runs page associated with the run"""
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
@@ -1323,7 +1337,9 @@ class Sweep(Attrs):
         runs (:obj:`Runs`): list of runs
         id (str): sweep id
         project (str): name of project
+        entity (str): the name of the entity associated with the run
         config (str): dictionary of sweep configuration
+
     """
 
     QUERY = gql(
