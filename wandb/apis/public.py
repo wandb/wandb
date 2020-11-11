@@ -515,7 +515,6 @@ class Api(object):
         return artifact
 
     def artifact_from_id(self, id):
-        print("Getting {} by id".format(id))
         return Artifact.from_id(self.client, id)
 
 

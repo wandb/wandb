@@ -1263,16 +1263,91 @@ class Image(BatchableMedia):
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
-        self._grouping = grouping
-        self._caption = caption
+        self._grouping = None
+        self._caption = None
         self._width = None
         self._height = None
         self._image = None
-        self._classes = classes
-        if classes is not None and not isinstance(self._classes, Classes):
-            self._classes = Classes(self._classes)
-
+        self._classes = None
         self._boxes = None
+        self._masks = None
+
+        # Allows the user to pass an Image object as the first parameter and have a perfect copy,
+        # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
+        if isinstance(data_or_path, Image):
+            self._grouping = data_or_path._grouping
+            self._caption = data_or_path._caption
+            self._width = data_or_path._width
+            self._height = data_or_path._height
+            self._image = data_or_path._image
+            self._classes = data_or_path._classes
+            self._boxes = data_or_path._boxes
+            self._masks = data_or_path._masks
+            self._path = data_or_path._path
+            self._is_tmp = data_or_path._is_tmp
+            self._extension = data_or_path._extension
+            self._sha256 = data_or_path._sha256
+            self._size = data_or_path._size
+            self.format = data_or_path.format
+            self.artifact_source = data_or_path.artifact_source
+        else:
+            PILImage = util.get_module(
+                    "PIL.Image",
+                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+                )
+            if isinstance(data_or_path, six.string_types):
+                self._set_file(data_or_path, is_tmp=False)
+                self._image = PILImage.open(data_or_path)
+                self._image.load()
+                ext = os.path.splitext(data_or_path)[1][1:]
+                self.format = ext
+            else:
+                data = data_or_path
+
+                if util.is_matplotlib_typename(util.get_full_typename(data)):
+                    buf = six.BytesIO()
+                    util.ensure_matplotlib_figure(data).savefig(buf)
+                    self._image = PILImage.open(buf)
+                elif isinstance(data, PILImage.Image):
+                    self._image = data
+                elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+                    vis_util = util.get_module(
+                        "torchvision.utils", "torchvision is required to render images"
+                    )
+                    if hasattr(data, "requires_grad") and data.requires_grad:
+                        data = data.detach()
+                    data = vis_util.make_grid(data, normalize=True)
+                    self._image = PILImage.fromarray(
+                        data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                    )
+                else:
+                    if hasattr(data, "numpy"):  # TF data eager tensors
+                        data = data.numpy()
+                    if data.ndim > 2:
+                        data = (
+                            data.squeeze()
+                        )  # get rid of trivial dimensions as a convenience
+                    self._image = PILImage.fromarray(
+                        self.to_uint8(data), mode=mode or self.guess_mode(data)
+                    )
+
+                tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
+                self.format = "png"
+                self._image.save(tmp_path, transparency=None)
+                self._set_file(tmp_path, is_tmp=True)
+        
+        if grouping is not None:
+            self._grouping = grouping
+
+        if caption is not None:
+            self._caption = caption
+        
+        if classes is not None:
+            if not isinstance(classes, Classes):
+                self._classes = Classes(classes)
+            else:
+                self._classes = classes
+
         if boxes:
             if not isinstance(boxes, dict):
                 raise ValueError('Images "boxes" argument must be a dictionary')
@@ -1284,7 +1359,6 @@ class Image(BatchableMedia):
                     boxes_final[key] = BoundingBoxes2D(boxes[key], key)
             self._boxes = boxes_final
 
-        self._masks = None
         if masks:
             if not isinstance(masks, dict):
                 raise ValueError('Images "masks" argument must be a dictionary')
@@ -1295,52 +1369,6 @@ class Image(BatchableMedia):
                 else:
                     masks_final[key] = ImageMask(masks[key], key)
             self._masks = masks_final
-
-        PILImage = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
-
-        if isinstance(data_or_path, six.string_types):
-            self._set_file(data_or_path, is_tmp=False)
-            self._image = PILImage.open(data_or_path)
-            self._image.load()
-            ext = os.path.splitext(data_or_path)[1][1:]
-            self.format = ext
-        else:
-            data = data_or_path
-
-            if util.is_matplotlib_typename(util.get_full_typename(data)):
-                buf = six.BytesIO()
-                util.ensure_matplotlib_figure(data).savefig(buf)
-                self._image = PILImage.open(buf)
-            elif isinstance(data, PILImage.Image):
-                self._image = data
-            elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-                vis_util = util.get_module(
-                    "torchvision.utils", "torchvision is required to render images"
-                )
-                if hasattr(data, "requires_grad") and data.requires_grad:
-                    data = data.detach()
-                data = vis_util.make_grid(data, normalize=True)
-                self._image = PILImage.fromarray(
-                    data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
-                )
-            else:
-                if hasattr(data, "numpy"):  # TF data eager tensors
-                    data = data.numpy()
-                if data.ndim > 2:
-                    data = (
-                        data.squeeze()
-                    )  # get rid of trivial dimensions as a convenience
-                self._image = PILImage.fromarray(
-                    self.to_uint8(data), mode=mode or self.guess_mode(data)
-                )
-
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
-            self.format = "png"
-            self._image.save(tmp_path, transparency=None)
-            self._set_file(tmp_path, is_tmp=True)
 
         self._width, self._height = self._image.size
 
