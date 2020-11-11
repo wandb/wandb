@@ -1,7 +1,4 @@
-from types import ModuleType
-
-
-class Dummy(object):
+class Dummy(str):
     def __init__(self, *args, **kwargs):
         object.__setattr__(self, "___dict", {})
 
@@ -165,10 +162,6 @@ class Dummy(object):
 
     def __bool__(self):
         return True
-
-
-class DummyModule(Dummy, ModuleType):
-    pass
 
 
 class DummyDict(dict):
