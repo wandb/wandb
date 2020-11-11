@@ -2747,9 +2747,14 @@ class Artifact(object):
                     hasattr(entry, "extra")
                     and "source_artifact_id" in entry.extra
                     and (
-                        entry.extra["source_artifact_id"] not in cache.downloaded_artifacts
+                        entry.extra["source_artifact_id"]
+                        not in cache.downloaded_artifacts
                         or (
-                            not os.path.isdir(cache.downloaded_artifacts[entry.extra["source_artifact_id"]]._default_root())
+                            not os.path.isdir(
+                                cache.downloaded_artifacts[
+                                    entry.extra["source_artifact_id"]
+                                ]._default_root()
+                            )
                         )
                     )
                 ):
