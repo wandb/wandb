@@ -1642,7 +1642,7 @@ class Graph(Media):
 
 class Node(WBValue):
     """
-    Node used in :obj:`Graph`
+    Node used in `Graph`
     """
 
     def __init__(
@@ -1819,7 +1819,7 @@ class Node(WBValue):
 
 class Edge(WBValue):
     """
-    Edge used in :obj:`Graph`
+    Edge used in `Graph`
     """
 
     def __init__(self, from_node, to_node):

@@ -133,5 +133,5 @@ for y in range(100):
 
 **Returns**:
 
-A :obj:`Run` object.
+A `Run` object.
 
