@@ -388,6 +388,7 @@ class BackendSender(object):
         exit=None,
         artifact=None,
         tbrecord=None,
+        alert=None,
         final=None,
         header=None,
         footer=None,
@@ -412,6 +413,8 @@ class BackendSender(object):
             record.artifact.CopyFrom(artifact)
         elif tbrecord:
             record.tbrecord.CopyFrom(tbrecord)
+        elif alert:
+            record.alert.CopyFrom(alert)
         elif final:
             record.final.CopyFrom(final)
         elif header:
@@ -555,6 +558,15 @@ class BackendSender(object):
         for alias in aliases:
             proto_artifact.aliases.append(alias)
         rec = self._make_record(artifact=proto_artifact)
+        self._publish(rec)
+
+    def publish_alert(self, title, text, level, wait_duration):
+        proto_alert = wandb_internal_pb2.AlertRecord()
+        proto_alert.title = title
+        proto_alert.text = text
+        proto_alert.level = level
+        proto_alert.wait_duration = wait_duration
+        rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
     def communicate_status(self, check_stop_req, timeout=None):

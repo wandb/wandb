@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.9.dev1"
+__version__ = "0.10.11.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -53,6 +53,7 @@ join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
+AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
@@ -75,6 +76,8 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
+from wandb.data_types import Classes
+from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 from wandb.wandb_controller import sweep, controller
@@ -101,8 +104,6 @@ def _is_internal_process():
     return _IS_INTERNAL_PROCESS
 
 
-# from wandb.lib.ipython import _get_python_type
-
 # toplevel:
 # save()
 # restore()
@@ -122,7 +123,7 @@ summary = _preinit.PreInitCallable(
 )
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
-restore = _preinit.PreInitCallable("wandb.restore", wandb_sdk.wandb_run.Run.restore)
+restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
     "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact
 )
@@ -132,6 +133,7 @@ log_artifact = _preinit.PreInitCallable(
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
+alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}

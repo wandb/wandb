@@ -1,3 +1,37 @@
+## 0.10.10 (November 9, 2020)
+
+#### :nail_care: Enhancement
+
+- Added confusion matrix plot
+- Better jupyter messages with wandb.init()/reinit/finish
+
+#### :bug: Bug Fix
+
+- Fix for fastai 2.1.5 (removed log_args)
+- Fixed media logging when directories are changed
+
+## 0.10.9 (November 4, 2020)
+
+#### :nail_care: Enhancement
+
+- Added artifact media logging (alpha)
+- Add scriptable alerts
+- Add url attribute for sweep public api
+- Update docstrings for wandb sdk functions
+
+#### :bug: Bug Fix
+
+- Fix cases where offline mode was making network connections
+- Fix issues with python sweeps and run stopping
+- Fix logging issue where we could accidently display an api key
+- Fix wandb login issues with malformed hosts
+- Allow wandb.restore() to be called without wandb.init()
+- Fix resuming (reusing run_id) with empty summary
+- Fix artitifact download issue
+- Add missing wandb.unwatch() function
+- Avoid creating spurious wandb directories
+- Fix collections import issue when using an old version of six
+
 ## 0.10.8 (October 22, 2020)
 
 #### :nail_care: Enhancement

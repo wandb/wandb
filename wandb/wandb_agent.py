@@ -127,6 +127,7 @@ class Agent(object):
     KILL_DELAY = 30
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
+    MAX_INITIAL_FAILURES = 5
 
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
@@ -149,6 +150,9 @@ class Agent(object):
         self._failed = 0
         self._count = count
         self._sweep_command = []
+        self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
+            self.MAX_INITIAL_FAILURES
+        )
         if self._report_interval is None:
             raise AgentError("Invalid agent report interval")
         if self._kill_delay is None:
@@ -164,6 +168,12 @@ class Agent(object):
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
             return self._failed >= self.FLAPPING_MAX_FAILURES
+
+    def is_failing(self):
+        return (
+            self._failed >= self._finished
+            and self._max_initial_failures <= self._failed
+        )
 
     def run(self):  # noqa: C901
 
@@ -217,6 +227,16 @@ class Agent(object):
                             )
                             logger.info(
                                 "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+                            )
+                            self._running = False
+                            break
+                        if self.is_failing():
+                            logger.error(
+                                "Detected %i failed runs in a row, shutting down.",
+                                self._max_initial_failures,
+                            )
+                            logger.info(
+                                "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
                             )
                             self._running = False
                             break
@@ -534,7 +554,7 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         wandb_sdk.wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
-        in_jupyter = wandb._get_python_type() != "python"
+        in_jupyter = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
         return run_agent(
             sweep_id,
             function=function,

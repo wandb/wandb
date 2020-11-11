@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import base64
+import binascii
 import colorsys
 import codecs
 import errno
@@ -286,6 +287,10 @@ def is_pytorch_tensor_typename(typename):
     )
 
 
+def is_fastai_tensor_typename(typename):
+    return typename.startswith("fastai.") and ("Tensor" in typename)
+
+
 def is_pandas_data_frame_typename(typename):
     return typename.startswith("pandas.") and "DataFrame" in typename
 
@@ -381,7 +386,7 @@ def json_friendly(obj):
             obj = obj.eval()
         except RuntimeError:
             obj = obj.numpy()
-    elif is_pytorch_tensor_typename(typename):
+    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
         try:
             if obj.requires_grad:
                 obj = obj.detach()
@@ -1103,3 +1108,11 @@ def add_import_hook(fullname, on_import):
         _import_hook = ImportMetaHook()
         _import_hook.install()
     _import_hook.add(fullname, on_import)
+
+
+def b64_to_hex_id(id_string):
+    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
+
+
+def hex_to_b64_id(encoded_string):
+    return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
