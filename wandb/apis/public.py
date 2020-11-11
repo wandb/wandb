@@ -2725,7 +2725,7 @@ class Artifact(object):
         """
         cache = artifacts.get_artifacts_cache()
         dirpath = root or self._default_root()
-        if self.id not in cache.downloaded_artifacts:
+        if self.id not in cache.downloaded_artifacts or not os.path.isdir(dirpath):
             manifest = self._load_manifest()
             nfiles = len(manifest.entries)
             size = sum(e.size for e in manifest.entries.values())
@@ -2741,12 +2741,17 @@ class Artifact(object):
             start_time = time.time()
 
             # Make sure dependencies are available
-            for entry in manifest.entries:
+            for entry_key in manifest.entries:
+                entry = manifest.entries[entry_key]
                 if (
                     hasattr(entry, "extra")
                     and "source_artifact_id" in entry.extra
-                    and entry.extra["source_artifact_id"]
-                    not in cache.downloaded_artifacts
+                    and (
+                        entry.extra["source_artifact_id"] not in cache.downloaded_artifacts
+                        or (
+                            not os.path.isdir(cache.downloaded_artifacts[entry.extra["source_artifact_id"]]._default_root())
+                        )
+                    )
                 ):
                     artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
                     artifact.download()
@@ -2768,6 +2773,7 @@ class Artifact(object):
         else:
             self._manifest = cache.downloaded_artifacts[self.id]._manifest
             self._is_downloaded = True
+
         return dirpath
 
     def file(self, root=None):

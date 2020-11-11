@@ -520,5 +520,9 @@ if __name__ == "__main__":
     ]:
         try:
             test_fn()
+            _cleanup()
+        except Exception as exception:
+            print("error on function {}".format(test_fn.__name__))
+            raise exception
         finally:
             _cleanup()
