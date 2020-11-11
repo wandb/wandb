@@ -1292,9 +1292,9 @@ class Image(BatchableMedia):
             self.artifact_source = data_or_path.artifact_source
         else:
             PILImage = util.get_module(
-                    "PIL.Image",
-                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-                )
+                "PIL.Image",
+                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+            )
             if isinstance(data_or_path, six.string_types):
                 self._set_file(data_or_path, is_tmp=False)
                 self._image = PILImage.open(data_or_path)
@@ -1318,7 +1318,12 @@ class Image(BatchableMedia):
                         data = data.detach()
                     data = vis_util.make_grid(data, normalize=True)
                     self._image = PILImage.fromarray(
-                        data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                        data.mul(255)
+                        .clamp(0, 255)
+                        .byte()
+                        .permute(1, 2, 0)
+                        .cpu()
+                        .numpy()
                     )
                 else:
                     if hasattr(data, "numpy"):  # TF data eager tensors
@@ -1335,13 +1340,13 @@ class Image(BatchableMedia):
                 self.format = "png"
                 self._image.save(tmp_path, transparency=None)
                 self._set_file(tmp_path, is_tmp=True)
-        
+
         if grouping is not None:
             self._grouping = grouping
 
         if caption is not None:
             self._caption = caption
-        
+
         if classes is not None:
             if not isinstance(classes, Classes):
                 self._classes = Classes(classes)

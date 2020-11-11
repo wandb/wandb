@@ -6,6 +6,7 @@ import os
 from wandb import env
 from wandb import util
 
+
 def md5_string(string):
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
@@ -148,6 +149,7 @@ class StorageHandler(object):
         :rtype: list(ArtifactManifestEntry)
         """
         pass
+
 
 class ArtifactsCache(object):
     def __init__(self, cache_dir):

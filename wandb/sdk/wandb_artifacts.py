@@ -1204,7 +1204,9 @@ class WBArtifactHandler(StorageHandler):
 
         dep_artifact = self._cache.downloaded_artifacts[util.hex_to_b64_id(artifact_id)]
         dep_artifact_path = dep_artifact.get_path(artifact_file_path)
-        link_target_path = os.path.join(dep_artifact._default_root(), artifact_file_path)
+        link_target_path = os.path.join(
+            dep_artifact._default_root(), artifact_file_path
+        )
         link_creation_path = os.path.join(
             # This tmp directory is created in order to have a place to put the symlink.
             # Since this is a threaded operation, I was getting collisions and needed to create

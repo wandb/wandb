@@ -2686,11 +2686,18 @@ class Artifact(object):
             if entry is not None:
                 # If the entry is a reference from another artifact, then get it directly from that artifact
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
-                    if entry.extra["source_artifact_id"] not in cache.downloaded_artifacts:
-                        artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
+                    if (
+                        entry.extra["source_artifact_id"]
+                        not in cache.downloaded_artifacts
+                    ):
+                        artifact = Api().artifact_from_id(
+                            entry.extra["source_artifact_id"]
+                        )
                         artifact.download()
                     else:
-                        artifact = cache.downloaded_artifacts[entry.extra["source_artifact_id"]]
+                        artifact = cache.downloaded_artifacts[
+                            entry.extra["source_artifact_id"]
+                        ]
                     return artifact.get(entry.extra["source_path"])
 
                 # Get the ArtifactEntry
@@ -2735,7 +2742,12 @@ class Artifact(object):
 
             # Make sure dependencies are available
             for entry in manifest.entries:
-                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra and entry.extra["source_artifact_id"] not in cache.downloaded_artifacts:
+                if (
+                    hasattr(entry, "extra")
+                    and "source_artifact_id" in entry.extra
+                    and entry.extra["source_artifact_id"]
+                    not in cache.downloaded_artifacts
+                ):
                     artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
                     artifact.download()
 
