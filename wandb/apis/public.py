@@ -2740,7 +2740,7 @@ class Artifact(object):
                 )
             start_time = time.time()
 
-            # Make sure dependencies are available
+            # Make sure dependencies are avail
             for entry_key in manifest.entries:
                 entry = manifest.entries[entry_key]
                 if (
