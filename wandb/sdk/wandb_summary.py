@@ -76,21 +76,24 @@ class SummaryDict(object):
         self._update(record)
 
 class Summary(SummaryDict):
-    """Summary
+    """
+    Summary tracks single values for each run. By default, summary is set to the
+    last value of History. 
 
-    The summary statistics are used to track single metrics per model. Calling
-    wandb.log({'accuracy': 0.9}) will automatically set wandb.summary['accuracy']
-    to be 0.9 unless the code has changed wandb.summary['accuracy'] manually.
+    For example, wandb.log({'accuracy': 0.9}) will add a new step to History and
+    update Summary to the latest value. In some cases, it's more useful to have
+    the maximum or minimum of a metric instead of the final value. You can set
+    history manually (wandb.summary['accuracy'] = best_acc).
+    
+    In the UI, summary metrics appear in the table to compare across runs. 
+    Summary metrics are also used in visualizations like the scatter plot and 
+    parallel coordinates chart. 
 
-    Setting wandb.summary['accuracy'] manually can be useful if you want to keep
-    a record of the accuracy of the best model while using wandb.log() to keep a
-    record of the accuracy at every step.
-
-    You may want to store evaluation metrics in a runs summary after training has
-    completed. Summary can handle numpy arrays, pytorch tensors or tensorflow tensors.
-    When a value is one of these types we persist the entire tensor in a binary file
-    and store high level metrics in the summary object such as min, mean, variance,
-    95% percentile, etc.
+    After training has completed, you may want to save evaluation metrics to a
+    run. Summary can handle numpy arrays and PyTorch/TensorFlow tensors. When 
+    you save one of these types to Summary, we persist the entire tensor in a 
+    binary file and store high level metrics in the summary object, such as min,
+    mean, variance, and 95th percentile.
 
     Examples:
         ```

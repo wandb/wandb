@@ -5,7 +5,7 @@ title: History
 <a name="wandb.sdk.wandb_history"></a>
 # wandb.sdk.wandb\_history
 
-[[view_source]](https://github.com/wandb/client/blob/4a4de49c33117fcbb069439edeb509d54fd41176/wandb/sdk/wandb_history.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_history.py#L3)
 
 History tracks logged data over time. To use history from your script, call
 wandb.log({"key": value}) at a single time step or multiple times in your
@@ -27,7 +27,7 @@ By default, Summary is set to the final value of History.
 class History(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/4a4de49c33117fcbb069439edeb509d54fd41176/wandb/sdk/wandb_history.py#L23)
+[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_history.py#L23)
 
 Time series data for Runs. This is essentially a list of dicts where each
 dict is a set of summary statistics logged.

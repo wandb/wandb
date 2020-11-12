@@ -1,7 +1,10 @@
 #
 # -*- coding: utf-8 -*-
 """
-init.
+wandb.init() indicates the beginning of a new run. In an ML training pipeline,
+for example, you could add wandb.init() to the beginning of your training script
+as well as your evaluation script, and each of those steps would be tracked as
+a run in W&B.
 """
 
 from __future__ import print_function

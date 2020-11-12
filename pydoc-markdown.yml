@@ -5,7 +5,7 @@ loaders:
       - wandb
       - wandb.apis.public
       - wandb.cli.cli
-      - wandb.sdk.wandb_alerts
+      # - wandb.sdk.wandb_alerts
       - wandb.sdk.wandb_artifacts
       - wandb.sdk.wandb_config
       - wandb.sdk.wandb_history
@@ -41,10 +41,11 @@ renderer:
     #     - 'wandb.sdk.wandb_.*'
     - title: Alerts
       contents:
-        - 'wandb.sdk.wandb_alerts.*'
+        - 'wandb.sdk.wandb_run.alert.*'
     - title: Artifacts
       contents:
         - 'wandb.sdk.wandb_artifacts.*'
+        - 'wandb.sdk.wandb_run.use_artifact.*'
     - title: Config
       contents:
         - 'wandb.sdk.wandb_config.*'
@@ -54,22 +55,36 @@ renderer:
     - title: Init
       contents:
         - 'wandb.sdk.wandb_init.*'
-    - title: Developer Documentation
+    - title: Login
+      contents:
+        - 'wandb.sdk.wandb_login.*'
     - title: Run
       contents:
         - 'wandb.sdk.wandb_run.Run.*'
-      name: index
-      source: CONTRIBUTING.md
-    - title: SDK Documentation
+    - title: Save
       contents:
-        - 'wandb'
-        - 'wandb.sdk.*'
-    - title: API Documentation
+        - 'wandb.sdk.wandb_save.*'
+    - title: Settings
       contents:
-        - 'wandb.apis.public.*'
-    - title: CLI Documentation
+        - 'wandb.sdk.wandb_settings.*'
+    - title: Summary
       contents:
-        - 'wandb.cli.cli.*'
-    - title: Framework Documentation
+        - 'wandb.sdk.wandb_summary.*'
+    - title: Watch
       contents:
-        - 'wandb.framework.*'
+        - 'wandb.sdk.wandb_watch.*'
+    - title: Log
+      contents:
+        - 'wandb.sdk.wandb_run.Run.log*'
+    # - title: Developer Documentation
+    #   name: index
+    #   source: CONTRIBUTING.md
+    # - title: API Documentation
+    #   contents:
+    #     - 'wandb.apis.public.*'
+    # - title: CLI Documentation
+    #   contents:
+    #     - 'wandb.cli.cli.*'
+    # - title: Framework Documentation
+    #   contents:
+    #     - 'wandb.framework.*'
