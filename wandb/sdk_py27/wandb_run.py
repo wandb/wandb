@@ -146,9 +146,9 @@ class Run(object):
     with this object.
 
     Attributes:
-        summary (:obj:`Summary`): summary statistics collected as training code
+        summary (`Summary`): summary statistics collected as training code
             runs.
-        history (:obj:`History`): history of data logged with wandb.log associated
+        history (`History`): history of data logged with wandb.log associated
             with run.
     """
 
@@ -341,7 +341,7 @@ class Run(object):
 
     @property
     def config(self):
-        """(:obj:`Config`): A config object (similar to a nested dict) of key
+        """(`Config`): A config object (similar to a nested dict) of key
             value pairs associated with the hyperparameters of the run.
         """
         return self._config
@@ -1566,7 +1566,7 @@ class Run(object):
             type (str, optional): The type of artifact to use.
             aliases (list, optional): Aliases to apply to this artifact
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
@@ -1629,7 +1629,7 @@ class Run(object):
                 defaults to ["latest"]
 
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):

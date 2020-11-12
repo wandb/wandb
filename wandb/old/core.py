@@ -73,7 +73,7 @@ PRINTED_MESSAGES = set()
 def termlog(string='', newline=True, repeat=True):
     """Log to standard error with formatting.
 
-    Args:
+    Arguments:
             string (str, optional): The string to print
             newline (bool, optional): Print a newline at the end of the string
             repeat (bool, optional): If set to False only prints the string once per process

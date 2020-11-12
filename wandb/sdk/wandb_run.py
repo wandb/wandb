@@ -340,7 +340,7 @@ class Run(object):
 
     @property
     def config(self):
-        """(:obj:`Config`): A config object (similar to a nested dict) of key
+        """(`Config`): A config object (similar to a nested dict) of key
             value pairs associated with the hyperparameters of the run.
         """
         return self._config
@@ -710,7 +710,7 @@ class Run(object):
             If you want to log more frequently than that it's better to aggregate
             the data on the client side or you may get degraded performance.
 
-        Args:
+        Arguments:
             row (dict, optional): A dict of serializable python objects i.e str,
                 ints, floats, Tensors, dicts, or wandb.data_types
             commit (boolean, optional): Save the metrics dict to the wandb server
@@ -813,7 +813,7 @@ class Run(object):
     ):
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
-        Args:
+        Arguments:
             glob_str (string): a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
             base_path (string): the base path to run the glob relative to
@@ -920,7 +920,7 @@ class Run(object):
 
     def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
         """Creates a custom plot on a table.
-        Args:
+        Arguments:
             vega_spec_name: the name of the spec for the plot
             table_key: the key used to log the data table
             data_table: a wandb.Table object containing the data to
@@ -928,7 +928,7 @@ class Run(object):
             fields: a dict mapping from table keys to fields that the custom
                     visualization needs
             string_fields: a dict that provides values for any string constants
-                    the custom visualization needs
+                           the custom visualization needs
         """
         visualization = create_custom_chart(
             vega_spec_name, data_table, fields, string_fields or {}
@@ -1554,7 +1554,7 @@ class Run(object):
         """ Declare an artifact as an input to a run, call `download` or `file` on \
         the returned object to get the contents locally.
 
-        Args:
+        Arguments:
             artifact_or_name (str or Artifact): An artifact name.
             May be prefixed with entity/project. Valid names
                 can be in the following forms:
@@ -1608,7 +1608,7 @@ class Run(object):
     def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
         """ Declare an artifact as output of a run.
 
-        Args:
+        Arguments:
             artifact_or_path (str or Artifact): A path to the contents of this artifact,
                 can be in the following forms:
                     /local/directory
@@ -1628,7 +1628,7 @@ class Run(object):
                 defaults to ["latest"]
 
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
@@ -1662,7 +1662,7 @@ class Run(object):
     def alert(self, title, text, level=None, wait_duration=None):
         """Launch an alert with the given title and text.
 
-        Args:
+        Arguments:
             title (str): The title of the alert, must be less than 64 characters long
             text (str): The text body of the alert
             level (str or wandb.AlertLevel, optional): The alert level to use, either: "INFO", "WARN", or "ERROR"
@@ -1715,7 +1715,7 @@ def restore(
         or run directory.  By default this will only download the file if it doesn't
         already exist.
 
-        Args:
+        Arguments:
             name: the name of the file
             run_path: optional path to a run to pull files from, i.e. username/project_name/run_id
                 if wandb.init has not been called, this is required.

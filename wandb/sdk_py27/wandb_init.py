@@ -476,7 +476,7 @@ def init(
     Spawns a new process to start or resume a run locally and communicate with a
     wandb server. Should be called before any calls to wandb.log.
 
-    Args:
+    Arguments:
         job_type (str, optional): The type of job running, defaults to 'train'
         dir (str, optional): An absolute path to a directory where metadata will
             be stored.
@@ -554,7 +554,7 @@ def init(
         Exception: if problem.
 
     Returns:
-        A :obj:`Run` object.
+        A `Run` object.
 
     """
     assert not wandb._IS_INTERNAL_PROCESS
