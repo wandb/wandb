@@ -18,6 +18,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
+
     Args:
         models (torch.Module): The model to hook, can be a tuple
         criterion (torch.F): An optional loss value being optimized
