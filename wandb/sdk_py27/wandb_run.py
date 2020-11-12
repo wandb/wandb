@@ -711,7 +711,7 @@ class Run(object):
             If you want to log more frequently than that it's better to aggregate
             the data on the client side or you may get degraded performance.
 
-        Args:
+        Arguments:
             row (dict, optional): A dict of serializable python objects i.e str,
                 ints, floats, Tensors, dicts, or wandb.data_types
             commit (boolean, optional): Save the metrics dict to the wandb server
@@ -814,7 +814,7 @@ class Run(object):
     ):
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
-        Args:
+        Arguments:
             glob_str (string): a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
             base_path (string): the base path to run the glob relative to
