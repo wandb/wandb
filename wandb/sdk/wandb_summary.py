@@ -97,16 +97,16 @@ class Summary(SummaryDict):
     95% percentile, etc.
 
     Examples:
-    ```
-    wandb.init(config=args)
+        ```
+        wandb.init(config=args)
 
-    best_accuracy = 0
-    for epoch in range(1, args.epochs + 1):
-    test_loss, test_accuracy = test()
-    if (test_accuracy > best_accuracy):
-        wandb.run.summary["best_accuracy"] = test_accuracy
-        best_accuracy = test_accuracy
-    ```
+        best_accuracy = 0
+        for epoch in range(1, args.epochs + 1):
+        test_loss, test_accuracy = test()
+        if (test_accuracy > best_accuracy):
+            wandb.run.summary["best_accuracy"] = test_accuracy
+            best_accuracy = test_accuracy
+        ```
 
     """
 
