@@ -21,7 +21,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     """Log in to W&B.
 
-    Args:
+    Arguments:
         anonymous (string, optional): Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user

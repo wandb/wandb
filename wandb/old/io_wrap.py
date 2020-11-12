@@ -199,7 +199,7 @@ class Tee(object):
     def __init__(self, src_file, sync_dst_file, *async_dst_files):
         """Constructor.
 
-        Args:
+        Arguments:
             src_file: file to read from.
             sync_dst_file: file to write to synchronously when `self.write()` is
                 called.
@@ -271,7 +271,7 @@ def spawn_reader_writer(get_data_fn, put_data_fn):
 
     The thread will terminate if it receives a Falsey value from the source.
 
-    Args:
+    Arguments:
         get_data_fn: Data-reading function. Called repeatedly until it returns
             False-y to indicate that the thread should terminate.
         put_data_fn: Data-writing function.
@@ -325,9 +325,9 @@ class FileRedirector(object):
     def __init__(self, redir_file, to_file):
         """Constructor
 
-        Args:
-            redir_file: (file) The file object to redirect
-            to_file: (file) The file object `redir_file` should be redirected to.
+        Arguments:
+            redir_file (file): The file object to redirect
+            to_file (file): The file object `redir_file` should be redirected to
         """
         self.redir_file = redir_file
         self._from_fd = redir_file.fileno()

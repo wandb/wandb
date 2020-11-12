@@ -188,13 +188,12 @@ class SettingsConsole(enum.Enum):
 class Settings(object):
     """Settings Constructor
 
-    Args:
+    Arguments:
         entity: personal user or team to use for Run.
         project: project name for the Run.
 
     Raises:
         Exception: if problem.
-
     """
 
     mode: str = "online"
