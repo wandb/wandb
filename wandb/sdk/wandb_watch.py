@@ -14,6 +14,7 @@ logger = logging.getLogger("wandb")
 
 _global_watch_idx = 0
 
+
 def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
@@ -25,7 +26,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         log (str): One of "gradients", "parameters", "all", or None
         log_freq (int): log gradients and parameters every N batches
         idx (int): an index to be used when calling wandb.watch on multiple models
-    
+
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
     """
@@ -79,6 +80,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         graphs.append(graph)
         # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
+
 
 def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
