@@ -464,6 +464,10 @@ class Run(object):
         return self._settings._offline
 
     @property
+    def disabled(self):
+        return self._settings._noop
+
+    @property
     def group(self):
         """str: name of W&B group associated with run.
 

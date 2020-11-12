@@ -315,6 +315,7 @@ class _WandbInit(object):
             run.finish = lambda *_, **__: module.unset_globals()
             run.step = 0
             run.resumed = False
+            run.disabled = True
             module.set_global(
                 run=run,
                 config=run.config,
