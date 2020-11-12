@@ -340,7 +340,7 @@ class Run(object):
 
     @property
     def config(self):
-        """(:obj:`Config`): A config object (similar to a nested dict) of key
+        """(`Config`): A config object (similar to a nested dict) of key
             value pairs associated with the hyperparameters of the run.
         """
         return self._config
@@ -1628,7 +1628,7 @@ class Run(object):
                 defaults to ["latest"]
 
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
