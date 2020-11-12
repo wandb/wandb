@@ -552,7 +552,7 @@ def init(
         Exception: if problem.
 
     Returns:
-        A :obj:`Run` object.
+        A `Run` object.
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
