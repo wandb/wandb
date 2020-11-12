@@ -599,7 +599,6 @@ class Run(object):
 
     def _tensorboard_callback(self, logdir, save=None, tboard_logdir=None):
         logger.info("tensorboard callback: %s, %s", logdir, save)
-        print("tboard_callback tboard_logdir", tboard_logdir)
         save = True if save is None else save
         self._backend.interface.publish_tbdata(logdir, save, tboard_logdir)
 
