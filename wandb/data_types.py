@@ -1281,8 +1281,6 @@ class Image(BatchableMedia):
             self._height = data_or_path._height
             self._image = data_or_path._image
             self._classes = data_or_path._classes
-            self._boxes = data_or_path._boxes
-            self._masks = data_or_path._masks
             self._path = data_or_path._path
             self._is_tmp = data_or_path._is_tmp
             self._extension = data_or_path._extension
@@ -1290,6 +1288,10 @@ class Image(BatchableMedia):
             self._size = data_or_path._size
             self.format = data_or_path.format
             self.artifact_source = data_or_path.artifact_source
+
+            # We do not want to implicitly copy boxes or masks, just the image-related data.
+            # self._boxes = data_or_path._boxes
+            # self._masks = data_or_path._masks
         else:
             PILImage = util.get_module(
                 "PIL.Image",
@@ -1389,6 +1391,7 @@ class Image(BatchableMedia):
             _masks = {}
             for key in masks:
                 _masks[key] = ImageMask.from_json(masks[key], source_artifact)
+                _masks[key].artifact_source = {"artifact": source_artifact}
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
@@ -1465,12 +1468,19 @@ class Image(BatchableMedia):
             json_dict["path"] = name
 
             if self._classes is not None:
-                classes_entry = artifact.add(
-                    self._classes,
-                    os.path.join(
-                        "media", "classes", os.path.basename(self._path) + "_cls"
-                    ),
-                )
+                # Here, rather than give each class definition it's own name (and entry), we
+                # purposely are giving a non-unique class name of /media/cls.classes.json.
+                # This may create user confusion if if multiple different class definitions
+                # are expected in a single artifact. However, we want to catch this user pattern
+                # if it exists and dive deeper. The alternative code is provided below.
+                #
+                class_name = os.path.join("media", "cls")
+                #
+                # class_name = os.path.join(
+                #     "media", "classes", os.path.basename(self._path) + "_cls"
+                # )
+                #
+                classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
                     "path": classes_entry.path,
@@ -1480,7 +1490,6 @@ class Image(BatchableMedia):
         elif not isinstance(run_or_artifact, wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
-        # TODO: Boxes and Masks can be refactored into their own objects like classes
         if self._boxes:
             json_dict["boxes"] = {
                 k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
@@ -1782,10 +1791,10 @@ class BoundingBoxes2D(JSONMetadata):
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            return (
-                self._val
-            )  # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
-            # want to mess with the visualizations that are currently available in the UI
+            # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
+            # want to mess with the visualizations that are currently available in the UI. This really should output
+            # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
+            return self._val
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
@@ -1854,8 +1863,7 @@ class ImageMask(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            {"path": os.path.join(source_artifact._default_root(), json_obj["path"])},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact):
@@ -1868,14 +1876,28 @@ class ImageMask(Media):
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            mask_name = os.path.join(
-                self.get_media_subdir(), os.path.basename(self._path)
-            )
-            mask_entry = artifact.add_file(self._path, name=mask_name)
+            mask_name = artifact.get_added_local_path_name(self._path)
+            mask_entry_digest = None
+            if mask_name is None:
+                mask_name = os.path.join(
+                    self.get_media_subdir(), os.path.basename(self._path)
+                )
+                if (
+                    self.artifact_source is not None
+                    and self.artifact_source["artifact"] != artifact
+                ):
+                    path = self.artifact_source["artifact"].get_path(mask_name)
+                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_name)[
+                        0
+                    ]
+                else:
+                    mask_entry = artifact.add_file(self._path, name=mask_name)
+
+                mask_entry_digest = mask_entry.digest
             return {
                 "_type": "mask-file",
                 "path": mask_name,
-                "digest": mask_entry.digest,
+                "digest": mask_entry_digest,
             }
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
