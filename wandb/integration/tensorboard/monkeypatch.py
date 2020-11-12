@@ -11,7 +11,6 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def patch(save=None, tensorboardX=None, pytorch=None, logdir=None):
-    print("called patch", logdir)
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
             "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once."
