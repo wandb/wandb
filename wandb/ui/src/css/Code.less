@@ -1,0 +1,150 @@
+@import './globals.less';
+
+
+// O the horrors.
+@leftPad: 10px;
+@consoleBackground: #2a2a2a;
+@bgColor: fade(@lightestGray, 5%);
+@bgColorSmall: fade(@lightestGray, 7%);
+@tearTextColor: rgba(200,200,200,0.5);
+
+.code__tear {
+  @ripEdgeHeight: 2px;
+  @ripGap: 5 * @spu;
+  @spacing: 1 * @spu;
+  height: @ripGap;
+  width: 100%;
+  margin-top: @ripEdgeHeight + @spacing;
+  margin-bottom: @spacing;
+  position: relative;
+  background-color: @bgColor;
+  // opacity: 0.42;
+  // opacity: 0.16;
+  padding-left: @leftPad;
+  line-height: 40px;
+  color: @tearTextColor;
+  // text-align: center;
+
+  &--small {
+    height: 3 * @spu;
+    &:before {
+      background-color: @bgColorSmall;
+    }
+  }
+
+  &--large {
+    height: 6 * @spu;
+  }
+
+  &:before, &:after {
+    content: "";
+    height: @ripEdgeHeight;
+    position: absolute;
+    left: 0;
+    right: 0;
+    // clip-path: polygon(0% 0%, 5%  100%, 10% 0%, 15%  100%, 20% 0%, 25% 100%, 30% 0%, 35%  100%, 40% 0%, 45%  100%, 50% 0%, 55%  100%, 60% 0%, 65%  100%, 70% 0%, 75%  100%, 80% 0%, 85%  100%, 90% 0%, 95%  100%, 100% 0%);
+  }
+  &:before {
+    background-color: @consoleBackground;
+    top: 0;
+  }
+  &:after {
+    background-color: @bgColor;
+    bottom: -2px;
+  }
+}
+
+.code__block {
+  background-color: @consoleBackground;
+  padding: 10px 0 10px 0;
+  margin: 10px 0 10px 0;
+  border-radius: 0.3em;
+  text-shadow: 0 1px rgba(0,0,0,0.3);
+  font-family: 'Inconsolata', Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  hyphens: none;
+  overflow-x: auto;
+  text-overflow: ellipsis;
+  &.code__block code {
+    color: #ffffff;
+  }
+  code {
+    background: transparent;
+    padding-left: 10px;
+  }
+}
+
+.bash__terminal code {
+  background-color: transparent;
+}
+
+.bash__result {
+  color: #bebec5;
+}
+
+.code__item {
+  padding-left: @leftPad;
+}
+
+.copyable {
+  &__copy-icon {
+    position: relative;
+    color: @yellow !important;
+    transition: opacity 0.25s, transform 0.25s;
+    opacity: 0 !important;
+    left: 5px;
+    top: 0px;
+    vertical-align: center;
+    transform: scale(1,1);
+
+    &.copied {
+      transform: scale(1.4,1.4);
+    }
+  }
+  &__item {
+    display: flex;
+    transition-property: background-color;
+    transition-duration: .6s;
+    &:hover {
+      background-color: rgb(60,60,60);
+      cursor: copy;
+      transition-property: background-color;
+      transition-duration: .4s;
+
+      .copyable__copy-icon {
+        opacity: 1 !important;
+      }
+    }
+
+    &:active {
+      background-color: rgb(90,90,90);
+    }
+  }
+}
+
+.bash__command {
+  position: relative;
+  display: flex;
+}
+
+.bash__command-text {
+  color: #ffffff !important;
+  padding-left: 18px !important;
+
+  // Dollar Sign for prompt $$$.
+  &::before {
+    display: flex;
+    position: absolute;
+    color: @yellow;
+    content: "$";
+    left: 10px;
+  }
+}
+
+.bash__green {
+  color: @green;
+}

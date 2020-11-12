@@ -1,0 +1,450 @@
+@font-face {
+  font-family: 'wb-icons';
+  src:  url('fonts/wb-icons.eot?wdlp78');
+  src:  url('fonts/wb-icons.eot?wdlp78#iefix') format('embedded-opentype'),
+    url('fonts/wb-icons.ttf?wdlp78') format('truetype'),
+    url('fonts/wb-icons.woff?wdlp78') format('woff'),
+    url('fonts/wb-icons.svg?wdlp78#wb-icons') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="wbic-"], [class*=" wbic-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'wb-icons' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.wbic-ic-color:before {
+  content: "\e98c";
+}
+.wbic-ic-lightbulb:before {
+  content: "\e98b";
+}
+.wbic-ic-panel-number:before {
+  content: "\e98a";
+}
+.wbic-ic-vertical-handle:before {
+  content: "\e989";
+}
+.wbic-ic-save:before {
+  content: "\e988";
+}
+.wbic-ic-github:before {
+  content: "\e984";
+}
+.wbic-ic-twitter:before {
+  content: "\e985";
+}
+.wbic-ic-place:before {
+  content: "\e986";
+}
+.wbic-ic-office:before {
+  content: "\e987";
+}
+.wbic-ic-bell-slash-outline:before {
+  content: "\e982";
+}
+.wbic-ic-bell-outline:before {
+  content: "\e983";
+}
+.wbic-ic-down:before {
+  content: "\e981";
+}
+.wbic-ic-heart:before {
+  content: "\e97f";
+}
+.wbic-ic-heart-outline:before {
+  content: "\e980";
+}
+.wbic-ic-share:before {
+  content: "\e976";
+}
+.wbic-ic-gallery:before {
+  content: "\e97e";
+}
+.wbic-ic-bowtie:before {
+  content: "\e97d";
+}
+.wbic-ic-fluid-width:before {
+  content: "\e97c";
+}
+.wbic-ic-plus:before {
+  content: "\e97b";
+}
+.wbic-ic-regex:before {
+  content: "\e97a";
+}
+.wbic-ic-overlay-stack:before {
+  content: "\e977";
+}
+.wbic-ic-overlay-2-column:before {
+  content: "\e978";
+}
+.wbic-ic-overlay-3-column:before {
+  content: "\e979";
+}
+.wbic-ic-camera:before {
+  content: "\e975";
+}
+.wbic-ic-unified-diff:before {
+  content: "\e973";
+}
+.wbic-ic-split-diff:before {
+  content: "\e974";
+}
+.wbic-ic-panel-parallel:before {
+  content: "\e972";
+}
+.wbic-ic-panel-importance:before {
+  content: "\e969";
+}
+.wbic-ic-panel-run-comparer:before {
+  content: "\e96a";
+}
+.wbic-ic-panel-text-table:before {
+  content: "\e96b";
+}
+.wbic-ic-panel-html:before {
+  content: "\e96c";
+}
+.wbic-ic-panel-audio:before {
+  content: "\e96d";
+}
+.wbic-ic-panel-video:before {
+  content: "\e96e";
+}
+.wbic-ic-panel-3d:before {
+  content: "\e96f";
+}
+.wbic-ic-panel-plotly:before {
+  content: "\e970";
+}
+.wbic-ic-panel-images:before {
+  content: "\e971";
+}
+.wbic-ic-panel-bar-chart:before {
+  content: "\e965";
+}
+.wbic-ic-panel-line-plot:before {
+  content: "\e966";
+}
+.wbic-ic-panel-scatter-plot:before {
+  content: "\e967";
+}
+.wbic-ic-panel-text:before {
+  content: "\e968";
+}
+.wbic-ic-copy:before {
+  content: "\e900";
+}
+.wbic-ic-pin:before {
+  content: "\e901";
+}
+.wbic-ic-benchmark:before {
+  content: "\e902";
+}
+.wbic-ic-close:before {
+  content: "\e903";
+}
+.wbic-ic-chevron-expanded:before {
+  content: "\e904";
+}
+.wbic-ic-chevron-minimized:before {
+  content: "\e905";
+}
+.wbic-ic-columns:before {
+  content: "\e906";
+}
+.wbic-ic-delete:before {
+  content: "\e907";
+}
+.wbic-ic-filter:before {
+  content: "\e908";
+}
+.wbic-ic-folder:before {
+  content: "\e909";
+}
+.wbic-ic-next:before {
+  content: "\e90a";
+}
+.wbic-ic-lock-open:before {
+  content: "\e90b";
+}
+.wbic-ic-overflow:before {
+  content: "\e90c";
+}
+.wbic-ic-previous:before {
+  content: "\e90d";
+}
+.wbic-ic-rows:before {
+  content: "\e90e";
+}
+.wbic-ic-search:before {
+  content: "\e90f";
+}
+.wbic-ic-smooth-gray:before {
+  content: "\e910";
+}
+.wbic-ic-sort:before {
+  content: "\e911";
+}
+.wbic-ic-tag-gray:before {
+  content: "\e912";
+}
+.wbic-ic-view-only:before {
+  content: "\e913";
+}
+.wbic-ic-xaxis:before {
+  content: "\e914";
+}
+.wbic-ic-file-markdown:before {
+  content: "\e915";
+}
+.wbic-ic-info:before {
+  content: "\e916";
+}
+.wbic-ic-group-runs:before {
+  content: "\e917";
+}
+.wbic-ic-overflow-outline:before {
+  content: "\e918";
+}
+.wbic-ic-duration:before {
+  content: "\e919";
+}
+.wbic-ic-metadata:before {
+  content: "\e91a";
+}
+.wbic-ic-state:before {
+  content: "\e91b";
+}
+.wbic-ic-username:before {
+  content: "\e91c";
+}
+.wbic-ic-date:before {
+  content: "\e91d";
+}
+.wbic-ic-summary:before {
+  content: "\e91e";
+}
+.wbic-ic-configuration:before {
+  content: "\e91f";
+}
+.wbic-ic-wandb:before {
+  content: "\e920";
+}
+.wbic-ic-sparkles:before {
+  content: "\e921";
+}
+.wbic-ic-new-project:before {
+  content: "\e922";
+}
+.wbic-ic-example:before {
+  content: "\e923";
+}
+.wbic-ic-chat:before {
+  content: "\e924";
+}
+.wbic-ic-video:before {
+  content: "\e925";
+}
+.wbic-ic-docs:before {
+  content: "\e926";
+}
+.wbic-ic-edit:before {
+  content: "\e927";
+}
+.wbic-ic-globe:before {
+  content: "\e928";
+}
+.wbic-ic-check:before {
+  content: "\e929";
+}
+.wbic-ic-launch:before {
+  content: "\e92a";
+}
+.wbic-ic-table:before {
+  content: "\e92b";
+}
+.wbic-ic-fullscreen:before {
+  content: "\e92c";
+}
+.wbic-ic-handle:before {
+  content: "\e92d";
+}
+.wbic-ic-resize:before {
+  content: "\e92e";
+}
+.wbic-ic-gift:before {
+  content: "\e92f";
+}
+.wbic-ic-move-runs:before {
+  content: "\e930";
+}
+.wbic-ic-hide:before {
+  content: "\e931";
+}
+.wbic-ic-show:before {
+  content: "\e932";
+}
+.wbic-ic-partial:before {
+  content: "\e933";
+}
+.wbic-ic-world:before {
+  content: "\e934";
+}
+.wbic-ic-terminal:before {
+  content: "\e935";
+}
+.wbic-ic-down-arrow:before {
+  content: "\e936";
+}
+.wbic-ic-plot:before {
+  content: "\e937";
+}
+.wbic-ic-chip:before {
+  content: "\e938";
+}
+.wbic-ic-model:before {
+  content: "\e939";
+}
+.wbic-ic-download:before {
+  content: "\e93a";
+}
+.wbic-ic-outlier:before {
+  content: "\e93b";
+}
+.wbic-ic-report:before {
+  content: "\e93c";
+}
+.wbic-ic-fork:before {
+  content: "\e93d";
+}
+.wbic-ic-star:before {
+  content: "\e93e";
+}
+.wbic-ic-fire:before {
+  content: "\e93f";
+}
+.wbic-ic-stop:before {
+  content: "\e940";
+}
+.wbic-ic-sweep:before {
+  content: "\e941";
+}
+.wbic-ic-controls:before {
+  content: "\e942";
+}
+.wbic-ic-file-yaml:before {
+  content: "\e943";
+}
+.wbic-ic-file-python:before {
+  content: "\e944";
+}
+.wbic-ic-file-code:before {
+  content: "\e945";
+}
+.wbic-ic-lock:before {
+  content: "\e946";
+}
+.wbic-ic-file-image:before {
+  content: "\e947";
+}
+.wbic-ic-file-model:before {
+  content: "\e948";
+}
+.wbic-ic-tensorflow:before {
+  content: "\e949";
+}
+.wbic-ic-file:before {
+  content: "\e94a";
+}
+.wbic-ic-up-arrow:before {
+  content: "\e94b";
+}
+.wbic-ic-add-below:before {
+  content: "\e94c";
+}
+.wbic-ic-add-above:before {
+  content: "\e94d";
+}
+.wbic-ic-table-collapsed:before {
+  content: "\e94e";
+}
+.wbic-ic-log:before {
+  content: "\e94f";
+}
+.wbic-ic-sort-down:before {
+  content: "\e950";
+}
+.wbic-ic-sort-up:before {
+  content: "\e951";
+}
+.wbic-ic-link:before {
+  content: "\e952";
+}
+.wbic-ic-line-graph:before {
+  content: "\e953";
+}
+.wbic-ic-numero:before {
+  content: "\e954";
+}
+.wbic-ic-custom-layout:before {
+  content: "\e955";
+}
+.wbic-ic-standard-layout:before {
+  content: "\e956";
+}
+.wbic-ic-star-outline:before {
+  content: "\e957";
+}
+.wbic-ic-warning:before {
+  content: "\e958";
+}
+.wbic-ic-full-width:before {
+  content: "\e959";
+}
+.wbic-ic-small-width:before {
+  content: "\e95a";
+}
+.wbic-ic-line-disconnected:before {
+  content: "\e95b";
+}
+.wbic-ic-line-dot:before {
+  content: "\e95c";
+}
+.wbic-ic-line-dash-dot-dot:before {
+  content: "\e95d";
+}
+.wbic-ic-line-dash-dot:before {
+  content: "\e95e";
+}
+.wbic-ic-line-dash:before {
+  content: "\e95f";
+}
+.wbic-ic-line-solid:before {
+  content: "\e960";
+}
+.wbic-ic-percent-line-plot:before {
+  content: "\e961";
+}
+.wbic-ic-area-line-plot:before {
+  content: "\e962";
+}
+.wbic-ic-standard-line-plot:before {
+  content: "\e963";
+}
+.wbic-ic-move:before {
+  content: "\e964";
+}

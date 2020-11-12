@@ -1,0 +1,28 @@
+.notebook .input {
+    display: flex;
+    padding: 5px;
+}
+.notebook .input .gutter {
+    width: 3em;
+    color: #666;
+}
+.notebook .input .source {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    padding: 5px;
+    width: 100%;
+}
+.notebook .output {
+    margin-left: 3em;
+    padding: 5px;
+}
+.notebook .output .stream {
+    flex-wrap: wrap;
+    white-space: pre-wrap;
+}
+
+.notebook .output .error {
+    flex-wrap: wrap;
+    white-space: pre-wrap;
+    background: #ffdddd;
+}

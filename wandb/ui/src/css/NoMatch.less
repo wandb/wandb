@@ -1,0 +1,46 @@
+/* NoMatch.css
+ * Updated design for 404 page.
+ */
+
+@import '../css/globals.less';
+
+.nomatch {
+    border: 1px solid @veryVeryLightGray;
+    border-radius: 10px;
+    box-shadow: 0px 0px 15px rgba(0,0,0,0.1);
+    padding: 40px;
+    width: 400px;
+    margin: 40px auto;
+    text-align: center;
+    .ui.header {
+        font-size: 8em;
+        color: #ffcc33;
+        opacity: 1;
+    }
+    p {
+        font-size: 1.4em;
+        width: 80%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .content {
+        text-align: center;
+        padding-top: 50px !important;
+    }
+    .ui.modal.nomatch {
+        width: 80% !important;
+        max-width: 400px !important;
+    }
+    .ui.primary.button {
+        background-color: #ffcc33;
+        border: none;
+        width: 100%;
+        font-size: 1.6em;
+    }
+    .ui.primary.button:hover {
+        background-color: #f1ba14;
+    }
+    .ui.primary.button:focus {
+        background-color: #f1ba14;
+    }
+}
