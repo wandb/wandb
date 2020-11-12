@@ -85,7 +85,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
 def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
 
-    Args:
+    Arguments:
         models (list): Optional list of pytorch models that have had watch called on them
     """
     if models:
