@@ -48,6 +48,9 @@ renderer:
     - title: Config
       contents:
         - 'wandb.sdk.wandb_config.*'
+    - title: History
+      contents:
+        - 'wandb.sdk.wandb_history.*'
     - title: Init
       contents:
         - 'wandb.sdk.wandb_init.*'
