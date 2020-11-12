@@ -1,5 +1,0 @@
----
-menu: main
-title: Config
----
-
