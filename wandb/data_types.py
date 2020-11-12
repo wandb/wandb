@@ -451,7 +451,7 @@ class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
 
-        Args:
+        Arguments:
             data_or_path (string or numpy array): A path to an audio file
                 or a numpy array of audio data.
             sample_rate (int): Sample rate, required when passing in raw
@@ -556,8 +556,8 @@ class Object3D(BatchableMedia):
     """
         Wandb class for 3D point clouds.
 
-        Args:
-            data_or_path (numpy array | string | io ):
+        Arguments:
+            data_or_path (numpy array, string, io):
                 Object3D can be initialized from a file or a numpy array.
 
                 The file types supported are obj, gltf, babylon, stl.  You can pass a path to
@@ -708,8 +708,8 @@ class Molecule(BatchableMedia):
     """
         Wandb class for Molecular data
 
-        Args:
-            data_or_path ( string | io ):
+        Arguments:
+            data_or_path (string, io):
                 Molecule can be initialized from a file name or an io object.
     """
 
@@ -871,8 +871,8 @@ class Video(BatchableMedia):
     """
         Wandb representation of video.
 
-        Args:
-            data_or_path (numpy array | string | io):
+        Arguments:
+            data_or_path (numpy array, string, io):
                 Video can be initialized with a path to a file or an io object.
                     The format must be "gif", "mp4", "webm" or "ogg".
                     The format must be specified with the format argument.
@@ -1048,12 +1048,12 @@ class Classes(Media):
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
-    Args:
-        table1 (str | wandb.Table):
+    Arguments:
+        table1 (str, wandb.Table):
             the path of a wandb.Table or the table object
-        table2 (str | wandb.Table):
+        table2 (str, wandb.Table):
             the path of a wandb.Table or the table object
-        join_key (str | [str, str]):
+        join_key (str, [str, str]):
             key or keys to perform the join
     """
 
@@ -1141,8 +1141,8 @@ class Image(BatchableMedia):
     """
         Wandb class for images.
 
-        Args:
-            data_or_path (numpy array | string | io): Accepts numpy array of
+        Arguments:
+            data_or_path (numpy array, string, io): Accepts numpy array of
                 image data, or a PIL image. The class attempts to infer
                 the data format and converts it.
             mode (string): The PIL mode for an image. Most common are "L", "RGB",
@@ -1549,7 +1549,7 @@ class JSONMetadata(Media):
 
 class BoundingBoxes2D(JSONMetadata):
     """
-    Wandb class for 2D bounding Boxes
+    Wandb class for 2D bounding boxes
     """
 
     def __init__(self, val, key, **kwargs):
@@ -1784,7 +1784,7 @@ class Plotly(Media):
     """
         Wandb class for plotly plots.
 
-        Args:
+        Arguments:
             val: matplotlib or plotly figure
     """
 
