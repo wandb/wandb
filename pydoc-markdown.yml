@@ -5,7 +5,7 @@ loaders:
       - wandb
       - wandb.apis.public
       - wandb.cli.cli
-      # - wandb.sdk.wandb_alerts
+      - wandb.sdk.wandb_alerts
       - wandb.sdk.wandb_artifacts
       - wandb.sdk.wandb_config
       - wandb.sdk.wandb_history
@@ -30,22 +30,14 @@ renderer:
   # The "book" theme only renders pages in "content/docs" into the nav.
   content_directory: .
   build_directory: docs
-  # default_preamble: {menu: main}
   markdown:
     source_linker:
       type: github
       repo: wandb/client
   pages:
-    # - title: 
-    #   contents:
-    #     - 'wandb.sdk.wandb_.*'
-    - title: Alerts
-      contents:
-        - 'wandb.sdk.wandb_run.alert.*'
     - title: Artifacts
       contents:
         - 'wandb.sdk.wandb_artifacts.*'
-        - 'wandb.sdk.wandb_run.use_artifact.*'
     - title: Config
       contents:
         - 'wandb.sdk.wandb_config.*'
@@ -75,16 +67,18 @@ renderer:
         - 'wandb.sdk.wandb_watch.*'
     - title: Log
       contents:
-        - 'wandb.sdk.wandb_run.Run.log*'
-    # - title: Developer Documentation
-    #   name: index
-    #   source: CONTRIBUTING.md
-    # - title: API Documentation
-    #   contents:
-    #     - 'wandb.apis.public.*'
-    # - title: CLI Documentation
-    #   contents:
-    #     - 'wandb.cli.cli.*'
-    # - title: Framework Documentation
-    #   contents:
-    #     - 'wandb.framework.*'
+        - 'wandb.sdk.wandb_run.Run.log'
+    ## TODO Plots
+    ## TODO Frameworks
+    - title: Developer Documentation
+      name: index
+      source: CONTRIBUTING.md
+    - title: API Documentation
+      contents:
+        - 'wandb.apis.public.*'
+    - title: CLI Documentation
+      contents:
+        - 'wandb.cli.cli.*'
+    - title: Framework Documentation
+      contents:
+        - 'wandb.framework.*'

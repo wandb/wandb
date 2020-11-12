@@ -5,7 +5,7 @@ title: Summary
 <a name="wandb.sdk.wandb_summary"></a>
 # wandb.sdk.wandb\_summary
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_summary.py#L2)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_summary.py#L2)
 
 <a name="wandb.sdk.wandb_summary.SummaryDict"></a>
 ## SummaryDict Objects
@@ -15,7 +15,7 @@ title: Summary
 class SummaryDict(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_summary.py#L18)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_summary.py#L18)
 
 dict-like which wraps all nested dictionraries in a SummarySubDict,
 and triggers self._root._callback on property changes.
@@ -27,7 +27,7 @@ and triggers self._root._callback on property changes.
 class Summary(SummaryDict)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_summary.py#L78)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_summary.py#L78)
 
 Summary tracks single values for each run. By default, summary is set to the
 last value of History.
@@ -67,7 +67,7 @@ best_accuracy = test_accuracy
 class SummarySubDict(SummaryDict)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_summary.py#L131)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_summary.py#L131)
 
 Non-root node of the summary data structure. Contains a path to itself
 from the root.

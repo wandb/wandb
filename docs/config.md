@@ -5,7 +5,7 @@ title: Config
 <a name="wandb.sdk.wandb_config"></a>
 # wandb.sdk.wandb\_config
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_config.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L3)
 
 config.
 
@@ -16,7 +16,7 @@ config.
 class Config(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_config.py#L28)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L28)
 
 Config object
 
@@ -92,7 +92,53 @@ wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
  | persist()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_config.py#L163)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L163)
 
 Calls the callback if it's set
+
+<a name="wandb.sdk.wandb_run"></a>
+# wandb.sdk.wandb\_run
+
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L4)
+
+<a name="wandb.sdk.wandb_run.Run"></a>
+## Run Objects
+
+```python
+class Run(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L132)
+
+The run object corresponds to a single execution of your script,
+typically this is an ML experiment. Create a run with wandb.init().
+
+In distributed training, use wandb.init() to create a run for each process,
+and set the group argument to organize runs into a larger experiment.
+
+Currently there is a parallel Run object in the wandb.Api. Eventually these
+two objects will be merged.
+
+**Attributes**:
+
+- `history` _`History`_ - Time series values, created with wandb.log().
+History can contain scalar values, rich media, or even custom plots
+across multiple steps.
+- `summary` _`Summary`_ - Single values set for each wandb.log() key. By
+default, summary is set to the last value logged. You can manually
+set summary to the best value, like max accuracy, instead of the
+final value.
+
+<a name="wandb.sdk.wandb_run.Run.config"></a>
+#### config
+
+```python
+ | @property
+ | config()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L341)
+
+(`Config`): A config object (similar to a nested dict) of key
+value pairs associated with the hyperparameters of the run.
 

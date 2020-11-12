@@ -5,7 +5,7 @@ title: Login
 <a name="wandb.sdk.wandb_login"></a>
 # wandb.sdk.wandb\_login
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_login.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_login.py#L3)
 
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
@@ -17,7 +17,7 @@ account.
 login(anonymous=None, key=None, relogin=None, host=None, force=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_login.py#L22)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_login.py#L22)
 
 Log in to W&B.
 

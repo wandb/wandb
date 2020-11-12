@@ -5,7 +5,7 @@ title: Log
 <a name="wandb.sdk.wandb_run"></a>
 # wandb.sdk.wandb\_run
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_run.py#L4)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L4)
 
 <a name="wandb.sdk.wandb_run.Run"></a>
 ## Run Objects
@@ -14,7 +14,7 @@ title: Log
 class Run(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_run.py#L132)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L132)
 
 The run object corresponds to a single execution of your script,
 typically this is an ML experiment. Create a run with wandb.init().
@@ -42,7 +42,7 @@ final value.
  | log(data, step=None, commit=None, sync=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_run.py#L672)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L672)
 
 Log a dict to the global run's history.
 
@@ -153,40 +153,4 @@ For more examples, see https://docs.wandb.com/library/log
 
 wandb.Error - if called before wandb.init
 ValueError - if invalid data is passed
-
-<a name="wandb.sdk.wandb_run.Run.log_artifact"></a>
-#### log\_artifact
-
-```python
- | log_artifact(artifact_or_path, name=None, type=None, aliases=None)
-```
-
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_run.py#L1607)
-
-Declare an artifact as output of a run.
-
-**Arguments**:
-
-- `artifact_or_path` _str or Artifact_ - A path to the contents of this artifact,
-can be in the following forms:
-/local/directory
-/local/directory/file.txt
-s3://bucket/path
-You can also pass an Artifact object created by calling
-`wandb.Artifact`.
-- `name` _str, optional_ - An artifact name. May be prefixed with entity/project.
-Valid names can be in the following forms:
-name:version
-name:alias
-digest
-This will default to the basename of the path prepended with the current
-run id  if not specified.
-- `type` _str_ - The type of artifact to log, examples include "dataset", "model"
-- `aliases` _list, optional_ - Aliases to apply to this artifact,
-defaults to ["latest"]
-
-
-**Returns**:
-
-A `Artifact` object.
 

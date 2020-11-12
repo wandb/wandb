@@ -5,7 +5,7 @@ title: Settings
 <a name="wandb.sdk.wandb_settings"></a>
 # wandb.sdk.wandb\_settings
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_settings.py#L2)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_settings.py#L2)
 
 This module configures settings for wandb runs.
 
@@ -33,7 +33,7 @@ Override priorities are in the reverse order of non-override settings
 class Settings(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_settings.py#L187)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_settings.py#L187)
 
 Settings Constructor
 
@@ -54,7 +54,7 @@ Settings Constructor
  | __copy__()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_settings.py#L656)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_settings.py#L656)
 
 Copy (note that the copied object will not be frozen).
 

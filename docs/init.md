@@ -5,7 +5,7 @@ title: Init
 <a name="wandb.sdk.wandb_init"></a>
 # wandb.sdk.wandb\_init
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_init.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L3)
 
 wandb.init() indicates the beginning of a new run. In an ML training pipeline,
 for example, you could add wandb.init() to the beginning of your training script
@@ -19,7 +19,7 @@ a run in W&B.
 class _WandbInit(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_init.py#L50)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L50)
 
 <a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
 #### setup
@@ -28,7 +28,7 @@ class _WandbInit(object)
  | setup(kwargs)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_init.py#L62)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L62)
 
 Complete setup for wandb.init(). This includes parsing all arguments,
 applying them with settings and enabling logging.
@@ -40,7 +40,7 @@ applying them with settings and enabling logging.
 init(job_type: Optional[str] = None, dir=None, config: Union[Dict, str, None] = None, project: Optional[str] = None, entity: Optional[str] = None, reinit: bool = None, tags: Optional[Sequence] = None, group: Optional[str] = None, name: Optional[str] = None, notes: Optional[str] = None, magic: Union[dict, str, bool] = None, config_exclude_keys=None, config_include_keys=None, anonymous: Optional[str] = None, mode: Optional[str] = None, allow_val_change: Optional[bool] = None, resume: Optional[Union[bool, str]] = None, force: Optional[bool] = None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, save_code=None, id=None, settings: Union[Settings, Dict[str, Any], None] = None) -> Union[Run, Dummy]
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/1d91d968ba0274736fc232dcb1a87a878142891d/wandb/sdk/wandb_init.py#L450)
+[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L450)
 
 Initialize W&B
 Spawns a new process to start or resume a run locally and communicate with a
