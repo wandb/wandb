@@ -8,11 +8,13 @@ from .interface.summary_record import SummaryItem, SummaryRecord
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
 
+
 def _get_dict(d):
     if isinstance(d, dict):
         return d
     # assume argparse Namespace
     return vars(d)
+
 
 @six.add_metaclass(abc.ABCMeta)
 class SummaryDict(object):
@@ -75,23 +77,24 @@ class SummaryDict(object):
 
         self._update(record)
 
+
 class Summary(SummaryDict):
     """
     Summary tracks single values for each run. By default, summary is set to the
-    last value of History. 
+    last value of History.
 
     For example, wandb.log({'accuracy': 0.9}) will add a new step to History and
     update Summary to the latest value. In some cases, it's more useful to have
     the maximum or minimum of a metric instead of the final value. You can set
     history manually (wandb.summary['accuracy'] = best_acc).
-    
-    In the UI, summary metrics appear in the table to compare across runs. 
-    Summary metrics are also used in visualizations like the scatter plot and 
-    parallel coordinates chart. 
+
+    In the UI, summary metrics appear in the table to compare across runs.
+    Summary metrics are also used in visualizations like the scatter plot and
+    parallel coordinates chart.
 
     After training has completed, you may want to save evaluation metrics to a
-    run. Summary can handle numpy arrays and PyTorch/TensorFlow tensors. When 
-    you save one of these types to Summary, we persist the entire tensor in a 
+    run. Summary can handle numpy arrays and PyTorch/TensorFlow tensors. When
+    you save one of these types to Summary, we persist the entire tensor in a
     binary file and store high level metrics in the summary object, such as min,
     mean, variance, and 95th percentile.
 
@@ -127,6 +130,7 @@ class Summary(SummaryDict):
     def _update(self, record: SummaryRecord):
         if self._update_callback:
             self._update_callback(record)
+
 
 class SummarySubDict(SummaryDict):
     """Non-root node of the summary data structure. Contains a path to itself

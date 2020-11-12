@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 wandb.init() indicates the beginning of a new run. In an ML training pipeline,
-for example, you could add wandb.init() to the beginning of your training script
-as well as your evaluation script, and each of those steps would be tracked as
-a run in W&B.
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece steps would be tracked as a run in W&B.
 """
 
 from __future__ import print_function
@@ -61,7 +60,7 @@ class _WandbInit(object):
 
     def setup(self, kwargs):
         """
-        Complete setup for wandb.init(). This includes parsing all arguments, 
+        Complete setup for wandb.init(). This includes parsing all arguments,
         applying them with settings and enabling logging.
         """
         self.kwargs = kwargs

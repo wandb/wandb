@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 History tracks logged data over time. To use history from your script, call
-wandb.log({"key": value}) at a single time step or multiple times in your 
+wandb.log({"key": value}) at a single time step or multiple times in your
 training loop. This generates a time series of saved scalars or media that is
 saved to history.
 

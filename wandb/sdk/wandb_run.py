@@ -137,7 +137,7 @@ class Run(object):
     In distributed training, use wandb.init() to create a run for each process,
     and set the group argument to organize runs into a larger experiment.
 
-    Currently there is a parallel Run object in the wandb.Api. Eventually these 
+    Currently there is a parallel Run object in the wandb.Api. Eventually these
     two objects will be merged.
 
     Attributes:
