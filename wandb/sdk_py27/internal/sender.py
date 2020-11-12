@@ -418,7 +418,7 @@ class SendManager(object):
         if self._resume_state.get("resumed"):
             self._run.resumed = True
         self._run.starting_step = self._resume_state["step"]
-        self._run.start_time.FromSeconds(start_time)
+        self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
         if self._resume_state["summary"] is not None:
             self._run.summary.CopyFrom(
