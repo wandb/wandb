@@ -118,9 +118,10 @@ class _WandbInit(object):
             wandb.gym.monitor()
 
         tensorboard = kwargs.pop("tensorboard", None)
+        tensorboard_logdir = kwargs.pop("logdir", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
         if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()
+            wandb.tensorboard.patch(logdir=tensorboard_logdir)
 
         magic = kwargs.get("magic")
         if magic not in (None, False):
@@ -467,6 +468,7 @@ def init(
     force: Optional[bool] = None,
     tensorboard=None,  # alias for sync_tensorboard
     sync_tensorboard=None,
+    logdir=None,
     monitor_gym=None,
     save_code=None,
     id=None,

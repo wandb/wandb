@@ -88,11 +88,13 @@ class TBWatcher(object):
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir):
+    def _calculate_namespace(self, logdir, rootdir):
         dirs = list(self._logdirs) + [logdir]
-        rootdir = util.to_forward_slash_path(
-            os.path.dirname(os.path.commonprefix(dirs))
-        )
+        if rootdir == "":
+            rootdir = util.to_forward_slash_path(
+                os.path.dirname(os.path.commonprefix(dirs))
+            )
+
         if os.path.isfile(logdir):
             filename = os.path.basename(logdir)
         else:
@@ -109,11 +111,11 @@ class TBWatcher(object):
             namespace = None
         return namespace
 
-    def add(self, logdir, save):
+    def add(self, logdir, save, root_dir):
         logdir = util.to_forward_slash_path(logdir)
         if logdir in self._logdirs:
             return
-        namespace = self._calculate_namespace(logdir)
+        namespace = self._calculate_namespace(logdir, root_dir)
         # TODO(jhr): implement the deferred tbdirwatcher to find namespace
 
         if not self._consumer:
