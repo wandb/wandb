@@ -515,7 +515,7 @@ class BackendSender(object):
     def _communicate_run(self, run, timeout=None):
         """Send synchronous run object waiting for a response.
 
-        Args:
+        Arguments:
             run: RunRecord object
             timeout: number of seconds to wait
 
