@@ -53,7 +53,7 @@ class Api(object):
         directory.
 
     Arguments:
-        default_settings(:obj:`dict`, optional): If you aren't using a settings
+        default_settings(`dict`, optional): If you aren't using a settings
         file or you wish to override the section to use in the settings file
         Override the settings here.
     """
@@ -1194,7 +1194,7 @@ class Api(object):
         Arguments:
             url (str): The url to download
             file (str): The path to the file you want to upload
-            callback (:obj:`func`, optional): A callback which is passed the number of
+            callback (`func`, optional): A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
