@@ -42,10 +42,12 @@ def patch(save=None, tensorboardX=None, pytorch=None, logdir=None):
         wandb.termerror("Unsupported tensorboard configuration")
 
 
-def _patch_tensorflow2(writer, module, save=None, logdir=None, old_logdir=None):
+def _patch_tensorflow2(
+    writer, module, save=None, logdir=None,
+):
     # This configures TensorFlow 2 style Tensorboard logging
     old_csfw_func = writer.create_summary_file_writer
-    tboard_logdir = logdir
+    root_logdir = logdir
     logdir_hist = []
 
     def new_csfw_func(*args, **kwargs):
@@ -56,12 +58,12 @@ def _patch_tensorflow2(writer, module, save=None, logdir=None, old_logdir=None):
         )
         logdir_hist.append(logdir)
 
-        if len(set(logdir_hist)) > 1 and tboard_logdir is None:
+        if len(set(logdir_hist)) > 1 and root_logdir is None:
             wandb.termwarn(
-                "When using several event log directories, please specify the root log directory in wandb.init"
+                'When using several event log directories, please call wandb.tensorboard.patch(logdir="...") before wandb.init'
             )
 
-        _notify_tensorboard_logdir(logdir, save=save, tboard_logdir=tboard_logdir)
+        _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir)
         return old_csfw_func(*args, **kwargs)
 
     writer.orig_create_summary_file_writer = old_csfw_func
@@ -69,10 +71,10 @@ def _patch_tensorflow2(writer, module, save=None, logdir=None, old_logdir=None):
     wandb.patched["tensorboard"].append([module, "create_summary_file_writer"])
 
 
-def _patch_nontensorflow(writer, module, save=None, logdir=None, old_logdir=None):
+def _patch_nontensorflow(writer, module, save=None, logdir=None):
     # This configures non-TensorFlow Tensorboard logging
     old_efw_class = writer.EventFileWriter
-    tboard_logdir = logdir
+    root_logdir = logdir
 
     logdir_hist = []
 
@@ -81,9 +83,9 @@ def _patch_nontensorflow(writer, module, save=None, logdir=None, old_logdir=None
             logdir_hist.append(logdir)
             if len(set(logdir_hist)) > 1:
                 wandb.termwarn(
-                    "When using several event log directories, please specify the root log directory in wandb.init"
+                    'When using several event log directories, please call wandb.tensorboard.patch(logdir="...") before wandb.init'
                 )
-            _notify_tensorboard_logdir(logdir, save=save, tboard_logdir=tboard_logdir)
+            _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir)
 
             super(TBXEventFileWriter, self).__init__(logdir, *args, **kwargs)
 
@@ -92,5 +94,5 @@ def _patch_nontensorflow(writer, module, save=None, logdir=None, old_logdir=None
     wandb.patched["tensorboard"].append([module, "EventFileWriter"])
 
 
-def _notify_tensorboard_logdir(logdir, save=None, tboard_logdir=None):
-    wandb.run._tensorboard_callback(logdir, save=save, tboard_logdir=tboard_logdir)
+def _notify_tensorboard_logdir(logdir, save=None, root_logdir=None):
+    wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)

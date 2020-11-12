@@ -150,11 +150,11 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(self, log_dir, save, tboard_logdir):
+    def publish_tbdata(self, log_dir, save, root_logdir):
         tbrecord = wandb_internal_pb2.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = tboard_logdir or ""
+        tbrecord.root_dir = root_logdir or ""
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
