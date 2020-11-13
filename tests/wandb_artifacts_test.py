@@ -426,7 +426,7 @@ def test_add_obj_wbimage(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
-            assert artifact.digest == "ce1d5f6604a131980a67d7de4eff91ed"
+            assert artifact.digest == "19dbf4719a3e725f89f98c2d1bb77691"
             assert manifest["contents"] == {
                 "media\\classes\\2x2.png_cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -442,9 +442,9 @@ def test_add_obj_wbimage(runner):
                 },
             }
         else:
-            assert artifact.digest == "29af5a50c7dacfdf0ba7fea594356de8"
+            assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
             assert manifest["contents"] == {
-                "media/classes/2x2.png_cls.classes.json": {
+                "media/cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -453,8 +453,8 @@ def test_add_obj_wbimage(runner):
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "0p2TBpqUySyGvOxwmuq0TA==",
-                    "size": 222,
+                    "digest": "09JETFEpiuqBeICi09cY4A==",
+                    "size": 206,
                 },
             }
 
@@ -471,7 +471,7 @@ def test_add_obj_wbimage_classes_obj(runner):
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
             assert manifest["contents"] == {
-                "media\\classes\\2x2.png_cls.classes.json": {
+                "media\\cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -480,13 +480,13 @@ def test_add_obj_wbimage_classes_obj(runner):
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "F3Gn3ZaBV6vv0hJrOVvkhA==",
-                    "size": 226,
+                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
+                    "size": 209,
                 },
             }
         else:
             assert manifest["contents"] == {
-                "media/classes/2x2.png_cls.classes.json": {
+                "media/cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -495,8 +495,8 @@ def test_add_obj_wbimage_classes_obj(runner):
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "0p2TBpqUySyGvOxwmuq0TA==",
-                    "size": 222,
+                    "digest": "09JETFEpiuqBeICi09cY4A==",
+                    "size": 206,
                 },
             }
 
@@ -557,25 +557,25 @@ def test_add_obj_wbimage_image_already_added(runner):
         if os.name == "nt":  # windows
             assert manifest["contents"] == {
                 "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-                "media\\classes\\2x2.png_cls.classes.json": {
+                "media\\cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
                 "my-image.image-file.json": {
-                    "digest": "o63V/kEB47IXKUCfXMN8aA==",
-                    "size": 211,
+                    "digest": "3K1MxC/oqFbvBcUniFGDCA==",
+                    "size": 194,
                 },
             }
         else:
             assert manifest["contents"] == {
                 "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-                "media/classes/2x2.png_cls.classes.json": {
+                "media/cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
                 "my-image.image-file.json": {
-                    "digest": "6WiURHZR7OCQ+9LbexQn4g==",
-                    "size": 209,
+                    "digest": "ZeHjOyjSSVRwrmibiprSQw==",
+                    "size": 193,
                 },
             }
 
@@ -594,7 +594,7 @@ def test_add_obj_wbtable_images(runner):
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
             assert manifest["contents"] == {
-                "media\\classes\\2x2.png_cls.classes.json": {
+                "media\\cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -603,13 +603,13 @@ def test_add_obj_wbtable_images(runner):
                     "size": 71,
                 },
                 "my-table.table.json": {
-                    "digest": "Agbr2vxkcYLIpvHC/DBrIg==",
-                    "size": 537,
+                    "digest": "pI7BRFOjiq5eyNXnSXH4kA==",
+                    "size": 503,
                 },
             }
         else:
             assert manifest["contents"] == {
-                "media/classes/2x2.png_cls.classes.json": {
+                "media/cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -618,7 +618,7 @@ def test_add_obj_wbtable_images(runner):
                     "size": 71,
                 },
                 "my-table.table.json": {
-                    "digest": "i2+D/ASceFLAlGWM8D79Ig==",
-                    "size": 529,
+                    "digest": "5l6DxiO38nB1II2dTW/HNA==",
+                    "size": 497,
                 },
             }

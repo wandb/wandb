@@ -1153,7 +1153,7 @@ class WBArtifactHandler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
         self._cache = get_artifacts_cache()
-        self._client = PublicApi()
+        self._client = None
 
     @property
     def scheme(self):
@@ -1169,6 +1169,12 @@ class WBArtifactHandler(StorageHandler):
 
         url = urlparse(path)
         return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = PublicApi()
+        return self._client
 
     def load_path(self, artifact, manifest_entry, local=False):
         """
@@ -1195,7 +1201,7 @@ class WBArtifactHandler(StorageHandler):
         )
 
         dep_artifact = PublicArtifact.from_id(
-            util.hex_to_b64_id(artifact_id), self._client
+            util.hex_to_b64_id(artifact_id), self.client
         )
         link_target_path = dep_artifact.get_path(artifact_file_path).download()
         link_creation_path = os.path.join(
@@ -1238,7 +1244,7 @@ class WBArtifactHandler(StorageHandler):
         while path is not None and urlparse(path).scheme == self._scheme:
             artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
             target_artifact = PublicArtifact.from_id(
-                util.hex_to_b64_id(artifact_id), self._client
+                util.hex_to_b64_id(artifact_id), self.client
             )
 
             # this should only have an effect if the user added the reference bu url string directly
