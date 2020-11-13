@@ -12,12 +12,11 @@ from wandb.compat import tempfile as compat_tempfile
 from wandb import env
 from .interface.artifacts import *
 from .internal.progress import Progress
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import InternalApi, PublicApi, PublicArtifact
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 from .lib import filesystem
-
 from wandb.data_types import WBValue
 
 # This makes the first sleep 1s, and then doubles it up to total times,
@@ -459,7 +458,6 @@ class WandbStoragePolicy(StoragePolicy):
         )
         if hit:
             return path
-
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
             auth=("api", self._api.api_key),
@@ -1155,7 +1153,7 @@ class WBArtifactHandler(StorageHandler):
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
         self._cache = get_artifacts_cache()
-        self._reference_cache = {}
+        self._client = PublicApi()
 
     @property
     def scheme(self):
@@ -1171,12 +1169,6 @@ class WBArtifactHandler(StorageHandler):
 
         url = urlparse(path)
         return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
-
-    def get_artifact_by_id(self, artifact_id):
-        if self._reference_cache.get(artifact_id) is None:
-            artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
-            self._reference_cache[artifact_id] = artifact
-        return self._reference_cache[artifact_id]
 
     def load_path(self, artifact, manifest_entry, local=False):
         """
@@ -1202,11 +1194,10 @@ class WBArtifactHandler(StorageHandler):
             manifest_entry.ref
         )
 
-        dep_artifact = self._cache.downloaded_artifacts[util.hex_to_b64_id(artifact_id)]
-        dep_artifact_path = dep_artifact.get_path(artifact_file_path)
-        link_target_path = os.path.join(
-            dep_artifact._default_root(), artifact_file_path
+        dep_artifact = PublicArtifact.from_id(
+            util.hex_to_b64_id(artifact_id), self._client
         )
+        link_target_path = dep_artifact.get_path(artifact_file_path).download()
         link_creation_path = os.path.join(
             # This tmp directory is created in order to have a place to put the symlink.
             # Since this is a threaded operation, I was getting collisions and needed to create
@@ -1243,22 +1234,19 @@ class WBArtifactHandler(StorageHandler):
         :rtype: list(ArtifactManifestEntry)
         """
 
-        # retrieve the entry of interest
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        if artifact_id in self._cache.downloaded_artifacts:
-            target_artifact = self._cache.downloaded_artifacts[artifact_id]
-        else:
-            target_artifact = self.get_artifact_by_id(artifact_id)
-        entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
-
         # Recursively resolve the reference until a concrete asset is found
-        while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
-            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            if artifact_id in self._cache.downloaded_artifacts:
-                target_artifact = self._cache.downloaded_artifacts[artifact_id]
-            else:
-                target_artifact = self.get_artifact_by_id(artifact_id)
+        while path is not None and urlparse(path).scheme == self._scheme:
+            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
+            target_artifact = PublicArtifact.from_id(
+                util.hex_to_b64_id(artifact_id), self._client
+            )
+
+            # this should only have an effect if the user added the reference bu url string directly
+            # (in orther words they did not already load the artifact into ram.)
+            target_artifact._load_manifest()
+
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
+            path = entry.ref
 
         # Create the path reference
         path = "wandb-artifact://{}/{}".format(

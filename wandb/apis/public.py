@@ -514,9 +514,6 @@ class Api(object):
             raise ValueError("type %s specified but this artifact is of type %s")
         return artifact
 
-    def artifact_from_id(self, id):
-        return Artifact.from_id(self.client, id)
-
 
 class Attrs(object):
     def __init__(self, attrs):
@@ -2439,7 +2436,11 @@ class Artifact(object):
     )
 
     @classmethod
-    def from_id(cls, client, id):
+    def from_id(cls, artifact_id, client, use_cache=True):
+        if use_cache:
+            artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
+            if artifact is not None:
+                return artifact
         response = client.execute(Artifact.QUERY, variable_values={"id": id},)
 
         name = None
@@ -2469,9 +2470,7 @@ class Artifact(object):
             ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
-                artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(req.content)
-                )
+                artifact._manifest_json = json.loads(req.content)
 
             return artifact
 
@@ -2494,8 +2493,9 @@ class Artifact(object):
             and a["artifactCollectionName"] == self._sequence_name
         ]
         self._manifest = None
+        self._manifest_json = None
         self._is_downloaded = False
-        self._artifact_dependencies = {}
+        artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
@@ -2674,9 +2674,7 @@ class Artifact(object):
         Returns:
             A :obj:`wandb.Media` which has been stored at `name`
         """
-        cache = artifacts.get_artifacts_cache()
-        if not self._is_downloaded:
-            self.download()
+        self._load_manifest()
 
         type_mapping = WBValue.type_mapping()
         for type_str in type_mapping:
@@ -2686,18 +2684,9 @@ class Artifact(object):
             if entry is not None:
                 # If the entry is a reference from another artifact, then get it directly from that artifact
                 if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
-                    if (
-                        entry.extra["source_artifact_id"]
-                        not in cache.downloaded_artifacts
-                    ):
-                        artifact = Api().artifact_from_id(
-                            entry.extra["source_artifact_id"]
-                        )
-                        artifact.download()
-                    else:
-                        artifact = cache.downloaded_artifacts[
-                            entry.extra["source_artifact_id"]
-                        ]
+                    artifact = Artifact.from_id(
+                        entry.extra["source_artifact_id"], self.client
+                    )
                     return artifact.get(entry.extra["source_path"])
 
                 # Get the ArtifactEntry
@@ -2723,61 +2712,34 @@ class Artifact(object):
         Returns:
             The path to the downloaded contents.
         """
-        cache = artifacts.get_artifacts_cache()
         dirpath = root or self._default_root()
-        if self.id not in cache.downloaded_artifacts or not os.path.isdir(dirpath):
-            manifest = self._load_manifest()
-            nfiles = len(manifest.entries)
-            size = sum(e.size for e in manifest.entries.values())
-            log = False
-            if nfiles > 5000 or size > 50 * 1024 * 1024:
-                log = True
-            if log:
-                termlog(
-                    "Downloading large artifact %s, %.2fMB. %s files... "
-                    % (self.artifact_name, size / (1024 * 1024), nfiles),
-                    newline=False,
-                )
-            start_time = time.time()
+        manifest = self._load_manifest()
+        nfiles = len(manifest.entries)
+        size = sum(e.size for e in manifest.entries.values())
+        log = False
+        if nfiles > 5000 or size > 50 * 1024 * 1024:
+            log = True
+        if log:
+            termlog(
+                "Downloading large artifact %s, %.2fMB. %s files... "
+                % (self.artifact_name, size / (1024 * 1024), nfiles),
+                newline=False,
+            )
+        start_time = time.time()
 
-            # Make sure dependencies are avail
-            for entry_key in manifest.entries:
-                entry = manifest.entries[entry_key]
-                if (
-                    hasattr(entry, "extra")
-                    and "source_artifact_id" in entry.extra
-                    and (
-                        entry.extra["source_artifact_id"]
-                        not in cache.downloaded_artifacts
-                        or (
-                            not os.path.isdir(
-                                cache.downloaded_artifacts[
-                                    entry.extra["source_artifact_id"]
-                                ]._default_root()
-                            )
-                        )
-                    )
-                ):
-                    artifact = Api().artifact_from_id(entry.extra["source_artifact_id"])
-                    artifact.download()
+        # Force all the files to download into the same directory.
+        # Download in parallel
+        import multiprocessing.dummy  # this uses threads
 
-            # Force all the files to download into the same directory.
-            # Download in parallel
-            import multiprocessing.dummy  # this uses threads
+        pool = multiprocessing.dummy.Pool(32)
+        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.close()
+        pool.join()
 
-            pool = multiprocessing.dummy.Pool(32)
-            pool.map(partial(self._download_file, root=dirpath), manifest.entries)
-            pool.close()
-            pool.join()
+        self._is_downloaded = True
 
-            self._is_downloaded = True
-            cache.downloaded_artifacts[self.id] = self
-
-            if log:
-                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        else:
-            self._manifest = cache.downloaded_artifacts[self.id]._manifest
-            self._is_downloaded = True
+        if log:
+            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
         return dirpath
 
@@ -2943,44 +2905,57 @@ class Artifact(object):
 
     def _load_manifest(self):
         if self._manifest is None:
-            query = gql(
-                """
-            query ArtifactManifest(
-                $entityName: String!,
-                $projectName: String!,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
-                        currentManifest {
-                            id
-                            file {
+            if self._manifest_json is None:
+                query = gql(
+                    """
+                query ArtifactManifest(
+                    $entityName: String!,
+                    $projectName: String!,
+                    $name: String!
+                ) {
+                    project(name: $projectName, entityName: $entityName) {
+                        artifact(name: $name) {
+                            currentManifest {
                                 id
-                                directUrl
+                                file {
+                                    id
+                                    directUrl
+                                }
                             }
                         }
                     }
                 }
-            }
-            """
-            )
-            response = self.client.execute(
-                query,
-                variable_values={
-                    "entityName": self.entity,
-                    "projectName": self.project,
-                    "name": self.artifact_name,
-                },
+                """
+                )
+                response = self.client.execute(
+                    query,
+                    variable_values={
+                        "entityName": self.entity,
+                        "projectName": self.project,
+                        "name": self.artifact_name,
+                    },
+                )
+
+                index_file_url = response["project"]["artifact"]["currentManifest"][
+                    "file"
+                ]["directUrl"]
+                with requests.get(index_file_url) as req:
+                    req.raise_for_status()
+                    self._manifest_json = json.loads(req.content)
+
+            self._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                self, self._manifest_json
             )
 
-            index_file_url = response["project"]["artifact"]["currentManifest"]["file"][
-                "directUrl"
-            ]
-            with requests.get(index_file_url) as req:
-                req.raise_for_status()
-                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(req.content)
-                )
+            # Make sure dependencies are avail
+            for entry_key in self._manifest.entries:
+                entry = self._manifest.entries[entry_key]
+                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
+                    dep_artifact = Artifact.from_id(
+                        entry.extra["source_artifact_id"], self.client
+                    )
+                    dep_artifact._load_manifest()
+
         return self._manifest
 
 

@@ -1498,7 +1498,6 @@ class Image(BatchableMedia):
             json_dict["masks"] = {
                 k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
             }
-
         return json_dict
 
     def guess_mode(self, data):
@@ -1876,23 +1875,24 @@ class ImageMask(Media):
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            mask_name = artifact.get_added_local_path_name(self._path)
+            mask_path = os.path.join(
+                self.get_media_subdir(), os.path.basename(self._path)
+            )
+            mask_name = artifact.get_added_local_path_name(mask_path)
             mask_entry_digest = None
             if mask_name is None:
-                mask_name = os.path.join(
-                    self.get_media_subdir(), os.path.basename(self._path)
-                )
                 if (
                     self.artifact_source is not None
                     and self.artifact_source["artifact"] != artifact
                 ):
-                    path = self.artifact_source["artifact"].get_path(mask_name)
-                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_name)[
+                    path = self.artifact_source["artifact"].get_path(mask_path)
+                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_path)[
                         0
                     ]
                 else:
-                    mask_entry = artifact.add_file(self._path, name=mask_name)
+                    mask_entry = artifact.add_file(self._path, name=mask_path)
 
+                mask_name = mask_path
                 mask_entry_digest = mask_entry.digest
             return {
                 "_type": "mask-file",

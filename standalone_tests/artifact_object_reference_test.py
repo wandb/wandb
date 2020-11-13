@@ -421,7 +421,7 @@ def assert_media_obj_referential_equality(obj):
         obj1 = orig_artifact_ref.get("obj")
 
     assert obj1 == obj
-    target_path = os.path.join(orig_dir, "obj." + type(obj).type_str() + ".json")
+    target_path = os.path.join(orig_dir, "obj." + type(obj).artifact_type + ".json")
     assert os.path.isfile(target_path)
 
     with wandb.init(project=PROJECT_NAME) as run:
@@ -438,7 +438,9 @@ def assert_media_obj_referential_equality(obj):
         obj2 = mid_artifact_ref.get("obj2")
 
     assert obj2 == obj
-    start_path = os.path.join(mid_dir, "obj2." + type(obj).type_str() + ".json")
+    name = "obj2." + type(obj).artifact_type + ".json"
+    start_path = os.path.join(mid_dir, name)
+    mid_artifact_ref.get_path(name).download()
     assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -457,7 +459,9 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
-    start_path = os.path.join(down_dir, "obj3." + type(obj).type_str() + ".json")
+    name = "obj3." + type(obj).artifact_type + ".json"
+    start_path = os.path.join(down_dir, name)
+    down_artifact_ref.get_path(name).download()
     assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -470,11 +474,11 @@ def test_image_refs():
     assert_media_obj_referential_equality(_make_wandb_image())
 
 
-def test_joinedtable_refs():
+def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 
-def test_join_table_referencial():
+def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
     src_image_3 = _make_wandb_image()
@@ -515,8 +519,8 @@ if __name__ == "__main__":
         test_table_slice_reference_artifact,
         test_image_refs,
         test_table_refs,
-        test_joinedtable_refs,
-        test_join_table_referencial,
+        test_joined_table_refs,
+        test_joined_table_referential,
     ]:
         try:
             test_fn()
@@ -524,5 +528,5 @@ if __name__ == "__main__":
         except Exception as exception:
             print("error on function {}".format(test_fn.__name__))
             raise exception
-        finally:
-            _cleanup()
+        # finally:
+        #     _cleanup()

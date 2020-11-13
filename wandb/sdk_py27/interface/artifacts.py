@@ -157,7 +157,7 @@ class ArtifactsCache(object):
         util.mkdir_exists_ok(self._cache_dir)
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-        self.downloaded_artifacts = {}
+        self._artifacts_by_id = {}
 
     def check_md5_obj_path(self, b64_md5, size):
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -173,6 +173,12 @@ class ArtifactsCache(object):
             return path, True
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False
+
+    def get_artifact(self, artifact_id):
+        return self._artifacts_by_id.get(artifact_id)
+
+    def store_artifact(self, artifact):
+        self._artifacts_by_id[artifact.id] = artifact
 
 
 _artifacts_cache = None
