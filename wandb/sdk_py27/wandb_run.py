@@ -1736,7 +1736,7 @@ def restore(
             ValueError if the file is not found or can't find run_path
     """
 
-    is_disabled = isinstance(wandb.run, Dummy)
+    is_disabled = wandb.run is not None and wandb.run.disabled
     run = None if is_disabled else wandb.run
     if run_path is None:
         if run is not None:
