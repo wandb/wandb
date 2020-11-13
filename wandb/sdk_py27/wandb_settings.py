@@ -737,7 +737,8 @@ class Settings(object):
         ) is not None:
             u["save_code"] = wandb.env.should_save_code()
 
-        if self._jupyter:
+        # Attempt to get notebook information if not set by the user
+        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
             meta = wandb.jupyter.notebook_metadata()
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
