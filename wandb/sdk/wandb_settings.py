@@ -1,7 +1,6 @@
 #
-"""Settings.
-
-This module configures settings which impact wandb runs.
+"""
+This module configures settings for wandb runs.
 
 Order of loading settings: (differs from priority)
     defaults
