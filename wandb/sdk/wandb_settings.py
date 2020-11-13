@@ -738,7 +738,7 @@ class Settings(object):
             u["save_code"] = wandb.env.should_save_code()
 
         if self._jupyter:
-            meta = wandb.jupyter.notebook_metadata()
+            meta = wandb.jupyter.notebook_metadata(self._silent)
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
             u["_jupyter_root"] = meta.get("root")

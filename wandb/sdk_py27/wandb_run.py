@@ -1207,6 +1207,9 @@ class Run(object):
             if ipython._get_python_type() == "python":
                 os._exit(-1)
         else:
+            # if silent, skip this as it is used to output stuff
+            if self._settings._silent:
+                return
             self._on_final()
 
     def _console_start(self):
@@ -1244,7 +1247,7 @@ class Run(object):
                     "Run `wandb on` to enable cloud syncing."
                 )
             )
-        if self._run_obj:
+        if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
@@ -1318,20 +1321,21 @@ class Run(object):
         self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
-        pid = self._backend._internal_pid
+        if not self._settings._silent:
+            pid = self._backend._internal_pid
 
-        status_str = "Waiting for W&B process to finish, PID {}".format(pid)
-        if not self._exit_code:
-            status_str += "\nProgram ended successfully."
-        else:
-            status_str += "\nProgram failed with code {}. ".format(self._exit_code)
-            if not self._settings._offline:
-                status_str += " Press ctrl-c to abort syncing."
-        if self._settings._jupyter:
-            ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
-        else:
-            print("")
-            wandb.termlog(status_str)
+            status_str = "Waiting for W&B process to finish, PID {}".format(pid)
+            if not self._exit_code:
+                status_str += "\nProgram ended successfully."
+            else:
+                status_str += "\nProgram failed with code {}. ".format(self._exit_code)
+                if not self._settings._offline:
+                    status_str += " Press ctrl-c to abort syncing."
+            if self._settings._jupyter:
+                ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
+            else:
+                print("")
+                wandb.termlog(status_str)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
@@ -1391,6 +1395,7 @@ class Run(object):
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
+
         self._show_summary()
         self._show_history()
         self._show_files()
@@ -1506,7 +1511,12 @@ class Run(object):
             return
         if self._settings._offline:
             return
+
         logger.info("logging synced files")
+
+        if self._settings._silent:
+            return
+
         file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)".format(  # noqa:E501
             self._poll_exit_response.file_counts.wandb_count,
             self._poll_exit_response.file_counts.media_count,

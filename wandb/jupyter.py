@@ -76,7 +76,7 @@ class WandBMagics(Magics):
             get_ipython().run_cell(cell)
 
 
-def notebook_metadata():
+def notebook_metadata(silent):
     """Attempts to query jupyter for the path and name of the notebook file"""
     error_message = (
         "Failed to query for notebook name, you can set it manually with "
@@ -93,7 +93,8 @@ def notebook_metadata():
             list_running_servers()
         )  # TODO: sometimes there are invalid JSON files and this blows up
     except Exception:
-        logger.error(error_message)
+        if not silent:
+            logger.error(error_message)
         return {}
     for s in servers:
         try:
@@ -103,7 +104,8 @@ def notebook_metadata():
                 urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
             ).json()
         except (requests.RequestException, ValueError):
-            logger.error(error_message)
+            if not silent:
+                logger.error(error_message)
             return {}
         for nn in res:
             # TODO: wandb/client#400 found a case where res returned an array of

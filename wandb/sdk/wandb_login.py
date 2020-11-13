@@ -107,7 +107,7 @@ class _WandbLogin(object):
             )
 
     def configure_api_key(self, key):
-        if self._settings._jupyter:
+        if self._settings._jupyter and not self._settings._silent:
             wandb.termwarn(
                 (
                     "If you're specifying your api key in code, ensure this "
