@@ -1,0 +1,46 @@
+loaders:
+    search_path: "."
+    modules:
+      - "wandb/sdk/wandb_run"
+      - "wandb/sdk/wandb_config"
+      - "wandb/sdk/wandb_init"
+      - "wandb/sdk/wandb_artifacts"
+      - "wandb/apis/public"
+      - "wandb/cli/cli"
+
+renderer:
+  content_directory: "."
+  build_directory: "DOCS"
+  groups:
+    - title: "GROUP1"
+      pages:
+        - title: "Run"
+          contents:
+            - module: "wandb/sdk/wandb_run"
+              names:
+                - "Run.*"
+        - title: "Config"
+          contents:
+            - module: "wandb/sdk/wandb_config"
+              names:
+                - "*"
+        - title: "Init"
+          contents:
+            - module: "wandb/sdk/wandb_init"
+              names:
+                - "*"
+        - title: "Artifacts"
+          contents:
+            - module: "wandb/sdk/wandb_artifacts"
+              names:
+               - "*"
+        - title: "API Documentation"
+          contents:
+            - module: "wandb/apis/public"
+              names:
+               - "*"
+        - title: "CLI Documentation"
+          contents:
+            - module: "wandb/cli/cli"
+              names:
+               - "*"
