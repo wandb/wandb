@@ -428,7 +428,7 @@ def test_add_obj_wbimage(runner):
         if os.name == "nt":  # windows
             assert artifact.digest == "19dbf4719a3e725f89f98c2d1bb77691"
             assert manifest["contents"] == {
-                "media\\classes\\2x2.png_cls.classes.json": {
+                "media\\cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
@@ -437,8 +437,8 @@ def test_add_obj_wbimage(runner):
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "F3Gn3ZaBV6vv0hJrOVvkhA==",
-                    "size": 226,
+                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
+                    "size": 209,
                 },
             }
         else:
