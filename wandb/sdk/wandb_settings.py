@@ -917,7 +917,7 @@ class Settings(object):
                     resume_run_id = json.load(f)["run_id"]
                 if self.run_id is None:
                     self.run_id = resume_run_id
-                else:
+                elif self.run_id != resume_run_id
                     wandb.termwarn(
                         "Tried to auto resume run with id %s but id %s is set."
                         % (resume_run_id, self.run_id)
