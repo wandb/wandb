@@ -5,7 +5,7 @@ title: Run
 <a name="wandb.sdk.wandb_run"></a>
 # wandb.sdk.wandb\_run
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L4)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L4)
 
 <a name="wandb.sdk.wandb_run.Run"></a>
 ## Run Objects
@@ -14,7 +14,7 @@ title: Run
 class Run(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L132)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L132)
 
 The run object corresponds to a single execution of your script,
 typically this is an ML experiment. Create a run with wandb.init().
@@ -35,6 +35,42 @@ default, summary is set to the last value logged. You can manually
 set summary to the best value, like max accuracy, instead of the
 final value.
 
+<a name="wandb.sdk.wandb_run.Run.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(config=None, settings=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L153)
+
+<a name="wandb.sdk.wandb_run.Run.__setattr__"></a>
+#### \_\_setattr\_\_
+
+```python
+ | __setattr__(attr, value)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L257)
+
+<a name="wandb.sdk.wandb_run.Run.__getstate__"></a>
+#### \_\_getstate\_\_
+
+```python
+ | __getstate__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L327)
+
+<a name="wandb.sdk.wandb_run.Run.__setstate__"></a>
+#### \_\_setstate\_\_
+
+```python
+ | __setstate__(state)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L330)
+
 <a name="wandb.sdk.wandb_run.Run.dir"></a>
 #### dir
 
@@ -43,7 +79,7 @@ final value.
  | dir()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L334)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L334)
 
 str: The directory where all of the files associated with the run are
 placed.
@@ -56,10 +92,20 @@ placed.
  | config()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L341)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L341)
 
 (`Config`): A config object (similar to a nested dict) of key
 value pairs associated with the hyperparameters of the run.
+
+<a name="wandb.sdk.wandb_run.Run.config_static"></a>
+#### config\_static
+
+```python
+ | @property
+ | config_static()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L348)
 
 <a name="wandb.sdk.wandb_run.Run.name"></a>
 #### name
@@ -69,10 +115,20 @@ value pairs associated with the hyperparameters of the run.
  | name()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L352)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L352)
 
 str: the display name of the run. It does not need to be unique
 and ideally is descriptive.
+
+<a name="wandb.sdk.wandb_run.Run.name"></a>
+#### name
+
+```python
+ | @name.setter
+ | name(name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L362)
 
 <a name="wandb.sdk.wandb_run.Run.notes"></a>
 #### notes
@@ -82,10 +138,20 @@ and ideally is descriptive.
  | notes()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L368)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L368)
 
 str: notes associated with the run. Notes can be a multiline string
 and can also use markdown and latex equations inside $$ like $\\{x}
+
+<a name="wandb.sdk.wandb_run.Run.notes"></a>
+#### notes
+
+```python
+ | @notes.setter
+ | notes(notes)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L378)
 
 <a name="wandb.sdk.wandb_run.Run.tags"></a>
 #### tags
@@ -95,9 +161,19 @@ and can also use markdown and latex equations inside $$ like $\\{x}
  | tags() -> Optional[Tuple]
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L384)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L384)
 
 Tuple[str]: tags associated with the run
+
+<a name="wandb.sdk.wandb_run.Run.tags"></a>
+#### tags
+
+```python
+ | @tags.setter
+ | tags(tags: Sequence)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L392)
 
 <a name="wandb.sdk.wandb_run.Run.id"></a>
 #### id
@@ -107,7 +183,7 @@ Tuple[str]: tags associated with the run
  | id()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L398)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L398)
 
 str: the run_id associated with the run
 
@@ -119,7 +195,7 @@ str: the run_id associated with the run
  | sweep_id()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L403)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L403)
 
 (str, optional): the sweep id associated with the run or None
 
@@ -131,7 +207,7 @@ str: the run_id associated with the run
  | path()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L410)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L410)
 
 str: the path to the run [entity]/[project]/[run_id]
 
@@ -143,7 +219,7 @@ str: the path to the run [entity]/[project]/[run_id]
  | start_time()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L419)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L419)
 
 int: the unix time stamp in seconds when the run started
 
@@ -155,7 +231,7 @@ int: the unix time stamp in seconds when the run started
  | starting_step()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L427)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L427)
 
 int: the first step of the run
 
@@ -167,7 +243,7 @@ int: the first step of the run
  | resumed()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L435)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L435)
 
 bool: whether or not the run was resumed
 
@@ -179,12 +255,21 @@ bool: whether or not the run was resumed
  | step()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L443)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L443)
 
 int: step counter
 
 Every time you call wandb.log() it will by default increment the step
 counter.
+
+<a name="wandb.sdk.wandb_run.Run.project_name"></a>
+#### project\_name
+
+```python
+ | project_name(api=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L451)
 
 <a name="wandb.sdk.wandb_run.Run.mode"></a>
 #### mode
@@ -194,9 +279,19 @@ counter.
  | mode()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L456)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L456)
 
 For compatibility with 0.9.x and earlier, deprecate eventually.
+
+<a name="wandb.sdk.wandb_run.Run.offline"></a>
+#### offline
+
+```python
+ | @property
+ | offline()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L461)
 
 <a name="wandb.sdk.wandb_run.Run.group"></a>
 #### group
@@ -206,7 +301,7 @@ For compatibility with 0.9.x and earlier, deprecate eventually.
  | group()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L465)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L465)
 
 str: name of W&B group associated with run.
 
@@ -217,6 +312,16 @@ runs in the training the same group.
 If you are doing crossvalidation you should give all the crossvalidation
 folds the same group.
 
+<a name="wandb.sdk.wandb_run.Run.job_type"></a>
+#### job\_type
+
+```python
+ | @property
+ | job_type()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L479)
+
 <a name="wandb.sdk.wandb_run.Run.project"></a>
 #### project
 
@@ -225,7 +330,7 @@ folds the same group.
  | project()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L484)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L484)
 
 str: name of W&B project associated with run.
 
@@ -236,7 +341,7 @@ str: name of W&B project associated with run.
  | get_url()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L488)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L488)
 
 Returns: (str, optional): url for the W&B run or None if the run
 is offline
@@ -248,7 +353,7 @@ is offline
  | get_project_url()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L496)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L496)
 
 Returns: (str, optional): url for the W&B project associated with
 the run or None if the run is offline
@@ -260,7 +365,7 @@ the run or None if the run is offline
  | get_sweep_url()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L504)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L504)
 
 Returns: (str, optional): url for the sweep associated with the run
 or None if there is no associated sweep or the run is offline.
@@ -273,7 +378,7 @@ or None if there is no associated sweep or the run is offline.
  | url()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L513)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L513)
 
 str: name of W&B url associated with run.
 
@@ -285,10 +390,19 @@ str: name of W&B url associated with run.
  | entity()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L518)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L518)
 
 str: name of W&B entity associated with run. Entity is either
 a user name or an organization name.
+
+<a name="wandb.sdk.wandb_run.Run._repr_mimebundle_"></a>
+#### \_repr\_mimebundle\_
+
+```python
+ | _repr_mimebundle_(include=None, exclude=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L531)
 
 <a name="wandb.sdk.wandb_run.Run.log"></a>
 #### log
@@ -297,7 +411,7 @@ a user name or an organization name.
  | log(data, step=None, commit=None, sync=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L672)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L672)
 
 Log a dict to the global run's history.
 
@@ -416,7 +530,7 @@ ValueError - if invalid data is passed
  | save(glob_str: Optional[str] = None, base_path: Optional[str] = None, policy: str = "live")
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L807)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L807)
 
 Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
@@ -430,6 +544,15 @@ path.  If this isn't specified the method is a noop.
 - `now` - upload the file once now
 - `end` - only upload file when the run ends
 
+<a name="wandb.sdk.wandb_run.Run.restore"></a>
+#### restore
+
+```python
+ | restore(name: str, run_path: Optional[str] = None, replace: bool = False, root: Optional[str] = None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L893)
+
 <a name="wandb.sdk.wandb_run.Run.finish"></a>
 #### finish
 
@@ -437,7 +560,7 @@ path.  If this isn't specified the method is a noop.
  | finish(exit_code=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L902)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L902)
 
 Marks a run as finished, and finishes uploading all data.  This is
 used when creating multiple runs in the same process.  We automatically
@@ -450,7 +573,7 @@ call this method when your script exits.
  | join(exit_code=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L916)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L916)
 
 Deprecated alias for finish() - please use finish
 
@@ -461,7 +584,7 @@ Deprecated alias for finish() - please use finish
  | plot_table(vega_spec_name, data_table, fields, string_fields=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L920)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L920)
 
 Creates a custom plot on a table.
 
@@ -476,6 +599,15 @@ visualization needs
 - `string_fields` - a dict that provides values for any string constants
 the custom visualization needs
 
+<a name="wandb.sdk.wandb_run.Run.watch"></a>
+#### watch
+
+```python
+ | watch(models, criterion=None, log="gradients", log_freq=100, idx=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1549)
+
 <a name="wandb.sdk.wandb_run.Run.use_artifact"></a>
 #### use\_artifact
 
@@ -483,7 +615,7 @@ the custom visualization needs
  | use_artifact(artifact_or_name, type=None, aliases=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L1552)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1552)
 
 Declare an artifact as an input to a run, call `download` or `file` on \
 the returned object to get the contents locally.
@@ -511,7 +643,7 @@ A `Artifact` object.
  | log_artifact(artifact_or_path, name=None, type=None, aliases=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L1607)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1607)
 
 Declare an artifact as output of a run.
 
@@ -547,7 +679,7 @@ A `Artifact` object.
  | alert(title, text, level=None, wait_duration=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L1661)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1661)
 
 Launch an alert with the given title and text.
 
@@ -558,4 +690,22 @@ Launch an alert with the given title and text.
 - `level` _str or wandb.AlertLevel, optional_ - The alert level to use, either: "INFO", "WARN", or "ERROR"
 - `wait_duration` _int, float, or timedelta, optional_ - The time to wait (in seconds) before sending another alert
 with this title
+
+<a name="wandb.sdk.wandb_run.Run.__enter__"></a>
+#### \_\_enter\_\_
+
+```python
+ | __enter__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1697)
+
+<a name="wandb.sdk.wandb_run.Run.__exit__"></a>
+#### \_\_exit\_\_
+
+```python
+ | __exit__(exc_type, exc_val, exc_tb)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_run.py#L1700)
 

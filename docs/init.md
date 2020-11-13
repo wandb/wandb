@@ -5,12 +5,25 @@ title: Init
 <a name="wandb.sdk.wandb_init"></a>
 # wandb.sdk.wandb\_init
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L3)
 
 wandb.init() indicates the beginning of a new run. In an ML training pipeline,
-for example, you could add wandb.init() to the beginning of your training script
-as well as your evaluation script, and each of those steps would be tracked as
-a run in W&B.
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece steps would be tracked as a run in W&B.
+
+<a name="wandb.sdk.wandb_init.logger"></a>
+#### logger
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L36)
+
+<a name="wandb.sdk.wandb_init.online_status"></a>
+#### online\_status
+
+```python
+online_status(*args, **kwargs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L45)
 
 <a name="wandb.sdk.wandb_init._WandbInit"></a>
 ## \_WandbInit Objects
@@ -19,7 +32,16 @@ a run in W&B.
 class _WandbInit(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L50)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L49)
+
+<a name="wandb.sdk.wandb_init._WandbInit.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L50)
 
 <a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
 #### setup
@@ -28,10 +50,37 @@ class _WandbInit(object)
  | setup(kwargs)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L62)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L61)
 
 Complete setup for wandb.init(). This includes parsing all arguments,
 applying them with settings and enabling logging.
+
+<a name="wandb.sdk.wandb_init._WandbInit.teardown"></a>
+#### teardown
+
+```python
+ | teardown()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L159)
+
+<a name="wandb.sdk.wandb_init._WandbInit.init"></a>
+#### init
+
+```python
+ | init()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L305)
+
+<a name="wandb.sdk.wandb_init.getcaller"></a>
+#### getcaller
+
+```python
+getcaller()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L442)
 
 <a name="wandb.sdk.wandb_init.init"></a>
 #### init
@@ -40,7 +89,7 @@ applying them with settings and enabling logging.
 init(job_type: Optional[str] = None, dir=None, config: Union[Dict, str, None] = None, project: Optional[str] = None, entity: Optional[str] = None, reinit: bool = None, tags: Optional[Sequence] = None, group: Optional[str] = None, name: Optional[str] = None, notes: Optional[str] = None, magic: Union[dict, str, bool] = None, config_exclude_keys=None, config_include_keys=None, anonymous: Optional[str] = None, mode: Optional[str] = None, allow_val_change: Optional[bool] = None, resume: Optional[Union[bool, str]] = None, force: Optional[bool] = None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, save_code=None, id=None, settings: Union[Settings, Dict[str, Any], None] = None) -> Union[Run, Dummy]
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_init.py#L450)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_init.py#L449)
 
 Initialize W&B
 Spawns a new process to start or resume a run locally and communicate with a

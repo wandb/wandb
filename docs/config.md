@@ -5,9 +5,14 @@ title: Config
 <a name="wandb.sdk.wandb_config"></a>
 # wandb.sdk.wandb\_config
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L3)
 
 config.
+
+<a name="wandb.sdk.wandb_config.logger"></a>
+#### logger
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L22)
 
 <a name="wandb.sdk.wandb_config.Config"></a>
 ## Config Objects
@@ -16,7 +21,7 @@ config.
 class Config(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L28)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L28)
 
 Config object
 
@@ -85,6 +90,110 @@ flags.DEFINE_integer('batch_size', 128, 'Batch size.')
 wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
 ```
 
+<a name="wandb.sdk.wandb_config.Config.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L96)
+
+<a name="wandb.sdk.wandb_config.Config.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L113)
+
+<a name="wandb.sdk.wandb_config.Config.keys"></a>
+#### keys
+
+```python
+ | keys()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L116)
+
+<a name="wandb.sdk.wandb_config.Config.as_dict"></a>
+#### as\_dict
+
+```python
+ | as_dict()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L122)
+
+<a name="wandb.sdk.wandb_config.Config.__getitem__"></a>
+#### \_\_getitem\_\_
+
+```python
+ | __getitem__(key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L126)
+
+<a name="wandb.sdk.wandb_config.Config.__setitem__"></a>
+#### \_\_setitem\_\_
+
+```python
+ | __setitem__(key, val)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L129)
+
+<a name="wandb.sdk.wandb_config.Config.items"></a>
+#### items
+
+```python
+ | items()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L139)
+
+<a name="wandb.sdk.wandb_config.Config.__setattr__"></a>
+#### \_\_setattr\_\_
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L142)
+
+<a name="wandb.sdk.wandb_config.Config.__getattr__"></a>
+#### \_\_getattr\_\_
+
+```python
+ | __getattr__(key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L144)
+
+<a name="wandb.sdk.wandb_config.Config.__contains__"></a>
+#### \_\_contains\_\_
+
+```python
+ | __contains__(key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L147)
+
+<a name="wandb.sdk.wandb_config.Config.update"></a>
+#### update
+
+```python
+ | update(d, allow_val_change=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L155)
+
+<a name="wandb.sdk.wandb_config.Config.get"></a>
+#### get
+
+```python
+ | get(*args)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L160)
+
 <a name="wandb.sdk.wandb_config.Config.persist"></a>
 #### persist
 
@@ -92,53 +201,88 @@ wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
  | persist()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_config.py#L163)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L163)
 
 Calls the callback if it's set
 
-<a name="wandb.sdk.wandb_run"></a>
-# wandb.sdk.wandb\_run
-
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L4)
-
-<a name="wandb.sdk.wandb_run.Run"></a>
-## Run Objects
+<a name="wandb.sdk.wandb_config.Config.setdefaults"></a>
+#### setdefaults
 
 ```python
-class Run(object)
+ | setdefaults(d)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L132)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L168)
 
-The run object corresponds to a single execution of your script,
-typically this is an ML experiment. Create a run with wandb.init().
-
-In distributed training, use wandb.init() to create a run for each process,
-and set the group argument to organize runs into a larger experiment.
-
-Currently there is a parallel Run object in the wandb.Api. Eventually these
-two objects will be merged.
-
-**Attributes**:
-
-- `history` _`History`_ - Time series values, created with wandb.log().
-History can contain scalar values, rich media, or even custom plots
-across multiple steps.
-- `summary` _`Summary`_ - Single values set for each wandb.log() key. By
-default, summary is set to the last value logged. You can manually
-set summary to the best value, like max accuracy, instead of the
-final value.
-
-<a name="wandb.sdk.wandb_run.Run.config"></a>
-#### config
+<a name="wandb.sdk.wandb_config.Config.update_locked"></a>
+#### update\_locked
 
 ```python
- | @property
- | config()
+ | update_locked(d, user=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/403753e61ca40db2f811b5026ad1e6a5b85bbc15/wandb/sdk/wandb_run.py#L341)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L176)
 
-(`Config`): A config object (similar to a nested dict) of key
-value pairs associated with the hyperparameters of the run.
+<a name="wandb.sdk.wandb_config.ConfigStatic"></a>
+## ConfigStatic Objects
+
+```python
+class ConfigStatic(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L246)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(config)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L247)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.__setattr__"></a>
+#### \_\_setattr\_\_
+
+```python
+ | __setattr__(name, value)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L250)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.__setitem__"></a>
+#### \_\_setitem\_\_
+
+```python
+ | __setitem__(key, val)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L253)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.keys"></a>
+#### keys
+
+```python
+ | keys()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L256)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.__getitem__"></a>
+#### \_\_getitem\_\_
+
+```python
+ | __getitem__(key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L259)
+
+<a name="wandb.sdk.wandb_config.ConfigStatic.__str__"></a>
+#### \_\_str\_\_
+
+```python
+ | __str__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/sdk/wandb_config.py#L262)
 

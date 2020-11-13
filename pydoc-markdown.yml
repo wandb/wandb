@@ -16,9 +16,12 @@ loaders:
       - wandb.sdk.wandb_settings
       - wandb.sdk.wandb_summary
       - wandb.sdk.wandb_watch
+      - wandb.data_types
       - wandb.integration.keras.keras
 processors:
   - type: filter
+    exclude_private: true
+    documented_only: false
   - type: smart
   - type: google
   - type: crossref
@@ -38,6 +41,9 @@ renderer:
     - title: Artifacts
       contents:
         - 'wandb.sdk.wandb_artifacts.*'
+    - title: Data Types
+      contents:
+        - 'wandb.data_types.*'
     - title: Config
       contents:
         - 'wandb.sdk.wandb_config.*'
