@@ -287,6 +287,10 @@ def is_pytorch_tensor_typename(typename):
     )
 
 
+def is_fastai_tensor_typename(typename):
+    return typename.startswith("fastai.") and ("Tensor" in typename)
+
+
 def is_pandas_data_frame_typename(typename):
     return typename.startswith("pandas.") and "DataFrame" in typename
 
@@ -382,7 +386,7 @@ def json_friendly(obj):
             obj = obj.eval()
         except RuntimeError:
             obj = obj.numpy()
-    elif is_pytorch_tensor_typename(typename):
+    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
         try:
             if obj.requires_grad:
                 obj = obj.detach()
