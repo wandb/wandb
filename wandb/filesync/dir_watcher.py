@@ -120,9 +120,10 @@ class PolicyLive(FileEventHandler):
             if time_elapsed < self.RATE_LIMIT_SECONDS:
                 return time_elapsed
             # Check rate limit by size increase
-            size_increase = self.current_size / float(self._last_uploaded_size)
-            if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
-                return time_elapsed
+            if float(self._last_uploaded_size) > 0:
+                size_increase = self.current_size / float(self._last_uploaded_size)
+                if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
+                    return time_elapsed
         return 0
 
     def on_modified(self, force=False):
