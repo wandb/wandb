@@ -127,8 +127,13 @@ class Dummy(str):
 
     def __getitem__(self, key):
         d = object.__getattribute__(self, "___dict")
-        if key in d:
-            return d[key]
+        try:
+            if key in d:
+                return d[key]
+        except TypeError:
+            key = str(key)
+            if key in d:
+                return d[key]
         dummy = Dummy()
         d[key] = dummy
         return dummy
