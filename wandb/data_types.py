@@ -91,28 +91,17 @@ class WBValue(object):
             serialized to a string.
     """
 
-    TYPE_MAPPING = None
+    _type_mapping = None
+    artifact_type = (
+        None  # override this value to indicate the type which the subclass deserializes
+    )
 
     def __init__(self):
         self._artifact_source = None
 
     def to_json(self, run_or_artifact):
         """Serializes the object into a JSON blob, optionally using a run or artifact to store additional data."""
-        json_obj = {"_type": self.type_str()}
-        return json_obj
-
-    @classmethod
-    def type_str(cls):
-        """Returns the JSON suffix used to identify this type of object - can be overrode"""
-        return cls.__name__.lower()
-
-    @classmethod
-    def with_suffix(cls, name, filetype="json"):
-        """helper function to return the name with suffix added if needed"""
-        suffix = cls.type_str() + "." + filetype
-        if not name.endswith(suffix):
-            return name + "." + suffix
-        return name
+        raise NotImplementedError
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
@@ -121,10 +110,21 @@ class WBValue(object):
         the same resources available."""
         raise NotImplementedError
 
+    @classmethod
+    def with_suffix(cls, name, filetype="json"):
+        """helper function to return the name with suffix added if needed"""
+        if cls.artifact_type is not None:
+            suffix = cls.artifact_type + "." + filetype
+        else:
+            suffix = filetype
+        if not name.endswith(suffix):
+            return name + "." + suffix
+        return name
+
     @staticmethod
     def init_from_json(json_obj, source_artifact):
         """Looks through all subclasses and tries to match the json obj with the class which created it."""
-        class_option = WBValue.TYPE_MAPPING.get(json_obj["_type"])
+        class_option = WBValue.type_mapping().get(json_obj["_type"])
         if class_option is not None:
             obj = class_option.from_json(json_obj, source_artifact)
             obj.artifact_source = {"artifact": source_artifact}
@@ -134,19 +134,20 @@ class WBValue(object):
 
     @staticmethod
     def type_mapping():
-        """Looks through all subclasses and returns the first class that matches this type_str."""
-        if WBValue.TYPE_MAPPING is None:
-            WBValue.TYPE_MAPPING = {}
+        """Looks through all subclasses and builds a mapping from `artifact_type` to class"""
+        if WBValue._type_mapping is None:
+            WBValue._type_mapping = {}
             frontier = [WBValue]
             explored = set([])
             while len(frontier) > 0:
                 class_option = frontier.pop()
-                WBValue.TYPE_MAPPING[class_option.type_str()] = class_option
                 explored.add(class_option)
+                if class_option.artifact_type is not None:
+                    WBValue._type_mapping[class_option.artifact_type] = class_option
                 for subclass in class_option.__subclasses__():
                     if subclass not in explored:
                         frontier.append(subclass)
-        return WBValue.TYPE_MAPPING
+        return WBValue._type_mapping
 
     def __eq__(self, other):
         """recommend to override equality comparison to evaluate equality of internal properties"""
@@ -237,11 +238,7 @@ class Histogram(WBValue):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
     def to_json(self, run=None):
-        json_obj = super(Histogram, self).to_json(run)
-        json_obj.update(
-            {"values": self.histogram, "bins": self.bins,}
-        )
-        return json_obj
+        return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
 class Media(WBValue):
@@ -337,7 +334,7 @@ class Media(WBValue):
 
         The resulting dict lets you load this object into other W&B runs.
         """
-        json_obj = super(Media, self).to_json(run)
+        json_obj = {}
         wandb_run, _ = _safe_sdk_import()
         if isinstance(run, wandb_run.Run):
             if not self.is_bound():
@@ -394,6 +391,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 50000
+    artifact_type = "table"
 
     def __init__(
         self,
@@ -515,6 +513,7 @@ class Table(Media):
                 mapped_data.append(mapped_row)
             json_dict.update(
                 {
+                    "_type": Table.artifact_type,
                     "columns": self.columns,
                     "data": mapped_data,
                     "ncols": len(self.columns),
@@ -1103,14 +1102,12 @@ class Video(BatchableMedia):
 
 
 class Classes(Media):
+    artifact_type = "classes"
+
     def __init__(self, class_set):
         super(Classes, self).__init__()
         self._class_set = class_set
         # TODO: validate
-
-    @staticmethod
-    def type_str():
-        return "classes"
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
@@ -1118,6 +1115,7 @@ class Classes(Media):
 
     def to_json(self, artifact):
         json_obj = super(Classes, self).to_json(artifact)
+        json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
         return json_obj
 
@@ -1139,6 +1137,8 @@ class JoinedTable(Media):
         join_key (str | [str, str]):
             key or keys to perform the join
     """
+
+    artifact_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
         super(JoinedTable, self).__init__()
@@ -1163,10 +1163,6 @@ class JoinedTable(Media):
         self._table1 = table1
         self._table2 = table2
         self._join_key = join_key
-
-    @staticmethod
-    def type_str():
-        return "joined-table"
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
@@ -1208,7 +1204,7 @@ class JoinedTable(Media):
 
         json_obj.update(
             {
-                "_type": JoinedTable.type_str(),
+                "_type": JoinedTable.artifact_type,
                 "table1": table1,
                 "table2": table2,
                 "join_key": self._join_key,
@@ -1245,9 +1241,7 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    @staticmethod
-    def type_str():
-        return "image-file"
+    artifact_type = "image-file"
 
     def __init__(
         self,
@@ -1430,7 +1424,7 @@ class Image(BatchableMedia):
 
     def to_json(self, run_or_artifact):
         json_dict = super(Image, self).to_json(run_or_artifact)
-        json_dict["_type"] = Image.type_str()
+        json_dict["_type"] = Image.artifact_type
         json_dict["format"] = self.format
 
         if self._width is not None:
@@ -1690,6 +1684,8 @@ class BoundingBoxes2D(JSONMetadata):
     Wandb class for 2D bounding Boxes
     """
 
+    artifact_type = "bounding-boxes"
+
     def __init__(self, val, key, **kwargs):
         super(BoundingBoxes2D, self).__init__(val)
         self._val = val["box_data"]
@@ -1801,15 +1797,13 @@ class BoundingBoxes2D(JSONMetadata):
     def from_json(cls, json_obj, source_artifact):
         return cls({"box_data": json_obj}, "")
 
-    @staticmethod
-    def type_str():
-        return "bounding-boxes"
-
 
 class ImageMask(Media):
     """
     Wandb class for image masks, useful for segmentation tasks
     """
+
+    artifact_type = "mask"
 
     def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
@@ -1841,10 +1835,6 @@ class ImageMask(Media):
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
-
-    @staticmethod
-    def type_str():
-        return "image-mask"
 
     def bind_to_run(self, run, key, step, id_=None):
         # bind_to_run key argument is the Image parent key
@@ -1895,7 +1885,7 @@ class ImageMask(Media):
                 mask_name = mask_path
                 mask_entry_digest = mask_entry.digest
             return {
-                "_type": "mask-file",
+                "_type": ImageMask.artifact_type,
                 "path": mask_name,
                 "digest": mask_entry_digest,
             }

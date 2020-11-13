@@ -2677,8 +2677,8 @@ class Artifact(object):
         self._load_manifest()
 
         type_mapping = WBValue.type_mapping()
-        for type_str in type_mapping:
-            wb_class = type_mapping[type_str]
+        for artifact_type_str in type_mapping:
+            wb_class = type_mapping[artifact_type_str]
             wandb_file_name = wb_class.with_suffix(name)
             entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
