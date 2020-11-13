@@ -12,7 +12,7 @@ import os
 import time
 import traceback
 
-import shortuuid
+import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
