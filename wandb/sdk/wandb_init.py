@@ -12,6 +12,7 @@ import os
 import time
 import traceback
 
+import shortuuid
 import six
 import wandb
 from wandb import trigger
@@ -316,6 +317,9 @@ class _WandbInit(object):
             run.step = 0
             run.resumed = False
             run.disabled = True
+            run.id = shortuuid.uuid()
+            run.name = "dummy-" + run.id
+            run.dir = "/"
             module.set_global(
                 run=run,
                 config=run.config,
