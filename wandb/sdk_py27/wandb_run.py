@@ -597,10 +597,10 @@ class Run(object):
         # logger.info("console callback: %s, %s", name, data)
         self._backend.interface.publish_output(name, data)
 
-    def _tensorboard_callback(self, logdir, save=None):
+    def _tensorboard_callback(self, logdir, save=None, root_logdir=None):
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        self._backend.interface.publish_tbdata(logdir, save)
+        self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library):
         self._wl = library
