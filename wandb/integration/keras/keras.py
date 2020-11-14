@@ -299,9 +299,13 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.log_gradients:
             if self.training_data is None:
+<<<<<<< HEAD
                 raise ValueError(
                     "training_data argument is required for gradient logging."
                 )
+=======
+                raise ValueError("training_data argument is required for gradient logging.")
+>>>>>>> fr_keras_grad_fix
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
 
@@ -355,9 +359,13 @@ class WandbCallback(keras.callbacks.Callback):
         inputs = self.model.inputs
         model_out = self.model(inputs)
         if isinstance(model_out, list):
+<<<<<<< HEAD
             ground_truth = [
                 tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out
             ]
+=======
+            ground_truth = [tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out]
+>>>>>>> fr_keras_grad_fix
         else:
             ground_truth = [tf.keras.layers.Input(shape=model_out.shape[1:])]
             model_out = [model_out]
@@ -382,8 +390,13 @@ class WandbCallback(keras.callbacks.Callback):
         idx = 0
         batch_size = self._training_data_batch_size
         while idx < len(X[0]):
+<<<<<<< HEAD
             x_slice = [x[idx : idx + batch_size] for x in X]
             y_slice = [y[idx : idx + batch_size] for y in Y]
+=======
+            x_slice = [x[idx: idx + batch_size] for x in X]
+            y_slice = [y[idx: idx + batch_size] for y in Y]
+>>>>>>> fr_keras_grad_fix
             idx += batch_size
             yield x_slice, y_slice
 
@@ -407,8 +420,14 @@ class WandbCallback(keras.callbacks.Callback):
             )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
+<<<<<<< HEAD
         self._build_loss_model()
         self._get_training_data_batch_size()
+=======
+        if self.log_gradients:
+            self._build_loss_model()
+            self._get_training_data_batch_size()
+>>>>>>> fr_keras_grad_fix
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -703,7 +722,11 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
+<<<<<<< HEAD
         weights = self.model.trainable_weights
+=======
+        weights = self. model.trainable_weights
+>>>>>>> fr_keras_grad_fix
         grads = [np.zeros(tuple(w.shape)) for w in weights]
         for x, y in self._training_data_generator():
             with tf.GradientTape() as tape:
