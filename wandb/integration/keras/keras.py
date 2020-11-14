@@ -159,7 +159,7 @@ if "keras" in sys.modules:
 else:
     add_import_hook("keras", _check_keras_version)
 
-
+import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
@@ -297,7 +297,11 @@ class WandbCallback(keras.callbacks.Callback):
 
         self._prediction_batch_size = None
 
-        if self.training_data:
+        if self.log_gradients:
+            if self.training_data is None:
+                raise ValueError(
+                    "training_data argument is required for gradient logging."
+                )
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
 
@@ -328,6 +332,61 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+    def _get_training_data_batch_size(self):
+        for inp in self.model.inputs:
+            if inp.shape[0] is not None:
+                self._training_data_batch_size = inp.shape[0]
+                return
+        X, Y = self.training_data
+        if len(self.model.inputs) == 1:
+            X = [X]
+        if len(self.model.outputs) == 1:
+            Y = [Y]
+        x_batch = [x[0] for x in X]
+        x_batch_num_bytes = sum([x.itemsize * x.size for x in x_batch])
+        y_batch = [y[0] for y in Y]
+        y_batch_num_bytes = sum([y.itemsize * y.size for y in y_batch])
+        batch_num_bytes = x_batch_num_bytes = y_batch_num_bytes
+        MAX_MB = 0.1
+        self._training_data_batch_size = int(MAX_MB * 1024 * 1024 / batch_num_bytes)
+        wandb.termlog("Batch size: " + str(self._training_data_batch_size))
+
+    def _build_loss_model(self):
+        inputs = self.model.inputs
+        model_out = self.model(inputs)
+        if isinstance(model_out, list):
+            ground_truth = [
+                tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out
+            ]
+        else:
+            ground_truth = [tf.keras.layers.Input(shape=model_out.shape[1:])]
+            model_out = [model_out]
+        losses = []
+        loss_f = self.model.loss
+        if not callable(loss_f):
+            loss_f = tf.keras.losses.get(loss_f)
+        for y_true, y_pred in zip(ground_truth, model_out):
+            losses.append(loss_f(y_true, y_pred))
+        if len(losses) == 1:
+            total_loss = losses[0]
+        else:
+            total_loss = tf.keras.layers.add(losses)
+        self._loss_model = tf.keras.models.Model(inputs + ground_truth, total_loss)
+
+    def _training_data_generator(self):
+        X, Y = self.training_data
+        if len(self.model.inputs) == 1:
+            X = [X]
+        if len(self.model.outputs) == 1:
+            Y = [Y]
+        idx = 0
+        batch_size = self._training_data_batch_size
+        while idx < len(X[0]):
+            x_slice = [x[idx : idx + batch_size] for x in X]
+            y_slice = [y[idx : idx + batch_size] for y in Y]
+            idx += batch_size
+            yield x_slice, y_slice
+
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
 
@@ -348,6 +407,8 @@ class WandbCallback(keras.callbacks.Callback):
             )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
+        self._build_loss_model()
+        self._get_training_data_batch_size()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -642,58 +703,19 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
-        if not self.training_data:
-            raise ValueError("Need to pass in training data if logging gradients")
-
-        X_train = self.training_data[0]
-        y_train = self.training_data[1]
+        weights = self.model.trainable_weights
+        grads = [np.zeros(tuple(w.shape)) for w in weights]
+        for x, y in self._training_data_generator():
+            with tf.GradientTape() as tape:
+                loss = self._loss_model(x + y)
+            batch_grads = tape.gradient(loss, weights)
+            for g, bg in zip(grads, batch_grads):
+                g += bg.numpy()
         metrics = {}
-        weights = self.model.trainable_weights  # weight tensors
-        # filter down weights tensors to only ones which are trainable
-        weights = [
-            weight
-            for weight in weights
-            if self.model.get_layer(weight.name.split("/")[0]).trainable
-        ]
-
-        gradients = self.model.optimizer.get_gradients(
-            self.model.total_loss, weights
-        )  # gradient tensors
-        if hasattr(self.model, "targets"):
-            # TF < 1.14
-            target = self.model.targets[0]
-            sample_weight = self.model.sample_weights[0]
-        elif (
-            hasattr(self.model, "_training_endpoints")
-            and len(self.model._training_endpoints) > 0
-        ):
-            # TF > 1.14 TODO: not sure if we're handling sample_weight properly here...
-            target = self.model._training_endpoints[0].training_target.target
-            sample_weight = self.model._training_endpoints[
-                0
-            ].sample_weight or K.variable(1)
-        else:
-            wandb.termwarn(
-                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client",
-                repeat=False,
-            )
-            return metrics
-        input_tensors = [
-            self.model.inputs[0],  # input data
-            # how much to weight each sample by
-            sample_weight,
-            target,  # labels
-            K.learning_phase(),  # train or test mode
-        ]
-
-        get_gradients = K.function(inputs=input_tensors, outputs=gradients)
-        grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
-
         for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
-
         return metrics
 
     def _log_dataframe(self):
