@@ -2718,8 +2718,6 @@ class Artifact(object):
         size = sum(e.size for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
-        if log:
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self.artifact_name, size / (1024 * 1024), nfiles),

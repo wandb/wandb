@@ -215,9 +215,8 @@ class Artifact(object):
 
         # Validate that the object is wandb.Media type
         if not isinstance(obj, WBValue):
-            raise ValueError("Can't add obj to artifact")
+            raise ValueError("Can only add `obj` which subclass wandb.WBValue")
 
-        # If the item is already added, short-circut and return
         obj_id = id(obj)
         if obj_id in self._added_objs:
             return self._added_objs[obj_id]
@@ -229,7 +228,6 @@ class Artifact(object):
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
-        # try:
         val = obj.to_json(self)
         name = obj.with_suffix(name)
         entry = self._manifest.get_entry_by_path(name)
@@ -248,8 +246,6 @@ class Artifact(object):
         self._added_objs[obj_id] = entry
 
         return entry
-        # except:
-        #     ValueError("Can't add obj of type {} to artifact".format(type(obj)))
 
     def get_added_local_path_name(self, local_path):
         """If local_path was already added to artifact, return its internal name."""
