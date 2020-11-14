@@ -355,7 +355,9 @@ class WandbCallback(keras.callbacks.Callback):
         inputs = self.model.inputs
         model_out = self.model(inputs)
         if isinstance(model_out, list):
-            ground_truth = [tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out]
+            ground_truth = [
+                tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out
+            ]
         else:
             ground_truth = [tf.keras.layers.Input(shape=model_out.shape[1:])]
             model_out = [model_out]
@@ -380,8 +382,8 @@ class WandbCallback(keras.callbacks.Callback):
         idx = 0
         batch_size = self._training_data_batch_size
         while idx < len(X[0]):
-            x_slice = [x[idx: idx + batch_size] for x in X]
-            y_slice = [y[idx: idx + batch_size] for y in Y]
+            x_slice = [x[idx : idx + batch_size] for x in X]
+            y_slice = [y[idx : idx + batch_size] for y in Y]
             idx += batch_size
             yield x_slice, y_slice
 
@@ -702,7 +704,7 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
-        weights = self. model.trainable_weights
+        weights = self.model.trainable_weights
         grads = [np.zeros(tuple(w.shape)) for w in weights]
         for x, y in self._training_data_generator():
             with tf.GradientTape() as tape:
