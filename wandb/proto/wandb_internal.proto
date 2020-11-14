@@ -301,6 +301,7 @@ message StoragePolicyConfigItem {
 message TBRecord {
   string log_dir = 1;
   bool   save = 2;
+  string root_dir = 3;
 }
 
 /*

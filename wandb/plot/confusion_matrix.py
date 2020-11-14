@@ -32,6 +32,7 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
     ), "Number of predictions and label indices must match"
     if class_names is not None:
         n_classes = len(class_names)
+        class_inds = set(preds).union(set(y_true))
         assert max(preds) <= len(
             class_names
         ), "Higher predicted index than number of classes"
@@ -39,12 +40,18 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
             class_names
         ), "Higher label class index than number of classes"
     else:
-        n_classes = max(max(preds), max(y_true))
+        class_inds = set(preds).union(set(y_true))
+        n_classes = len(class_inds)
         class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
+
+    # get mapping of inds to class index in case user has weird prediction indices
+    class_mapping = {}
+    for i, val in enumerate(sorted(list(class_inds))):
+        class_mapping[val] = i
 
     counts = np.zeros((n_classes, n_classes))
     for i in range(len(preds)):
-        counts[y_true[i], preds[i]] += 1
+        counts[class_mapping[y_true[i]], class_mapping[preds[i]]] += 1
 
     data = []
     for i in range(n_classes):
