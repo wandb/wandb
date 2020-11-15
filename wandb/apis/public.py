@@ -2435,7 +2435,11 @@ class Artifact(object):
             ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
-                artifact._manifest_json = json.loads(req.content)
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    self, json.loads(req.content)
+                )
+            
+            self._load_dependent_manifests()
 
             return artifact
 
@@ -2458,7 +2462,6 @@ class Artifact(object):
             and a["artifactCollectionName"] == self._sequence_name
         ]
         self._manifest = None
-        self._manifest_json = None
         self._is_downloaded = False
         artifacts.get_artifacts_cache().store_artifact(self)
 
@@ -2859,56 +2862,57 @@ class Artifact(object):
 
     def _load_manifest(self):
         if self._manifest is None:
-            if self._manifest_json is None:
-                query = gql(
-                    """
-                query ArtifactManifest(
-                    $entityName: String!,
-                    $projectName: String!,
-                    $name: String!
-                ) {
-                    project(name: $projectName, entityName: $entityName) {
-                        artifact(name: $name) {
-                            currentManifest {
+            query = gql(
+                """
+            query ArtifactManifest(
+                $entityName: String!,
+                $projectName: String!,
+                $name: String!
+            ) {
+                project(name: $projectName, entityName: $entityName) {
+                    artifact(name: $name) {
+                        currentManifest {
+                            id
+                            file {
                                 id
-                                file {
-                                    id
-                                    directUrl
-                                }
+                                directUrl
                             }
                         }
                     }
                 }
-                """
-                )
-                response = self.client.execute(
-                    query,
-                    variable_values={
-                        "entityName": self.entity,
-                        "projectName": self.project,
-                        "name": self.artifact_name,
-                    },
-                )
-
-                index_file_url = response["project"]["artifact"]["currentManifest"][
-                    "file"
-                ]["directUrl"]
-                with requests.get(index_file_url) as req:
-                    req.raise_for_status()
-                    self._manifest_json = json.loads(req.content)
-
-            self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                self, self._manifest_json
+            }
+            """
+            )
+            response = self.client.execute(
+                query,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "name": self.artifact_name,
+                },
             )
 
-            # Make sure dependencies are avail
-            for entry_key in self._manifest.entries:
-                entry = self._manifest.entries[entry_key]
-                if self._manifest_entry_is_artifact_reference(entry):
-                    dep_artifact = self._get_ref_artifact_from_entry(entry)
-                    dep_artifact._load_manifest()
+            index_file_url = response["project"]["artifact"]["currentManifest"][
+                "file"
+            ]["directUrl"]
+            with requests.get(index_file_url) as req:
+                req.raise_for_status()
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    self, json.loads(req.content)
+                )
+
+            self._load_dependent_manifests()
 
         return self._manifest
+
+    def _load_dependent_manifests(self):
+        """Helper function to interrogate entries and ensure we have loaded their manifests"""
+        # Make sure dependencies are avail
+        for entry_key in self._manifest.entries:
+            entry = self._manifest.entries[entry_key]
+            if self._manifest_entry_is_artifact_reference(entry):
+                dep_artifact = self._get_ref_artifact_from_entry(entry)
+                dep_artifact._load_manifest()
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
