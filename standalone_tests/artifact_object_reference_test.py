@@ -171,9 +171,9 @@ def test_artifact_add_reference_via_url():
     with wandb.init(project=PROJECT_NAME) as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        assert os.path.islink(
-            os.path.join(downstream_path, downstream_artifact_file_path)
-        )
+        # assert os.path.islink(
+        #     os.path.join(downstream_path, downstream_artifact_file_path)
+        # )
         with open(
             os.path.join(downstream_path, downstream_artifact_file_path), "r"
         ) as file:
@@ -244,9 +244,9 @@ def test_add_reference_via_artifact_entry():
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
         downstream_path = downstream_artifact.download() # should not fail on second download.
-        assert os.path.islink(
-            os.path.join(downstream_path, downstream_artifact_file_path)
-        )
+        # assert os.path.islink(
+        #     os.path.join(downstream_path, downstream_artifact_file_path)
+        # )
         with open(
             os.path.join(downstream_path, downstream_artifact_file_path), "r"
         ) as file:
@@ -304,7 +304,7 @@ def test_adding_artifact_by_object():
     with wandb.init(project=PROJECT_NAME) as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
         downstream_path = downstream_artifact.download()
-        assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
+        # assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
 def _cleanup():
@@ -333,7 +333,7 @@ def test_image_reference_artifact():
     with wandb.init(project=PROJECT_NAME) as run:
         artifact_2 = run.use_artifact("reference_data:latest")
         artifact_2.download()
-        assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
+        # assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
 
 
 def test_nested_reference_artifact():
@@ -393,8 +393,8 @@ def test_table_slice_reference_artifact():
         table2 = artifact_3.get("table2")
     
     assert not os.path.isdir(os.path.join(artifact_2._default_root()))
-    assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
-    assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
+    # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
+    # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
     assert t1.data[:1] == table1.data
     assert t1.data[1:] == table2.data
 
@@ -441,7 +441,7 @@ def assert_media_obj_referential_equality(obj):
     name = "obj2." + type(obj).artifact_type + ".json"
     start_path = os.path.join(mid_dir, name)
     mid_artifact_ref.get_path(name).download()
-    assert os.path.islink(start_path)
+    # assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
     with wandb.init(project=PROJECT_NAME) as run:
@@ -462,7 +462,7 @@ def assert_media_obj_referential_equality(obj):
     name = "obj3." + type(obj).artifact_type + ".json"
     start_path = os.path.join(down_dir, name)
     down_artifact_ref.get_path(name).download()
-    assert os.path.islink(start_path)
+    # assert os.path.islink(start_path)
     assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
