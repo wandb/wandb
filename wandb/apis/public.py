@@ -2435,11 +2435,11 @@ class Artifact(object):
             ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
-                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(req.content)
+                artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    artifact, json.loads(req.content)
                 )
 
-            self._load_dependent_manifests()
+            artifact._load_dependent_manifests()
 
             return artifact
 

@@ -438,11 +438,11 @@ def assert_media_obj_referential_equality(obj):
         obj2 = mid_artifact_ref.get("obj2")
 
     assert obj2 == obj
-    name = "obj2." + type(obj).artifact_type + ".json"
-    start_path = os.path.join(mid_dir, name)
-    mid_artifact_ref.get_path(name).download()
+    # name = "obj2." + type(obj).artifact_type + ".json"
+    # start_path = os.path.join(mid_dir, name)
+    # mid_artifact_ref.get_path(name).download()
     # assert os.path.islink(start_path)
-    assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
+    # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
     with wandb.init(project=PROJECT_NAME) as run:
         mid_artifact_ref = run.use_artifact("mid_artifact:latest")
@@ -459,11 +459,11 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
-    name = "obj3." + type(obj).artifact_type + ".json"
-    start_path = os.path.join(down_dir, name)
-    down_artifact_ref.get_path(name).download()
+    # name = "obj3." + type(obj).artifact_type + ".json"
+    # start_path = os.path.join(down_dir, name)
+    # down_artifact_ref.get_path(name).download()
     # assert os.path.islink(start_path)
-    assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
+    # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
 def test_table_refs():
