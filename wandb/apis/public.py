@@ -2587,14 +2587,7 @@ class Artifact(object):
                     util.mkdir_exists_ok(os.path.dirname(target_path))
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).
-                    if os.path.islink(cache_path):
-                        if os.path.islink(target_path):
-                            os.unlink(target_path)
-                        os.symlink(
-                            os.path.abspath(os.readlink(cache_path)), target_path
-                        )
-                    else:
-                        shutil.copy2(cache_path, target_path)
+                    shutil.copy2(cache_path, target_path)
                 return target_path
 
             @staticmethod
