@@ -2378,41 +2378,6 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-def _path_to_parts(head):
-    parts = []
-    while head != "":
-        new_head, tail = os.path.split(head)
-        if new_head == head:
-            break
-        else:
-            head = new_head
-        parts.append(tail)
-    if head != "":
-        parts.append(head)
-    return parts[::-1]
-
-
-def _determine_artifact_root(source_path, target_path):
-    """Helper function to determine the artifact root of `target_path` by comparing to
-    an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
-    abs_source_path = os.path.abspath(source_path)
-    abs_target_path = os.path.abspath(target_path)
-
-    # Break the source path into parts
-    source_path_parts = _path_to_parts(abs_source_path)
-    target_path_parts = _path_to_parts(abs_target_path)
-
-    # Buildup a shared path (ending with the first difference in the target)
-    shared_path = []
-    while len(source_path_parts) > 0 and len(target_path_parts) > 0:
-        comp = target_path_parts.pop(0)
-        shared_path.append(comp)
-        if comp != source_path_parts.pop(0):
-            break
-
-    return os.path.join(*shared_path)
-
-
 class Artifact(object):
     QUERY = gql(
         """
@@ -2683,11 +2648,9 @@ class Artifact(object):
             entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
                 # If the entry is a reference from another artifact, then get it directly from that artifact
-                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
-                    artifact = Artifact.from_id(
-                        entry.extra["source_artifact_id"], self.client
-                    )
-                    return artifact.get(entry.extra["source_path"])
+                if self._manifest_entry_is_artifact_reference(entry):
+                    artifact = self._get_ref_artifact_from_entry(entry)
+                    return artifact.get(util.uri_from_path(entry.ref))
 
                 # Get the ArtifactEntry
                 item = self.get_path(wandb_file_name)
@@ -2948,13 +2911,23 @@ class Artifact(object):
             # Make sure dependencies are avail
             for entry_key in self._manifest.entries:
                 entry = self._manifest.entries[entry_key]
-                if hasattr(entry, "extra") and "source_artifact_id" in entry.extra:
-                    dep_artifact = Artifact.from_id(
-                        entry.extra["source_artifact_id"], self.client
-                    )
+                if self._manifest_entry_is_artifact_reference(entry):
+                    dep_artifact = self._get_ref_artifact_from_entry(entry)
                     dep_artifact._load_manifest()
 
         return self._manifest
+
+    @staticmethod
+    def _manifest_entry_is_artifact_reference(entry):
+        """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
+        return entry.ref is not None and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
+
+    def _get_ref_artifact_from_entry(self, entry):
+        """Helper function returns the referenced artifact from an entry"""
+        artifact_id = util.host_from_path(entry.ref)
+        return Artifact.from_id(
+            util.hex_to_b64_id(artifact_id), self.client
+        )
 
 
 class ArtifactVersions(Paginator):

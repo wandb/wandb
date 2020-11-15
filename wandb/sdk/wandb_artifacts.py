@@ -1159,13 +1159,6 @@ class WBArtifactHandler(StorageHandler):
         """
         return self._scheme
 
-    @staticmethod
-    def parse_path(path):
-        """helper method to parse a URL into it's component parts."""
-
-        url = urlparse(path)
-        return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
-
     @property
     def client(self):
         if self._client is None:
@@ -1192,10 +1185,9 @@ class WBArtifactHandler(StorageHandler):
             return path
 
         # Parse the reference path and download the artifact if needed
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
-            manifest_entry.ref
-        )
-
+        artifact_id = util.host_from_path(manifest_entry.ref)
+        artifact_file_path = util.uri_from_path(manifest_entry.ref)
+        
         dep_artifact = PublicArtifact.from_id(
             util.hex_to_b64_id(artifact_id), self.client
         )
@@ -1238,7 +1230,8 @@ class WBArtifactHandler(StorageHandler):
 
         # Recursively resolve the reference until a concrete asset is found
         while path is not None and urlparse(path).scheme == self._scheme:
-            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
+            artifact_id = util.host_from_path(path)
+            artifact_file_path = util.uri_from_path(path)
             target_artifact = PublicArtifact.from_id(
                 util.hex_to_b64_id(artifact_id), self.client
             )
@@ -1252,7 +1245,7 @@ class WBArtifactHandler(StorageHandler):
 
         # Create the path reference
         path = "wandb-artifact://{}/{}".format(
-            util.b64_to_hex_id(target_artifact.id), str(entry.path)
+            util.b64_to_hex_id(target_artifact.id), artifact_file_path
         )
 
         # Return the new entry
@@ -1262,9 +1255,5 @@ class WBArtifactHandler(StorageHandler):
                 path,
                 size=0,
                 digest=path,
-                extra={
-                    "source_artifact_id": target_artifact.id,
-                    "source_path": artifact_file_path,
-                },
             )
         ]
