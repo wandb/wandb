@@ -169,8 +169,7 @@ class Artifact(object):
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         """adds `uri` to the artifact via a reference, located at `name`. 
-        You can use Artifact#get_path(`name`) after downloading
-        the artifact to retrieve this object.
+        You can use Artifact#get_path(`name`) to retrieve this object.
         
         Arguments:
         - `uri`:str - the URI path of the reference to add. Can be an object returned from
@@ -187,8 +186,7 @@ class Artifact(object):
             and uri.parent_artifact != self
         ):
             ref_url_fn = getattr(uri, "ref_url")
-            if callable(ref_url_fn):
-                uri = ref_url_fn()
+            uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError(
@@ -1192,25 +1190,8 @@ class WBArtifactHandler(StorageHandler):
             util.hex_to_b64_id(artifact_id), self.client
         )
         link_target_path = dep_artifact.get_path(artifact_file_path).download()
-        link_creation_path = os.path.join(
-            # This tmp directory is created in order to have a place to put the symlink.
-            # Since this is a threaded operation, I was getting collisions and needed to create
-            # a unique directory which would not collide even with the same reference target.
-            self._cache._cache_dir,
-            "symcache",
-            str(id(self)),
-            str(threading.get_native_id()),
-            link_target_path,
-        )
-        link_target_path = os.path.abspath(link_target_path)
-        link_creation_path = os.path.abspath(link_creation_path)
-        filesystem._safe_makedirs(os.path.dirname(link_creation_path))
-        if not os.path.islink(link_creation_path) and not os.path.exists(
-            link_creation_path
-        ):
-            os.symlink(link_target_path, link_creation_path)
 
-        return link_creation_path
+        return link_target_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         """
@@ -1236,8 +1217,8 @@ class WBArtifactHandler(StorageHandler):
                 util.hex_to_b64_id(artifact_id), self.client
             )
 
-            # this should only have an effect if the user added the reference bu url string directly
-            # (in orther words they did not already load the artifact into ram.)
+            # this should only have an effect if the user added the reference by url 
+            # string directly (in other words they did not already load the artifact into ram.)
             target_artifact._load_manifest()
 
             entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
