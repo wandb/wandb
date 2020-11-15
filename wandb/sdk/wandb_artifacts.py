@@ -1185,7 +1185,7 @@ class WBArtifactHandler(StorageHandler):
         # Parse the reference path and download the artifact if needed
         artifact_id = util.host_from_path(manifest_entry.ref)
         artifact_file_path = util.uri_from_path(manifest_entry.ref)
-        
+
         dep_artifact = PublicArtifact.from_id(
             util.hex_to_b64_id(artifact_id), self.client
         )
@@ -1217,7 +1217,7 @@ class WBArtifactHandler(StorageHandler):
                 util.hex_to_b64_id(artifact_id), self.client
             )
 
-            # this should only have an effect if the user added the reference by url 
+            # this should only have an effect if the user added the reference by url
             # string directly (in other words they did not already load the artifact into ram.)
             target_artifact._load_manifest()
 
@@ -1232,9 +1232,6 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
-                size=0,
-                digest=path,
+                name or os.path.basename(path), path, size=0, digest=path,
             )
         ]

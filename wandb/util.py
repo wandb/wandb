@@ -1118,10 +1118,12 @@ def b64_to_hex_id(id_string):
 def hex_to_b64_id(encoded_string):
     return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
+
 def host_from_path(path):
     """returns the host of the path"""
     url = urlparse(path)
     return url.netloc
+
 
 def uri_from_path(path):
     """returns the URI of the path"""

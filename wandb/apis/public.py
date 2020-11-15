@@ -2438,7 +2438,7 @@ class Artifact(object):
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
                     self, json.loads(req.content)
                 )
-            
+
             self._load_dependent_manifests()
 
             return artifact
@@ -2892,9 +2892,9 @@ class Artifact(object):
                 },
             )
 
-            index_file_url = response["project"]["artifact"]["currentManifest"][
-                "file"
-            ]["directUrl"]
+            index_file_url = response["project"]["artifact"]["currentManifest"]["file"][
+                "directUrl"
+            ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
@@ -2917,14 +2917,15 @@ class Artifact(object):
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
         """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
-        return entry.ref is not None and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
+        return (
+            entry.ref is not None
+            and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
+        )
 
     def _get_ref_artifact_from_entry(self, entry):
         """Helper function returns the referenced artifact from an entry"""
         artifact_id = util.host_from_path(entry.ref)
-        return Artifact.from_id(
-            util.hex_to_b64_id(artifact_id), self.client
-        )
+        return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
 
 
 class ArtifactVersions(Paginator):
