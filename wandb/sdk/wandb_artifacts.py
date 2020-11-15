@@ -12,7 +12,8 @@ from wandb.compat import tempfile as compat_tempfile
 from wandb import env
 from .interface.artifacts import *
 from .internal.progress import Progress
-from wandb.apis import InternalApi, PublicApi, PublicArtifact
+from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog

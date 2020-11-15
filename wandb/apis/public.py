@@ -2401,11 +2401,10 @@ class Artifact(object):
     )
 
     @classmethod
-    def from_id(cls, artifact_id, client, use_cache=True):
-        if use_cache:
-            artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
-            if artifact is not None:
-                return artifact
+    def from_id(cls, artifact_id, client):
+        artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
+        if artifact is not None:
+            return artifact
         response = client.execute(Artifact.QUERY, variable_values={"id": id},)
 
         name = None
