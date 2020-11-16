@@ -20,7 +20,7 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
-from wandb.data_types import JSONABLE_MEDIA_CLASSES
+from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
@@ -513,9 +513,6 @@ class Api(object):
         if type is not None and artifact.type != type:
             raise ValueError("type %s specified but this artifact is of type %s")
         return artifact
-
-    def artifact_from_id(self, id):
-        return Artifact.from_id(self.client, id)
 
 
 class Attrs(object):
@@ -2381,41 +2378,6 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-def _path_to_parts(head):
-    parts = []
-    while head != "":
-        new_head, tail = os.path.split(head)
-        if new_head == head:
-            break
-        else:
-            head = new_head
-        parts.append(tail)
-    if head != "":
-        parts.append(head)
-    return parts[::-1]
-
-
-def _determine_artifact_root(source_path, target_path):
-    """Helper function to determine the artifact root of `target_path` by comparing to
-    an existing artifact asset in `source`path`. This is used in reference artifact resolution"""
-    abs_source_path = os.path.abspath(source_path)
-    abs_target_path = os.path.abspath(target_path)
-
-    # Break the source path into parts
-    source_path_parts = _path_to_parts(abs_source_path)
-    target_path_parts = _path_to_parts(abs_target_path)
-
-    # Buildup a shared path (ending with the first difference in the target)
-    shared_path = []
-    while len(source_path_parts) > 0 and len(target_path_parts) > 0:
-        comp = target_path_parts.pop(0)
-        shared_path.append(comp)
-        if comp != source_path_parts.pop(0):
-            break
-
-    return os.path.join(*shared_path)
-
-
 class Artifact(object):
     QUERY = gql(
         """
@@ -2439,7 +2401,10 @@ class Artifact(object):
     )
 
     @classmethod
-    def from_id(cls, client, id):
+    def from_id(cls, artifact_id, client):
+        artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
+        if artifact is not None:
+            return artifact
         response = client.execute(Artifact.QUERY, variable_values={"id": id},)
 
         name = None
@@ -2473,6 +2438,8 @@ class Artifact(object):
                     artifact, json.loads(req.content)
                 )
 
+            artifact._load_dependent_manifests()
+
             return artifact
 
     def __init__(self, client, entity, project, name, attrs=None):
@@ -2495,6 +2462,7 @@ class Artifact(object):
         ]
         self._manifest = None
         self._is_downloaded = False
+        artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
@@ -2604,6 +2572,7 @@ class Artifact(object):
         class ArtifactEntry(object):
             def __init__(self):
                 self.parent_artifact = parent_self
+                self.name = name
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2620,14 +2589,7 @@ class Artifact(object):
                     util.mkdir_exists_ok(os.path.dirname(target_path))
                     # We use copy2, which preserves file metadata including modified
                     # time (which we use above to check whether we should do the copy).
-                    if os.path.islink(cache_path):
-                        if os.path.islink(target_path):
-                            os.unlink(target_path)
-                        os.symlink(
-                            os.path.abspath(os.readlink(cache_path)), target_path
-                        )
-                    else:
-                        shutil.copy2(cache_path, target_path)
+                    shutil.copy2(cache_path, target_path)
                 return target_path
 
             @staticmethod
@@ -2672,34 +2634,30 @@ class Artifact(object):
         Returns:
             A `wandb.Media` which has been stored at `name`
         """
-        root = self._default_root()
-        if not self._is_downloaded:
-            root = self.download()
+        self._load_manifest()
 
-        manifest = self._load_manifest()
-
-        for obj_type in JSONABLE_MEDIA_CLASSES:
-            wandb_file_name = ".".join([name, obj_type.get_json_suffix(), "json"])
-            entry = manifest.entries.get(wandb_file_name)
+        type_mapping = WBValue.type_mapping()
+        for artifact_type_str in type_mapping:
+            wb_class = type_mapping[artifact_type_str]
+            wandb_file_name = wb_class.with_suffix(name)
+            entry = self._manifest.entries.get(wandb_file_name)
             if entry is not None:
+                # If the entry is a reference from another artifact, then get it directly from that artifact
+                if self._manifest_entry_is_artifact_reference(entry):
+                    artifact = self._get_ref_artifact_from_entry(entry)
+                    return artifact.get(util.uri_from_path(entry.ref))
+
+                # Get the ArtifactEntry
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
-
-                # If the item is a symlink, then find the concrete asset at the end of symlinks
-                if os.path.islink(item_path):
-                    link_path = item_path
-                    while os.path.islink(link_path):
-                        link_path = os.readlink(link_path)
-
-                    root = _determine_artifact_root(item_path, link_path)
 
                 # Load the object from the JSON blob
                 result = None
                 json_obj = {}
                 with open(item_path, "r") as file:
                     json_obj = json.load(file)
-                result = obj_type.from_json(json_obj, root)
-                result._source = {"artifact": self, "name": name}
+                result = wb_class.from_json(json_obj, self)
+                result.artifact_source = {"artifact": self, "name": name}
                 return result
 
     def download(self, root=None):
@@ -2718,8 +2676,6 @@ class Artifact(object):
         size = sum(e.size for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
-        if log:
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self.artifact_name, size / (1024 * 1024), nfiles),
@@ -2740,6 +2696,7 @@ class Artifact(object):
 
         if log:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+
         return dirpath
 
     def file(self, root=None):
@@ -2942,7 +2899,32 @@ class Artifact(object):
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
                     self, json.loads(req.content)
                 )
+
+            self._load_dependent_manifests()
+
         return self._manifest
+
+    def _load_dependent_manifests(self):
+        """Helper function to interrogate entries and ensure we have loaded their manifests"""
+        # Make sure dependencies are avail
+        for entry_key in self._manifest.entries:
+            entry = self._manifest.entries[entry_key]
+            if self._manifest_entry_is_artifact_reference(entry):
+                dep_artifact = self._get_ref_artifact_from_entry(entry)
+                dep_artifact._load_manifest()
+
+    @staticmethod
+    def _manifest_entry_is_artifact_reference(entry):
+        """Helper function determines if an ArtifactEntry in manifest is an artifact reference"""
+        return (
+            entry.ref is not None
+            and urllib.parse.urlparse(entry.ref).scheme == "wandb-artifact"
+        )
+
+    def _get_ref_artifact_from_entry(self, entry):
+        """Helper function returns the referenced artifact from an entry"""
+        artifact_id = util.host_from_path(entry.ref)
+        return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
 
 
 class ArtifactVersions(Paginator):

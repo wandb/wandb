@@ -1,7 +1,4 @@
-from types import ModuleType
-
-
-class Dummy(object):
+class Dummy(str):
     def __init__(self, *args, **kwargs):
         object.__setattr__(self, "___dict", {})
 
@@ -130,8 +127,13 @@ class Dummy(object):
 
     def __getitem__(self, key):
         d = object.__getattribute__(self, "___dict")
-        if key in d:
-            return d[key]
+        try:
+            if key in d:
+                return d[key]
+        except TypeError:
+            key = str(key)
+            if key in d:
+                return d[key]
         dummy = Dummy()
         d[key] = dummy
         return dummy
@@ -165,10 +167,6 @@ class Dummy(object):
 
     def __bool__(self):
         return True
-
-
-class DummyModule(Dummy, ModuleType):
-    pass
 
 
 class DummyDict(dict):
