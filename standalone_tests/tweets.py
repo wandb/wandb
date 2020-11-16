@@ -53,5 +53,11 @@ for i, class_name in enumerate(nb.classes_):
     class_ind_map[class_name] = i
 y_pred_inds = [class_ind_map[class_name] for class_name in y_pred]
 y_true_inds = [class_ind_map[class_name] for class_name in y_test]
-
+# test workflow with classes
 wandb.log({'conf_mat': wandb.plot.confusion_matrix(y_pred_inds, y_true_inds, nb.classes_)})
+# test workflow without classes
+wandb.log({'conf_mat_noclass': wandb.plot.confusion_matrix(y_pred_inds, y_true_inds)})
+# test workflow with multiples of inds
+y_pred_mult = [y_pred_ind*5 for y_pred_ind in y_pred_inds]
+y_true_mult = [y_true_ind*5 for y_true_ind in y_true_inds]
+wandb.log({'conf_mat_noclass_mult': wandb.plot.confusion_matrix(y_pred_mult, y_true_mult)})
