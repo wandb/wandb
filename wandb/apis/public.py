@@ -188,7 +188,7 @@ class Api(object):
             wandb.Api()
         ```
 
-    Args:
+    Arguments:
         overrides (dict): You can set `base_url` if you are using a wandb server
             other than https://api.wandb.ai.
             You can also set defaults for `entity`, `project`, and `run`.
@@ -337,14 +337,14 @@ class Api(object):
 
     def projects(self, entity=None, per_page=200):
         """Get projects for a given entity.
-        Args:
+        Arguments:
             entity (str): Name of the entity requested.  If None will fallback to
-                default entity passed to :obj:`Api`.  If no default entity, will raise a `ValueError`.
+                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
             per_page (int): Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
-            A :obj:`Projects` object which is an iterable collection of :obj:`Project` objects.
+            A `Projects` object which is an iterable collection of `Project` objects.
 
         """
         if entity is None:
@@ -362,14 +362,14 @@ class Api(object):
 
         WARNING: This api is in beta and will likely change in a future release
 
-        Args:
+        Arguments:
             path (str): path to project the report resides in, should be in the form: "entity/project"
             name (str): optional name of the report requested.
             per_page (int): Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
-            A :obj:`Reports` object which is an iterable collection of :obj:`BetaReport` objects.
+            A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
         entity, project, run = self._parse_path(path)
         if entity is None:
@@ -412,7 +412,7 @@ class Api(object):
             ```
 
 
-        Args:
+        Arguments:
             path (str): path to project, should be in the form: "entity/project"
             filters (dict): queries for specific runs using the MongoDB query language.
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
@@ -426,7 +426,7 @@ class Api(object):
                 The default order is run.created_at from newest to oldest.
 
         Returns:
-            A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
+            A `Runs` object, which is an iterable collection of `Run` objects.
         """
         entity, project = self._parse_project_path(path)
         key = path + str(filters) + str(order)
@@ -445,13 +445,13 @@ class Api(object):
     def run(self, path=""):
         """Returns a single run by parsing path in the form entity/project/run_id.
 
-        Args:
+        Arguments:
             path (str): path to run in the form entity/project/run_id.
                 If api.entity is set, this can be in the form project/run_id
                 and if api.project is set this can just be the run_id.
 
         Returns:
-            A :obj:`Run` object.
+            A `Run` object.
         """
         entity, project, run = self._parse_path(path)
         if not self._runs.get(path):
@@ -463,13 +463,13 @@ class Api(object):
         """
         Returns a sweep by parsing path in the form entity/project/sweep_id.
 
-        Args:
+        Arguments:
             path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
                 is set, this can be in the form project/sweep_id and if api.project is set
                 this can just be the sweep_id.
 
         Returns:
-            A :obj:`Sweep` object.
+            A `Sweep` object.
         """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(path):
@@ -496,7 +496,7 @@ class Api(object):
     def artifact(self, name, type=None):
         """Returns a single artifact by parsing path in the form entity/project/run_id.
 
-        Args:
+        Arguments:
             name (str): An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
                     name:version
@@ -504,7 +504,7 @@ class Api(object):
                     digest
             type (str, optional): The type of artifact to fetch.
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
@@ -618,7 +618,7 @@ class User(Attrs):
 
 class Projects(Paginator):
     """
-    An iterable collection of :obj:`Project` objects.
+    An iterable collection of `Project` objects.
     """
 
     QUERY = gql(
@@ -701,7 +701,7 @@ class Project(Attrs):
 
 class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
-    This is generally used indirectly via the :obj:`Api`.runs method
+    This is generally used indirectly via the `Api`.runs method
     """
 
     QUERY = gql(
@@ -1072,37 +1072,37 @@ class Run(Attrs):
     @normalize_exceptions
     def files(self, names=[], per_page=50):
         """
-        Args:
+        Arguments:
             names (list): names of the requested files, if empty returns all files
             per_page (int): number of results per page
 
         Returns:
-            A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
+            A `Files` object, which is an iterator over `File` obejcts.
         """
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
     def file(self, name):
         """
-        Args:
+        Arguments:
             name (str): name of requested file.
 
         Returns:
-            A :obj:`File` matching the name argument.
+            A `File` matching the name argument.
         """
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
         """
-        Args:
+        Arguments:
             path (str): name of file to upload.
             root (str): the root path to save the file relative to.  i.e.
                 If you want to have the file saved in the run as "my_dir/file.txt"
                 and you're currently in "my_dir" you would set root to "../"
 
         Returns:
-            A :obj:`File` matching the name argument.
+            A `File` matching the name argument.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -1123,7 +1123,7 @@ class Run(Attrs):
         Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
         the history records being sampled.
 
-        Args:
+        Arguments:
             samples (int, optional): The number of samples to return
             pandas (bool, optional): Return a pandas dataframe
             keys (list, optional): Only return metrics for specific keys
@@ -1164,7 +1164,7 @@ class Run(Attrs):
             ```
 
 
-        Args:
+        Arguments:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api
 
@@ -1210,11 +1210,11 @@ class Run(Attrs):
     def use_artifact(self, artifact):
         """ Declare an artifact as an input to a run.
 
-        Args:
-            artifact (:obj:`Artifact`): An artifact returned from
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -1237,12 +1237,12 @@ class Run(Attrs):
     def log_artifact(self, artifact, aliases=None):
         """ Declare an artifact as output of a run.
 
-        Args:
-            artifact (:obj:`Artifact`): An artifact returned from
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
             aliases (list, optional): Aliases to apply to this artifact
         Returns:
-            A :obj:`Artifact` object.
+            A `Artifact` object.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -1320,7 +1320,7 @@ class Sweep(Attrs):
       api.sweep(sweep_path)
 
     Attributes:
-        runs (:obj:`Runs`): list of runs
+        runs (`Runs`): list of runs
         id (str): sweep id
         project (str): name of project
         config (str): dictionary of sweep configuration
@@ -1496,7 +1496,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is an iterable collection of :obj:`File` objects."""
+    """Files is an iterable collection of `File` objects."""
 
     QUERY = gql(
         """
@@ -1621,7 +1621,7 @@ class File(object):
     def download(self, root=".", replace=False):
         """Downloads a file previously saved by a run from the wandb server.
 
-        Args:
+        Arguments:
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".
@@ -1642,7 +1642,7 @@ class File(object):
 
 
 class Reports(Paginator):
-    """Reports is an iterable collection of :obj:`BetaReport` objects."""
+    """Reports is an iterable collection of `BetaReport` objects."""
 
     QUERY = gql(
         """
@@ -1826,7 +1826,7 @@ class BetaReport(Attrs):
     Attributes:
         name (string): report name
         description (string): report descirpiton;
-        user (:obj:User): the user that created the report
+        user (User): the user that created the report
         spec (dict): the spec off the report;
         updated_at (string): timestamp of last update
     """
@@ -2666,11 +2666,11 @@ class Artifact(object):
     def get(self, name):
         """Returns the wandb.Media resource stored in the artifact. Media can be
         stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
-        Args:
+        Arguments:
             name (str): name of resource.
 
         Returns:
-            A :obj:`wandb.Media` which has been stored at `name`
+            A `wandb.Media` which has been stored at `name`
         """
         root = self._default_root()
         if not self._is_downloaded:
@@ -2705,7 +2705,7 @@ class Artifact(object):
     def download(self, root=None):
         """Download the artifact to dir specified by the <root>
 
-        Args:
+        Arguments:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
 
@@ -2745,7 +2745,7 @@ class Artifact(object):
     def file(self, root=None):
         """Download a single file artifact to dir specified by the <root>
 
-        Args:
+        Arguments:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
 
@@ -2822,7 +2822,7 @@ class Artifact(object):
         Raises a ValueError if the verification fails. Does not verify downloaded
         reference files.
 
-        Args:
+        Arguments:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
         """
@@ -2947,7 +2947,7 @@ class Artifact(object):
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
-    This is generally used indirectly via the :obj:`Api`.artifact_versions method
+    This is generally used indirectly via the `Api`.artifact_versions method
     """
 
     QUERY = gql(

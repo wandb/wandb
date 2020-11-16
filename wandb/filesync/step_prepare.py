@@ -78,7 +78,7 @@ class StepPrepare(object):
     def _prepare_batch(self, batch):
         """Execute the prepareFiles API call.
 
-        Args:
+        Arguments:
             batch: List of RequestPrepare objects
         Returns:
             dict of (save_name: ResponseFile) pairs where ResponseFile is a dict with

@@ -63,7 +63,7 @@ class Retry(object):
     def __call__(self, *args, **kwargs):
         """Call the wrapped function, with retries.
 
-        Args:
+        Arguments:
            retry_timedelta (kwarg): amount of time to retry before giving up.
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
