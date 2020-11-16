@@ -549,10 +549,13 @@ class BackendSender(object):
         self, run, artifact, aliases, is_user_created=False, use_after_commit=False
     ):
         proto_run = self._make_run(run)
+        self._publish_artifact(proto_run, artifact, aliases, is_user_created, use_after_commit)
+
+    def _publish_artifact(self, run_proto, artifact, aliases, is_user_created=False, use_after_commit=False):
         proto_artifact = self._make_artifact(artifact)
-        proto_artifact.run_id = proto_run.run_id
-        proto_artifact.project = proto_run.project
-        proto_artifact.entity = proto_run.entity
+        proto_artifact.run_id = run_proto.run_id
+        proto_artifact.project = run_proto.project
+        proto_artifact.entity = run_proto.entity
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         for alias in aliases:
@@ -612,8 +615,9 @@ class BackendSender(object):
             return
         return result.response.check_version_response
 
-    def communicate_run_start(self):
+    def communicate_run_start(self, run_proto):
         run_start = wandb_internal_pb2.RunStartRequest()
+        run_start.run.CopyFrom(run_proto)
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result

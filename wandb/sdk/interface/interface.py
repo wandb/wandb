@@ -549,9 +549,18 @@ class BackendSender(object):
         self, run, artifact, aliases, is_user_created=False, use_after_commit=False
     ):
         proto_run = self._make_run(run)
-        self._publish_artifact(proto_run, artifact, aliases, is_user_created, use_after_commit)
+        self._publish_artifact(
+            proto_run, artifact, aliases, is_user_created, use_after_commit
+        )
 
-    def _publish_artifact(self, run_proto, artifact, aliases, is_user_created=False, use_after_commit=False):
+    def _publish_artifact(
+        self,
+        run_proto,
+        artifact,
+        aliases,
+        is_user_created=False,
+        use_after_commit=False,
+    ):
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = run_proto.run_id
         proto_artifact.project = run_proto.project

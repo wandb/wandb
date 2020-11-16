@@ -25,6 +25,7 @@ from . import file_stream
 from . import internal_api
 from . import update
 from .file_pusher import FilePusher
+from .history_writer import HistoryWriter
 from ..interface import interface
 from ..lib import config_util, filenames, proto_util
 from ..lib.git import GitRepo
@@ -45,6 +46,7 @@ class SendManager(object):
         self._fs = None
         self._pusher = None
         self._dir_watcher = None
+        self._history_writer = None
 
         # State updated by login
         self._entity = None
@@ -200,6 +202,11 @@ class SendManager(object):
             if self._dir_watcher:
                 self._dir_watcher.finish()
                 self._dir_watcher = None
+        elif state == defer.FLUSH_HIST:
+            # This extra state gives us time to write the history artifact.
+            if self._history_writer:
+                self._history_writer.finish()
+                self._history_writer = None
         elif state == defer.FLUSH_FP:
             if self._pusher:
                 self._pusher.finish()
@@ -478,6 +485,7 @@ class SendManager(object):
         self._fs.start()
         self._pusher = FilePusher(self._api)
         self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
+        self._history_writer = HistoryWriter(self._settings, self._interface, self._run)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,
@@ -493,6 +501,8 @@ class SendManager(object):
     def _save_history(self, history_dict):
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
+        if self._history_writer:
+            self._history_writer.write(history_dict)
 
     def send_history(self, data):
         history = data.history
