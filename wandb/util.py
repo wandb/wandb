@@ -645,7 +645,7 @@ def no_retry_auth(e):
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponential backoff.
 
-    Args:
+    Arguments:
         func: An http-requesting function to call, like requests.post
         max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
         *args: passed through to func
@@ -705,7 +705,7 @@ def request_with_retry(func, *args, **kwargs):
 def find_runner(program):
     """Return a command that will run program.
 
-    Args:
+    Arguments:
         program: The string name of the program to try to run.
     Returns:
         commandline list of strings to run the program (eg. with subprocess.call()) or None
@@ -936,7 +936,7 @@ def class_colors(class_count):
 def guess_data_type(shape, risky=False):
     """Infer the type of data based on the shape of the tensors
 
-    Args:
+    Arguments:
         risky(bool): some guesses are more likely to be wrong.
     """
     # (samples,) or (samples,logits)
@@ -1008,7 +1008,7 @@ def auto_project_name(program):
 def parse_sweep_id(parts_dict):
     """In place parse sweep path from parts dict.
 
-    Args:
+    Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
     
     Returns:
