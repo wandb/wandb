@@ -385,6 +385,7 @@ class _WandbInit(object):
         backend._hack_set_run(run)
         backend.interface.publish_header()
 
+        server_run = None
         if s._offline:
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
@@ -414,9 +415,10 @@ class _WandbInit(object):
                 self.teardown()
                 raise UsageError(error_message)
             run._set_run_obj(ret.run)
+            server_run = ret.run
 
         # initiate run (stats and metadata probing)
-        _ = backend.interface.communicate_run_start()
+        _ = backend.interface.communicate_run_start(server_run)
 
         self._wl._global_run_stack.append(run)
         self.run = run

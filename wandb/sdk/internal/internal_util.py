@@ -59,3 +59,6 @@ class RecordLoopThread(ExceptionThread):
                 continue
             self._process(record)
         self._finish()
+
+    def _finish(self):
+        raise NotImplementedError

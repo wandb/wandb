@@ -362,10 +362,11 @@ message DeferRequest {
     FLUSH_TB = 2;
     FLUSH_SUM = 3;
     FLUSH_DIR = 4;
-    FLUSH_FP = 5;
-    FLUSH_FS = 6;
-    FLUSH_FINAL = 7;
-    END = 8;
+    FLUSH_HIST = 5;
+    FLUSH_FP = 6;
+    FLUSH_FS = 7;
+    FLUSH_FINAL = 8;
+    END = 9;
   }
   DeferState state = 1;
 }

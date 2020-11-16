@@ -285,6 +285,7 @@ class Settings(object):
         settings_workspace_spec="{wandb_dir}/settings",
         sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",
         sync_file_spec="run-{run_id}.wandb",
+        history_file_spec="history-{run_id}-{{seq_num:04d}}.parquet",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
         sync_symlink_latest_spec="{wandb_dir}/latest-run",
@@ -501,6 +502,10 @@ class Settings(object):
     @property
     def settings_workspace(self) -> str:
         return self._path_convert(self.settings_workspace_spec)
+
+    @property
+    def history_file_template(self) -> str:
+        return self._path_convert(self.sync_dir_spec, self.history_file_spec)
 
     def _validate_mode(self, value):
         choices = {
