@@ -1,8 +1,9 @@
-"""Wandb has special data types for logging rich visualizations.
+"""
+Wandb has special data types for logging rich visualizations.
 
 All of the special data types are subclasses of WBValue. All of the data types
-    serialize to JSON, since that is what wandb uses to save the objects locally
-    and upload them to the W&B server.
+serialize to JSON, since that is what wandb uses to save the objects locally
+and upload them to the W&B server.
 """
 
 from __future__ import print_function
@@ -80,24 +81,97 @@ def wb_filename(key, step, id, extension):
 
 
 class WBValue(object):
-    """Abstract parent class for things that can be logged by wandb.log() and
-        visualized by wandb.
+    """
+    Abstract parent class for things that can be logged by wandb.log() and
+    visualized by wandb.
 
     The objects will be serialized as JSON and always have a _type attribute
-        that indicates how to interpret the other fields.
+    that indicates how to interpret the other fields.
 
     Returns:
         JSON-friendly `dict` representation of this object that can later be
             serialized to a string.
     """
 
-    def __init__(self):
-        pass
+    _type_mapping = None
+    artifact_type = (
+        None  # override this value to indicate the type which the subclass deserializes
+    )
 
-    def to_json(self, run):
-        """
-        """
+    def __init__(self):
+        self._artifact_source = None
+
+    def to_json(self, run_or_artifact):
+        """Serializes the object into a JSON blob, optionally using a run or artifact to store additional data."""
         raise NotImplementedError
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
+        `run_or_artifact` artifact during the `to_json` call, then you can expect the `source_artifact` to have
+        the same resources available."""
+        raise NotImplementedError
+
+    @classmethod
+    def with_suffix(cls, name, filetype="json"):
+        """helper function to return the name with suffix added if needed"""
+        if cls.artifact_type is not None:
+            suffix = cls.artifact_type + "." + filetype
+        else:
+            suffix = filetype
+        if not name.endswith(suffix):
+            return name + "." + suffix
+        return name
+
+    @staticmethod
+    def init_from_json(json_obj, source_artifact):
+        """Looks through all subclasses and tries to match the json obj with the class which created it."""
+        class_option = WBValue.type_mapping().get(json_obj["_type"])
+        if class_option is not None:
+            obj = class_option.from_json(json_obj, source_artifact)
+            obj.artifact_source = {"artifact": source_artifact}
+            return obj
+
+        return None
+
+    @staticmethod
+    def type_mapping():
+        """Looks through all subclasses and builds a mapping from `artifact_type` to class"""
+        if WBValue._type_mapping is None:
+            WBValue._type_mapping = {}
+            frontier = [WBValue]
+            explored = set([])
+            while len(frontier) > 0:
+                class_option = frontier.pop()
+                explored.add(class_option)
+                if class_option.artifact_type is not None:
+                    WBValue._type_mapping[class_option.artifact_type] = class_option
+                for subclass in class_option.__subclasses__():
+                    if subclass not in explored:
+                        frontier.append(subclass)
+        return WBValue._type_mapping
+
+    def __eq__(self, other):
+        """recommend to override equality comparison to evaluate equality of internal properties"""
+        return super(WBValue, self).__eq__(other)
+
+    def __ne__(self, other):
+        """optional to override not equal comparison to evaluate equality of internal properties"""
+        return not self.__eq__(other)
+
+    @property
+    def artifact_source(self):
+        return self._artifact_source
+
+    @artifact_source.setter
+    def artifact_source(self, artifact_source):
+        self._artifact_source = {}
+
+        if artifact_source.get("artifact") is not None:
+            self._artifact_source["artifact"] = artifact_source.get("artifact")
+
+        if artifact_source.get("name") is not None:
+            self._artifact_source["name"] = artifact_source.get("name")
 
 
 class Histogram(WBValue):
@@ -177,12 +251,12 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, caption=None, source=None):
+    def __init__(self, caption=None):
+        super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
         self._caption = caption
-        self._source = source
 
     def _set_file(self, path, is_tmp=False, extension=None):
         self._path = path
@@ -255,14 +329,6 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    @staticmethod
-    def get_json_suffix():
-        raise NotImplementedError
-
-    @classmethod
-    def from_json(cls, json_obj, root="."):
-        raise NotImplementedError
-
     def to_json(self, run):
         """Get the JSON-friendly dict that represents this object.
 
@@ -270,28 +336,32 @@ class Media(WBValue):
 
         The resulting dict lets you load this object into other W&B runs.
         """
-        if not self.is_bound():
-            raise RuntimeError(
-                "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                    type(self).__name__
+        json_obj = {}
+        wandb_run, _ = _safe_sdk_import()
+        if isinstance(run, wandb_run.Run):
+            if not self.is_bound():
+                raise RuntimeError(
+                    "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                        type(self).__name__
+                    )
                 )
+
+            assert (
+                self._run is run
+            ), "We don't support referring to media files across runs."
+
+            json_obj.update(
+                {
+                    "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
+                    "path": util.to_forward_slash_path(
+                        os.path.relpath(self._path, self._run.dir)
+                    ),
+                    "sha256": self._sha256,
+                    "size": self._size,
+                }
             )
 
-        assert (
-            self._run is run
-        ), "We don't support referring to media files across runs."
-
-        return {
-            "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-            "path": util.to_forward_slash_path(
-                os.path.relpath(self._path, self._run.dir)
-            ),
-            "sha256": self._sha256,
-            "size": self._size,
-            #'entity': self._run.entity,
-            #'project': self._run.project_name(),
-            #'run': self._run.name,
-        }
+        return json_obj
 
 
 class BatchableMedia(Media):
@@ -301,6 +371,9 @@ class BatchableMedia(Media):
     Apart from images, we just use these batches to help organize files by name
     in the media directory.
     """
+
+    def __init__(self):
+        super(BatchableMedia, self).__init__()
 
     @classmethod
     def seq_to_json(self, seq, run, key, step):
@@ -320,10 +393,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 50000
-
-    @staticmethod
-    def get_json_suffix():
-        return "table"
+    artifact_type = "table"
 
     def __init__(
         self,
@@ -396,35 +466,39 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact):
+        data = []
+        for row in json_obj["data"]:
+            row_data = []
+            for item in row:
+                cell = item
+                if isinstance(item, dict):
+                    obj = WBValue.init_from_json(item, source_artifact)
+                    if obj is not None:
+                        cell = obj
+                row_data.append(cell)
+            data.append(row_data)
 
-        return cls(
-            json_obj["columns"],
-            data=[
-                [
-                    JSON_SUFFIX_TO_CLASS[item.get("_type")].from_json(item, root)
-                    if isinstance(item, dict) and item.get("_type") is not None
-                    else item
-                    for item in row
-                ]
-                for row in json_obj["data"]
-            ],
-        )
+        return cls(json_obj["columns"], data=data,)
 
     def to_json(self, run_or_artifact):
+        json_dict = super(Table, self).to_json(run_or_artifact)
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
-            json_dict = super(Table, self).to_json(run_or_artifact)
-            json_dict["_type"] = "table-file"
-            json_dict["ncols"] = len(self.columns)
-            json_dict["nrows"] = len(self.data)
-            return json_dict
+            json_dict.update(
+                {
+                    "_type": "table-file",
+                    "ncols": len(self.columns),
+                    "nrows": len(self.data),
+                }
+            )
+
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             for column in self.columns:
                 if "." in column:
                     raise ValueError(
-                        "invalid column name: {} - tables added to artifacts must not contain periods (.).".format(
+                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
                             column
                         )
                     )
@@ -434,24 +508,31 @@ class Table(Media):
             for row in data:
                 mapped_row = []
                 for v in row:
-                    if isinstance(v, Media):
+                    if isinstance(v, WBValue):
                         mapped_row.append(v.to_json(artifact))
                     else:
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
-            json_dict = {"columns": self.columns, "data": mapped_data}
-            json_dict["ncols"] = len(self.columns)
-            json_dict["nrows"] = len(mapped_data)
-            return json_dict
+            json_dict.update(
+                {
+                    "_type": Table.artifact_type,
+                    "columns": self.columns,
+                    "data": mapped_data,
+                    "ncols": len(self.columns),
+                    "nrows": len(mapped_data),
+                }
+            )
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
+        return json_dict
 
 
 class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
 
-        Args:
+        Arguments:
             data_or_path (string or numpy array): A path to an audio file
                 or a numpy array of audio data.
             sample_rate (int): Sample rate, required when passing in raw
@@ -556,8 +637,8 @@ class Object3D(BatchableMedia):
     """
         Wandb class for 3D point clouds.
 
-        Args:
-            data_or_path (numpy array | string | io ):
+        Arguments:
+            data_or_path (numpy array, string, io):
                 Object3D can be initialized from a file or a numpy array.
 
                 The file types supported are obj, gltf, babylon, stl.  You can pass a path to
@@ -708,8 +789,8 @@ class Molecule(BatchableMedia):
     """
         Wandb class for Molecular data
 
-        Args:
-            data_or_path ( string | io ):
+        Arguments:
+            data_or_path (string, io):
                 Molecule can be initialized from a file name or an io object.
     """
 
@@ -871,8 +952,8 @@ class Video(BatchableMedia):
     """
         Wandb representation of video.
 
-        Args:
-            data_or_path (numpy array | string | io):
+        Arguments:
+            data_or_path (numpy array, string, io):
                 Video can be initialized with a path to a file or an io object.
                     The format must be "gif", "mp4", "webm" or "ogg".
                     The format must be specified with the format argument.
@@ -1023,20 +1104,22 @@ class Video(BatchableMedia):
 
 
 class Classes(Media):
+    artifact_type = "classes"
+
     def __init__(self, class_set):
+        super(Classes, self).__init__()
         self._class_set = class_set
         # TODO: validate
 
-    @staticmethod
-    def get_json_suffix():
-        return "classes"
-
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact):
         return cls(json_obj.get("class_set"))
 
     def to_json(self, artifact):
-        return {"_type": "classes", "class_set": self._class_set}
+        json_obj = super(Classes, self).to_json(artifact)
+        json_obj["_type"] = Classes.artifact_type
+        json_obj["class_set"] = self._class_set
+        return json_obj
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -1048,16 +1131,20 @@ class Classes(Media):
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
-    Args:
-        table1 (str | wandb.Table):
+    Arguments:
+        table1 (str, wandb.Table):
             the path of a wandb.Table or the table object
-        table2 (str | wandb.Table):
+        table2 (str, wandb.Table):
             the path of a wandb.Table or the table object
-        join_key (str | [str, str]):
+        join_key (str, [str, str]):
             key or keys to perform the join
     """
 
+    artifact_type = "joined-table"
+
     def __init__(self, table1, table2, join_key):
+        super(JoinedTable, self).__init__()
+
         if not isinstance(join_key, str) and (
             not isinstance(join_key, list) or len(join_key) != 2
         ):
@@ -1079,52 +1166,53 @@ class JoinedTable(Media):
         self._table2 = table2
         self._join_key = join_key
 
-    @staticmethod
-    def get_json_suffix():
-        return "joined-table"
-
     @classmethod
-    def from_json(cls, json_obj, root="."):
-        t1 = os.path.join(root, json_obj["table1"])
-        if os.path.isfile(t1):
-            with open(t1, "r") as file:
-                t1 = Table.from_json(json.load(file), root)
+    def from_json(cls, json_obj, source_artifact):
+        t1 = source_artifact.get(json_obj["table1"])
+        if t1 is None:
+            t1 = json_obj["table1"]
 
-        t2 = os.path.join(root, json_obj["table2"])
-        if os.path.isfile(t2):
-            with open(t2, "r") as file:
-                t2 = Table.from_json(json.load(file), root)
+        t2 = source_artifact.get(json_obj["table2"])
+        if t2 is None:
+            t2 = json_obj["table2"]
 
         return cls(t1, t2, json_obj["join_key"],)
 
     def to_json(self, artifact):
+        json_obj = super(JoinedTable, self).to_json(artifact)
+
         table1 = self._table1
         table2 = self._table2
 
         if isinstance(self._table1, Table):
             table_name = "t1_" + str(id(self))
-            if hasattr(self._table1, "_source") and hasattr(
-                self._table1._source, "name"
+            if (
+                self._table1.artifact_source is not None
+                and self._table1.artifact_source["name"] is not None
             ):
-                table_name = os.path.basename(self._table1._source["name"])
+                table_name = os.path.basename(self._table1.artifact_source["name"])
             entry = artifact.add(self._table1, table_name)
             table1 = entry.path
 
         if isinstance(self._table2, Table):
             table_name = "t2_" + str(id(self))
-            if hasattr(self._table2, "_source") and hasattr(
-                self._table2._source, "name"
+            if (
+                self._table2.artifact_source is not None
+                and self._table2.artifact_source["name"] is not None
             ):
-                table_name = os.path.basename(self._table2._source["name"])
+                table_name = os.path.basename(self._table2.artifact_source["name"])
             entry = artifact.add(self._table2, table_name)
             table2 = entry.path
 
-        return {
-            "_type": JoinedTable.get_json_suffix(),
-            "table1": table1,
-            "table2": table2,
-            "join_key": self._join_key,
-        }
+        json_obj.update(
+            {
+                "_type": JoinedTable.artifact_type,
+                "table1": table1,
+                "table2": table2,
+                "join_key": self._join_key,
+            }
+        )
+        return json_obj
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -1141,8 +1229,8 @@ class Image(BatchableMedia):
     """
         Wandb class for images.
 
-        Args:
-            data_or_path (numpy array | string | io): Accepts numpy array of
+        Arguments:
+            data_or_path (numpy array, string, io): Accepts numpy array of
                 image data, or a PIL image. The class attempts to infer
                 the data format and converts it.
             mode (string): The PIL mode for an image. Most common are "L", "RGB",
@@ -1155,9 +1243,7 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    @staticmethod
-    def get_json_suffix():
-        return "image-file"
+    artifact_type = "image-file"
 
     def __init__(
         self,
@@ -1173,16 +1259,98 @@ class Image(BatchableMedia):
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
-        self._grouping = grouping
-        self._caption = caption
+        self._grouping = None
+        self._caption = None
         self._width = None
         self._height = None
         self._image = None
-        self._classes = classes
-        if classes is not None and not isinstance(self._classes, Classes):
-            self._classes = Classes(self._classes)
-
+        self._classes = None
         self._boxes = None
+        self._masks = None
+
+        # Allows the user to pass an Image object as the first parameter and have a perfect copy,
+        # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
+        if isinstance(data_or_path, Image):
+            self._grouping = data_or_path._grouping
+            self._caption = data_or_path._caption
+            self._width = data_or_path._width
+            self._height = data_or_path._height
+            self._image = data_or_path._image
+            self._classes = data_or_path._classes
+            self._path = data_or_path._path
+            self._is_tmp = data_or_path._is_tmp
+            self._extension = data_or_path._extension
+            self._sha256 = data_or_path._sha256
+            self._size = data_or_path._size
+            self.format = data_or_path.format
+            self.artifact_source = data_or_path.artifact_source
+
+            # We do not want to implicitly copy boxes or masks, just the image-related data.
+            # self._boxes = data_or_path._boxes
+            # self._masks = data_or_path._masks
+        else:
+            PILImage = util.get_module(
+                "PIL.Image",
+                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+            )
+            if isinstance(data_or_path, six.string_types):
+                self._set_file(data_or_path, is_tmp=False)
+                self._image = PILImage.open(data_or_path)
+                self._image.load()
+                ext = os.path.splitext(data_or_path)[1][1:]
+                self.format = ext
+            else:
+                data = data_or_path
+
+                if util.is_matplotlib_typename(util.get_full_typename(data)):
+                    buf = six.BytesIO()
+                    util.ensure_matplotlib_figure(data).savefig(buf)
+                    self._image = PILImage.open(buf)
+                elif isinstance(data, PILImage.Image):
+                    self._image = data
+                elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+                    vis_util = util.get_module(
+                        "torchvision.utils", "torchvision is required to render images"
+                    )
+                    if hasattr(data, "requires_grad") and data.requires_grad:
+                        data = data.detach()
+                    data = vis_util.make_grid(data, normalize=True)
+                    self._image = PILImage.fromarray(
+                        data.mul(255)
+                        .clamp(0, 255)
+                        .byte()
+                        .permute(1, 2, 0)
+                        .cpu()
+                        .numpy()
+                    )
+                else:
+                    if hasattr(data, "numpy"):  # TF data eager tensors
+                        data = data.numpy()
+                    if data.ndim > 2:
+                        data = (
+                            data.squeeze()
+                        )  # get rid of trivial dimensions as a convenience
+                    self._image = PILImage.fromarray(
+                        self.to_uint8(data), mode=mode or self.guess_mode(data)
+                    )
+
+                tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
+                self.format = "png"
+                self._image.save(tmp_path, transparency=None)
+                self._set_file(tmp_path, is_tmp=True)
+
+        if grouping is not None:
+            self._grouping = grouping
+
+        if caption is not None:
+            self._caption = caption
+
+        if classes is not None:
+            if not isinstance(classes, Classes):
+                self._classes = Classes(classes)
+            else:
+                self._classes = classes
+
         if boxes:
             if not isinstance(boxes, dict):
                 raise ValueError('Images "boxes" argument must be a dictionary')
@@ -1194,7 +1362,6 @@ class Image(BatchableMedia):
                     boxes_final[key] = BoundingBoxes2D(boxes[key], key)
             self._boxes = boxes_final
 
-        self._masks = None
         if masks:
             if not isinstance(masks, dict):
                 raise ValueError('Images "masks" argument must be a dictionary')
@@ -1206,69 +1373,21 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(masks[key], key)
             self._masks = masks_final
 
-        PILImage = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
-
-        if isinstance(data_or_path, six.string_types):
-            self._set_file(data_or_path, is_tmp=False)
-            self._image = PILImage.open(data_or_path)
-            self._image.load()
-            ext = os.path.splitext(data_or_path)[1][1:]
-            self.format = ext
-        else:
-            data = data_or_path
-
-            if util.is_matplotlib_typename(util.get_full_typename(data)):
-                buf = six.BytesIO()
-                util.ensure_matplotlib_figure(data).savefig(buf)
-                self._image = PILImage.open(buf)
-            elif isinstance(data, PILImage.Image):
-                self._image = data
-            elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-                vis_util = util.get_module(
-                    "torchvision.utils", "torchvision is required to render images"
-                )
-                if hasattr(data, "requires_grad") and data.requires_grad:
-                    data = data.detach()
-                data = vis_util.make_grid(data, normalize=True)
-                self._image = PILImage.fromarray(
-                    data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
-                )
-            else:
-                if hasattr(data, "numpy"):  # TF data eager tensors
-                    data = data.numpy()
-                if data.ndim > 2:
-                    data = (
-                        data.squeeze()
-                    )  # get rid of trivial dimensions as a convenience
-                self._image = PILImage.fromarray(
-                    self.to_uint8(data), mode=mode or self.guess_mode(data)
-                )
-
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
-            self.format = "png"
-            self._image.save(tmp_path, transparency=None)
-            self._set_file(tmp_path, is_tmp=True)
-
         self._width, self._height = self._image.size
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact):
         classes = None
         if json_obj.get("classes") is not None:
-            child_json_obj = {}
-            with open(os.path.join(root, json_obj["classes"]["path"])) as file:
-                child_json_obj = json.load(file)
-            classes = Classes.from_json(child_json_obj, root)
+            classes = source_artifact.get(json_obj["classes"]["path"])
 
-        masks = json_obj.get("masks")
         _masks = None
+        masks = json_obj.get("masks")
         if masks:
             _masks = {}
             for key in masks:
-                _masks[key] = ImageMask.from_json(masks[key], root)
+                _masks[key] = ImageMask.from_json(masks[key], source_artifact)
+                _masks[key].artifact_source = {"artifact": source_artifact}
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
@@ -1276,11 +1395,11 @@ class Image(BatchableMedia):
         if boxes:
             _boxes = {}
             for key in boxes:
-                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], root)
+                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
                 _boxes[key]._key = key
 
         return cls(
-            os.path.join(root, json_obj["path"]),
+            source_artifact.get_path(json_obj["path"]).download(),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,
@@ -1306,41 +1425,8 @@ class Image(BatchableMedia):
                 self._masks[k].bind_to_run(*args, **kwargs)
 
     def to_json(self, run_or_artifact):
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, wandb_run.Run):
-            run = run_or_artifact
-            json_dict = super(Image, self).to_json(run)
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact = run_or_artifact
-            json_dict = {}
-            if self._masks != None or self._boxes != None:
-                if self._classes is None:
-                    raise ValueError(
-                        "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
-                    )
-            if self._classes is not None:
-                # We just put classes in the root.
-                classes_entry = artifact.add(self._classes, "classes.json")
-                json_dict["classes"] = {
-                    "type": "classes-file",
-                    "path": classes_entry.path,
-                    "digest": classes_entry.digest,
-                }
-
-            name = artifact.get_added_local_path_name(self._path)
-            if name is None:
-                name = os.path.join(
-                    self.get_media_subdir(), os.path.basename(self._path)
-                )
-                artifact.add_file(self._path, name=name)
-
-            json_dict["path"] = name
-
-        else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-
-        json_dict["_type"] = Image.get_json_suffix()
+        json_dict = super(Image, self).to_json(run_or_artifact)
+        json_dict["_type"] = Image.artifact_type
         json_dict["format"] = self.format
 
         if self._width is not None:
@@ -1351,6 +1437,55 @@ class Image(BatchableMedia):
             json_dict["grouping"] = self._grouping
         if self._caption:
             json_dict["caption"] = self._caption
+
+        wandb_run, wandb_artifacts = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+            if (self._masks != None or self._boxes != None) and self._classes is None:
+                raise ValueError(
+                    "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
+                )
+
+            name = artifact.get_added_local_path_name(self._path)
+            if name is None:
+                name = os.path.join(
+                    self.get_media_subdir(), os.path.basename(self._path)
+                )
+                if (
+                    self.artifact_source is not None
+                    and self.artifact_source["artifact"] != artifact
+                ):
+                    path = self.artifact_source["artifact"].get_path(name)
+                    artifact.add_reference(path.ref_url(), name=name)
+                else:
+                    artifact.add_file(self._path, name=name)
+
+            json_dict["path"] = name
+
+            if self._classes is not None:
+                # Here, rather than give each class definition it's own name (and entry), we
+                # purposely are giving a non-unique class name of /media/cls.classes.json.
+                # This may create user confusion if if multiple different class definitions
+                # are expected in a single artifact. However, we want to catch this user pattern
+                # if it exists and dive deeper. The alternative code is provided below.
+                #
+                class_name = os.path.join("media", "cls")
+                #
+                # class_name = os.path.join(
+                #     "media", "classes", os.path.basename(self._path) + "_cls"
+                # )
+                #
+                classes_entry = artifact.add(self._classes, class_name)
+                json_dict["classes"] = {
+                    "type": "classes-file",
+                    "path": classes_entry.path,
+                    "digest": classes_entry.digest,
+                }
+
+        elif not isinstance(run_or_artifact, wandb_run.Run):
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
         if self._boxes:
             json_dict["boxes"] = {
                 k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
@@ -1359,7 +1494,6 @@ class Image(BatchableMedia):
             json_dict["masks"] = {
                 k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
             }
-
         return json_dict
 
     def guess_mode(self, data):
@@ -1559,8 +1693,10 @@ class JSONMetadata(Media):
 
 class BoundingBoxes2D(JSONMetadata):
     """
-    Wandb class for 2D bounding Boxes
+    Wandb class for 2D bounding boxes
     """
+
+    artifact_type = "bounding-boxes"
 
     def __init__(self, val, key, **kwargs):
         super(BoundingBoxes2D, self).__init__(val)
@@ -1662,26 +1798,24 @@ class BoundingBoxes2D(JSONMetadata):
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            return (
-                self._val
-            )  # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
-            # want to mess with the visualizations that are currently available.
+            # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
+            # want to mess with the visualizations that are currently available in the UI. This really should output
+            # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
+            return self._val
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
+    def from_json(cls, json_obj, source_artifact):
         return cls({"box_data": json_obj}, "")
-
-    @staticmethod
-    def get_json_suffix():
-        return "bounding-boxes"
 
 
 class ImageMask(Media):
     """
     Wandb class for image masks, useful for segmentation tasks
     """
+
+    artifact_type = "mask"
 
     def __init__(self, val, key, **kwargs):
         super(ImageMask, self).__init__()
@@ -1714,10 +1848,6 @@ class ImageMask(Media):
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
-    @staticmethod
-    def get_json_suffix():
-        return "image-mask"
-
     def bind_to_run(self, run, key, step, id_=None):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
@@ -1732,8 +1862,10 @@ class ImageMask(Media):
         return os.path.join("media", "images", self.type_name())
 
     @classmethod
-    def from_json(cls, json_obj, root="."):
-        return cls({"path": os.path.join(root, json_obj["path"])}, key="")
+    def from_json(cls, json_obj, source_artifact):
+        return cls(
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+        )
 
     def to_json(self, run_or_artifact):
         wandb_run, wandb_artifacts = _safe_sdk_import()
@@ -1745,14 +1877,29 @@ class ImageMask(Media):
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            mask_name = os.path.join(
+            mask_path = os.path.join(
                 self.get_media_subdir(), os.path.basename(self._path)
             )
-            mask_entry = artifact.add_file(self._path, name=mask_name)
+            mask_name = artifact.get_added_local_path_name(mask_path)
+            mask_entry_digest = None
+            if mask_name is None:
+                if (
+                    self.artifact_source is not None
+                    and self.artifact_source["artifact"] != artifact
+                ):
+                    path = self.artifact_source["artifact"].get_path(mask_path)
+                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_path)[
+                        0
+                    ]
+                else:
+                    mask_entry = artifact.add_file(self._path, name=mask_path)
+
+                mask_name = mask_path
+                mask_entry_digest = mask_entry.digest
             return {
-                "_type": "mask-file",
+                "_type": ImageMask.artifact_type,
                 "path": mask_name,
-                "digest": mask_entry.digest,
+                "digest": mask_entry_digest,
             }
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
@@ -1794,7 +1941,7 @@ class Plotly(Media):
     """
         Wandb class for plotly plots.
 
-        Args:
+        Arguments:
             val: matplotlib or plotly figure
     """
 
@@ -2000,7 +2147,7 @@ class Graph(Media):
 
 class Node(WBValue):
     """
-    Node used in :obj:`Graph`
+    Node used in `Graph`
     """
 
     def __init__(
@@ -2177,7 +2324,7 @@ class Node(WBValue):
 
 class Edge(WBValue):
     """
-    Edge used in :obj:`Graph`
+    Edge used in `Graph`
     """
 
     def __init__(self, from_node, to_node):
@@ -2418,17 +2565,3 @@ def data_frame_to_json(df, run, key, step):
         "run": run.id,
         "path": path,
     }
-
-
-JSONABLE_MEDIA_CLASSES = [
-    Image,
-    Classes,
-    Table,
-    JoinedTable,
-    BoundingBoxes2D,
-    ImageMask,
-]
-
-JSON_SUFFIX_TO_CLASS = {
-    media_class.get_json_suffix(): media_class for media_class in JSONABLE_MEDIA_CLASSES
-}

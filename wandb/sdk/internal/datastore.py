@@ -238,7 +238,7 @@ class DataStore(object):
     def write(self, obj):
         """Write a protocol buffer.
 
-        Args:
+        Arguments:
             obj: Protocol buffer to write.
 
         Returns:

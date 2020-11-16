@@ -12,7 +12,6 @@ from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
 
-
 _global_watch_idx = 0
 
 
@@ -21,12 +20,15 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
 
-    :param (torch.Module) models: The model to hook, can be a tuple
-    :param (torch.F) criterion: An optional loss value being optimized
-    :param (str) log: One of "gradients", "parameters", "all", or None
-    :param (int) log_freq: log gradients and parameters every N batches
-    :param (int) idx: an index to be used when calling wandb.watch on multiple models
-    :return: (wandb.Graph) The graph object that will populate after the first backward pass
+    Args:
+        models (torch.Module): The model to hook, can be a tuple
+        criterion (torch.F): An optional loss value being optimized
+        log (str): One of "gradients", "parameters", "all", or None
+        log_freq (int): log gradients and parameters every N batches
+        idx (int): an index to be used when calling wandb.watch on multiple models
+
+    Returns:
+        `wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
 

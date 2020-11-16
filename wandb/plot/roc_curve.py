@@ -8,7 +8,7 @@ chart_limit = wandb.Table.MAX_ROWS
 def roc_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
     """
     Calculates receiver operating characteristic scores and visualizes them as the
-        ROC curve.
+    ROC curve.
 
     Arguments:
         y_true (arr): Test set labels.
@@ -23,7 +23,9 @@ def roc_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
             under 'auto visualizations'.
 
     Example:
+        ```
         wandb.log({'roc-curve': wandb.plot.roc_curve(y_true, y_probas, labels)})
+        ```
     """
     np = util.get_module(
         "numpy",
