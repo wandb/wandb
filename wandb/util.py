@@ -26,6 +26,7 @@ import types
 import yaml
 from datetime import date, datetime
 import platform
+from six.moves.urllib.parse import urlparse
 
 import click
 import requests
@@ -645,7 +646,7 @@ def no_retry_auth(e):
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponential backoff.
 
-    Args:
+    Arguments:
         func: An http-requesting function to call, like requests.post
         max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
         *args: passed through to func
@@ -705,7 +706,7 @@ def request_with_retry(func, *args, **kwargs):
 def find_runner(program):
     """Return a command that will run program.
 
-    Args:
+    Arguments:
         program: The string name of the program to try to run.
     Returns:
         commandline list of strings to run the program (eg. with subprocess.call()) or None
@@ -936,7 +937,7 @@ def class_colors(class_count):
 def guess_data_type(shape, risky=False):
     """Infer the type of data based on the shape of the tensors
 
-    Args:
+    Arguments:
         risky(bool): some guesses are more likely to be wrong.
     """
     # (samples,) or (samples,logits)
@@ -1008,7 +1009,7 @@ def auto_project_name(program):
 def parse_sweep_id(parts_dict):
     """In place parse sweep path from parts dict.
 
-    Args:
+    Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
     
     Returns:
@@ -1116,3 +1117,15 @@ def b64_to_hex_id(id_string):
 
 def hex_to_b64_id(encoded_string):
     return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
+
+
+def host_from_path(path):
+    """returns the host of the path"""
+    url = urlparse(path)
+    return url.netloc
+
+
+def uri_from_path(path):
+    """returns the URI of the path"""
+    url = urlparse(path)
+    return url.path if url.path[0] != "/" else url.path[1:]

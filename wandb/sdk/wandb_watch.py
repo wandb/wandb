@@ -12,7 +12,6 @@ from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
 
-
 _global_watch_idx = 0
 
 
@@ -29,7 +28,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         idx (int): an index to be used when calling wandb.watch on multiple models
 
     Returns:
-        (wandb.Graph) The graph object that will populate after the first backward pass
+        `wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
 

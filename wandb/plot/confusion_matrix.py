@@ -9,16 +9,18 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
     Computes a multi-run confusion matrix.
 
     Arguments:
-    preds (arr): Array of predicted label indices.
-    y_true (arr): Array of label indices.
-    class_names (arr): Array of class names.
+        preds (arr): Array of predicted label indices.
+        y_true (arr): Array of label indices.
+        class_names (arr): Array of class names.
 
     Returns:
-    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
-    under 'auto visualizations'.
+        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        under 'auto visualizations'.
 
     Example:
-    wandb.log({'pr': wandb.plot.confusion_matrix(preds, y_true, labels)})
+        ```
+        wandb.log({'pr': wandb.plot.confusion_matrix(preds, y_true, labels)})
+        ```
     """
 
     np = util.get_module(
