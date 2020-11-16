@@ -744,6 +744,8 @@ class WandbCallback(keras.callbacks.Callback):
             return None
 
     def _save_model(self, epoch):
+        if wandb.run.disabled:
+            return
         if self.verbose > 0:
             print(
                 "Epoch %05d: %s improved from %0.5f to %0.5f,"
