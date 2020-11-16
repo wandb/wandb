@@ -1,7 +1,9 @@
 #
 # -*- coding: utf-8 -*-
 """
-init.
+wandb.init() indicates the beginning of a new run. In an ML training pipeline,
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece steps would be tracked as a run in W&B.
 """
 
 from __future__ import print_function
@@ -58,11 +60,9 @@ class _WandbInit(object):
         self._reporter = None
 
     def setup(self, kwargs):
-        """Complete setup for wandb.init().
-
-        This includes parsing all arguments, applying them with settings and enabling
-        logging.
-
+        """
+        Complete setup for wandb.init(). This includes parsing all arguments,
+        applying them with settings and enabling logging.
         """
         self.kwargs = kwargs
 
@@ -165,10 +165,10 @@ class _WandbInit(object):
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
-        """Enable logging to the global debug log.  This adds a run_id to the log,
+        """
+        Enable logging to the global debug log.  This adds a run_id to the log,
         in case of muliple processes on the same machine.
-
-        Currently no way to disable logging after it's enabled.
+        Currently there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
@@ -269,7 +269,7 @@ class _WandbInit(object):
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings):
-        """Setup logging from settings."""
+        """Set up logging from settings."""
 
         filesystem._safe_makedirs(os.path.dirname(settings.log_user))
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
@@ -483,7 +483,7 @@ def init(
     Spawns a new process to start or resume a run locally and communicate with a
     wandb server. Should be called before any calls to wandb.log.
 
-    Args:
+    Arguments:
         job_type (str, optional): The type of job running, defaults to 'train'
         dir (str, optional): An absolute path to a directory where metadata will
             be stored.
@@ -561,8 +561,7 @@ def init(
         Exception: if problem.
 
     Returns:
-        A :obj:`Run` object.
-
+        A `Run` object.
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())

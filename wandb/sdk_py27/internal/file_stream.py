@@ -281,7 +281,7 @@ class FileStreamApi(object):
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
 
-        Args:
+        Arguments:
             filename: Name of file that this is a chunk of.
             chunk_id: TODO: change to 'offset'
             chunk: File data.
@@ -293,7 +293,7 @@ class FileStreamApi(object):
 
         Anything pushed after finish will be dropped.
 
-        Args:
+        Arguments:
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))

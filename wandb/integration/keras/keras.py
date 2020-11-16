@@ -187,7 +187,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     WandbCallback can optionally save training and validation data for wandb to visualize.
 
-    Args:
+    Arguments:
         monitor (str): name of metric to monitor.  Defaults to val_loss.
         mode (str): one of {"auto", "min", "max"}.
             "min" - save model when monitor is minimized

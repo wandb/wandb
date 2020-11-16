@@ -88,32 +88,37 @@ class TBWatcher(object):
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir):
+    def _calculate_namespace(self, logdir, rootdir):
         dirs = list(self._logdirs) + [logdir]
-        rootdir = util.to_forward_slash_path(
-            os.path.dirname(os.path.commonprefix(dirs))
-        )
+
         if os.path.isfile(logdir):
             filename = os.path.basename(logdir)
         else:
             filename = ""
-        # Tensorboard loads all tfevents files in a directory and prepends
-        # their values with the path. Passing namespace to log allows us
-        # to nest the values in wandb
-        # Note that we strip '/' instead of os.sep, because elsewhere we've
-        # converted paths to forward slash.
-        namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
-        # TODO: revisit this heuristic, it exists because we don't know the
-        # root log directory until more than one tfevents file is written to
-        if len(dirs) == 1 and namespace not in ["train", "validation"]:
-            namespace = None
+
+        if rootdir == "":
+            rootdir = util.to_forward_slash_path(
+                os.path.dirname(os.path.commonprefix(dirs))
+            )
+            # Tensorboard loads all tfevents files in a directory and prepends
+            # their values with the path. Passing namespace to log allows us
+            # to nest the values in wandb
+            # Note that we strip '/' instead of os.sep, because elsewhere we've
+            # converted paths to forward slash.
+            namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+            # TODO: revisit this heuristic, it exists because we don't know the
+            # root log directory until more than one tfevents file is written to
+            if len(dirs) == 1 and namespace not in ["train", "validation"]:
+                namespace = None
+        else:
+            namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
         return namespace
 
-    def add(self, logdir, save):
+    def add(self, logdir, save, root_dir):
         logdir = util.to_forward_slash_path(logdir)
         if logdir in self._logdirs:
             return
-        namespace = self._calculate_namespace(logdir)
+        namespace = self._calculate_namespace(logdir, root_dir)
         # TODO(jhr): implement the deferred tbdirwatcher to find namespace
 
         if not self._consumer:
