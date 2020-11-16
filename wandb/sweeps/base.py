@@ -55,7 +55,7 @@ class Search():
 
     def next_run(self, sweep):
         """Called each time an agent requests new work.
-        Args:
+        Arguments:
             sweep: <defined above>
         Returns:
             None if all work complete for this sweep. A dictionary of configuration

@@ -150,10 +150,11 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(self, log_dir, save):
+    def publish_tbdata(self, log_dir, save, root_logdir):
         tbrecord = wandb_internal_pb2.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
+        tbrecord.root_dir = root_logdir or ""
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
@@ -515,7 +516,7 @@ class BackendSender(object):
     def _communicate_run(self, run, timeout=None):
         """Send synchronous run object waiting for a response.
 
-        Args:
+        Arguments:
             run: RunRecord object
             timeout: number of seconds to wait
 

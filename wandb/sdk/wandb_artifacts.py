@@ -204,12 +204,12 @@ class Artifact(object):
         return manifest_entries
 
     def add(self, obj, name):
-        """adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
+        """Adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
         the artifact to retrieve this object.
         
         Arguments:
-        - `obj`:wandb.WBValue - the object to save
-        - `name`:str - the path to save
+            obj (wandb.WBValue): The object to save in an artifact
+            name (str): The path to save
         """
 
         # Validate that the object is wandb.Media type
@@ -1143,7 +1143,7 @@ class HTTPHandler(StorageHandler):
 
 
 class WBArtifactHandler(StorageHandler):
-    """Handles loading and storing WandB Artifact reference-type files"""
+    """Handles loading and storing Artifact reference-type files"""
 
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
