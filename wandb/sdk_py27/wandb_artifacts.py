@@ -37,7 +37,7 @@ class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
 
     def __init__(self, name, type, description=None, metadata=None):
-        if not re.match("^[a-zA-Z0-9_\-.]+$", name):
+        if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 'Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. Invalid name: "%s"'
                 % name
