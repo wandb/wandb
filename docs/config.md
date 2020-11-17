@@ -5,9 +5,13 @@ title: Config
 <a name="wandb.sdk.wandb_config"></a>
 # wandb.sdk.wandb\_config
 
-[[view_source]](https://github.com/wandb/client/blob/488f6db75b36b2d44a0cb5a770040408487d05aa/wandb/sdk/wandb_config.py#L3)
+[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L3)
 
-config.
+Config is a dictionary-like object useful for tracking inputs to your script,
+like hyperparameters. We suggest you set this once at the beginning of your job,
+when you initialize the run like so: wandb.init(config={"key": "value"}).
+For example, if you're training an ML model, you might track learning_rate and
+batch_size in config.
 
 <a name="wandb.sdk.wandb_config.Config"></a>
 ## Config Objects
@@ -16,7 +20,7 @@ config.
 class Config(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/488f6db75b36b2d44a0cb5a770040408487d05aa/wandb/sdk/wandb_config.py#L28)
+[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L32)
 
 Config object
 
@@ -92,7 +96,7 @@ wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
  | persist()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/488f6db75b36b2d44a0cb5a770040408487d05aa/wandb/sdk/wandb_config.py#L163)
+[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L167)
 
 Calls the callback if it's set
 
