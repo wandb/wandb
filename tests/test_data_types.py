@@ -1,16 +1,11 @@
-import pytest
-import sys
-
 import wandb
 from wandb import data_types
-
-if sys.version_info >= (3, 9):
-    np = pytest.importorskip("numpy")
 import numpy as np
-
+import pytest
 import PIL
 import os
 import six
+import sys
 import glob
 import platform
 import pandas as pd
