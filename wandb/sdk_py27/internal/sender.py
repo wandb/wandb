@@ -89,7 +89,7 @@ class SendManager(object):
         if record_type != "output":
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
-        send_handler(record)
+        self._safe_send(handler_str, send_handler, record)
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
@@ -98,7 +98,13 @@ class SendManager(object):
         send_handler = getattr(self, handler_str, None)
         logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
-        send_handler(record)
+        self._safe_send(handler_str, send_handler, record)
+
+    def _safe_send(self, handler_str, send_handler, record):
+        try:
+            send_handler(record)
+        except Exception as e:
+            logger.error('{} failed: {}'.format(handler_str, e))
 
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
