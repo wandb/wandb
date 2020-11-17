@@ -1,7 +1,11 @@
 #
 # -*- coding: utf-8 -*-
 """
-config.
+Config is a dictionary-like object useful for tracking inputs to your script,
+like hyperparameters. We suggest you set this once at the beginning of your job,
+when you initialize the run like so: wandb.init(config={"key": "value"}). 
+For example, if you're training an ML model, you might track learning_rate and
+batch_size in config.
 """
 
 import logging
