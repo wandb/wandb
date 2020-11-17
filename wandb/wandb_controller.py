@@ -129,7 +129,7 @@ class _Run(object):
     def init_from_dict(cls, run_dict):
         """Initialize from dictionary.
 
-        Args:
+        Arguments:
             run_dict (dict): Run dictionaries with keys 'name', 'state', 'config', 'stopped', 'sampledHistory', 'summaryMetrics', ...
         Returns:
             _Run(): Run object
