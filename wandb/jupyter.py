@@ -93,6 +93,8 @@ def notebook_metadata(silent):
             list_running_servers()
         )  # TODO: sometimes there are invalid JSON files and this blows up
     except Exception:
+        # TODO: Fix issue this is not the logger initialized in in wandb.init()
+        # since logger is not attached, outputs to notebook
         if not silent:
             logger.error(error_message)
         return {}
