@@ -21,7 +21,7 @@ loaders:
 processors:
   - type: filter
     exclude_private: true
-    documented_only: false
+    documented_only: true
   - type: smart
   - type: google
   - type: crossref
