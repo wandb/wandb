@@ -27,9 +27,9 @@ def dict_from_proto_list(obj_list):
 def dict_no_value_from_proto_list(obj_list):
     d = dict()
     for item in obj_list:
-        val = json.loads(item.value_json).get("value")
-        if val:
-            d[item.key] = val
+        possible_dict = json.loads(item.value_json)
+        if isinstance(possible_dict, dict) and "value" in possible_dict:
+            d[item.key] = possible_dict["value"]
         else:
             # (tss) TODO: This is protecting against legacy 'wandb_version' field.
             # Should investigate why the config payload even has 'wandb_version'.
