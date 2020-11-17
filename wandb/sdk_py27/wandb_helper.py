@@ -4,7 +4,8 @@ import types
 
 import six
 from wandb.errors.error import UsageError
-from wandb.lib import config_util
+
+from .lib import config_util
 
 
 def parse_config(params, exclude=None, include=None):

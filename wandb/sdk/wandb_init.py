@@ -1,7 +1,9 @@
 #
 # -*- coding: utf-8 -*-
 """
-init.
+wandb.init() indicates the beginning of a new run. In an ML training pipeline,
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece steps would be tracked as a run in W&B.
 """
 
 from __future__ import print_function
@@ -12,20 +14,21 @@ import os
 import time
 import traceback
 
-import click
+import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.backend.backend import Backend
+from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.lib import filesystem, module, reporting
 from wandb.util import sentry_exc
 
-from . import wandb_setup
+from . import wandb_login, wandb_setup
+from .backend.backend import Backend
+from .lib import filesystem, ipython, module, reporting
 from .wandb_helper import parse_config
-from .wandb_run import Run, RunBase, RunDummy
+from .wandb_run import Run
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
@@ -57,11 +60,9 @@ class _WandbInit(object):
         self._reporter = None
 
     def setup(self, kwargs):
-        """Complete setup for wandb.init().
-
-        This includes parsing all arguments, applying them with settings and enabling
-        logging.
-
+        """
+        Complete setup for wandb.init(). This includes parsing all arguments,
+        applying them with settings and enabling logging.
         """
         self.kwargs = kwargs
 
@@ -129,14 +130,21 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
-        login_key = wandb.login(anonymous=anonymous, force=force)
-        if not login_key:
-            settings.mode = "offline"
+
+        # TODO: move above parameters into apply_init_login
+        settings._apply_init_login(kwargs)
+
+        if not settings._offline and not settings._noop:
+            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
 
         settings._apply_init(kwargs)
+
+        if not settings._offline and not settings._noop:
+            user_settings = self._wl._load_user_settings()
+            settings._apply_user(user_settings)
 
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
@@ -157,10 +165,10 @@ class _WandbInit(object):
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
-        """Enable logging to the global debug log.  This adds a run_id to the log,
+        """
+        Enable logging to the global debug log.  This adds a run_id to the log,
         in case of muliple processes on the same machine.
-
-        Currently no way to disable logging after it's enabled.
+        Currently there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
@@ -197,18 +205,19 @@ class _WandbInit(object):
             return
 
         pid = os.getpid()
-        tmp_name = "%s.%d" % (name, pid)
-        owd = os.getcwd()
-        os.chdir(base)
+        tmp_name = os.path.join(base, "%s.%d" % (name, pid))
+
         if delete:
             try:
-                os.remove(name)
+                os.remove(os.path.join(base, name))
             except OSError:
                 pass
         target = os.path.relpath(target, base)
-        os.symlink(target, tmp_name)
-        os.rename(tmp_name, name)
-        os.chdir(owd)
+        try:
+            os.symlink(target, tmp_name)
+            os.rename(tmp_name, os.path.join(base, name))
+        except OSError:
+            pass
 
     def _pause_backend(self):
         if self.backend is not None:
@@ -260,7 +269,7 @@ class _WandbInit(object):
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings):
-        """Setup logging from settings."""
+        """Set up logging from settings."""
 
         filesystem._safe_makedirs(os.path.dirname(settings.log_user))
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
@@ -290,39 +299,63 @@ class _WandbInit(object):
         _set_logger(logging.getLogger("wandb"))
         self._enable_logging(settings.log_user)
 
+        self._wl._early_logger_flush(logger)
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-        self._wl._early_logger_flush(logger)
-
-    def init(self):
+    def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         config = self.config
-
         if s._noop:
-            run = RunDummy()
+            run = Dummy()
+            run.config = wandb.wandb_sdk.wandb_config.Config()
+            run.config.update(config)
+            run.summary = DummyDict()
+            run.log = lambda data, *_, **__: run.summary.update(data)
+            run.finish = lambda *_, **__: module.unset_globals()
+            run.step = 0
+            run.resumed = False
+            run.disabled = True
+            run.id = shortuuid.uuid()
+            run.name = "dummy-" + run.id
+            run.dir = "/"
             module.set_global(
                 run=run,
                 config=run.config,
                 log=run.log,
                 summary=run.summary,
                 save=run.save,
-                restore=run.restore,
                 use_artifact=run.use_artifact,
                 log_artifact=run.log_artifact,
                 plot_table=run.plot_table,
+                alert=run.alert,
             )
             return run
-
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
+
+                last_id = self._wl._global_run_stack[-1]._run_id
+                if s._jupyter:
+                    ipython.display_html(
+                        "Finishing last run (ID:{}) before initializing another...".format(
+                            last_id
+                        )
+                    )
+
                 self._wl._global_run_stack[-1].finish()
-        elif wandb.run:
+
+                if s._jupyter:
+                    ipython.display_html(
+                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                            last_id
+                        )
+                    )
+        elif isinstance(wandb.run, Run):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
@@ -364,19 +397,16 @@ class _WandbInit(object):
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
         else:
-            ret = backend.interface.communicate_check_version()
+            ret = backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
             if ret:
                 if ret.upgrade_message:
-                    run._set_upgrade_version_message(ret.upgrade_message)
-                # if yanked or deleted, warn at header and footer
+                    run._set_upgraded_version_message(ret.upgrade_message)
                 if ret.delete_message:
-                    run._set_check_version_message(
-                        click.style(ret.delete_message, fg="red")
-                    )
-                elif ret.yank_message:
-                    run._set_check_version_message(
-                        click.style(ret.yank_message, fg="red")
-                    )
+                    run._set_deleted_version_message(ret.delete_message)
+                if ret.yank_message:
+                    run._set_yanked_version_message(ret.yank_message)
             run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
@@ -404,10 +434,10 @@ class _WandbInit(object):
             log=run.log,
             summary=run.summary,
             save=run.save,
-            restore=run.restore,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
             plot_table=run.plot_table,
+            alert=run.alert,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -426,7 +456,7 @@ def getcaller():
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
+    config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -434,7 +464,7 @@ def init(
     group: Optional[str] = None,
     name: Optional[str] = None,
     notes: Optional[str] = None,
-    magic: Union[dict, str, bool] = None,  # TODO(jhr): type is union
+    magic: Union[dict, str, bool] = None,
     config_exclude_keys=None,
     config_include_keys=None,
     anonymous: Optional[str] = None,
@@ -448,20 +478,90 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> RunBase:
-    """Initialize a wandb Run.
+) -> Union[Run, Dummy]:
+    """Initialize W&B
+    Spawns a new process to start or resume a run locally and communicate with a
+    wandb server. Should be called before any calls to wandb.log.
 
-    Args:
-        entity: alias for team.
-        team: personal user or team to use for Run.
-        project: project name for the Run.
+    Arguments:
+        job_type (str, optional): The type of job running, defaults to 'train'
+        dir (str, optional): An absolute path to a directory where metadata will
+            be stored.
+        config (dict, argparse, or absl.flags, str, optional):
+            Sets the config parameters (typically hyperparameters) to store with the
+            run. See also wandb.config.
+            If dict, argparse or absl.flags: will load the key value pairs into
+                the runs config object.
+            If str: will look for a yaml file that includes config parameters and
+                load them into the run's config object.
+        project (str, optional): W&B Project.
+        entity (str, optional): W&B Entity.
+        reinit (bool, optional): Allow multiple calls to init in the same process.
+        tags (list, optional): A list of tags to apply to the run.
+        group (str, optional): A unique string shared by all runs in a given group.
+        name (str, optional): A display name for the run which does not have to be
+            unique.
+        notes (str, optional): A multiline string associated with the run.
+        magic (bool, dict, or str, optional): magic configuration as bool, dict,
+            json string, yaml filename.
+        config_exclude_keys (list, optional): string keys to exclude storing in W&B
+            when specifying config.
+        config_include_keys (list, optional): string keys to include storing in W&B
+            when specifying config.
+        anonymous (str, optional): Can be "allow", "must", or "never". Controls
+            whether anonymous logging is allowed.  Defaults to never.
+        mode (str, optional): Can be "online", "offline" or "disabled". Defaults to
+            online.
+        allow_val_change (bool, optional): allow config values to be changed after
+            setting. Defaults to true in jupyter and false otherwise.
+        resume (bool, str, optional): Sets the resuming behavior. Should be one of:
+            "allow", "must", "never", "auto" or None. Defaults to None.
+            Cases:
+            - "auto" (or True): automatically resume the previous run on the same machine.
+                if the previous run crashed, otherwise starts a new run.
+            - "allow": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will automatically resume the
+                run with the id. Otherwise wandb will start a new run.
+            - "never": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will crash.
+            - "must": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+                and it is identical to a previous run, wandb will automatically resume the
+                run with the id. Otherwise wandb will crash.
+            - None: never resumes - if a run has a duplicate run_id the previous run is
+                overwritten.
+            See https://docs.wandb.com/library/advanced/resuming for more detail.
+        force (bool, optional): If true, will cause script to crash if user can't or isn't
+            logged in to a wandb server.  If false, will cause script to run in offline
+            modes if user can't or isn't logged in to a wandb server. Defaults to false.
+        sync_tensorboard (bool, optional): Synchronize wandb logs from tensorboard or
+            tensorboardX and saves the relevant events file. Defaults to false.
+        monitor_gym: (bool, optional): automatically logs videos of environment when
+            using OpenAI Gym (see https://docs.wandb.com/library/integrations/openai-gym)
+            Defaults to false.
+        save_code (bool, optional): Save the entrypoint or jupyter session history
+            source code.
+        id (str, optional): A globally unique (per project) identifier for the run. This
+            is primarily used for resuming.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+        ```
+
+        Launch multiple runs from the same script
+        ```
+        for x in range(10):
+            with wandb.init(project="my-projo") as run:
+                for y in range(100):
+                    run.log({"metric": x+y})
+        ```
 
     Raises:
         Exception: if problem.
 
     Returns:
-        wandb Run object
-
+        A `Run` object.
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())

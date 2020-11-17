@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import wandb
 from sklearn.metrics import confusion_matrix
-wandb.init(entity='wandb', project="tweets-test-2")
+wandb.init()
 
 # Get a pandas DataFrame object of all the data in the csv file:
 df = pd.read_csv('tweets.csv')
@@ -46,3 +46,18 @@ wandb.log({'roc': wandb.plot.roc_curve(y_test, y_probas, nb.classes_)})
 
 # Precision Recall
 wandb.log({'pr': wandb.plot.pr_curve(y_test, y_probas, nb.classes_)})
+
+# Confusion Matrix
+class_ind_map = {}
+for i, class_name in enumerate(nb.classes_):
+    class_ind_map[class_name] = i
+y_pred_inds = [class_ind_map[class_name] for class_name in y_pred]
+y_true_inds = [class_ind_map[class_name] for class_name in y_test]
+# test workflow with classes
+wandb.log({'conf_mat': wandb.plot.confusion_matrix(y_pred_inds, y_true_inds, nb.classes_)})
+# test workflow without classes
+wandb.log({'conf_mat_noclass': wandb.plot.confusion_matrix(y_pred_inds, y_true_inds)})
+# test workflow with multiples of inds
+y_pred_mult = [y_pred_ind*5 for y_pred_ind in y_pred_inds]
+y_true_mult = [y_true_ind*5 for y_true_ind in y_true_inds]
+wandb.log({'conf_mat_noclass_mult': wandb.plot.confusion_matrix(y_pred_mult, y_true_mult)})
