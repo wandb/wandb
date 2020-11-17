@@ -607,7 +607,7 @@ class SendManager(object):
             )
         except Exception as e:
             logger.error(
-                'send_artifact: failed for artifact "{}": {}'.format(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
                     artifact.type, artifact.name, e
                 )
             )
@@ -634,7 +634,9 @@ class SendManager(object):
                     wait_duration=alert.wait_duration,
                 )
             except Exception as e:
-                logger.error('send_alert: failed for alert "{}": {}'.format(alert.title, e))
+                logger.error(
+                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
+                )
 
     def finish(self):
         logger.info("shutting down sender")
