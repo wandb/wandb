@@ -104,7 +104,7 @@ class SendManager(object):
         try:
             send_handler(record)
         except Exception as e:
-            logger.error('{} failed: {}'.format(handler_str, e))
+            logger.error("{} failed: {}".format(handler_str, e))
 
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
