@@ -37,9 +37,14 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         "numpy",
         required="roc requires the numpy library, install with `pip install numpy`",
     )
-    scikit = util.get_module(
-        "sklearn",
-        "roc requires the scikit library, install with `pip install scikit-learn`",
+    preprocessing = util.get_module(
+        "sklearn.preprocessing",
+        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
+    )
+
+    metrics = util.get_module(
+        "sklearn.metrics",
+        "roc requires the scikit metrics submodule, install with `pip install scikit-learn`",
     )
 
     y_true = np.array(y_true)
@@ -54,7 +59,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         if classes_to_plot is None:
             classes_to_plot = classes
 
-        binarized_y_true = scikit.preprocessing.label_binarize(y_true, classes=classes)
+        binarized_y_true = preprocessing.label_binarize(y_true, classes=classes)
         if len(classes) == 2:
             binarized_y_true = np.hstack((1 - binarized_y_true, binarized_y_true))
 
@@ -62,7 +67,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         indices_to_plot = np.in1d(classes, classes_to_plot)
         for i, to_plot in enumerate(indices_to_plot):
             if to_plot:
-                precision, recall, _ = scikit.metrics.precision_recall_curve(
+                precision, recall, _ = metrics.precision_recall_curve(
                     y_true, probas[:, i], pos_label=classes[i]
                 )
 
