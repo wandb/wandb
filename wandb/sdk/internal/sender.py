@@ -89,7 +89,7 @@ class SendManager(object):
         if record_type != "output":
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
-        self._safe_send(handler_str, send_handler, record)
+        send_handler(record)
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
@@ -98,13 +98,7 @@ class SendManager(object):
         send_handler = getattr(self, handler_str, None)
         logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
-        self._safe_send(handler_str, send_handler, record)
-
-    def _safe_send(self, handler_str, send_handler, record):
-        try:
-            send_handler(record)
-        except Exception as e:
-            logger.error("{} failed: {}".format(handler_str, e))
+        send_handler(record)
 
     def _flatten(self, dictionary):
         if type(dictionary) == dict:
@@ -602,14 +596,21 @@ class SendManager(object):
         )
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        saver.save(
-            type=artifact.type,
-            name=artifact.name,
-            metadata=metadata,
-            description=artifact.description,
-            aliases=artifact.aliases,
-            use_after_commit=artifact.use_after_commit,
-        )
+        try:
+            saver.save(
+                type=artifact.type,
+                name=artifact.name,
+                metadata=metadata,
+                description=artifact.description,
+                aliases=artifact.aliases,
+                use_after_commit=artifact.use_after_commit,
+            )
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
 
     def send_alert(self, data):
         alert = data.alert
@@ -625,12 +626,17 @@ class SendManager(object):
                 "have your administrator install wandb/local >= 0.9.31"
             )
         else:
-            self._api.notify_scriptable_run_alert(
-                title=alert.title,
-                text=alert.text,
-                level=alert.level,
-                wait_duration=alert.wait_duration,
-            )
+            try:
+                self._api.notify_scriptable_run_alert(
+                    title=alert.title,
+                    text=alert.text,
+                    level=alert.level,
+                    wait_duration=alert.wait_duration,
+                )
+            except Exception as e:
+                logger.error(
+                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
+                )
 
     def finish(self):
         logger.info("shutting down sender")
