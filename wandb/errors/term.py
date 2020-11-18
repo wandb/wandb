@@ -87,7 +87,7 @@ def _log(
         if level == logging.ERROR:
             _logger.error(line)
         elif level == logging.WARNING:
-            _logger.warn(line)
+            _logger.warning(line)
         else:
             _logger.info(line)
     else:
