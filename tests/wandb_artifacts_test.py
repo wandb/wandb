@@ -264,7 +264,9 @@ def test_add_s3_reference_object_with_name(runner, mocker):
         }
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
+)
 def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -283,7 +285,9 @@ def test_add_s3_reference_path(runner, mocker, capsys):
         assert "Generating checksum" in err
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
+)
 def test_add_s3_max_objects(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
