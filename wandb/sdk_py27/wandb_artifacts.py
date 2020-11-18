@@ -1233,6 +1233,6 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path), path, size=0, digest=path,
+                name or os.path.basename(path), path, size=0, digest=entry.digest,
             )
         ]
