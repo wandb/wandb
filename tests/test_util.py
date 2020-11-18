@@ -4,6 +4,7 @@ import os
 import pytest
 import numpy
 import platform
+
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow
