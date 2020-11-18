@@ -254,7 +254,7 @@ def test_matplotlib_image_with_multiple_axes():
 
 
 @pytest.mark.skipif(
-    sys.version_info > (3, 9), reason="plotly doesn't support py3.9 yet"
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
 )
 def test_matplotlib_plotly_with_multiple_axes():
     """Ensures that wandb.Plotly constructor can accept a plotly figure 
@@ -300,7 +300,7 @@ def test_image_from_matplotlib_with_image():
 
 
 @pytest.mark.skipif(
-    sys.version_info > (3, 9), reason="plotly doesn't support py3.9 yet"
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
 )
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
