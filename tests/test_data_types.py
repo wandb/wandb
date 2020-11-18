@@ -72,6 +72,9 @@ def dissoc(d, key):
 optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
+def test_image_accepts_other_images(mocked_run):
+    TODO
+
 
 def test_image_accepts_bounding_boxes(mocked_run):
     img = wandb.Image(image, boxes={"predictions": {"box_data": [full_box]}})

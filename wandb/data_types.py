@@ -165,13 +165,7 @@ class WBValue(object):
 
     @artifact_source.setter
     def artifact_source(self, artifact_source):
-        self._artifact_source = {}
-
-        if artifact_source.get("artifact") is not None:
-            self._artifact_source["artifact"] = artifact_source.get("artifact")
-
-        if artifact_source.get("name") is not None:
-            self._artifact_source["name"] = artifact_source.get("name")
+        self._artifact_source = artifact_source
 
 
 class Histogram(WBValue):
