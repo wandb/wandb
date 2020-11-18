@@ -1,7 +1,6 @@
 #
-"""Settings.
-
-This module configures settings which impact wandb runs.
+"""
+This module configures settings for wandb runs.
 
 Order of loading settings: (differs from priority)
     defaults
@@ -188,13 +187,12 @@ class SettingsConsole(enum.Enum):
 class Settings(object):
     """Settings Constructor
 
-    Args:
+    Arguments:
         entity: personal user or team to use for Run.
         project: project name for the Run.
 
     Raises:
         Exception: if problem.
-
     """
 
     mode: str = "online"
@@ -737,8 +735,9 @@ class Settings(object):
         ) is not None:
             u["save_code"] = wandb.env.should_save_code()
 
-        if self._jupyter:
-            meta = wandb.jupyter.notebook_metadata()
+        # Attempt to get notebook information if not already set by the user
+        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
+            meta = wandb.jupyter.notebook_metadata(self._silent)
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
             u["_jupyter_root"] = meta.get("root")
@@ -917,7 +916,7 @@ class Settings(object):
                     resume_run_id = json.load(f)["run_id"]
                 if self.run_id is None:
                     self.run_id = resume_run_id
-                else:
+                elif self.run_id != resume_run_id:
                     wandb.termwarn(
                         "Tried to auto resume run with id %s but id %s is set."
                         % (resume_run_id, self.run_id)

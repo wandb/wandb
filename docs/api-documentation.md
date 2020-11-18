@@ -1,12 +1,107 @@
 ---
-menu: main
 title: API Documentation
 ---
 
 <a name="wandb.apis.public"></a>
 # wandb.apis.public
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1)
+
+<a name="wandb.apis.public.PY3"></a>
+#### PY3
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L31)
+
+<a name="wandb.apis.public.logger"></a>
+#### logger
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L37)
+
+<a name="wandb.apis.public.RETRY_TIMEDELTA"></a>
+#### RETRY\_TIMEDELTA
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L40)
+
+<a name="wandb.apis.public.WANDB_INTERNAL_KEYS"></a>
+#### WANDB\_INTERNAL\_KEYS
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L41)
+
+<a name="wandb.apis.public.PROJECT_FRAGMENT"></a>
+#### PROJECT\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L42)
+
+<a name="wandb.apis.public.RUN_FRAGMENT"></a>
+#### RUN\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L50)
+
+<a name="wandb.apis.public.FILE_FRAGMENT"></a>
+#### FILE\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L74)
+
+<a name="wandb.apis.public.ARTIFACTS_TYPES_FRAGMENT"></a>
+#### ARTIFACTS\_TYPES\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L95)
+
+<a name="wandb.apis.public.ARTIFACT_FRAGMENT"></a>
+#### ARTIFACT\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L113)
+
+<a name="wandb.apis.public.ARTIFACT_FILES_FRAGMENT"></a>
+#### ARTIFACT\_FILES\_FRAGMENT
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L141)
+
+<a name="wandb.apis.public.RetryingClient"></a>
+## RetryingClient Objects
+
+```python
+class RetryingClient(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L164)
+
+<a name="wandb.apis.public.RetryingClient.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L165)
+
+<a name="wandb.apis.public.RetryingClient.app_url"></a>
+#### app\_url
+
+```python
+ | @property
+ | app_url()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L169)
+
+<a name="wandb.apis.public.RetryingClient.execute"></a>
+#### execute
+
+```python
+ | @retriable(
+ |         retry_timedelta=RETRY_TIMEDELTA,
+ |         check_retry_fn=util.no_retry_auth,
+ |         retryable_exceptions=(RetryError, requests.RequestException),
+ |     )
+ | execute(*args, **kwargs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L177)
+>>>>>>> master
 
 <a name="wandb.apis.public.Api"></a>
 ## Api Objects
@@ -15,7 +110,11 @@ title: API Documentation
 class Api(object)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L176)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L181)
+>>>>>>> master
 
 Used for querying the wandb server.
 
@@ -33,6 +132,69 @@ wandb.Api()
 other than https://api.wandb.ai.
 You can also set defaults for `entity`, `project`, and `run`.
 
+<a name="wandb.apis.public.Api.VIEWER_QUERY"></a>
+#### VIEWER\_QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L198)
+
+<a name="wandb.apis.public.Api.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(overrides={})
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L217)
+
+<a name="wandb.apis.public.Api.create_run"></a>
+#### create\_run
+
+```python
+ | create_run(**kwargs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L245)
+
+<a name="wandb.apis.public.Api.client"></a>
+#### client
+
+```python
+ | @property
+ | client()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L251)
+
+<a name="wandb.apis.public.Api.user_agent"></a>
+#### user\_agent
+
+```python
+ | @property
+ | user_agent()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L255)
+
+<a name="wandb.apis.public.Api.api_key"></a>
+#### api\_key
+
+```python
+ | @property
+ | api_key()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L259)
+
+<a name="wandb.apis.public.Api.default_entity"></a>
+#### default\_entity
+
+```python
+ | @property
+ | default_entity()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L270)
+
 <a name="wandb.apis.public.Api.flush"></a>
 #### flush
 
@@ -40,7 +202,11 @@ You can also set defaults for `entity`, `project`, and `run`.
  | flush()
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L271)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L276)
+>>>>>>> master
 
 The api object keeps a local cache of runs, so if the state of the run may
 change while executing your script you must clear the local cache with `api.flush()`
@@ -53,7 +219,11 @@ to get the latest values associated with the run.
  | projects(entity=None, per_page=200)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L333)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L338)
+>>>>>>> master
 
 Get projects for a given entity.
 
@@ -76,7 +246,11 @@ A :obj:`Projects` object which is an iterable collection of :obj:`Project` objec
  | reports(path="", name=None, per_page=50)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L355)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L360)
+>>>>>>> master
 
 Get reports for a given project path.
 
@@ -101,7 +275,11 @@ A :obj:`Reports` object which is an iterable collection of :obj:`BetaReport` obj
  | runs(path="", filters={}, order="-created_at", per_page=50)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L388)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L393)
+>>>>>>> master
 
 Return a set of runs from a project that match the filters provided.
 You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
@@ -153,7 +331,11 @@ A :obj:`Runs` object, which is an iterable collection of :obj:`Run` objects.
  | run(path="")
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L440)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L445)
+>>>>>>> master
 
 Returns a single run by parsing path in the form entity/project/run_id.
 
@@ -176,7 +358,11 @@ A :obj:`Run` object.
  | sweep(path="")
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L457)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L462)
+>>>>>>> master
 
 Returns a sweep by parsing path in the form entity/project/sweep_id.
 
@@ -191,6 +377,36 @@ this can just be the sweep_id.
 
 A :obj:`Sweep` object.
 
+<a name="wandb.apis.public.Api.artifact_types"></a>
+#### artifact\_types
+
+```python
+ | @normalize_exceptions
+ | artifact_types(project=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L480)
+
+<a name="wandb.apis.public.Api.artifact_type"></a>
+#### artifact\_type
+
+```python
+ | @normalize_exceptions
+ | artifact_type(type_name, project=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L485)
+
+<a name="wandb.apis.public.Api.artifact_versions"></a>
+#### artifact\_versions
+
+```python
+ | @normalize_exceptions
+ | artifact_versions(type_name, name, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L490)
+
 <a name="wandb.apis.public.Api.artifact"></a>
 #### artifact
 
@@ -199,7 +415,11 @@ A :obj:`Sweep` object.
  | artifact(name, type=None)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L491)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L496)
+>>>>>>> master
 
 Returns a single artifact by parsing path in the form entity/project/run_id.
 
@@ -216,35 +436,44 @@ digest
 
 A :obj:`Artifact` object.
 
-<a name="wandb.apis.public.Projects"></a>
-## Projects Objects
+<a name="wandb.apis.public.Api.artifact_from_id"></a>
+#### artifact\_from\_id
 
 ```python
-class Projects(Paginator)
+ | artifact_from_id(id)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L611)
 
 An iterable collection of :obj:`Project` objects.
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L517)
+>>>>>>> master
 
-<a name="wandb.apis.public.Project"></a>
-## Project Objects
+<a name="wandb.apis.public.Attrs"></a>
+## Attrs Objects
 
 ```python
-class Project(Attrs)
+class Attrs(object)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L673)
 
 A project is a namespace for runs
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L521)
+>>>>>>> master
 
-<a name="wandb.apis.public.Runs"></a>
-## Runs Objects
+<a name="wandb.apis.public.Attrs.__init__"></a>
+#### \_\_init\_\_
 
 ```python
-class Runs(Paginator)
+ | __init__(attrs)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L694)
 
 An iterable collection of runs associated with a project and optional filter.
@@ -252,108 +481,142 @@ This is generally used indirectly via the :obj:`Api`.runs method
 
 <a name="wandb.apis.public.Run"></a>
 ## Run Objects
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L522)
+
+<a name="wandb.apis.public.Attrs.snake_to_camel"></a>
+#### snake\_to\_camel
+>>>>>>> master
 
 ```python
-class Run(Attrs)
+ | snake_to_camel(string)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L799)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L525)
+>>>>>>> master
 
-A single run associated with an entity and project.
+<a name="wandb.apis.public.Attrs.__getattr__"></a>
+#### \_\_getattr\_\_
 
-**Attributes**:
+```python
+ | __getattr__(name)
+```
 
-- `tags` _[str]_ - a list of tags associated with the run
-- `url` _str_ - the url of this run
-- `id` _str_ - unique identifier for the run (defaults to eight characters)
-- `name` _str_ - the name of the run
-- `state` _str_ - one of: running, finished, crashed, aborted
-- `config` _dict_ - a dict of hyperparameters associated with the run
-- `created_at` _str_ - ISO timestamp when the run was started
-- `system_metrics` _dict_ - the latest system metrics recorded for the run
-- `summary` _dict_ - A mutable dict-like property that holds the current summary.
-Calling update will persist any changes.
-- `project` _str_ - the project associated with the run
-- `entity` _str_ - the name of the entity associated with the run
-- `user` _str_ - the name of the user who created the run
-- `path` _str_ - Unique identifier [entity]/[project]/[run_id]
-- `notes` _str_ - Notes about the run
-- `read_only` _boolean_ - Whether the run is editable
-- `history_keys` _str_ - Keys of the history metrics that have been logged
-with `wandb.log({key: value})`
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L529)
 
-<a name="wandb.apis.public.Run.__init__"></a>
+<a name="wandb.apis.public.Paginator"></a>
+## Paginator Objects
+
+```python
+class Paginator(object)
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L824)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L543)
+>>>>>>> master
+
+<a name="wandb.apis.public.Paginator.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L544)
+
+<a name="wandb.apis.public.Paginator.__init__"></a>
 #### \_\_init\_\_
 
 ```python
- | __init__(client, entity, project, run_id, attrs={})
+ | __init__(client, variables, per_page=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L824)
-
-Run is always initialized by calling api.runs() where api is an instance of wandb.Api
-
-<a name="wandb.apis.public.Run.create"></a>
-#### create
-
-```python
- | @classmethod
- | create(cls, api, run_id=None, project=None, entity=None)
-```
-
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L882)
 
 Create a run for the given project
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L546)
+>>>>>>> master
 
-<a name="wandb.apis.public.Run.update"></a>
-#### update
+<a name="wandb.apis.public.Paginator.__iter__"></a>
+#### \_\_iter\_\_
 
 ```python
- | @normalize_exceptions
- | update()
+ | __iter__()
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L988)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L557)
+>>>>>>> master
 
-Persists changes to the run object to the wandb backend.
-
-<a name="wandb.apis.public.Run.files"></a>
-#### files
+<a name="wandb.apis.public.Paginator.__len__"></a>
+#### \_\_len\_\_
 
 ```python
- | @normalize_exceptions
- | files(names=[], per_page=50)
+ | __len__()
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1065)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L561)
+>>>>>>> master
 
-**Arguments**:
-
-- `names` _list_ - names of the requested files, if empty returns all files
-- `per_page` _int_ - number of results per page
-
-
-**Returns**:
-
-A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
-
-<a name="wandb.apis.public.Run.file"></a>
-#### file
+<a name="wandb.apis.public.Paginator.length"></a>
+#### length
 
 ```python
- | @normalize_exceptions
- | file(name)
+ | @property
+ | length()
 ```
 
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L569)
+
+<a name="wandb.apis.public.Paginator.more"></a>
+#### more
+
+<<<<<<< HEAD
+A :obj:`Files` object, which is an iterator over :obj:`File` obejcts.
+=======
+```python
+ | @property
+ | more()
+```
+>>>>>>> master
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L573)
+
+<a name="wandb.apis.public.Paginator.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1077)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L577)
+>>>>>>> master
 
-**Arguments**:
+<a name="wandb.apis.public.Paginator.convert_objects"></a>
+#### convert\_objects
 
-- `name` _str_ - name of requested file.
+```python
+ | convert_objects()
+```
 
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L580)
 
-**Returns**:
+<a name="wandb.apis.public.Paginator.update_variables"></a>
+#### update\_variables
 
+<<<<<<< HEAD
 A :obj:`File` matching the name argument.
 
 <a name="wandb.apis.public.Run.upload_file"></a>
@@ -377,68 +640,89 @@ and you're currently in "my_dir" you would set root to "../"
 **Returns**:
 
 A :obj:`File` matching the name argument.
+=======
+```python
+ | update_variables()
+```
+>>>>>>> master
 
-<a name="wandb.apis.public.Run.history"></a>
-#### history
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L583)
+
+<a name="wandb.apis.public.Paginator.__getitem__"></a>
+#### \_\_getitem\_\_
 
 ```python
- | @normalize_exceptions
- | history(samples=500, keys=None, x_axis="_step", pandas=True, stream="default")
+ | __getitem__(index)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1111)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L596)
+>>>>>>> master
 
-Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
-the history records being sampled.
-
-**Arguments**:
-
-- `samples` _int, optional_ - The number of samples to return
-- `pandas` _bool, optional_ - Return a pandas dataframe
-- `keys` _list, optional_ - Only return metrics for specific keys
-- `x_axis` _str, optional_ - Use this metric as the xAxis defaults to _step
-- `stream` _str, optional_ - "default" for metrics, "system" for machine metrics
-
-
-**Returns**:
-
-If pandas=True returns a `pandas.DataFrame` of history metrics.
-If pandas=False returns a list of dicts of history metrics.
-
-<a name="wandb.apis.public.Run.scan_history"></a>
-#### scan\_history
+<a name="wandb.apis.public.Paginator.__next__"></a>
+#### \_\_next\_\_
 
 ```python
- | @normalize_exceptions
- | scan_history(keys=None, page_size=1000, min_step=None, max_step=None)
+ | __next__()
 ```
 
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L602)
+
+<a name="wandb.apis.public.Paginator.next"></a>
+#### next
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L611)
+
+<a name="wandb.apis.public.User"></a>
+## User Objects
+
+```python
+class User(Attrs)
+```
+
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1145)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L614)
+>>>>>>> master
 
-Returns an iterable collection of all history records for a run.
-
-**Example**:
-
-Export all the loss values for an example run
+<a name="wandb.apis.public.User.init"></a>
+#### init
 
 ```python
-run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-history = run.scan_history(keys=["Loss"])
-losses = [row["Loss"] for row in history]
+ | init(attrs)
 ```
 
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L615)
 
+<a name="wandb.apis.public.Projects"></a>
+## Projects Objects
 
-**Arguments**:
+```python
+class Projects(Paginator)
+```
 
-- `keys` _[str], optional_ - only fetch these keys, and only fetch rows that have all of keys defined.
-- `page_size` _int, optional_ - size of pages to fetch from the api
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L619)
 
+An iterable collection of `Project` objects.
 
-**Returns**:
+<a name="wandb.apis.public.Projects.QUERY"></a>
+#### QUERY
 
-An iterable collection over history records (dict).
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L624)
 
+<a name="wandb.apis.public.Projects.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L645)
+
+<<<<<<< HEAD
 <a name="wandb.apis.public.Run.use_artifact"></a>
 #### use\_artifact
 
@@ -484,12 +768,600 @@ A :obj:`Artifact` object.
 
 <a name="wandb.apis.public.Sweep"></a>
 ## Sweep Objects
+=======
+<a name="wandb.apis.public.Projects.length"></a>
+#### length
+>>>>>>> master
+
+```python
+ | @property
+ | length()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1309)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L654)
+>>>>>>> master
+
+<a name="wandb.apis.public.Projects.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L658)
+
+<a name="wandb.apis.public.Projects.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1395)
+
+Returns the best run sorted by the metric defined in config or the order passed in
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L665)
+>>>>>>> master
+
+<a name="wandb.apis.public.Projects.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1435)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L671)
+>>>>>>> master
+
+<a name="wandb.apis.public.Projects.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L677)
+
+<a name="wandb.apis.public.Project"></a>
+## Project Objects
+
+```python
+class Project(Attrs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L681)
+
+A project is a namespace for runs
+
+<a name="wandb.apis.public.Project.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, attrs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L684)
+
+<a name="wandb.apis.public.Project.path"></a>
+#### path
+
+```python
+ | @property
+ | path()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L691)
+
+<a name="wandb.apis.public.Project.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L694)
+
+<a name="wandb.apis.public.Project.artifacts_types"></a>
+#### artifacts\_types
+
+```python
+ | @normalize_exceptions
+ | artifacts_types(per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L698)
+
+<a name="wandb.apis.public.Runs"></a>
+## Runs Objects
+
+```python
+class Runs(Paginator)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L702)
+
+An iterable collection of runs associated with a project and optional filter.
+This is generally used indirectly via the `Api`.runs method
+
+<a name="wandb.apis.public.Runs.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L707)
+
+<a name="wandb.apis.public.Runs.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, filters={}, order=None, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L732)
+
+<a name="wandb.apis.public.Runs.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L747)
+
+<a name="wandb.apis.public.Runs.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L754)
+
+<a name="wandb.apis.public.Runs.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L761)
+
+<a name="wandb.apis.public.Runs.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L767)
+
+<a name="wandb.apis.public.Runs.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L803)
+
+<a name="wandb.apis.public.Run"></a>
+## Run Objects
+
+```python
+class Run(Attrs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L807)
+
+A single run associated with an entity and project.
+
+**Attributes**:
+
+- `tags` _[str]_ - a list of tags associated with the run
+- `url` _str_ - the url of this run
+- `id` _str_ - unique identifier for the run (defaults to eight characters)
+- `name` _str_ - the name of the run
+- `state` _str_ - one of: running, finished, crashed, aborted
+- `config` _dict_ - a dict of hyperparameters associated with the run
+- `created_at` _str_ - ISO timestamp when the run was started
+- `system_metrics` _dict_ - the latest system metrics recorded for the run
+- `summary` _dict_ - A mutable dict-like property that holds the current summary.
+Calling update will persist any changes.
+- `project` _str_ - the project associated with the run
+- `entity` _str_ - the name of the entity associated with the run
+- `user` _str_ - the name of the user who created the run
+- `path` _str_ - Unique identifier [entity]/[project]/[run_id]
+- `notes` _str_ - Notes about the run
+- `read_only` _boolean_ - Whether the run is editable
+- `history_keys` _str_ - Keys of the history metrics that have been logged
+with `wandb.log({key: value})`
+
+<a name="wandb.apis.public.Run.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, run_id, attrs={})
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L832)
+
+Run is always initialized by calling api.runs() where api is an instance of wandb.Api
+
+<a name="wandb.apis.public.Run.entity"></a>
+#### entity
+
+```python
+ | @property
+ | entity()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L855)
+
+<a name="wandb.apis.public.Run.username"></a>
+#### username
+
+```python
+ | @property
+ | username()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L859)
+
+<a name="wandb.apis.public.Run.storage_id"></a>
+#### storage\_id
+
+```python
+ | @property
+ | storage_id()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L864)
+
+<a name="wandb.apis.public.Run.id"></a>
+#### id
+
+```python
+ | @property
+ | id()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L871)
+
+<a name="wandb.apis.public.Run.id"></a>
+#### id
+
+```python
+ | @id.setter
+ | id(new_id)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L875)
+
+<a name="wandb.apis.public.Run.name"></a>
+#### name
+
+```python
+ | @property
+ | name()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L881)
+
+<a name="wandb.apis.public.Run.name"></a>
+#### name
+
+```python
+ | @name.setter
+ | name(new_name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L885)
+
+<a name="wandb.apis.public.Run.create"></a>
+#### create
+
+```python
+ | @classmethod
+ | create(cls, api, run_id=None, project=None, entity=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L890)
+
+Create a run for the given project
+
+<a name="wandb.apis.public.Run.load"></a>
+#### load
+
+```python
+ | load(force=False)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L931)
+
+<a name="wandb.apis.public.Run.update"></a>
+#### update
+
+```python
+ | @normalize_exceptions
+ | update()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L996)
+
+Persists changes to the run object to the wandb backend.
+
+<a name="wandb.apis.public.Run.save"></a>
+#### save
+
+```python
+ | save()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1024)
+
+<a name="wandb.apis.public.Run.json_config"></a>
+#### json\_config
+
+```python
+ | @property
+ | json_config()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1028)
+
+<a name="wandb.apis.public.Run.files"></a>
+#### files
+
+```python
+ | @normalize_exceptions
+ | files(names=[], per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1073)
+
+**Arguments**:
+
+- `names` _list_ - names of the requested files, if empty returns all files
+- `per_page` _int_ - number of results per page
+
+
+**Returns**:
+
+A `Files` object, which is an iterator over `File` obejcts.
+
+<a name="wandb.apis.public.Run.file"></a>
+#### file
+
+```python
+ | @normalize_exceptions
+ | file(name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1085)
+
+**Arguments**:
+
+- `name` _str_ - name of requested file.
+
+
+**Returns**:
+
+A `File` matching the name argument.
+
+<a name="wandb.apis.public.Run.upload_file"></a>
+#### upload\_file
+
+```python
+ | @normalize_exceptions
+ | upload_file(path, root=".")
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1096)
+
+**Arguments**:
+
+- `path` _str_ - name of file to upload.
+- `root` _str_ - the root path to save the file relative to.  i.e.
+If you want to have the file saved in the run as "my_dir/file.txt"
+and you're currently in "my_dir" you would set root to "../"
+
+
+**Returns**:
+
+A `File` matching the name argument.
+
+<a name="wandb.apis.public.Run.history"></a>
+#### history
+
+```python
+ | @normalize_exceptions
+ | history(samples=500, keys=None, x_axis="_step", pandas=True, stream="default")
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1119)
+
+Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
+the history records being sampled.
+
+**Arguments**:
+
+- `samples` _int, optional_ - The number of samples to return
+- `pandas` _bool, optional_ - Return a pandas dataframe
+- `keys` _list, optional_ - Only return metrics for specific keys
+- `x_axis` _str, optional_ - Use this metric as the xAxis defaults to _step
+- `stream` _str, optional_ - "default" for metrics, "system" for machine metrics
+
+
+**Returns**:
+
+If pandas=True returns a `pandas.DataFrame` of history metrics.
+If pandas=False returns a list of dicts of history metrics.
+
+<a name="wandb.apis.public.Run.scan_history"></a>
+#### scan\_history
+
+```python
+ | @normalize_exceptions
+ | scan_history(keys=None, page_size=1000, min_step=None, max_step=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1153)
+
+Returns an iterable collection of all history records for a run.
+
+**Example**:
+
+Export all the loss values for an example run
+
+```python
+run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+history = run.scan_history(keys=["Loss"])
+losses = [row["Loss"] for row in history]
+```
+
+
+
+**Arguments**:
+
+- `keys` _[str], optional_ - only fetch these keys, and only fetch rows that have all of keys defined.
+- `page_size` _int, optional_ - size of pages to fetch from the api
+
+
+**Returns**:
+
+An iterable collection over history records (dict).
+
+<a name="wandb.apis.public.Run.logged_artifacts"></a>
+#### logged\_artifacts
+
+```python
+ | @normalize_exceptions
+ | logged_artifacts(per_page=100)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1202)
+
+<a name="wandb.apis.public.Run.used_artifacts"></a>
+#### used\_artifacts
+
+```python
+ | @normalize_exceptions
+ | used_artifacts(per_page=100)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1206)
+
+<a name="wandb.apis.public.Run.use_artifact"></a>
+#### use\_artifact
+
+```python
+ | @normalize_exceptions
+ | use_artifact(artifact)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1210)
+
+Declare an artifact as an input to a run.
+
+**Arguments**:
+
+- `artifact` _`Artifact`_ - An artifact returned from
+`wandb.Api().artifact(name)`
+
+**Returns**:
+
+A `Artifact` object.
+
+<a name="wandb.apis.public.Run.log_artifact"></a>
+#### log\_artifact
+
+```python
+ | @normalize_exceptions
+ | log_artifact(artifact, aliases=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1237)
+
+Declare an artifact as output of a run.
+
+**Arguments**:
+
+- `artifact` _`Artifact`_ - An artifact returned from
+`wandb.Api().artifact(name)`
+- `aliases` _list, optional_ - Aliases to apply to this artifact
+
+**Returns**:
+
+A `Artifact` object.
+
+<a name="wandb.apis.public.Run.summary"></a>
+#### summary
+
+```python
+ | @property
+ | summary()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1271)
+
+<a name="wandb.apis.public.Run.path"></a>
+#### path
+
+```python
+ | @property
+ | path()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1278)
+
+<a name="wandb.apis.public.Run.url"></a>
+#### url
+
+```python
+ | @property
+ | url()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1286)
+
+<a name="wandb.apis.public.Run.lastHistoryStep"></a>
+#### lastHistoryStep
+
+```python
+ | @property
+ | lastHistoryStep()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1292)
+
+<a name="wandb.apis.public.Run.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1313)
+
+<a name="wandb.apis.public.Sweep"></a>
+## Sweep Objects
 
 ```python
 class Sweep(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1309)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1317)
 
 A set of runs associated with a sweep
 Instantiate with:
@@ -497,10 +1369,73 @@ api.sweep(sweep_path)
 
 **Attributes**:
 
-- `runs` _:obj:`Runs`_ - list of runs
+- `runs` _`Runs`_ - list of runs
 - `id` _str_ - sweep id
 - `project` _str_ - name of project
 - `config` _str_ - dictionary of sweep configuration
+
+<a name="wandb.apis.public.Sweep.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1329)
+
+<a name="wandb.apis.public.Sweep.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, sweep_id, attrs={})
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1358)
+
+<a name="wandb.apis.public.Sweep.entity"></a>
+#### entity
+
+```python
+ | @property
+ | entity()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1371)
+
+<a name="wandb.apis.public.Sweep.username"></a>
+#### username
+
+```python
+ | @property
+ | username()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1375)
+
+<a name="wandb.apis.public.Sweep.config"></a>
+#### config
+
+```python
+ | @property
+ | config()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1380)
+
+<a name="wandb.apis.public.Sweep.load"></a>
+#### load
+
+```python
+ | load(force=False)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1383)
+
+<a name="wandb.apis.public.Sweep.order"></a>
+#### order
+
+```python
+ | @property
+ | order()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1395)
 
 <a name="wandb.apis.public.Sweep.best_run"></a>
 #### best\_run
@@ -509,9 +1444,29 @@ api.sweep(sweep_path)
  | best_run(order=None)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1395)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1403)
 
 Returns the best run sorted by the metric defined in config or the order passed in
+
+<a name="wandb.apis.public.Sweep.path"></a>
+#### path
+
+```python
+ | @property
+ | path()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1429)
+
+<a name="wandb.apis.public.Sweep.url"></a>
+#### url
+
+```python
+ | @property
+ | url()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1437)
 
 <a name="wandb.apis.public.Sweep.get"></a>
 #### get
@@ -521,9 +1476,18 @@ Returns the best run sorted by the metric defined in config or the order passed 
  | get(cls, client, entity=None, project=None, sid=None, withRuns=True, order=None, query=None, **kwargs)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1435)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1443)
 
 Execute a query against the cloud backend
+
+<a name="wandb.apis.public.Sweep.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1494)
 
 <a name="wandb.apis.public.Files"></a>
 ## Files Objects
@@ -532,9 +1496,80 @@ Execute a query against the cloud backend
 class Files(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1490)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1498)
 
-Files is an iterable collection of :obj:`File` objects.
+Files is an iterable collection of `File` objects.
+
+<a name="wandb.apis.public.Files.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1501)
+
+<a name="wandb.apis.public.Files.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, run, names=[], per_page=50, upload=False)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1517)
+
+<a name="wandb.apis.public.Files.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1529)
+
+<a name="wandb.apis.public.Files.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1536)
+
+<a name="wandb.apis.public.Files.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1545)
+
+<a name="wandb.apis.public.Files.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1551)
+
+<a name="wandb.apis.public.Files.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1554)
+
+<a name="wandb.apis.public.Files.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1560)
 
 <a name="wandb.apis.public.File"></a>
 ## File Objects
@@ -543,7 +1578,7 @@ Files is an iterable collection of :obj:`File` objects.
 class File(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1556)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1564)
 
 File is a class associated with a file saved by wandb.
 
@@ -555,6 +1590,85 @@ File is a class associated with a file saved by wandb.
 - `mimetype` _string_ - mimetype of file
 - `updated_at` _string_ - timestamp of last update
 - `size` _int_ - size of file in bytes
+
+<a name="wandb.apis.public.File.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, attrs)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1577)
+
+<a name="wandb.apis.public.File.name"></a>
+#### name
+
+```python
+ | @property
+ | name()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1585)
+
+<a name="wandb.apis.public.File.url"></a>
+#### url
+
+```python
+ | @property
+ | url()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1589)
+
+<a name="wandb.apis.public.File.md5"></a>
+#### md5
+
+```python
+ | @property
+ | md5()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1593)
+
+<a name="wandb.apis.public.File.digest"></a>
+#### digest
+
+```python
+ | @property
+ | digest()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1597)
+
+<a name="wandb.apis.public.File.mimetype"></a>
+#### mimetype
+
+```python
+ | @property
+ | mimetype()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1601)
+
+<a name="wandb.apis.public.File.updated_at"></a>
+#### updated\_at
+
+```python
+ | @property
+ | updated_at()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1605)
+
+<a name="wandb.apis.public.File.size"></a>
+#### size
+
+```python
+ | @property
+ | size()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1609)
 
 <a name="wandb.apis.public.File.download"></a>
 #### download
@@ -569,7 +1683,7 @@ File is a class associated with a file saved by wandb.
  | download(root=".", replace=False)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1613)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1621)
 
 Downloads a file previously saved by a run from the wandb server.
 
@@ -584,6 +1698,15 @@ if it exists. Defaults to `False`.
 
 `ValueError` if file already exists and replace=False
 
+<a name="wandb.apis.public.File.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1638)
+
 <a name="wandb.apis.public.Reports"></a>
 ## Reports Objects
 
@@ -591,9 +1714,80 @@ if it exists. Defaults to `False`.
 class Reports(Paginator)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1636)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1644)
 
-Reports is an iterable collection of :obj:`BetaReport` objects.
+Reports is an iterable collection of `BetaReport` objects.
+
+<a name="wandb.apis.public.Reports.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1647)
+
+<a name="wandb.apis.public.Reports.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, project, name=None, entity=None, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1673)
+
+<a name="wandb.apis.public.Reports.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1684)
+
+<a name="wandb.apis.public.Reports.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1689)
+
+<a name="wandb.apis.public.Reports.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1698)
+
+<a name="wandb.apis.public.Reports.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1704)
+
+<a name="wandb.apis.public.Reports.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1709)
+
+<a name="wandb.apis.public.Reports.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1720)
 
 <a name="wandb.apis.public.QueryGenerator"></a>
 ## QueryGenerator Objects
@@ -602,9 +1796,56 @@ Reports is an iterable collection of :obj:`BetaReport` objects.
 class QueryGenerator(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1716)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1724)
 
 QueryGenerator is a helper object to write filters for runs
+
+<a name="wandb.apis.public.QueryGenerator.INDIVIDUAL_OP_TO_MONGO"></a>
+#### INDIVIDUAL\_OP\_TO\_MONGO
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1727)
+
+<a name="wandb.apis.public.QueryGenerator.GROUP_OP_TO_MONGO"></a>
+#### GROUP\_OP\_TO\_MONGO
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1738)
+
+<a name="wandb.apis.public.QueryGenerator.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1740)
+
+<a name="wandb.apis.public.QueryGenerator.format_order_key"></a>
+#### format\_order\_key
+
+```python
+ | @classmethod
+ | format_order_key(cls, key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1744)
+
+<a name="wandb.apis.public.QueryGenerator.key_to_server_path"></a>
+#### key\_to\_server\_path
+
+```python
+ | key_to_server_path(key)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1773)
+
+<a name="wandb.apis.public.QueryGenerator.filter_to_mongo"></a>
+#### filter\_to\_mongo
+
+```python
+ | filter_to_mongo(filter)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1810)
 
 <a name="wandb.apis.public.BetaReport"></a>
 ## BetaReport Objects
@@ -613,7 +1854,7 @@ QueryGenerator is a helper object to write filters for runs
 class BetaReport(Attrs)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1813)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1821)
 
 BetaReport is a class associated with reports created in wandb.
 
@@ -623,9 +1864,357 @@ WARNING: this API will likely change in a future release
 
 - `name` _string_ - report name
 - `description` _string_ - report descirpiton;
-- `user` _:obj:User_ - the user that created the report
+- `user` _User_ - the user that created the report
 - `spec` _dict_ - the spec off the report;
 - `updated_at` _string_ - timestamp of last update
+
+<a name="wandb.apis.public.BetaReport.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, attrs, entity=None, project=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1834)
+
+<a name="wandb.apis.public.BetaReport.sections"></a>
+#### sections
+
+```python
+ | @property
+ | sections()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1843)
+
+<a name="wandb.apis.public.BetaReport.runs"></a>
+#### runs
+
+```python
+ | runs(section, per_page=50, only_selected=True)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1846)
+
+<a name="wandb.apis.public.BetaReport.updated_at"></a>
+#### updated\_at
+
+```python
+ | @property
+ | updated_at()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1870)
+
+<a name="wandb.apis.public.HistoryScan"></a>
+## HistoryScan Objects
+
+```python
+class HistoryScan(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1874)
+
+<a name="wandb.apis.public.HistoryScan.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1875)
+
+<a name="wandb.apis.public.HistoryScan.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, run, min_step, max_step, page_size=1000)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1887)
+
+<a name="wandb.apis.public.HistoryScan.__iter__"></a>
+#### \_\_iter\_\_
+
+```python
+ | __iter__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1897)
+
+<a name="wandb.apis.public.HistoryScan.__next__"></a>
+#### \_\_next\_\_
+
+```python
+ | __next__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1903)
+
+<a name="wandb.apis.public.HistoryScan.next"></a>
+#### next
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1913)
+
+<a name="wandb.apis.public.SampledHistoryScan"></a>
+## SampledHistoryScan Objects
+
+```python
+class SampledHistoryScan(object)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1940)
+
+<a name="wandb.apis.public.SampledHistoryScan.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1941)
+
+<a name="wandb.apis.public.SampledHistoryScan.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, run, keys, min_step, max_step, page_size=1000)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1953)
+
+<a name="wandb.apis.public.SampledHistoryScan.__iter__"></a>
+#### \_\_iter\_\_
+
+```python
+ | __iter__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1964)
+
+<a name="wandb.apis.public.SampledHistoryScan.__next__"></a>
+#### \_\_next\_\_
+
+```python
+ | __next__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1970)
+
+<a name="wandb.apis.public.SampledHistoryScan.next"></a>
+#### next
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L1980)
+
+<a name="wandb.apis.public.ProjectArtifactTypes"></a>
+## ProjectArtifactTypes Objects
+
+```python
+class ProjectArtifactTypes(Paginator)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2012)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2013)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, name=None, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2031)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2043)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2048)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2057)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2063)
+
+<a name="wandb.apis.public.ProjectArtifactTypes.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2066)
+
+<a name="wandb.apis.public.ProjectArtifactCollections"></a>
+## ProjectArtifactCollections Objects
+
+```python
+class ProjectArtifactCollections(Paginator)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2077)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2078)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, type_name, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2109)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2125)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2134)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2143)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2151)
+
+<a name="wandb.apis.public.ProjectArtifactCollections.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2154)
+
+<a name="wandb.apis.public.RunArtifacts"></a>
+## RunArtifacts Objects
+
+```python
+class RunArtifacts(Paginator)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2170)
+
+<a name="wandb.apis.public.RunArtifacts.OUTPUT_QUERY"></a>
+#### OUTPUT\_QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2171)
+
+<a name="wandb.apis.public.RunArtifacts.INPUT_QUERY"></a>
+#### INPUT\_QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2199)
+
+<a name="wandb.apis.public.RunArtifacts.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, run, mode="logged", per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2227)
+
+<a name="wandb.apis.public.RunArtifacts.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2247)
+
+<a name="wandb.apis.public.RunArtifacts.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2254)
+
+<a name="wandb.apis.public.RunArtifacts.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2263)
+
+<a name="wandb.apis.public.RunArtifacts.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2269)
+
+<a name="wandb.apis.public.RunArtifacts.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2272)
 
 <a name="wandb.apis.public.ArtifactType"></a>
 ## ArtifactType Objects
@@ -634,7 +2223,45 @@ WARNING: this API will likely change in a future release
 class ArtifactType(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2277)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2285)
+
+<a name="wandb.apis.public.ArtifactType.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, type_name, attrs=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2286)
+
+<a name="wandb.apis.public.ArtifactType.load"></a>
+#### load
+
+```python
+ | load()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2295)
+
+<a name="wandb.apis.public.ArtifactType.id"></a>
+#### id
+
+```python
+ | @property
+ | id()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2332)
+
+<a name="wandb.apis.public.ArtifactType.name"></a>
+#### name
+
+```python
+ | @property
+ | name()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2336)
 
 <a name="wandb.apis.public.ArtifactType.collections"></a>
 #### collections
@@ -644,9 +2271,27 @@ class ArtifactType(object)
  | collections(per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2332)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2340)
 
 Artifact collections
+
+<a name="wandb.apis.public.ArtifactType.collection"></a>
+#### collection
+
+```python
+ | collection(name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2346)
+
+<a name="wandb.apis.public.ArtifactType.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2351)
 
 <a name="wandb.apis.public.ArtifactCollection"></a>
 ## ArtifactCollection Objects
@@ -655,19 +2300,69 @@ Artifact collections
 class ArtifactCollection(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2347)
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1490)
+
+Files is an iterable collection of :obj:`File` objects.
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2355)
+>>>>>>> master
+
+<a name="wandb.apis.public.ArtifactCollection.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, name, type, attrs=None)
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1556)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2356)
+>>>>>>> master
+
+<a name="wandb.apis.public.ArtifactCollection.id"></a>
+#### id
+
+```python
+ | @property
+ | id()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2365)
 
 <a name="wandb.apis.public.ArtifactCollection.versions"></a>
 #### versions
 
 ```python
  | @normalize_exceptions
+<<<<<<< HEAD
+ | @retriable(
+ |         retry_timedelta=RETRY_TIMEDELTA,
+ |         check_retry_fn=util.no_retry_auth,
+ |         retryable_exceptions=(RetryError, requests.RequestException),
+ |     )
+ | download(root=".", replace=False)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1613)
+=======
  | versions(per_page=50)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2361)
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2369)
+>>>>>>> master
 
 Artifact versions
+
+<a name="wandb.apis.public.ArtifactCollection.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2380)
 
 <a name="wandb.apis.public.Artifact"></a>
 ## Artifact Objects
@@ -676,7 +2371,185 @@ Artifact versions
 class Artifact(object)
 ```
 
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2419)
+
+<a name="wandb.apis.public.Artifact.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2420)
+
+<a name="wandb.apis.public.Artifact.from_id"></a>
+#### from\_id
+
+```python
+ | @classmethod
+ | from_id(cls, client, id)
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1636)
+
+Reports is an iterable collection of :obj:`BetaReport` objects.
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2442)
+
+<a name="wandb.apis.public.Artifact.__init__"></a>
+#### \_\_init\_\_
+>>>>>>> master
+
+```python
+ | __init__(client, entity, project, name, attrs=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2478)
+
+<a name="wandb.apis.public.Artifact.id"></a>
+#### id
+
+```python
+ | @property
+ | id()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1716)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2500)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.metadata"></a>
+#### metadata
+
+```python
+ | @property
+ | metadata()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2504)
+
+<a name="wandb.apis.public.Artifact.metadata"></a>
+#### metadata
+
+```python
+ | @metadata.setter
+ | metadata(metadata)
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L1813)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2508)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.manifest"></a>
+#### manifest
+
+```python
+ | @property
+ | manifest()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2512)
+
+<a name="wandb.apis.public.Artifact.digest"></a>
+#### digest
+
+```python
+ | @property
+ | digest()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2516)
+
+<a name="wandb.apis.public.Artifact.state"></a>
+#### state
+
+```python
+ | @property
+ | state()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2277)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2520)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.size"></a>
+#### size
+
+```python
+ | @property
+ | size()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2332)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2524)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.created_at"></a>
+#### created\_at
+
+```python
+ | @property
+ | created_at()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2528)
+
+<a name="wandb.apis.public.Artifact.updated_at"></a>
+#### updated\_at
+
+```python
+ | @property
+ | updated_at()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2347)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2532)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.description"></a>
+#### description
+
+```python
+ | @property
+ | description()
+```
+
+<<<<<<< HEAD
+[[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2361)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2536)
+>>>>>>> master
+
+<a name="wandb.apis.public.Artifact.description"></a>
+#### description
+
+```python
+ | @description.setter
+ | description(desc)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2540)
+
+<a name="wandb.apis.public.Artifact.type"></a>
+#### type
+
+```python
+ | @property
+ | type()
+```
+
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2376)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2544)
+>>>>>>> master
 
 <a name="wandb.apis.public.Artifact.delete"></a>
 #### delete
@@ -685,9 +2558,110 @@ class Artifact(object)
  | delete()
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2465)
 
 Delete artifact and it's files.
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2548)
+
+<a name="wandb.apis.public.Artifact.aliases"></a>
+#### aliases
+
+```python
+ | @property
+ | aliases()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2554)
+
+<a name="wandb.apis.public.Artifact.aliases"></a>
+#### aliases
+
+```python
+ | @aliases.setter
+ | aliases(aliases)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2558)
+
+<a name="wandb.apis.public.Artifact.delete"></a>
+#### delete
+
+```python
+ | delete()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2566)
+
+Delete artifact and it's files.
+
+<a name="wandb.apis.public.Artifact.new_file"></a>
+#### new\_file
+
+```python
+ | new_file(name, mode=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2582)
+
+<a name="wandb.apis.public.Artifact.add_file"></a>
+#### add\_file
+
+```python
+ | add_file(path, name=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2585)
+
+<a name="wandb.apis.public.Artifact.add_dir"></a>
+#### add\_dir
+
+```python
+ | add_dir(path, name=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2588)
+
+<a name="wandb.apis.public.Artifact.add_reference"></a>
+#### add\_reference
+
+```python
+ | add_reference(path, name=None)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2591)
+
+<a name="wandb.apis.public.Artifact.get_path"></a>
+#### get\_path
+
+```python
+ | get_path(name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2594)
+
+<a name="wandb.apis.public.Artifact.get"></a>
+#### get
+
+```python
+ | get(name)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2666)
+
+Returns the wandb.Media resource stored in the artifact. Media can be
+stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
+
+**Arguments**:
+
+- `name` _str_ - name of resource.
+
+
+**Returns**:
+
+A `wandb.Media` which has been stored at `name`
+>>>>>>> master
 
 <a name="wandb.apis.public.Artifact.download"></a>
 #### download
@@ -696,7 +2670,11 @@ Delete artifact and it's files.
  | download(root=None)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2544)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2705)
+>>>>>>> master
 
 Download the artifact to dir specified by the <root>
 
@@ -717,7 +2695,11 @@ The path to the downloaded contents.
  | file(root=None)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2584)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2745)
+>>>>>>> master
 
 Download a single file artifact to dir specified by the <root>
 
@@ -739,7 +2721,11 @@ The full path of the downloaded file
  | save()
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2619)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2780)
+>>>>>>> master
 
 Persists artifact changes to the wandb backend.
 
@@ -750,7 +2736,11 @@ Persists artifact changes to the wandb backend.
  | verify(root=None)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2658)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2819)
+>>>>>>> master
 
 Verify an artifact by checksumming its downloaded contents.
 
@@ -762,6 +2752,15 @@ reference files.
 - `root` _str, optional_ - directory to download artifact to. If None
 artifact will be downloaded to './artifacts/<self.name>/'
 
+<a name="wandb.apis.public.Artifact.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2851)
+
 <a name="wandb.apis.public.ArtifactVersions"></a>
 ## ArtifactVersions Objects
 
@@ -769,8 +2768,145 @@ artifact will be downloaded to './artifacts/<self.name>/'
 class ArtifactVersions(Paginator)
 ```
 
+<<<<<<< HEAD
 [[view_source]](https://github.com/wandb/client/blob/e8a576c49dd0f9e6f857e2ea9e072bc66f45ad19/wandb/apis/public.py#L2787)
+=======
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2948)
+>>>>>>> master
 
 An iterable collection of artifact versions associated with a project and optional filter.
 This is generally used indirectly via the :obj:`Api`.artifact_versions method
+
+<a name="wandb.apis.public.ArtifactVersions.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2953)
+
+<a name="wandb.apis.public.ArtifactVersions.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, entity, project, collection_name, type, filters={}, order=None, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L2983)
+
+<a name="wandb.apis.public.ArtifactVersions.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3011)
+
+<a name="wandb.apis.public.ArtifactVersions.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3020)
+
+<a name="wandb.apis.public.ArtifactVersions.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3029)
+
+<a name="wandb.apis.public.ArtifactVersions.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3037)
+
+<a name="wandb.apis.public.ArtifactFiles"></a>
+## ArtifactFiles Objects
+
+```python
+class ArtifactFiles(Paginator)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3054)
+
+<a name="wandb.apis.public.ArtifactFiles.QUERY"></a>
+#### QUERY
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3055)
+
+<a name="wandb.apis.public.ArtifactFiles.__init__"></a>
+#### \_\_init\_\_
+
+```python
+ | __init__(client, artifact, names=None, per_page=50)
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3079)
+
+<a name="wandb.apis.public.ArtifactFiles.length"></a>
+#### length
+
+```python
+ | @property
+ | length()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3091)
+
+<a name="wandb.apis.public.ArtifactFiles.more"></a>
+#### more
+
+```python
+ | @property
+ | more()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3096)
+
+<a name="wandb.apis.public.ArtifactFiles.cursor"></a>
+#### cursor
+
+```python
+ | @property
+ | cursor()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3105)
+
+<a name="wandb.apis.public.ArtifactFiles.update_variables"></a>
+#### update\_variables
+
+```python
+ | update_variables()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3113)
+
+<a name="wandb.apis.public.ArtifactFiles.convert_objects"></a>
+#### convert\_objects
+
+```python
+ | convert_objects()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3116)
+
+<a name="wandb.apis.public.ArtifactFiles.__repr__"></a>
+#### \_\_repr\_\_
+
+```python
+ | __repr__()
+```
+
+[[view_source]](https://github.com/wandb/client/blob/bf98510754bad9e6e2b3e857f123852841a4e7ed/wandb/apis/public.py#L3124)
 
