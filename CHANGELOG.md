@@ -7,7 +7,7 @@
 
 #### :bug: Bug Fix
 
-- Multiple media artifact improvemeents and internal refactor
+- Multiple media artifact improvements and internal refactor
 - Improve handling of artifact errors
 - Fix issue where notebook name was ignored
 - Extend silent mode for jupyter logging
