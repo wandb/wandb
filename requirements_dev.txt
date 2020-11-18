@@ -23,4 +23,4 @@ torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'd
 torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torch==1.5.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
 torchvision==0.6.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
-plotly
+plotly; python_version < '3.9'

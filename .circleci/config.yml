@@ -82,7 +82,7 @@ jobs:
                   name: Run tests
                   command: |
                       tox -vv -e << parameters.toxenv >>
-                  no_output_timeout: 5m
+                  no_output_timeout: 10m
             - save-tox-cache
     win:
         executor: win/default
