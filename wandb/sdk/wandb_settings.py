@@ -785,9 +785,6 @@ class Settings(object):
                 program, _logger=_logger
             )
             self.update(dict(program=program, program_relpath=program_relpath))
-        else:
-            program = "<python with no main file>"
-            self.update(dict(program=program))
 
     def setdefaults(self, __d=None):
         __d = __d or defaults
