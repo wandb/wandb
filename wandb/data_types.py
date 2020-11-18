@@ -1456,8 +1456,18 @@ class Image(BatchableMedia):
                     self.artifact_source is not None
                     and self.artifact_source["artifact"] != artifact
                 ):
-                    path = self.artifact_source["artifact"].get_path(name)
-                    artifact.add_reference(path.ref_url(), name=name)
+                    try: 
+                        # First, see if the media asset has been added via the direct path
+                        path = self.artifact_source["artifact"].get_path(self._path)
+                        artifact.add_reference(path.ref_url(), name=self._path)
+                    except:
+                        try:
+                            # Next, see if the media asset was added to the default media dir
+                            path = self.artifact_source["artifact"].get_path(name)
+                            artifact.add_reference(path.ref_url(), name=name)
+                        except:
+                            # Default to adding the file directly
+                            artifact.add_file(self._path, name=name)
                 else:
                     artifact.add_file(self._path, name=name)
 
