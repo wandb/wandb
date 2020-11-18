@@ -6,7 +6,7 @@ pip
 Pillow
 pandas
 numpy
-matplotlib
+matplotlib<3.3.3
 soundfile
 boto3
 google-cloud-storage
