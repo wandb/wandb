@@ -45,6 +45,10 @@ workflows:
          name: "Python 3.8"
          image: "python:3.8"
          toxenv: "py38"
+      - test:
+         name: "Python 3.9"
+         image: "python:3.9"
+         toxenv: "py39"
       - win:
          name: "Windows (Python 3.7)"
       - mac:
@@ -77,8 +81,8 @@ jobs:
             - run:
                   name: Run tests
                   command: |
-                      tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 5m
+                      tox -vv -e << parameters.toxenv >>
+                  no_output_timeout: 10m
             - save-tox-cache
     win:
         executor: win/default
@@ -98,7 +102,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -v -e py37
+                      tox -vv -e py37
                   no_output_timeout: 10m
             - save-tox-cache
 
@@ -117,7 +121,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 1024
-                      python3 -m tox -v -e py37
+                      python3 -m tox -vv -e py37
                   no_output_timeout: 10m
             - save-tox-cache
     final:

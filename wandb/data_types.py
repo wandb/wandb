@@ -450,7 +450,7 @@ class Table(Media):
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
-            logging.warn("Truncating wandb.Table object to %i rows." % max_rows)
+            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):

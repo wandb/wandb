@@ -253,6 +253,9 @@ def test_matplotlib_image_with_multiple_axes():
         wandb.Image(plt)  # this should not error.
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_matplotlib_plotly_with_multiple_axes():
     """Ensures that wandb.Plotly constructor can accept a plotly figure 
     reference in which the figure has multiple axes. Importantly, there is 
@@ -296,6 +299,9 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
     there is no image
