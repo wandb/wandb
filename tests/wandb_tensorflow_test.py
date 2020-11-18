@@ -5,6 +5,7 @@ import pprint
 import os
 import six
 import sys
+import pytest
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
