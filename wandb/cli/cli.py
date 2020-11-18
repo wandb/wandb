@@ -1491,7 +1491,7 @@ def online():
     except configparser.Error:
         pass
     click.echo(
-        "W&B enabled, running your script from this directory will now sync to the cloud."
+        "W&B online, running your script from this directory will now sync to the cloud."
     )
 
 
@@ -1502,7 +1502,7 @@ def offline():
     try:
         api.set_setting("disabled", "true", persist=True)
         click.echo(
-            "W&B disabled, running your script from this directory will only write metadata locally."
+            "W&B offline, running your script from this directory will only write metadata locally."
         )
     except configparser.Error:
         click.echo(
