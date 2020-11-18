@@ -1177,7 +1177,7 @@ class WBArtifactHandler(StorageHandler):
         """
         # We don't check for cache hits here. Since we have 0 for size (since this
         # is a cross-artifact reference which and we've made the choice to store 0
-        # in the size field), we can't confirm is the file is complete. So we just
+        # in the size field), we can't confirm if the file is complete. So we just
         # rely on the dep_artifact entry's download() method to do its own cache
         # check.
 
