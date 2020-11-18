@@ -4,6 +4,11 @@ import pprint
 
 import os
 import six
+import sys
+import pytest
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("tensorflow")
 import tensorflow as tf
 import wandb
 from wandb import wandb_sdk

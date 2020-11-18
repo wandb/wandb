@@ -596,14 +596,21 @@ class SendManager(object):
         )
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        saver.save(
-            type=artifact.type,
-            name=artifact.name,
-            metadata=metadata,
-            description=artifact.description,
-            aliases=artifact.aliases,
-            use_after_commit=artifact.use_after_commit,
-        )
+        try:
+            saver.save(
+                type=artifact.type,
+                name=artifact.name,
+                metadata=metadata,
+                description=artifact.description,
+                aliases=artifact.aliases,
+                use_after_commit=artifact.use_after_commit,
+            )
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
 
     def send_alert(self, data):
         alert = data.alert
@@ -619,12 +626,17 @@ class SendManager(object):
                 "have your administrator install wandb/local >= 0.9.31"
             )
         else:
-            self._api.notify_scriptable_run_alert(
-                title=alert.title,
-                text=alert.text,
-                level=alert.level,
-                wait_duration=alert.wait_duration,
-            )
+            try:
+                self._api.notify_scriptable_run_alert(
+                    title=alert.title,
+                    text=alert.text,
+                    level=alert.level,
+                    wait_duration=alert.wait_duration,
+                )
+            except Exception as e:
+                logger.error(
+                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
+                )
 
     def finish(self):
         logger.info("shutting down sender")
