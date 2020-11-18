@@ -1076,7 +1076,7 @@ class Run(object):
             )
             wandb.termlog(dir_str)
             if not self._settings._offline:
-                wandb.termlog("Run `wandb off` to turn off syncing.")
+                wandb.termlog("Run `wandb offline` to turn off syncing.")
             print("")
 
     def _redirect(self, stdout_slave_fd, stderr_slave_fd, console=None):
@@ -1245,8 +1245,8 @@ class Run(object):
         if self._settings._offline:
             wandb.termlog(
                 (
-                    "W&B is disabled in this directory.  "
-                    "Run `wandb on` to enable cloud syncing."
+                    "W&B syncing is set to `offline` in this directory.  "
+                    "Run `wandb online` to enable cloud syncing."
                 )
             )
         if self._run_obj and not self._settings._silent:
