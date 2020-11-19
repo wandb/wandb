@@ -564,8 +564,10 @@ def init(
             See https://docs.wandb.com/library/advanced/resuming for more.
         reinit (bool, optional): Allow multiple wandb.init() calls in the same
             process. (default: False)
-        magic (bool, dict, or str, optional): magic configuration as bool, dict,
-            json string, yaml filename.
+        magic (bool, dict, or str, optional): The bool controls whether we try to
+            auto-instrument your script, capturing basic details of your run
+            without you having to add more wandb code. (default: False)
+            You can also pass a dict, json string, or yaml filename.
         config_exclude_keys (list, optional): string keys to exclude from
             wandb.config.
         config_include_keys (list, optional): string keys to include in
@@ -589,10 +591,15 @@ def init(
         sync_tensorboard (bool, optional): Synchronize wandb logs from tensorboard or
             tensorboardX and saves the relevant events file. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
-            using OpenAI Gym (see https://docs.wandb.com/library/integrations/openai-gym)
-            Defaults to false.
-        id (str, optional): A globally unique (per project) identifier for the run. This
-            is primarily used for resuming.
+            using OpenAI Gym. (default: False)
+            See https://docs.wandb.com/library/integrations/openai-gym
+        id (str, optional): A unique ID for this run, used for Resuming. It must
+            be unique in the project, and if you delete a run you can't reuse
+            the ID. Use the name field for a short descriptive name, or config
+            for saving hyperparameters to compare across runs. The ID cannot
+            contain special characters.
+            See https://docs.wandb.com/library/resuming
+
 
     Examples:
         Basic usage
