@@ -1467,8 +1467,7 @@ class Image(BatchableMedia):
                             len(self.artifact_source["artifact"]._default_root()) :
                         ]
                         # strip off the leading separator if needed
-                        if name[0] == os.sep:
-                            name = name[1:]
+                        name = name.lstrip(os.sep)
 
                     # Add this image as a reference
                     path = self.artifact_source["artifact"].get_path(name)
