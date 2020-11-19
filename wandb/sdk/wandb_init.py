@@ -564,22 +564,28 @@ def init(
             See https://docs.wandb.com/library/advanced/resuming for more.
         reinit (bool, optional): Allow multiple wandb.init() calls in the same
             process. (default: False)
-        
         magic (bool, dict, or str, optional): magic configuration as bool, dict,
             json string, yaml filename.
         config_exclude_keys (list, optional): string keys to exclude from
             wandb.config.
         config_include_keys (list, optional): string keys to include in
             wandb.config.
-        anonymous (str, optional): Can be "allow", "must", or "never". Controls
-            whether anonymous logging is allowed.  Defaults to never.
+        anonymous (str, optional): Controls anonymous data logging. Options:
+            - "never" (default): requires you to link your W&B account before
+                tracking the run so you don't accidentally create an anonymous
+                run.
+            - "allow": lets a logged-in user track runs with their account, but
+                lets someone who is running the script without a W&B account see
+                the charts in the UI. 
+            - "must": sends the run to an anonymous account instead of to a 
+                signed-up user account.
         mode (str, optional): Can be "online", "offline" or "disabled". Defaults to
             online.
         allow_val_change (bool, optional): allow config values to be changed after
             setting. Defaults to true in jupyter and false otherwise.
-        force (bool, optional): If true, will cause script to crash if user can't or isn't
-            logged in to a wandb server.  If false, will cause script to run in offline
-            modes if user can't or isn't logged in to a wandb server. Defaults to false.
+        force (bool, optional): If True, this crashes the script if a user isn't
+            logged in to W&B. If False, this will let the script run in offline
+            mode if a user isn't logged in to W&B. (default: False)
         sync_tensorboard (bool, optional): Synchronize wandb logs from tensorboard or
             tensorboardX and saves the relevant events file. Defaults to false.
         monitor_gym: (bool, optional): automatically logs videos of environment when
