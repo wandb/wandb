@@ -46,7 +46,6 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-    import tensorflow as tf
     from tensorflow.python.eager import context
     from tensorflow.python.keras.engine import training
 
@@ -298,12 +297,15 @@ class WandbCallback(keras.callbacks.Callback):
         self._prediction_batch_size = None
 
         if self.log_gradients:
+            if int(tf.__version__.split('.')[0]) <2:
+                raise Exception("Gradient logging requires tensorflow 2.0 or higher.")
             if self.training_data is None:
                 raise ValueError(
                     "training_data argument is required for gradient logging."
                 )
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
+            self._get_grads = tf.function(self._get_grads)
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
@@ -346,10 +348,9 @@ class WandbCallback(keras.callbacks.Callback):
         x_batch_num_bytes = sum([x.itemsize * x.size for x in x_batch])
         y_batch = [y[0] for y in Y]
         y_batch_num_bytes = sum([y.itemsize * y.size for y in y_batch])
-        batch_num_bytes = x_batch_num_bytes = y_batch_num_bytes
-        MAX_MB = 0.1
-        self._training_data_batch_size = int(MAX_MB * 1024 * 1024 / batch_num_bytes)
-        wandb.termlog("Batch size: " + str(self._training_data_batch_size))
+        batch_num_bytes = x_batch_num_bytes + y_batch_num_bytes
+        MAX_KB = 1
+        self._training_data_batch_size = 32#max(1, int(MAX_KB * 1024 / batch_num_bytes))
 
     def _build_loss_model(self):
         inputs = self.model.inputs
@@ -703,13 +704,17 @@ class WandbCallback(keras.callbacks.Callback):
                 )
         return metrics
 
+    def _get_grads(self, x, y):
+        with tf.GradientTape() as tape:
+            loss = tf.reduce_sum(self._loss_model([x, y]))
+        grads = tape.gradient(loss, self.model.trainable_weights)
+        return tuple(grads)
+
     def _log_gradients(self):
         weights = self.model.trainable_weights
         grads = [np.zeros(tuple(w.shape)) for w in weights]
         for x, y in self._training_data_generator():
-            with tf.GradientTape() as tape:
-                loss = self._loss_model(x + y)
-            batch_grads = tape.gradient(loss, weights)
+            batch_grads = self._get_grads(x, y)
             for g, bg in zip(grads, batch_grads):
                 g += bg.numpy()
         metrics = {}
