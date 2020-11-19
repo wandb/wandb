@@ -122,7 +122,7 @@ class WBValue(object):
 
     @classmethod
     def with_suffix(cls, name, filetype="json"):
-        """Helper function to return the name with suffix added if needed
+        """Helper function to return the name with suffix added if not already
 
         Args:
             name (str): the name of the file
