@@ -1158,7 +1158,7 @@ class Classes(Media):
         super(Classes, self).__init__()
         if isinstance(class_set, list):
             for class_def in class_set:
-                if not isinstance(class_def, dict) or "id" not in class_def or "name" not class_def:
+                if not isinstance(class_def, dict) or "id" not in class_def or "name" not in class_def:
                     raise ValueError('`class_set` list of dicts in the form of {"id":int|str, "name":str}')
         self._class_set = class_set
 
