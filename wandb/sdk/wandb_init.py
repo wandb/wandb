@@ -583,8 +583,11 @@ def init(
                 signed-up user account.
         mode (str, optional): Can be "online", "offline" or "disabled". Defaults to
             online.
-        allow_val_change (bool, optional): allow config values to be changed after
-            setting. Defaults to true in jupyter and false otherwise.
+        allow_val_change (bool, optional): Whether to allow config values to
+            change after setting the keys once. By default we throw an exception
+            if a config value is overwritten. If you want to track something
+            like a varying learning_rate at multiple times during training, use
+            wandb.log() instead. (default: False in scripts, True in Jupyter)
         force (bool, optional): If True, this crashes the script if a user isn't
             logged in to W&B. If False, this will let the script run in offline
             mode if a user isn't logged in to W&B. (default: False)
