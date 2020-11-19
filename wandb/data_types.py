@@ -1453,14 +1453,10 @@ class Image(BatchableMedia):
                     self.artifact_source is not None
                     and self.artifact_source["artifact"] != artifact
                 ):
+                    default_root = self.artifact_source["artifact"]._default_root()
                     # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
-                    if self._path.startswith(
-                        self.artifact_source["artifact"]._default_root()
-                    ):
-                        name = self._path[
-                            len(self.artifact_source["artifact"]._default_root()) :
-                        ]
-                        # strip off the leading separator if needed
+                    if self._path.startswith(default_root):
+                        name = self._path[len(default_root) :]
                         name = name.lstrip(os.sep)
 
                     # Add this image as a reference
