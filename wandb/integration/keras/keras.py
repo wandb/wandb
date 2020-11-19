@@ -297,7 +297,7 @@ class WandbCallback(keras.callbacks.Callback):
         self._prediction_batch_size = None
 
         if self.log_gradients:
-            if int(tf.__version__.split('.')[0]) <2:
+            if int(tf.__version__.split(".")[0]) < 2:
                 raise Exception("Gradient logging requires tensorflow 2.0 or higher.")
             if self.training_data is None:
                 raise ValueError(
