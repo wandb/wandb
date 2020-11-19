@@ -1496,15 +1496,25 @@ class Image(BatchableMedia):
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
 
+            # Checks if the concrete image has already been added to this artifact
             name = artifact.get_added_local_path_name(self._path)
             if name is None:
                 name = os.path.join(
                     self.get_media_subdir(), os.path.basename(self._path)
                 )
+
+                # if not, check to see if there is a source artifact for this object
                 if (
                     self.artifact_source is not None
                     and self.artifact_source["artifact"] != artifact
                 ):
+                    default_root = self.artifact_source["artifact"]._default_root()
+                    # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                    if self._path.startswith(default_root):
+                        name = self._path[len(default_root) :]
+                        name = name.lstrip(os.sep)
+
+                    # Add this image as a reference
                     path = self.artifact_source["artifact"].get_path(name)
                     artifact.add_reference(path.ref_url(), name=name)
                 else:
