@@ -98,25 +98,27 @@ class WBValue(object):
         self._artifact_source = None
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, optionally using a run or artifact to store additional data.
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
             run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
             JSON for - this is useful to to store additional data if needed.
+
+        Returns:
+            dict: JSON representation
         """
         raise NotImplementedError
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then you can expect the `source_artifact` to have
-        the same resources available.
+        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
+        the `source_artifact`.
 
         Args:
             json_obj (dict): A JSON dictionary to deserialize
             source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
             during the `to_json` function.
-
         """
         raise NotImplementedError
 
@@ -367,11 +369,15 @@ class Media(WBValue):
             _datatypes_callback(media_path)
 
     def to_json(self, run):
-        """Get the JSON-friendly dict that represents this object.
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
+        is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
-        Only works if `self.bind_to_run()` has previously been called.
+        Args:
+            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
+            JSON for - this is useful to to store additional data if needed.
 
-        The resulting dict lets you load this object into other W&B runs.
+        Returns:
+            dict: JSON representation
         """
         json_obj = {}
         wandb_run, _ = _safe_sdk_import()
@@ -505,16 +511,6 @@ class Table(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         data = []
         for row in json_obj["data"]:
             row_data = []
@@ -530,15 +526,6 @@ class Table(Media):
         return cls(json_obj["columns"], data=data,)
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
         json_dict = super(Table, self).to_json(run_or_artifact)
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
@@ -1175,28 +1162,9 @@ class Classes(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         return cls(json_obj.get("class_set"))
 
     def to_json(self, artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
         json_obj = super(Classes, self).to_json(artifact)
         json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
@@ -1249,16 +1217,6 @@ class JoinedTable(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         t1 = source_artifact.get(json_obj["table1"])
         if t1 is None:
             t1 = json_obj["table1"]
@@ -1270,16 +1228,6 @@ class JoinedTable(Media):
         return cls(t1, t2, json_obj["join_key"],)
 
     def to_json(self, artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
-
         json_obj = super(JoinedTable, self).to_json(artifact)
 
         table1 = self._table1
@@ -1478,16 +1426,6 @@ class Image(BatchableMedia):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         classes = None
         if json_obj.get("classes") is not None:
             classes = source_artifact.get(json_obj["classes"]["path"])
@@ -1536,16 +1474,6 @@ class Image(BatchableMedia):
                 self._masks[k].bind_to_run(*args, **kwargs)
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
-
         json_dict = super(Image, self).to_json(run_or_artifact)
         json_dict["_type"] = Image.artifact_type
         json_dict["format"] = self.format
@@ -1936,16 +1864,6 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
-
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
@@ -1960,16 +1878,6 @@ class BoundingBoxes2D(JSONMetadata):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         return cls({"box_data": json_obj}, "")
 
 
@@ -2040,31 +1948,11 @@ class ImageMask(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
-        the `source_artifact`.
-
-        Args:
-            json_obj (dict): A JSON dictionary to deserialize
-            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
-            during the `to_json` function.
-        """
-
         return cls(
             {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
-
-        Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
-            JSON for - this is useful to to store additional data if needed.
-
-        Returns:
-            dict: JSON representation
-        """
-
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
