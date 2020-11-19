@@ -416,6 +416,7 @@ class BatchableMedia(Media):
     def seq_to_json(self, seq, run, key, step):
         raise NotImplementedError
 
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -1169,11 +1170,8 @@ class Classes(Media):
             class_set (list): list of dicts in the form of {"id":int|str, "name":str}
         """
         super(Classes, self).__init__()
-        if isinstance(class_set, list):
-            for class_def in class_set:
-                if not isinstance(class_def, dict) or "id" not in class_def or "name" not in class_def:
-                    raise ValueError('`class_set` list of dicts in the form of {"id":int|str, "name":str}')
         self._class_set = class_set
+        # TODO: validate
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
