@@ -5,7 +5,7 @@ title: CLI Documentation
 <a name="wandb.cli.cli"></a>
 # wandb.cli.cli
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/cli/cli.py#L4)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L4)
 
 <a name="wandb.cli.cli.display_error"></a>
 #### display\_error
@@ -14,7 +14,7 @@ title: CLI Documentation
 display_error(func)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/cli/cli.py#L80)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L80)
 
 Function decorator for catching common errors and re-raising as wandb.Error
 
@@ -25,7 +25,7 @@ Function decorator for catching common errors and re-raising as wandb.Error
 prompt_for_project(ctx, entity)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/cli/cli.py#L114)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L114)
 
 Ask the user for a project, creating one if necessary.
 
@@ -40,7 +40,7 @@ Ask the user for a project, creating one if necessary.
 docker_run(ctx, docker_run_args, help)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/cli/cli.py#L832)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L832)
 
 Simple wrapper for `docker run` which sets W&B environment
 Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
@@ -82,7 +82,7 @@ and --runtime wasn't set.
 docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_dir, shell, port, cmd, no_tty)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/cli/cli.py#L900)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L900)
 
 W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
 environment variables to your container and mounts the current directory in /app by default.  You can pass additional

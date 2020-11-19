@@ -5,11 +5,11 @@ title: Config
 <a name="wandb.sdk.wandb_config"></a>
 # wandb.sdk.wandb\_config
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L3)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_config.py#L3)
 
 Config is a dictionary-like object useful for tracking inputs to your script,
 like hyperparameters. We suggest you set this once at the beginning of your job,
-when you initialize the run like so: wandb.init(config={"key": "value"}).
+when you initialize the run like so: `wandb.init(config={"key": "value"})`.
 For example, if you're training an ML model, you might track learning_rate and
 batch_size in config.
 
@@ -20,21 +20,16 @@ batch_size in config.
 class Config(object)
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L32)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_config.py#L32)
 
-Config object
+Use the config object to save your run's hyperparameters. When you call
+wandb.init() to start a new tracked run, a run object is saved. We recommend
+saving the config object with the run at the same time, like so:
+`wandb.init(config=my_config_dict)`.
 
-Config objects are intended to hold all of the hyperparameters associated with
-a wandb run and are saved with the run object when wandb.init is called.
-
-We recommend setting wandb.config once at the top of your training experiment or
-setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
-
-You can create a file called config-defaults.yaml, and it will automatically be
-loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
-
-You can also load a config YAML file with your custom name and pass the filename
-into wandb.init(config="special_config.yaml").
+You can create a file called config-defaults.yaml, and wandb will auto-load
+your config into wandb.config. Alternatively, you can use a YAML file with a
+custom name and pass the filename: `wandb.init(config="my_config_file.yaml")`
 See https://docs.wandb.com/library/config#file-based-configs.
 
 **Examples**:
@@ -63,7 +58,6 @@ for x in range(wandb.config['train']['epochs']):
 ```
 
 Using absl flags
-
 ```
 flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
 wandb.config.update(flags.FLAGS) # adds all absl flags to config
@@ -96,7 +90,7 @@ wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
  | persist()
 ```
 
-[[view_source]](https://github.com/wandb/client/blob/88104ce0f95c9cf58676b249510db7ba56efda09/wandb/sdk/wandb_config.py#L167)
+[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_config.py#L162)
 
 Calls the callback if it's set
 

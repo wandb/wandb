@@ -34,6 +34,7 @@ renderer:
   content_directory: .
   build_directory: docs
   markdown:
+    source_format: "[[link string here]]({url})"
     source_linker:
       type: github
       repo: wandb/client
@@ -66,7 +67,7 @@ renderer:
       contents:
         - 'wandb.sdk.wandb_settings.*'
     - title: Summary
-      contents:
+      contents: 
         - 'wandb.sdk.wandb_summary.*'
     - title: Watch
       contents:

@@ -3,7 +3,7 @@
 """
 Config is a dictionary-like object useful for tracking inputs to your script,
 like hyperparameters. We suggest you set this once at the beginning of your job,
-when you initialize the run like so: wandb.init(config={"key": "value"}). 
+when you initialize the run like so: `wandb.init(config={"key": "value"})`.
 For example, if you're training an ML model, you might track learning_rate and
 batch_size in config.
 """
@@ -34,11 +34,11 @@ class Config(object):
     Use the config object to save your run's hyperparameters. When you call
     wandb.init() to start a new tracked run, a run object is saved. We recommend
     saving the config object with the run at the same time, like so:
-    wandb.init(config=my_config_dict).
+    `wandb.init(config=my_config_dict)`.
 
     You can create a file called config-defaults.yaml, and wandb will auto-load
     your config into wandb.config. Alternatively, you can use a YAML file with a
-    custom name and pass the filename: wandb.init(config="my_config_file.yaml")
+    custom name and pass the filename: `wandb.init(config="my_config_file.yaml")`
     See https://docs.wandb.com/library/config#file-based-configs.
 
     Examples:
