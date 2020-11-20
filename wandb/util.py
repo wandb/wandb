@@ -327,6 +327,16 @@ def is_numpy_array(obj):
     return np and isinstance(obj, np.ndarray)
 
 
+def is_2d_array(data):
+    if isinstance(data, list):
+        return (
+            len(data) > 0
+            and (isinstance(data[0], list) and len(data[0]))
+            and not isinstance(data[0][0], list)
+        )
+    return False
+
+
 def is_pandas_data_frame(obj):
     return is_pandas_data_frame_typename(get_full_typename(obj))
 

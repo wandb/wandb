@@ -448,6 +448,11 @@ class Table(Media):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
+        # check types of columns and data
+        assert isinstance(
+            columns, list
+        ), "Columns argument of wandb.Table must be a list of column names"
+        assert util.is_2d_array(data), "Data must be a 2-D array of values"
         self.columns = columns
         self.data = list(rows or data or [])
         if dataframe is not None:
