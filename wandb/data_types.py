@@ -1388,6 +1388,13 @@ class Image(BatchableMedia):
                 self._image.save(tmp_path, transparency=None)
                 self._set_file(tmp_path, is_tmp=True)
 
+                # Here, we rename the file to a deterministic name and reset the path.
+                # This allows for proper deduplication of artifact entries.
+                deterministic_path = os.path.join(MEDIA_TMP.name, self._sha256 + ".png")
+                if not os.path.isfile(deterministic_path):
+                    os.rename(tmp_path, deterministic_path)
+                self._path = deterministic_path
+
         if grouping is not None:
             self._grouping = grouping
 

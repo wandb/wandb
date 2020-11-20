@@ -166,6 +166,11 @@ def test_max_images(caplog, mocked_run):
     assert utils.subdict(meta, expected) == expected
     assert os.path.exists(os.path.join(mocked_run.dir, "media/images/test2_0_0.png"))
 
+def test_deterministic_image_names():
+    image_data = np.random.random((300,300,3))
+    image_1 = wandb.Image(image_data)
+    image_2 = wandb.Image(image_data)
+    assert image_1._path == image_2._path
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)
