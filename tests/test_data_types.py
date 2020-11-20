@@ -174,12 +174,18 @@ def test_deterministic_image_names():
     image_2 = wandb.Image(image_data)
     assert image_1._path == image_2._path
 
+    image_2 = wandb.Image(np.random.random((300, 300, 3)))
+    assert image_1._path != image_2._path
+
 
 def test_deterministic_imagemask_names():
     image_data = np.random.random((300, 300))
     image_1 = ImageMask({"mask_data": image_data}, key="test")
     image_2 = ImageMask({"mask_data": image_data}, key="test2")
     assert image_1._path == image_2._path
+
+    image_1 = ImageMask({"mask_data": np.random.random((300, 300))}, key="test")
+    assert image_1._path != image_2._path
 
 
 def test_audio_sample_rates():
