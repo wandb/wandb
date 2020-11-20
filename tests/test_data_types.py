@@ -1,5 +1,6 @@
 import wandb
 from wandb import data_types
+from wandb.data_types import ImageMask
 import numpy as np
 import pytest
 import PIL
@@ -166,11 +167,20 @@ def test_max_images(caplog, mocked_run):
     assert utils.subdict(meta, expected) == expected
     assert os.path.exists(os.path.join(mocked_run.dir, "media/images/test2_0_0.png"))
 
+
 def test_deterministic_image_names():
-    image_data = np.random.random((300,300,3))
+    image_data = np.random.random((300, 300, 3))
     image_1 = wandb.Image(image_data)
     image_2 = wandb.Image(image_data)
     assert image_1._path == image_2._path
+
+
+def test_deterministic_imagemask_names():
+    image_data = np.random.random((300, 300))
+    image_1 = ImageMask({"mask_data": image_data}, key="test")
+    image_2 = ImageMask({"mask_data": image_data}, key="test2")
+    assert image_1._path == image_2._path
+
 
 def test_audio_sample_rates():
     audio1 = np.random.uniform(-1, 1, 44100)

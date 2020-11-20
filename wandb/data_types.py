@@ -312,6 +312,34 @@ class Media(WBValue):
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
+    def _rename_deterministically(self, extension):
+        """Renames the file located at `_path` to a deterministic name based on content's sha and 
+        updates such path. If a file already exists with such name, then `_path` is updated to 
+        point to that file.
+
+        As additional WBMedia subclasses are extended to support being added to artifacts,
+        and those subclasses create new files (often names by a random id), then it is advised 
+        to use this method to reduce duplication and improve ability to compare. 
+        See wandb.Image for an example.
+
+        Args:
+            extension (str): the extension to append to the name
+        """
+        if (
+            not self._path
+            or not os.path.isfile(self._path)
+            or not hasattr(self, "_sha256")
+        ):
+            raise ValueError("Assign a file using `set_file` to before renaming")
+
+        file_path, file_name = os.path.split(self._path)
+        deterministic_path = os.path.join(
+            file_path, "{}.{}".format(self._sha256, extension.lstrip("."))
+        )
+        if not os.path.isfile(deterministic_path):
+            os.rename(self._path, deterministic_path)
+        self._path = deterministic_path
+
     @classmethod
     def get_media_subdir(cls):
         raise NotImplementedError
@@ -1387,13 +1415,7 @@ class Image(BatchableMedia):
                 self.format = "png"
                 self._image.save(tmp_path, transparency=None)
                 self._set_file(tmp_path, is_tmp=True)
-
-                # Here, we rename the file to a deterministic name and reset the path.
-                # This allows for proper deduplication of artifact entries.
-                deterministic_path = os.path.join(MEDIA_TMP.name, self._sha256 + ".png")
-                if not os.path.isfile(deterministic_path):
-                    os.rename(tmp_path, deterministic_path)
-                self._path = deterministic_path
+                self._rename_deterministically(self.format)
 
         if grouping is not None:
             self._grouping = grouping
@@ -1949,6 +1971,7 @@ class ImageMask(Media):
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
+            self._rename_deterministically(ext)
 
     def bind_to_run(self, run, key, step, id_=None):
         # bind_to_run key argument is the Image parent key
