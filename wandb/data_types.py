@@ -334,7 +334,9 @@ class Media(WBValue):
 
         file_path, file_name = os.path.split(self._path)
         deterministic_path = os.path.join(
-            file_path, "{}.{}".format(self._sha256, extension.lstrip("."))
+            # name length of 8 gives a 1 in 16^8=2^32 (4 billion) chance of collision
+            file_path,
+            "{}.{}".format(self._sha256[:8], extension.lstrip(".")),
         )
         if not os.path.isfile(deterministic_path):
             os.rename(self._path, deterministic_path)

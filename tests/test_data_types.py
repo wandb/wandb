@@ -179,12 +179,12 @@ def test_deterministic_image_names():
 
 
 def test_deterministic_imagemask_names():
-    image_data = np.random.random((300, 300))
+    image_data = np.random.randint(0, 10, (300, 300))
     image_1 = ImageMask({"mask_data": image_data}, key="test")
     image_2 = ImageMask({"mask_data": image_data}, key="test2")
     assert image_1._path == image_2._path
 
-    image_1 = ImageMask({"mask_data": np.random.random((300, 300))}, key="test")
+    image_1 = ImageMask({"mask_data": np.random.randint(0, 10, (300, 300))}, key="test")
     assert image_1._path != image_2._path
 
 
