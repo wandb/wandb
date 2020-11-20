@@ -26,6 +26,7 @@ import types
 import yaml
 from datetime import date, datetime
 import platform
+from six.moves.urllib.parse import urlparse
 
 import click
 import requests
@@ -109,7 +110,18 @@ def sentry_set_scope(process_context, entity, project, email=None, url=None):
 
 
 def vendor_setup():
-    """This enables us to use the vendor directory for packages we don't depend on"""
+    """This enables us to use the vendor directory for packages we don't depend on
+    Returns a function to call after imports are complete. Make sure to call this
+    function or you will modify the user's path which is never good. The pattern should be:
+    reset_path = vendor_setup()
+    # do any vendor imports...
+    reset_path()
+    """
+    original_path = [directory for directory in sys.path]
+
+    def reset_import_path():
+        sys.path = original_path
+
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
     vendor_packages = (
@@ -121,10 +133,14 @@ def vendor_setup():
         if p not in sys.path:
             sys.path.insert(1, p)
 
+    return reset_import_path
+
 
 def vendor_import(name):
-    vendor_setup()
-    return import_module(name)
+    reset_path = vendor_setup()
+    module = import_module(name)
+    reset_path()
+    return module
 
 
 def get_module(name, required=None):
@@ -645,7 +661,7 @@ def no_retry_auth(e):
 def request_with_retry(func, *args, **kwargs):
     """Perform a requests http call, retrying with exponential backoff.
 
-    Args:
+    Arguments:
         func: An http-requesting function to call, like requests.post
         max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
         *args: passed through to func
@@ -705,7 +721,7 @@ def request_with_retry(func, *args, **kwargs):
 def find_runner(program):
     """Return a command that will run program.
 
-    Args:
+    Arguments:
         program: The string name of the program to try to run.
     Returns:
         commandline list of strings to run the program (eg. with subprocess.call()) or None
@@ -936,7 +952,7 @@ def class_colors(class_count):
 def guess_data_type(shape, risky=False):
     """Infer the type of data based on the shape of the tensors
 
-    Args:
+    Arguments:
         risky(bool): some guesses are more likely to be wrong.
     """
     # (samples,) or (samples,logits)
@@ -1008,7 +1024,7 @@ def auto_project_name(program):
 def parse_sweep_id(parts_dict):
     """In place parse sweep path from parts dict.
 
-    Args:
+    Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
     
     Returns:
@@ -1116,3 +1132,15 @@ def b64_to_hex_id(id_string):
 
 def hex_to_b64_id(encoded_string):
     return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
+
+
+def host_from_path(path):
+    """returns the host of the path"""
+    url = urlparse(path)
+    return url.netloc
+
+
+def uri_from_path(path):
+    """returns the URI of the path"""
+    url = urlparse(path)
+    return url.path if url.path[0] != "/" else url.path[1:]

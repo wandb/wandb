@@ -1,3 +1,19 @@
+## 0.10.11 (November 18, 2020)
+
+#### :nail_care: Enhancement
+
+- Disable wandb logging with `wandb disabled` or `wandb.init(mode="disabled")`
+- Support cloning an artifact when logging wandb.Image() 
+
+#### :bug: Bug Fix
+
+- Multiple media artifact improvements and internal refactor
+- Improve handling of artifact errors
+- Fix issue where notebook name was ignored
+- Extend silent mode for jupyter logging
+- Fix issue where vendored libraries interfered with python path
+- Fix various exceptions (divide by zero, int conversion, TypeError)
+
 ## 0.10.10 (November 9, 2020)
 
 #### :nail_care: Enhancement

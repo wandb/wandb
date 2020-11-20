@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 from wandb import util
 import wandb
@@ -263,6 +264,9 @@ def test_add_s3_reference_object_with_name(runner, mocker):
         }
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
+)
 def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -281,6 +285,9 @@ def test_add_s3_reference_path(runner, mocker, capsys):
         assert "Generating checksum" in err
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
+)
 def test_add_s3_max_objects(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -426,29 +433,35 @@ def test_add_obj_wbimage(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
-            assert artifact.digest == "c72784d4c7f230a79cf8139dce983188"
+            assert artifact.digest == "19dbf4719a3e725f89f98c2d1bb77691"
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media\\cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media\\images\\2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "nD/QMrasZLE2Cp35MmshSg==",
-                    "size": 198,
+                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
+                    "size": 209,
                 },
             }
         else:
-            assert artifact.digest == "c2e72e6e5261043b8d03461576f8ff88"
+            assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media/cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media/images/2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "UhZfZLPavGE2tBRdTvIl3Q==",
-                    "size": 196,
+                    "digest": "09JETFEpiuqBeICi09cY4A==",
+                    "size": 206,
                 },
             }
 
@@ -465,26 +478,32 @@ def test_add_obj_wbimage_classes_obj(runner):
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media\\cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media\\images\\2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "nD/QMrasZLE2Cp35MmshSg==",
-                    "size": 198,
+                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
+                    "size": 209,
                 },
             }
         else:
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media/cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media/images/2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "UhZfZLPavGE2tBRdTvIl3Q==",
-                    "size": 196,
+                    "digest": "09JETFEpiuqBeICi09cY4A==",
+                    "size": 206,
                 },
             }
 
@@ -542,14 +561,30 @@ def test_add_obj_wbimage_image_already_added(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"] == {
-            "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
-            "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "my-image.image-file.json": {
-                "digest": "Wr7bZ9hy0p7Yc9eYRbSuvg==",
-                "size": 183,
-            },
-        }
+        if os.name == "nt":  # windows
+            assert manifest["contents"] == {
+                "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+                "media\\cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
+                "my-image.image-file.json": {
+                    "digest": "3K1MxC/oqFbvBcUniFGDCA==",
+                    "size": 194,
+                },
+            }
+        else:
+            assert manifest["contents"] == {
+                "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+                "media/cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
+                "my-image.image-file.json": {
+                    "digest": "ZeHjOyjSSVRwrmibiprSQw==",
+                    "size": 193,
+                },
+            }
 
 
 def test_add_obj_wbtable_images(runner):
@@ -566,154 +601,31 @@ def test_add_obj_wbtable_images(runner):
         manifest = artifact.manifest.to_manifest_json()
         if os.name == "nt":  # windows
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media\\cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media\\images\\2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-table.table.json": {
-                    "digest": "sFp8mwHHWFt75ovTLq3c+g==",
-                    "size": 463,
+                    "digest": "pI7BRFOjiq5eyNXnSXH4kA==",
+                    "size": 503,
                 },
             }
         else:
             assert manifest["contents"] == {
-                "classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64},
+                "media/cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
                 "media/images/2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-table.table.json": {
-                    "digest": "TZhMeYO9IF2WvpKp4/mNDg==",
-                    "size": 459,
+                    "digest": "5l6DxiO38nB1II2dTW/HNA==",
+                    "size": 497,
                 },
             }
-
-
-def _make_wandb_image(suffix=""):
-    classes = [
-        {"id": 0, "name": "tree"},
-        {"id": 1, "name": "car"},
-        {"id": 3, "name": "road"},
-    ]
-    class_labels = {1: "tree", 2: "car", 3: "road"}
-    test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "test{}.png".format(suffix))
-    return wandb.Image(
-        im_path,
-        classes=classes,
-        boxes={
-            "predictions": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 2,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": class_labels,
-            },
-            "ground_truth": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 2,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": class_labels,
-            },
-        },
-        masks={
-            "predictions": {
-                "mask_data": np.random.randint(0, 4, size=(30, 30)),
-                "class_labels": class_labels,
-            },
-            "ground_truth": {"path": im_path, "class_labels": class_labels},
-        },
-    )
-
-
-def _make_wandb_table():
-    return wandb.Table(
-        columns=["id", "bool", "int", "float", "Image"],
-        data=[
-            ["string", True, 1, 1.4, _make_wandb_image()],
-            ["string2", False, -0, -1.4, _make_wandb_image("2")],
-        ],
-    )
-
-
-def _make_wandb_joinedtable():
-    return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
-
-
-def simulate_artifact_download(artifact):
-    # Simulate download
-    for entry_name in artifact._manifest.entries:
-        entry = artifact._manifest.entries[entry_name]
-        target_path = os.path.join(
-            artifact._artifact_dir.name, os.path.dirname(entry.path)
-        )
-        target_file = os.path.join(artifact._artifact_dir.name, entry.path)
-        if entry.local_path != target_file:
-            if not os.path.exists(target_file):
-                if not os.path.exists(target_path):
-                    os.makedirs(target_path)
-                shutil.copy(entry.local_path, target_file)
-
-
-def assert_json_serialization(obj):
-    artifact = wandb.Artifact("artifact", "db")
-    # artifact.add(obj, "name")
-    expected_dict = obj.to_json(artifact)
-    simulate_artifact_download(artifact)
-
-    obj_copy = obj.__class__.from_json(expected_dict, artifact._artifact_dir.name)
-    assert obj == obj_copy
-
-
-def test_table_json_serialization(runner):
-    assert_json_serialization(_make_wandb_table())
-
-
-def test_image_json_serialization(runner):
-    assert_json_serialization(_make_wandb_image())
-
-
-def test_joinedtable_json_serialization(runner):
-    assert_json_serialization(_make_wandb_joinedtable())

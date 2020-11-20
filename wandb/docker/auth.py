@@ -145,7 +145,7 @@ class AuthConfig(dict):
     def parse_auth(cls, entries, raise_on_error=False):
         """
         Parses authentication entries
-        Args:
+        Arguments:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
                           InvalidConfigFile
@@ -371,7 +371,7 @@ def decode_auth(auth):
 def parse_auth(entries, raise_on_error=False):
     """
     Parses authentication entries
-    Args:
+    Arguments:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise
                       InvalidConfigFile

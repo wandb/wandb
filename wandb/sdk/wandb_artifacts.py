@@ -4,6 +4,7 @@ import os
 import time
 import shutil
 import requests
+import threading
 
 from six.moves.urllib.parse import urlparse, quote
 
@@ -12,12 +13,12 @@ from wandb import env
 from .interface.artifacts import *
 from .internal.progress import Progress
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 from .lib import filesystem
-
-from wandb.data_types import Media, JSONABLE_MEDIA_CLASSES
+from wandb.data_types import WBValue
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -32,45 +33,11 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 
-class ArtifactsCache(object):
-    def __init__(self, cache_dir):
-        self._cache_dir = cache_dir
-        util.mkdir_exists_ok(self._cache_dir)
-        self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
-        self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
-
-    def check_md5_obj_path(self, b64_md5, size):
-        hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
-        path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True
-        util.mkdir_exists_ok(os.path.dirname(path))
-        return path, False
-
-    def check_etag_obj_path(self, etag, size):
-        path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
-        if os.path.isfile(path) and os.path.getsize(path) == size:
-            return path, True
-        util.mkdir_exists_ok(os.path.dirname(path))
-        return path, False
-
-
-_artifacts_cache = None
-
-
-def get_artifacts_cache():
-    global _artifacts_cache
-    if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
-    return _artifacts_cache
-
-
 class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
 
     def __init__(self, name, type, description=None, metadata=None):
-        if not re.match("^[a-zA-Z0-9_\-.]+$", name):
+        if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 'Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. Invalid name: "%s"'
                 % name
@@ -202,14 +169,25 @@ class Artifact(object):
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+        """adds `uri` to the artifact via a reference, located at `name`. 
+        You can use Artifact#get_path(`name`) to retrieve this object.
+        
+        Arguments:
+        - `uri`:str - the URI path of the reference to add. Can be an object returned from
+            Artifact.get_path to store a reference to another artifact's entry.
+        - `name`:str - the path to save
+        """
+
+        # This is a bit of a hack, we want to check if the uri is a of the type
+        # ArtifactEntry which is a private class returned by Artifact.get_path in
+        # wandb/apis/public.py. If so, then recover the reference URL.
         if (
             isinstance(uri, object)
             and hasattr(uri, "parent_artifact")
             and uri.parent_artifact != self
         ):
             ref_url_fn = getattr(uri, "ref_url")
-            if callable(ref_url_fn):
-                uri = ref_url_fn()
+            uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
             raise ValueError(
@@ -225,55 +203,48 @@ class Artifact(object):
 
         return manifest_entries
 
-    # TODO: name this add_obj?
     def add(self, obj, name):
-        """adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
+        """Adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
         the artifact to retrieve this object.
         
         Arguments:
-        - `obj`:wandb.Media - the object to save
-        - `name`:str - the path to save
+            obj (wandb.WBValue): The object to save in an artifact
+            name (str): The path to save
         """
-        if isinstance(obj, Media):
 
-            # If the object is coming from another artifact, save it as a reference
-            if hasattr(obj, "_source") and obj._source is not None:
-                suffix = "." + obj.get_json_suffix() + ".json"
-                ref_path = obj._source["artifact"].get_path(
-                    obj._source["name"] + suffix
-                )
-                path = name + suffix
-                return self.add_reference(ref_path, path)[0]
+        # Validate that the object is wandb.Media type
+        if not isinstance(obj, WBValue):
+            raise ValueError("Can only add `obj` which subclass wandb.WBValue")
 
-            # Otherwise, save the object directly via json
-            elif type(obj) in JSONABLE_MEDIA_CLASSES:
-                obj_id = id(obj)
-                if obj_id in self._added_objs:
-                    return self._added_objs[obj_id]
-                val = obj.to_json(self)
-                if "_type" not in val:
-                    val["_type"] = obj.get_json_suffix()
-                suffix = val["_type"] + ".json"
-                if not name.endswith(suffix):
-                    name = name + "." + suffix
-                entry = self._manifest.get_entry_by_path(name)
-                if entry is not None:
-                    return entry
-                with self.new_file(name) as f:
-                    import json
+        obj_id = id(obj)
+        if obj_id in self._added_objs:
+            return self._added_objs[obj_id]
 
-                    # TODO: Do we need to open with utf-8 codec?
-                    f.write(json.dumps(obj.to_json(self), sort_keys=True))
-                # Note, we add the file from our temp directory.
-                # It will be added again later on finalize, but succeed since
-                # the checksum should match
-                entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
-                self._added_objs[obj_id] = entry
-                return entry
-            else:
-                ValueError("Can't add obj of type {} to artifact".format(type(obj)))
-        else:
-            raise ValueError("Can't add obj to artifact")
+        # If the object is coming from another artifact, save it as a reference
+        if obj.artifact_source is not None:
+            ref_path = obj.artifact_source["artifact"].get_path(
+                type(obj).with_suffix(obj.artifact_source["name"])
+            )
+            return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
+
+        val = obj.to_json(self)
+        name = obj.with_suffix(name)
+        entry = self._manifest.get_entry_by_path(name)
+        if entry is not None:
+            return entry
+        with self.new_file(name) as f:
+            import json
+
+            # TODO: Do we need to open with utf-8 codec?
+            f.write(json.dumps(obj.to_json(self), sort_keys=True))
+
+        # Note, we add the file from our temp directory.
+        # It will be added again later on finalize, but succeed since
+        # the checksum should match
+        entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+        self._added_objs[obj_id] = entry
+
+        return entry
 
     def get_added_local_path_name(self, local_path):
         """If local_path was already added to artifact, return its internal name."""
@@ -287,6 +258,9 @@ class Artifact(object):
 
     def download(self):
         raise ValueError("Cannot call download on an artifact before it has been saved")
+
+    def get(self):
+        raise ValueError("Cannot call get on an artifact before it has been saved")
 
     def finalize(self):
         if self._final:
@@ -479,7 +453,6 @@ class WandbStoragePolicy(StoragePolicy):
         )
         if hit:
             return path
-
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
             auth=("api", self._api.api_key),
@@ -1170,66 +1143,94 @@ class HTTPHandler(StorageHandler):
 
 
 class WBArtifactHandler(StorageHandler):
-    """Handles loading and storing WandB Artifact reference-type files"""
+    """Handles loading and storing Artifact reference-type files"""
 
     def __init__(self, scheme=None):
         self._scheme = scheme or "wandb-artifact"
         self._cache = get_artifacts_cache()
+        self._client = None
 
     @property
     def scheme(self):
+        """overrides parent scheme
+        :return: The scheme to which this handler applies.
+        :rtype: str
+        """
         return self._scheme
 
-    @staticmethod
-    def parse_path(path):
-        url = urlparse(path)
-        return url.netloc, (url.path if url.path[0] != "/" else url.path[1:])
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = PublicApi()
+        return self._client
 
     def load_path(self, artifact, manifest_entry, local=False):
-        path, hit = self._cache.check_etag_obj_path(
-            manifest_entry.digest, manifest_entry.size
-        )
-        if hit:
-            return path
+        """
+        Loads the file within the specified artifact given its
+        corresponding entry. In this case, the referenced artifact is downloaded
+        and a new symlink is created and returned to the caller.
 
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(
-            manifest_entry.ref
-        )
-        artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
-        artifact_path = artifact.download()
+        :param manifest_entry: The index entry to load
+        :type manifest_entry: ArtifactManifestEntry
+        :return: A path to the file represented by `index_entry`
+        :rtype: os.PathLike
+        """
+        # We don't check for cache hits here. Since we have 0 for size (since this
+        # is a cross-artifact reference which and we've made the choice to store 0
+        # in the size field), we can't confirm if the file is complete. So we just
+        # rely on the dep_artifact entry's download() method to do its own cache
+        # check.
 
-        link_target_path = os.path.join(artifact_path, artifact_file_path)
-        link_creation_path = os.path.join(
-            self._cache._cache_dir, "tmp", link_target_path
-        )
-        filesystem._safe_makedirs(os.path.dirname(link_creation_path))
-        if os.path.islink(link_creation_path):
-            os.unlink(link_creation_path)
-        os.symlink(os.path.abspath(link_target_path), link_creation_path)
+        # Parse the reference path and download the artifact if needed
+        artifact_id = util.host_from_path(manifest_entry.ref)
+        artifact_file_path = util.uri_from_path(manifest_entry.ref)
 
-        return link_creation_path
+        dep_artifact = PublicArtifact.from_id(
+            util.hex_to_b64_id(artifact_id), self.client
+        )
+        link_target_path = dep_artifact.get_path(artifact_file_path).download()
+
+        return link_target_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
-        # Resolve the reference until the result is a concrete asset
-        # so that we don't have multiple hops.
-        artifact_id, artifact_file_path = WBArtifactHandler.parse_path(path)
-        target_artifact = PublicApi().artifact_from_id(util.hex_to_b64_id(artifact_id))
-        entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
+        """
+        Stores the file or directory at the given path within the specified artifact. In this
+        case we recursively resolve the reference until the result is a concrete asset so that 
+        we don't have multiple hops. TODO: This resolution could be done in the server for
+        performance improvements.
 
-        while entry.ref is not None and urlparse(entry.ref).scheme == self._scheme:
-            artifact_id, artifact_file_path = WBArtifactHandler.parse_path(entry.ref)
-            target_artifact = PublicApi().artifact_from_id(
-                util.hex_to_b64_id(artifact_id)
+        :param artifact: The artifact doing the storing
+        :param path: The path to store
+        :type path: str
+        :param name: If specified, the logical name that should map to `path`
+        :type name: str
+        :return: A list of manifest entries to store within the artifact
+        :rtype: list(ArtifactManifestEntry)
+        """
+
+        # Recursively resolve the reference until a concrete asset is found
+        while path is not None and urlparse(path).scheme == self._scheme:
+            artifact_id = util.host_from_path(path)
+            artifact_file_path = util.uri_from_path(path)
+            target_artifact = PublicArtifact.from_id(
+                util.hex_to_b64_id(artifact_id), self.client
             )
-            entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
 
+            # this should only have an effect if the user added the reference by url
+            # string directly (in other words they did not already load the artifact into ram.)
+            target_artifact._load_manifest()
+
+            entry = target_artifact._manifest.get_entry_by_path(artifact_file_path)
+            path = entry.ref
+
+        # Create the path reference
         path = "wandb-artifact://{}/{}".format(
-            util.b64_to_hex_id(target_artifact.id), str(entry.path)
+            util.b64_to_hex_id(target_artifact.id), artifact_file_path
         )
 
-        size = 0
+        # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path), path, size=size, digest=path,
+                name or os.path.basename(path), path, size=0, digest=entry.digest,
             )
         ]

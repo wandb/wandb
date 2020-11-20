@@ -245,7 +245,7 @@ class HandleManager(object):
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
             tbrecord = record.tbrecord
-            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save)
+            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
     def handle_request_sampled_history(self, data):
