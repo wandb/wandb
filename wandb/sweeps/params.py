@@ -137,7 +137,15 @@ class HyperParameter():
         if self.type == HyperParameter.CONSTANT:
             return 0.0
         elif self.type == HyperParameter.CATEGORICAL:
-            idxs = [self.values.index(v) for v in x] if type(x) == np.ndarray else self.values.index(x)
+            if isinstance(x, np.ndarray):
+                idxs = []
+                for item in x:
+                    for i, val in enumerate(self.values):
+                        if np.all(item == val):
+                            idxs.append(i)
+                            break
+            else:
+                idxs = self.values.index(x)
             return stats.randint.cdf(idxs, 0, len(self.values))
         elif self.type == HyperParameter.INT_UNIFORM:
             return stats.randint.cdf(x, self.min, self.max + 1)
