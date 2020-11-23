@@ -6,6 +6,13 @@ import binascii
 import base64
 import time
 import numpy as np
+import sys
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import artifacts
+else:
+    from wandb.sdk_py27.interface import artifacts
 
 PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
 
@@ -308,6 +315,7 @@ def test_adding_artifact_by_object():
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
 def _cleanup():
+    artifacts.get_artifacts_cache()._artifacts_by_id = {}
     if os.path.isdir("wandb"):
         shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):
