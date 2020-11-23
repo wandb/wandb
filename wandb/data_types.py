@@ -314,8 +314,8 @@ class Media(WBValue):
 
     def _rename_deterministically(self, extension):
         """Renames the file located at `_path` to a deterministic name based on content's sha and 
-        updates such path. If a file already exists with such name, then `_path` is updated to 
-        point to that file.
+        updates such path. Should not be called on user-generated images. Strictly used for
+        files which have been generated via wandb. (eg. passing numpy array to Image).
 
         As additional WBMedia subclasses are extended to support being added to artifacts,
         and those subclasses create new files (often names by a random id), then it is advised 
@@ -333,14 +333,18 @@ class Media(WBValue):
             raise ValueError("Assign a file using `set_file` to before renaming")
 
         file_path, file_name = os.path.split(self._path)
-        deterministic_path = os.path.join(
-            # name length of 8 gives a 1 in 16^8=2^32 (4 billion) chance of collision
+        deterministic_filepath = os.path.join(
             file_path,
+            # random intermediate path ensures a unique path for every entry, even if same name
+            util.generate_id(),
+            # name length of 8 gives a 1 in 16^8=2^32 (4 billion) chance of collision
             "{}.{}".format(self._sha256[:8], extension.lstrip(".")),
         )
-        if not os.path.isfile(deterministic_path):
-            os.rename(self._path, deterministic_path)
-        self._path = deterministic_path
+        deterministic_dir = os.path.dirname(deterministic_filepath)
+        if not os.path.isdir(deterministic_dir):
+            os.makedirs(deterministic_dir)
+        os.rename(self._path, deterministic_filepath)
+        self._path = deterministic_filepath
 
     @classmethod
     def get_media_subdir(cls):
