@@ -309,7 +309,7 @@ class Media(WBValue):
             )
 
         with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+            self._hexdigest = hashlib.md5(f.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
     @classmethod
@@ -351,7 +351,7 @@ class Media(WBValue):
             rootname = os.path.basename(self._path)[: -len(extension)]
 
         if id_ is None:
-            id_ = self._sha256[:8]
+            id_ = self._hexdigest[:8]
 
         file_path = wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
@@ -399,7 +399,7 @@ class Media(WBValue):
                     "path": util.to_forward_slash_path(
                         os.path.relpath(self._path, self._run.dir)
                     ),
-                    "sha256": self._sha256,
+                    "hexdigest": self._hexdigest,
                     "size": self._size,
                 }
             )
@@ -1329,7 +1329,7 @@ class Image(BatchableMedia):
             self._path = data_or_path._path
             self._is_tmp = data_or_path._is_tmp
             self._extension = data_or_path._extension
-            self._sha256 = data_or_path._sha256
+            self._hexdigest = data_or_path._hexdigest
             self._size = data_or_path._size
             self.format = data_or_path.format
             self.artifact_source = data_or_path.artifact_source
