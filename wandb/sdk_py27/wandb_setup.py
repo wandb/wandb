@@ -40,6 +40,8 @@ class _EarlyLogger(object):
     def __init__(self):
         self._log = []
         self._exception = []
+        # support old warn() as alias of warning()
+        self.warn = self.warning
 
     def debug(self, msg, *args, **kwargs):
         self._log.append((logging.DEBUG, msg, args, kwargs))

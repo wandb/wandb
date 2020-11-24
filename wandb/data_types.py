@@ -87,10 +87,6 @@ class WBValue(object):
 
     The objects will be serialized as JSON and always have a _type attribute
     that indicates how to interpret the other fields.
-
-    Returns:
-        JSON-friendly `dict` representation of this object that can later be
-            serialized to a string.
     """
 
     _type_mapping = None
@@ -102,19 +98,41 @@ class WBValue(object):
         self._artifact_source = None
 
     def to_json(self, run_or_artifact):
-        """Serializes the object into a JSON blob, optionally using a run or artifact to store additional data."""
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
+
+        Args:
+            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
+            JSON for - this is useful to to store additional data if needed.
+
+        Returns:
+            dict: JSON representation
+        """
         raise NotImplementedError
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then you can expect the `source_artifact` to have
-        the same resources available."""
+        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
+        the `source_artifact`.
+
+        Args:
+            json_obj (dict): A JSON dictionary to deserialize
+            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
+            during the `to_json` function.
+        """
         raise NotImplementedError
 
     @classmethod
     def with_suffix(cls, name, filetype="json"):
-        """helper function to return the name with suffix added if needed"""
+        """Helper function to return the name with suffix added if not already
+
+        Args:
+            name (str): the name of the file
+            filetype (str, optional): the filetype to use. Defaults to "json".
+
+        Returns:
+            str: a filename which is suffixed with it's `artifact_type` followed by the filetype
+        """
         if cls.artifact_type is not None:
             suffix = cls.artifact_type + "." + filetype
         else:
@@ -125,7 +143,20 @@ class WBValue(object):
 
     @staticmethod
     def init_from_json(json_obj, source_artifact):
-        """Looks through all subclasses and tries to match the json obj with the class which created it."""
+        """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
+        call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
+        attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create
+        a wandb.Value via it's `from_json` method, make sure to properly set this `artifact_source` to avoid data duplication.
+
+        Args:
+            json_obj (dict): A JSON dictionary to deserialize. It must contain a `_type` key. The value of
+            this key is used to lookup the correct subclass to use.
+            source_artifact (wandb.Artifact): An artifact which will hold any additional resources which were stored
+            during the `to_json` function.
+
+        Returns:
+            wandb.Value: a newly created instance of a subclass of wandb.Value
+        """
         class_option = WBValue.type_mapping().get(json_obj["_type"])
         if class_option is not None:
             obj = class_option.from_json(json_obj, source_artifact)
@@ -136,7 +167,11 @@ class WBValue(object):
 
     @staticmethod
     def type_mapping():
-        """Looks through all subclasses and builds a mapping from `artifact_type` to class"""
+        """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
+
+        Returns:
+            dict: dictionary of str:class
+        """
         if WBValue._type_mapping is None:
             WBValue._type_mapping = {}
             frontier = [WBValue]
@@ -152,26 +187,30 @@ class WBValue(object):
         return WBValue._type_mapping
 
     def __eq__(self, other):
-        """recommend to override equality comparison to evaluate equality of internal properties"""
         return super(WBValue, self).__eq__(other)
 
     def __ne__(self, other):
-        """optional to override not equal comparison to evaluate equality of internal properties"""
         return not self.__eq__(other)
 
     @property
     def artifact_source(self):
+        """Getter which returns the object's artifact source
+
+        Returns:
+            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
+            stored as well as the name (optional)
+        """
         return self._artifact_source
 
     @artifact_source.setter
     def artifact_source(self, artifact_source):
-        self._artifact_source = {}
+        """Setter for artifact source
 
-        if artifact_source.get("artifact") is not None:
-            self._artifact_source["artifact"] = artifact_source.get("artifact")
-
-        if artifact_source.get("name") is not None:
-            self._artifact_source["name"] = artifact_source.get("name")
+        Args:
+            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
+            stored as well as the name (optional)
+        """
+        self._artifact_source = artifact_source
 
 
 class Histogram(WBValue):
@@ -330,11 +369,15 @@ class Media(WBValue):
             _datatypes_callback(media_path)
 
     def to_json(self, run):
-        """Get the JSON-friendly dict that represents this object.
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
+        is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
-        Only works if `self.bind_to_run()` has previously been called.
+        Args:
+            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
+            JSON for - this is useful to to store additional data if needed.
 
-        The resulting dict lets you load this object into other W&B runs.
+        Returns:
+            dict: JSON representation
         """
         json_obj = {}
         wandb_run, _ = _safe_sdk_import()
@@ -381,7 +424,7 @@ class BatchableMedia(Media):
 
 
 class Table(Media):
-    """This is a table designed to display small sets of records.
+    """This is a table designed to display sets of records.
 
     Arguments:
         columns ([str]): Names of the columns in the table.
@@ -437,6 +480,7 @@ class Table(Media):
         self.add_data(*row)
 
     def add_data(self, *data):
+        """Add a row of data to the table. Argument length should match column length"""
         if len(data) != len(self.columns):
             raise ValueError(
                 "This table expects {} columns: {}".format(
@@ -450,7 +494,7 @@ class Table(Media):
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
-            logging.warn("Truncating wandb.Table object to %i rows." % max_rows)
+            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
@@ -1107,6 +1151,11 @@ class Classes(Media):
     artifact_type = "classes"
 
     def __init__(self, class_set):
+        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
+
+        Args:
+            class_set (list): list of dicts in the form of {"id":int|str, "name":str}
+        """
         super(Classes, self).__init__()
         self._class_set = class_set
         # TODO: validate
@@ -1447,15 +1496,25 @@ class Image(BatchableMedia):
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
 
+            # Checks if the concrete image has already been added to this artifact
             name = artifact.get_added_local_path_name(self._path)
             if name is None:
                 name = os.path.join(
                     self.get_media_subdir(), os.path.basename(self._path)
                 )
+
+                # if not, check to see if there is a source artifact for this object
                 if (
                     self.artifact_source is not None
                     and self.artifact_source["artifact"] != artifact
                 ):
+                    default_root = self.artifact_source["artifact"]._default_root()
+                    # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                    if self._path.startswith(default_root):
+                        name = self._path[len(default_root) :]
+                        name = name.lstrip(os.sep)
+
+                    # Add this image as a reference
                     path = self.artifact_source["artifact"].get_path(name)
                     artifact.add_reference(path.ref_url(), name=name)
                 else:
@@ -1558,6 +1617,16 @@ class Image(BatchableMedia):
         num_images_to_log = len(images)
         width, height = images[0]._image.size
         format = jsons[0]["format"]
+
+        def size_equals_image(image):
+            img_width, img_height = image._image.size
+            return img_width == width and img_height == height
+
+        sizes_match = all(size_equals_image(img) for img in images)
+        if not sizes_match:
+            logging.warning(
+                "Images sizes do not match. This will causes images to be display incorrectly in the UI."
+            )
 
         meta = {
             "_type": "images/separated",
@@ -1689,6 +1758,28 @@ class BoundingBoxes2D(JSONMetadata):
     artifact_type = "bounding-boxes"
 
     def __init__(self, val, key, **kwargs):
+        """
+        Args:
+            val (dict): dictionary following the form: 
+            {
+                "class_labels": optional mapping from class ids to strings {id: str}
+                "box_data": list of boxes: [
+                    {
+                        "position": {
+                            "minX": float,
+                            "maxX": float,
+                            "minY": float,
+                            "maxY": float,
+                        },
+                        "class_id": 1,
+                        "box_caption": optional str
+                        "scores": optional dict of scores
+                    },
+                    ...
+                ],
+            }
+            key (str): id for set of bounding boxes
+        """
         super(BoundingBoxes2D, self).__init__(val)
         self._val = val["box_data"]
         self._key = key
@@ -1808,6 +1899,20 @@ class ImageMask(Media):
     artifact_type = "mask"
 
     def __init__(self, val, key, **kwargs):
+        """
+        Args:
+            val (dict): dictionary following 1 of two forms: 
+            {
+                "mask_data": 2d array of integers corresponding to classes,
+                "class_labels": optional mapping from class ids to strings {id: str}
+            }
+
+            {
+                "path": path to an image file containing integers corresponding to classes,
+                "class_labels": optional mapping from class ids to strings {id: str}
+            }
+            key (str): id for set of masks
+        """
         super(ImageMask, self).__init__()
 
         if "path" in val:

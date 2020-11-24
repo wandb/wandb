@@ -354,8 +354,10 @@ def test_nested_reference_artifact():
         artifact_3 = run.use_artifact("reference_data:latest")
         table_2 = artifact_3.get("table_2")
         # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
+        assert table == table_2
+        artifact_3.download()
 
-    assert table == table_2
+    
 
 
 def test_table_slice_reference_artifact():
@@ -506,6 +508,45 @@ def test_joined_table_referential():
         src_jt_2 = art2.get("src_jt_2")
         assert src_jt_1 == src_jt_2
 
+def test_image_reference_with_preferred_path():
+    orig_im_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test.png")
+    orig_im_path_2 = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test2.png")
+    desired_artifact_path = "images/sample.png"
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact = wandb.Artifact("artifact_1", type="test_artifact")
+        # manually add the image to a desired path
+        artifact.add_file(orig_im_path, desired_artifact_path)
+        # create an image that uses this image (it should be smart enough not to add the image twice)
+        image = wandb.Image(orig_im_path)
+        image_2 = wandb.Image(orig_im_path_2) # this one does not have the path preadded
+        # add the image to the table
+        table = wandb.Table(["image"], data=[[image],[image_2]])
+        # add the table to the artifact
+        artifact.add(table, "table")
+        run.log_artifact(artifact)
+    
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_1 = run.use_artifact("artifact_1:latest")
+        original_table = artifact_1.get("table")
+
+        artifact = wandb.Artifact("artifact_2", type="test_artifact")
+        
+        # add the image by reference
+        image = wandb.Image(original_table.data[0][0])
+        image_2 = wandb.Image(original_table.data[1][0])
+        # add the image to the table
+        table = wandb.Table(["image"], data=[[image],[image_2]])
+        # add the table to the artifact
+        artifact.add(table, "table")
+        run.log_artifact(artifact)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        artifact_2 = run.use_artifact("artifact_2:latest")
+        artifact_2.download()
+    
+    # This test just checks that all this logic does not fail
 
 if __name__ == "__main__":
     _cleanup()
@@ -521,6 +562,7 @@ if __name__ == "__main__":
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,
+        test_image_reference_with_preferred_path
     ]:
         try:
             test_fn()

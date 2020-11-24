@@ -37,7 +37,7 @@ class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
 
     def __init__(self, name, type, description=None, metadata=None):
-        if not re.match("^[a-zA-Z0-9_\-.]+$", name):
+        if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 'Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. Invalid name: "%s"'
                 % name
@@ -1175,13 +1175,11 @@ class WBArtifactHandler(StorageHandler):
         :return: A path to the file represented by `index_entry`
         :rtype: os.PathLike
         """
-
-        # Standard shortcircut if the asset is already downloaded
-        path, hit = self._cache.check_etag_obj_path(
-            manifest_entry.digest, manifest_entry.size
-        )
-        if hit:
-            return path
+        # We don't check for cache hits here. Since we have 0 for size (since this
+        # is a cross-artifact reference which and we've made the choice to store 0
+        # in the size field), we can't confirm if the file is complete. So we just
+        # rely on the dep_artifact entry's download() method to do its own cache
+        # check.
 
         # Parse the reference path and download the artifact if needed
         artifact_id = util.host_from_path(manifest_entry.ref)
@@ -1233,6 +1231,6 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path), path, size=0, digest=path,
+                name or os.path.basename(path), path, size=0, digest=entry.digest,
             )
         ]
