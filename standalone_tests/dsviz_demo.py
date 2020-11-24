@@ -43,7 +43,7 @@ def download_data():
         os.system("curl {} --output {}".format(DL_URL, LOCAL_ASSET_NAME))
     
     if not os.path.exists(LOCAL_FOLDER_NAME):
-        os.system("tar xzf {} {}".format(LOCAL_ASSET_NAME, LOCAL_FOLDER_NAME))
+        os.system("tar xzf {}".format(LOCAL_ASSET_NAME))
         
     train_ids = [name.split(".")[0] for name in os.listdir(train_dir) if name.split(".")[0] != ""]
 
