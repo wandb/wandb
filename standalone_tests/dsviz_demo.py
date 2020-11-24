@@ -12,10 +12,10 @@ LOCAL_FOLDER_NAME = "bdd20_small" #"bdd100k"
 LOCAL_ASSET_NAME = "{}.tgz".format(LOCAL_FOLDER_NAME)
 
 if "WANDB_PROJECT" not in os.environ or os.environ["WANDB_PROJECT"] is None or os.environ["WANDB_PROJECT"]=="":
-    PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
-    os.environ["WANDB_PROJECT"] = PROJECT_NAME
+    WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
+    os.environ["WANDB_PROJECT"] = WANDB_PROJECT
 else:
-    PROJECT_NAME = os.environ["WANDB_PROJECT"]
+    WANDB_PROJECT = os.environ["WANDB_PROJECT"]
 
 
 BDD_CLASSES = [
