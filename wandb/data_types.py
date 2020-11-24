@@ -1975,7 +1975,7 @@ class ImageMask(Media):
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            json_dict["digest"] = "UNUSED?"  # TODO: verify
+            # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
