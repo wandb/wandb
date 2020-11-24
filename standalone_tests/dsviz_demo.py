@@ -1,21 +1,30 @@
 import os
-import wandb
-# import matplotlib.pyplot as plt
 from PIL import Image
 import shutil
 import numpy as np
 import pickle
 
+WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
+if WANDB_PROJECT_ENV is None:
+    WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
+else:
+    WANDB_PROJECT = WANDB_PROJECT_ENV
+os.environ["WANDB_PROJECT"] = WANDB_PROJECT
+
+WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
+if WANDB_SILENT_ENV is None:
+    WANDB_SILENT = "true"
+else:
+    WANDB_SILENT = WANDB_SILENT_ENV
+os.environ["WANDB_SILENT"] = WANDB_SILENT
+
+import wandb
+
+
 NUM_EXAMPLES = 10
 DL_URL = "https://raw.githubusercontent.com/wandb/dsviz-demo/master/bdd20_small.tgz" #"https://storage.googleapis.com/l2kzone/bdd100k.tgz"
 LOCAL_FOLDER_NAME = "bdd20_small" #"bdd100k"
 LOCAL_ASSET_NAME = "{}.tgz".format(LOCAL_FOLDER_NAME)
-
-if "WANDB_PROJECT" not in os.environ or os.environ["WANDB_PROJECT"] is None or os.environ["WANDB_PROJECT"]=="":
-    WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
-    os.environ["WANDB_PROJECT"] = WANDB_PROJECT
-else:
-    WANDB_PROJECT = os.environ["WANDB_PROJECT"]
 
 
 BDD_CLASSES = [
@@ -163,7 +172,7 @@ def make_datasets(data_table, n_classes):
     mask_data = np.array([np.array(data_table.data[i][3]._image).reshape(height, width) for i in range(n_samples)])
     return train_data, mask_data
 
-
+print("Download Complete")
 # Download the data if not already
 download_data()
 
@@ -233,7 +242,7 @@ with wandb.init(
     
     # Finally, log the artifact
     run.log_artifact(artifact)
-                    
+print("Step 1/5 Complete")     
 
 # This step should look familiar by now:
 with wandb.init(
@@ -272,7 +281,7 @@ with wandb.init(
     # Log the artifacts out as outputs of the run
     run.log_artifact(train_artifact)
     run.log_artifact(test_artifact)
-
+print("Step 2/5 Complete")
 
 
 # Again, create a run.
@@ -321,7 +330,7 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_train") as run:
     model_artifact = wandb.Artifact("trained_model", "model")
     model_artifact.add_file("model.pkl")
     run.log_artifact(model_artifact)
-
+print("Step 3/5 Complete")
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     
@@ -359,7 +368,7 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     # And log out the results.
     results_artifact.add(wandb.Table(["id", "pred_mask_test", "dominant_pred_test"] + BDD_CLASSES, data=data), "test_iou_score_table")
     run.log_artifact(results_artifact)
-
+print("Step 4/5 Complete")
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     
@@ -381,3 +390,10 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     artifact.add(train_results, "train_results")
     artifact.add(test_results, "test_results")
     run.log_artifact(artifact)
+print("Step 5/5 Complete")
+
+if WANDB_PROJECT_ENV is not None:
+    os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
+
+if WANDB_SILENT_ENV is not None:
+    os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
