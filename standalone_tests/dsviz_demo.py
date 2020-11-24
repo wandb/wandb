@@ -7,7 +7,7 @@ import numpy as np
 import pickle
 
 NUM_EXAMPLES = 10
-DL_URL = "https://github.com/wandb/dsviz-demo/raw/master/bdd20_small.tgz" #"https://storage.googleapis.com/l2kzone/bdd100k.tgz"
+DL_URL = "https://raw.githubusercontent.com/wandb/dsviz-demo/master/bdd20_small.tgz" #"https://storage.googleapis.com/l2kzone/bdd100k.tgz"
 LOCAL_FOLDER_NAME = "bdd20_small" #"bdd100k"
 LOCAL_ASSET_NAME = "{}.tgz".format(LOCAL_FOLDER_NAME)
 
