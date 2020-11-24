@@ -40,21 +40,12 @@ train_ids = None
 def download_data():
     global train_ids
     if not os.path.exists(LOCAL_ASSET_NAME):
-        # print("Downloading data from {}...".format(DL_URL))
         os.system("curl {} --output {}".format(DL_URL, LOCAL_ASSET_NAME))
     
     if not os.path.exists(LOCAL_FOLDER_NAME):
-        # print("Extracting data...")
         os.system("tar xzf {} {}".format(LOCAL_ASSET_NAME, LOCAL_FOLDER_NAME))
         
     train_ids = [name.split(".")[0] for name in os.listdir(train_dir) if name.split(".")[0] != ""]
-    
-    # print("Raw data downlaoded to {}".format(LOCAL_FOLDER_NAME))
-
-def show_image(path):
-    pass
-    # plt.imshow(Image.open(path))
-    # plt.show()
 
 def _check_train_ids():
     if train_ids is None:
@@ -242,9 +233,7 @@ with wandb.init(
     
     # Finally, log the artifact
     run.log_artifact(artifact)
-                       
-    # print("Saving data to WandB...")
-# print("... Run Complete")
+                    
 
 # This step should look familiar by now:
 with wandb.init(
@@ -262,17 +251,6 @@ with wandb.init(
     
     # Next, we "get" the table by the same name that we saved it in the last run.
     data_table = dataset_artifact.get("raw_examples")
-    
-    # Print a row
-    # print("\nExample Data row\n", data_table.data[0])
-    
-    # Show an example image
-    # print("\nExample Image\n")
-    # plt.imshow(data_table.data[0][1]._image)
-    # plt.show()
-    
-    # Notice that a new directory was made: artifacts which is managed by wandb
-    # print("\nArtifact Directory Contents: \n", os.listdir("artifacts"))
     
     # Now we can build two separate artifacts for later use. We will first split the raw table into two parts,
     # then create two different artifacts, each of which will hold our new tables. We create two artifacts so that
@@ -294,9 +272,7 @@ with wandb.init(
     # Log the artifacts out as outputs of the run
     run.log_artifact(train_artifact)
     run.log_artifact(test_artifact)
-    
-    # print("Saving data to WandB...")
-# print("... Run Complete")
+
 
 
 # Again, create a run.
@@ -345,9 +321,7 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_train") as run:
     model_artifact = wandb.Artifact("trained_model", "model")
     model_artifact.add_file("model.pkl")
     run.log_artifact(model_artifact)
-    
-    # print("Saving data to WandB...")
-# print("... Run Complete")
+
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     
@@ -385,9 +359,7 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     # And log out the results.
     results_artifact.add(wandb.Table(["id", "pred_mask_test", "dominant_pred_test"] + BDD_CLASSES, data=data), "test_iou_score_table")
     run.log_artifact(results_artifact)
-    
-    # print("Saving data to WandB...")
-# print("... Run Complete")
+
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     
@@ -409,6 +381,3 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     artifact.add(train_results, "train_results")
     artifact.add(test_results, "test_results")
     run.log_artifact(artifact)
-    
-    # print("Saving data to WandB...")
-# print("... Run Complete")
