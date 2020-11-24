@@ -43,7 +43,7 @@ def download_data():
         # print("Downloading data from {}...".format(DL_URL))
         os.system("curl {} --output {}".format(DL_URL, LOCAL_ASSET_NAME))
     
-    if not os.path.exists(FOLDER_NAME):
+    if not os.path.exists(LOCAL_FOLDER_NAME):
         # print("Extracting data...")
         os.system("tar xzf {} {}".format(LOCAL_ASSET_NAME, LOCAL_FOLDER_NAME))
         
