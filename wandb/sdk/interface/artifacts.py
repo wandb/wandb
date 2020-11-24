@@ -14,7 +14,7 @@ def md5_string(string):
 
 
 def b64_string_to_hex(string):
-    return base64.standard_b64decode(string).hex()
+    return binascii.hexlify(base64.standard_b64decode(string)).decode("ascii")
 
 
 def md5_hash_file(path):
