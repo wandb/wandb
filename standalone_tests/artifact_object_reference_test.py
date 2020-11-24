@@ -135,7 +135,7 @@ def test_artifact_add_reference_via_url():
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    if not os.path.exists(upstream_local_path)
+    if not os.path.exists(upstream_local_path):
         os.makedirs(upstream_local_path)
     with open(upstream_local_file_path, "w") as file:
         file.write(file_text)
@@ -208,7 +208,7 @@ def test_add_reference_via_artifact_entry():
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    if not os.path.exists(upstream_local_path)
+    if not os.path.exists(upstream_local_path):
         os.makedirs(upstream_local_path)
     with open(upstream_local_file_path, "w") as file:
         file.write(file_text)
