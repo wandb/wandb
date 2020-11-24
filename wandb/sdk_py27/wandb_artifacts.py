@@ -109,19 +109,38 @@ class Artifact(object):
         self._added_new = True
         return open(path, mode)
 
-    def add_file(self, local_path, name=None):
+    def add_file(self, local_path, name=None, is_tmp=False):
+        """Adds a local file to the artifact
+
+        Args:
+            local_path (str): path to the file
+            name (str, optional): new path and filename to assign inside artifact. Defaults to None.
+            is_tmp (bool, optional): If true, then the file is renamed deterministically. Defaults to False.
+
+        Returns:
+            ArtifactManifestEntry: the added entry
+        """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
 
         name = name or os.path.basename(local_path)
+        digest = md5_file_b64(local_path)
+
+        if is_tmp:
+            file_path, file_name = os.path.split(name)
+            file_name_parts = file_name.split(".")
+            file_name_parts[0] = digest[:8]
+            name = os.path.join(file_path, ".".join(file_name_parts))
+
         entry = ArtifactManifestEntry(
             name,
             None,
-            digest=md5_file_b64(local_path),
+            digest=digest,
             size=os.path.getsize(local_path),
             local_path=local_path,
         )
+
         self._manifest.add_entry(entry)
         return entry
 
