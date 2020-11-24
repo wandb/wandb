@@ -578,8 +578,8 @@ def init(
                 run.
             - "allow": lets a logged-in user track runs with their account, but
                 lets someone who is running the script without a W&B account see
-                the charts in the UI. 
-            - "must": sends the run to an anonymous account instead of to a 
+                the charts in the UI.
+            - "must": sends the run to an anonymous account instead of to a
                 signed-up user account.
         mode (str, optional): Can be "online", "offline" or "disabled". Defaults to
             online.
