@@ -13,6 +13,10 @@ def md5_string(string):
     return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
+def b64_string_to_hex(string):
+    return base64.standard_b64decode(string).hex()
+
+
 def md5_hash_file(path):
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
