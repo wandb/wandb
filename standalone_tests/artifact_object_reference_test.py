@@ -7,7 +7,11 @@ import base64
 import time
 import numpy as np
 
-PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
+if "WANDB_PROJECT" not in os.environ or os.environ["WANDB_PROJECT"] is None or os.environ["WANDB_PROJECT"]=="":
+    PROJECT_NAME = "test__" + str(round(time.time()) % 1000000)
+    os.environ["WANDB_PROJECT"] = PROJECT_NAME
+else:
+    PROJECT_NAME = os.environ["WANDB_PROJECT"]
 
 
 columns = ["id", "bool", "int", "float", "Image"]
@@ -131,7 +135,8 @@ def test_artifact_add_reference_via_url():
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    os.makedirs(upstream_local_path, exist_ok=True)
+    if not os.path.exists(upstream_local_path)
+        os.makedirs(upstream_local_path)
     with open(upstream_local_file_path, "w") as file:
         file.write(file_text)
 
@@ -203,7 +208,8 @@ def test_add_reference_via_artifact_entry():
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    os.makedirs(upstream_local_path, exist_ok=True)
+    if not os.path.exists(upstream_local_path)
+        os.makedirs(upstream_local_path)
     with open(upstream_local_file_path, "w") as file:
         file.write(file_text)
 
