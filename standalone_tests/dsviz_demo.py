@@ -1,9 +1,8 @@
 import os
 import wandb
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from PIL import Image
 import shutil
-import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
