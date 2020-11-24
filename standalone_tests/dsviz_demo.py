@@ -263,7 +263,7 @@ with wandb.init(
     # Next, we "get" the table by the same name that we saved it in the last run.
     data_table = dataset_artifact.get("raw_examples")
     
-    Print a row
+    # Print a row
     # print("\nExample Data row\n", data_table.data[0])
     
     # Show an example image
