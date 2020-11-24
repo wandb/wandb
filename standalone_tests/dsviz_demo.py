@@ -5,6 +5,7 @@ from PIL import Image
 import shutil
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 NUM_EXAMPLES = 10
 LOCAL_FOLDER_NAME = "bdd100k"
@@ -40,20 +41,21 @@ train_ids = None
 def download_data():
     global train_ids
     if not os.path.exists(LOCAL_ASSET_NAME):
-        print("Downloading data from {}...".format(DL_URL))
+        # print("Downloading data from {}...".format(DL_URL))
         os.system("curl {} --output {}".format(DL_URL, LOCAL_ASSET_NAME))
     
     if not os.path.exists(FOLDER_NAME):
-        print("Extracting data...")
+        # print("Extracting data...")
         os.system("tar xzf {} {}".format(LOCAL_ASSET_NAME, LOCAL_FOLDER_NAME))
         
     train_ids = [name.split(".")[0] for name in os.listdir(train_dir) if name.split(".")[0] != ""]
     
-    print("Raw data downlaoded to {}".format(LOCAL_FOLDER_NAME))
+    # print("Raw data downlaoded to {}".format(LOCAL_FOLDER_NAME))
 
 def show_image(path):
-    plt.imshow(Image.open(path))
-    plt.show()
+    pass
+    # plt.imshow(Image.open(path))
+    # plt.show()
 
 def _check_train_ids():
     if train_ids is None:
@@ -122,9 +124,6 @@ def get_scaled_color_mask(ndx, factor=2):
 def get_dominant_class(label_mask):
     return BDD_CLASSES[get_dominant_id_ndx(label_mask)]
 
-## Model training logic:
-import numpy as np
-import pickle
 
 class ExampleSegmentationModel:
     def __init__(self, n_classes):
@@ -245,8 +244,8 @@ with wandb.init(
     # Finally, log the artifact
     run.log_artifact(artifact)
                        
-    print("Saving data to WandB...")
-print("... Run Complete")
+    # print("Saving data to WandB...")
+# print("... Run Complete")
 
 # This step should look familiar by now:
 with wandb.init(
@@ -265,16 +264,16 @@ with wandb.init(
     # Next, we "get" the table by the same name that we saved it in the last run.
     data_table = dataset_artifact.get("raw_examples")
     
-    # Print a row
-    print("\nExample Data row\n", data_table.data[0])
+    Print a row
+    # print("\nExample Data row\n", data_table.data[0])
     
     # Show an example image
-    print("\nExample Image\n")
-    plt.imshow(data_table.data[0][1]._image)
-    plt.show()
+    # print("\nExample Image\n")
+    # plt.imshow(data_table.data[0][1]._image)
+    # plt.show()
     
     # Notice that a new directory was made: artifacts which is managed by wandb
-    print("\nArtifact Directory Contents: \n", os.listdir("artifacts"))
+    # print("\nArtifact Directory Contents: \n", os.listdir("artifacts"))
     
     # Now we can build two separate artifacts for later use. We will first split the raw table into two parts,
     # then create two different artifacts, each of which will hold our new tables. We create two artifacts so that
@@ -297,8 +296,8 @@ with wandb.init(
     run.log_artifact(train_artifact)
     run.log_artifact(test_artifact)
     
-    print("Saving data to WandB...")
-print("... Run Complete")
+    # print("Saving data to WandB...")
+# print("... Run Complete")
 
 
 # Again, create a run.
@@ -348,8 +347,8 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_train") as run:
     model_artifact.add_file("model.pkl")
     run.log_artifact(model_artifact)
     
-    print("Saving data to WandB...")
-print("... Run Complete")
+    # print("Saving data to WandB...")
+# print("... Run Complete")
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     
@@ -388,8 +387,8 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
     results_artifact.add(wandb.Table(["id", "pred_mask_test", "dominant_pred_test"] + BDD_CLASSES, data=data), "test_iou_score_table")
     run.log_artifact(results_artifact)
     
-    print("Saving data to WandB...")
-print("... Run Complete")
+    # print("Saving data to WandB...")
+# print("... Run Complete")
 
 with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     
@@ -412,5 +411,5 @@ with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
     artifact.add(test_results, "test_results")
     run.log_artifact(artifact)
     
-    print("Saving data to WandB...")
-print("... Run Complete")
+    # print("Saving data to WandB...")
+# print("... Run Complete")
