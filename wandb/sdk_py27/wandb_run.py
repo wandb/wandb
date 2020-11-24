@@ -91,9 +91,8 @@ class ExitHooks(object):
 
 
 class RunStatusChecker(object):
-    """Periodically polls the background process for relevant updates.
-
-    For now, we just use this to figure out if the user has requested a stop.
+    """Periodically polls the background process for relevant updates. For now,
+    this is used to identify when a run has been stopped from the W&B UI.
     """
 
     def __init__(self, interface, polling_interval=15):
@@ -490,7 +489,7 @@ class Run(object):
         return self.project_name()
 
     def get_url(self):
-        """Returns: (str, optional): url for the W&B run or None if the run
+        """Returns: (str, optional): URL for the W&B run or None if the run
             is offline"""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -498,7 +497,7 @@ class Run(object):
         return self._get_run_url()
 
     def get_project_url(self):
-        """Returns: (str, optional): url for the W&B project associated with
+        """Returns: (str, optional): URL for the W&B project associated with
             the run or None if the run is offline"""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -506,7 +505,7 @@ class Run(object):
         return self._get_project_url()
 
     def get_sweep_url(self):
-        """Returns: (str, optional): url for the sweep associated with the run
+        """Returns: (str, optional): URL for the sweep associated with the run
             or None if there is no associated sweep or the run is offline."""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -515,7 +514,7 @@ class Run(object):
 
     @property
     def url(self):
-        """str: name of W&B url associated with run."""
+        """str: name of W&B URL associated with run."""
         return self.get_url()
 
     @property
@@ -814,15 +813,16 @@ class Run(object):
         base_path = None,
         policy = "live",
     ):
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching *glob_str* are synced to wandb with the
+        policy specified.
 
         Arguments:
-            glob_str (string): a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
+            glob_str (string): a relative or absolute path to a unix glob or
+                regular path.  If this isn't specified the method is a noop.
             base_path (string): the base path to run the glob relative to
             policy (string): on of "live", "now", or "end"
-                live: upload the file as it changes, overwriting the previous version
-                now: upload the file once now
+                live: upload the file as it changes, overwriting the previous
+                version now: upload the file once now
                 end: only upload file when the run ends
         """
         if glob_str is None:
