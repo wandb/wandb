@@ -2926,6 +2926,65 @@ class Artifact(object):
         artifact_id = util.host_from_path(entry.ref)
         return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
 
+    def used_by(self):
+        """Retrieves the runs which use this artifact directly
+
+        Returns:
+            {id}: set of run ids using this artifact
+        """
+        query = gql(
+            """
+            query Artifact(
+                $id: ID!,
+                $before: String,
+                $after: String,
+                $first: Int,
+                $last: Int
+            ) {
+                artifact(id: $id) {
+                    usedBy(before: $before, after: $after, first: $first, last: $last) {
+                        edges {
+                            node {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
+        # yes, "name" is actually id
+        run_ids = {
+            edge["node"]["name"]
+            for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
+        }
+        return run_ids
+
+    def logged_by(self):
+        """Retrieves the runs which use this artifact
+
+        Returns:
+            str: id of the run which logged this artifact
+        """
+        query = gql(
+            """
+            query Artifact(
+                $id: ID!
+            ) {
+                artifact(id: $id) {
+                    createdBy {
+                        ... on Run {
+                            name
+                        }
+                    }
+                }
+            }
+        """
+        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
+        return response.get("artifact", {}).get("createdBy", {}).get("name")
+
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
