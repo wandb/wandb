@@ -2675,7 +2675,7 @@ class Artifact(object):
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
             recursive (bool, optional): if set to true, then all dependent artifacts are
-                eagerly downloaded as well. If false, then the dependent artifact will 
+                eagerly downloaded as well. If false, then the dependent artifact will
                 only be downloaded when needed.
 
         Returns:
