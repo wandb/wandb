@@ -2700,7 +2700,8 @@ class Artifact(object):
 
         pool = multiprocessing.dummy.Pool(32)
         pool.map(partial(self._download_file, root=dirpath), manifest.entries)
-        pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
+        if recursive:
+            pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
         pool.join()
 
