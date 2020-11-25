@@ -29,7 +29,7 @@ def cleanup():
     safe_remove_dir("./wandb")
 
 
-def main(n_rows, clear_cache):
+def main(n_rows, clear_cache=False):
     timer = {
         "LOG_TABLE": [None, None],
         "GET_TABLE": [None, None],
@@ -80,7 +80,8 @@ def main(n_rows, clear_cache):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n_rows', type=int, default=1000, help='foo help')
-    parser.add_argument('--clear_cache', type=bool, default=True, help='foo help')
+    parser.add_argument('--n_rows', type=int, default=1000)
+    parser.add_argument('--clear_cache', dest='clear_cache', action='store_true')
     args = vars(parser.parse_args())
-    main(**args)
+    # main(**args)
+    print(args)
