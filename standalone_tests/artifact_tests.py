@@ -34,7 +34,7 @@ def test_artifact_run_lookup_apis():
     assert a2.logged_by() == run_1.id
     run_3.finish()
 
-    # Use a2
+    # Use both
     run_4 = wandb.init()
     a1 = run_4.use_artifact(artifact_1_name + ":latest")
     assert a1.used_by() == {run_3.id, run_4.id}
