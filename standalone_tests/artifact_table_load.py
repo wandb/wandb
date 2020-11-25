@@ -91,4 +91,5 @@ if __name__ == "__main__":
     parser.add_argument('--img_dim', type=int, default=100)
     parser.add_argument('--clear_cache', dest='clear_cache', action='store_true')
     args = vars(parser.parse_args())
+    print(args)
     main(**args)
