@@ -1,6 +1,5 @@
 # Wandb library
 
-https://paper.dropbox.com/doc/Cling-CLI-Refactor-lETNuiP0Rax8yjTi03Scp
 
 ## Get the code / library
 
