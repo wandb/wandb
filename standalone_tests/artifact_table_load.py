@@ -5,13 +5,11 @@ import argparse
 import time
 import shutil
 
-APPROX_MB_PER_ROW = 0.295
-
-def build_table(n_rows):
+def build_table(n_rows, img_dim):
     return wandb.Table(
         columns=["id", "image"],
         data=[
-            [i, wandb.Image(np.random.randint(0, 255, size=(320,320,3)))]
+            [i, wandb.Image(np.random.randint(0, 255, size=(img_dim, img_dim)))]
             for i in range(n_rows)
         ]
     )
@@ -29,7 +27,7 @@ def cleanup():
     safe_remove_dir("./wandb")
 
 
-def main(n_rows, clear_cache=False):
+def main(n_rows, img_dim, clear_cache=False):
     timer = {
         "LOG_TABLE": [None, None],
         "GET_TABLE": [None, None],
@@ -38,7 +36,7 @@ def main(n_rows, clear_cache=False):
     }
     delete_cache()
     with wandb.init() as run:
-        table = build_table(n_rows)
+        table = build_table(n_rows, img_dim)
         artifact = wandb.Artifact("table_load_test", "table_load_test")
         artifact.add(table, "table")
         timer["LOG_TABLE"][0] = time.time()
@@ -64,11 +62,12 @@ def main(n_rows, clear_cache=False):
         table = artifact.get("table")
         timer["GET_REF"][1] = time.time()
 
-    print("Version\tRows\tBytes\tCleared\tLOG_TAB\tGET_TAB\tLOG_REF\tGET_REF\t")
-    print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t".format(
+    print("Version      \tRows\tImgDim\tMBs\tCleared\tLOG_TAB\tGET_TAB\tLOG_REF\tGET_REF\t")
+    print("{:13}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t".format(
         wandb.__version__,
         n_rows,
-        round(n_rows * APPROX_MB_PER_ROW, 3),
+        img_dim,
+        round(n_rows * (img_dim * img_dim) / 1000000, 1),
         clear_cache,
         round(timer["LOG_TABLE"][1] - timer["LOG_TABLE"][0], 3),
         round(timer["GET_TABLE"][1] - timer["GET_TABLE"][0], 3),
@@ -81,6 +80,7 @@ def main(n_rows, clear_cache=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--n_rows', type=int, default=1000)
+    parser.add_argument('--img_dim', type=int, default=100)
     parser.add_argument('--clear_cache', dest='clear_cache', action='store_true')
     args = vars(parser.parse_args())
     main(**args)
