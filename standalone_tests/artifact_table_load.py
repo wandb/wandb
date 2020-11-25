@@ -83,5 +83,4 @@ if __name__ == "__main__":
     parser.add_argument('--n_rows', type=int, default=1000)
     parser.add_argument('--clear_cache', dest='clear_cache', action='store_true')
     args = vars(parser.parse_args())
-    # main(**args)
-    print(args)
+    main(**args)
