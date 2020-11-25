@@ -4,6 +4,13 @@ import numpy as np
 import argparse
 import time
 import shutil
+import sys
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import artifacts
+else:
+    from wandb.sdk_py27.interface import artifacts
 
 def build_table(n_rows, img_dim):
     return wandb.Table(
@@ -21,6 +28,7 @@ def safe_remove_dir(dir_name):
 def delete_cache():
     safe_remove_dir("./artifacts")
     safe_remove_dir("~/.cache/wandb")
+    safe_remove_dir(artifacts.get_artifacts_cache()._cache_dir)
 
 def cleanup():
     delete_cache()
@@ -59,7 +67,7 @@ def main(n_rows, img_dim, clear_cache=False):
     with wandb.init() as run:
         artifact = run.use_artifact("table_load_test_ref:latest")
         timer["GET_REF"][0] = time.time()
-        table = artifact.get("table")
+        table = artifact.get("table_ref")
         timer["GET_REF"][1] = time.time()
 
     print("Version      \tRows\tImgDim\tMBs\tCleared\tLOG_TAB\tGET_TAB\tLOG_REF\tGET_REF\t")
