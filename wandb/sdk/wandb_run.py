@@ -1675,10 +1675,16 @@ class Run(object):
 
     def _assert_can_log_artifact(self, artifact):
         r = self._run_obj
-        public_api = public.Api({"entity": r.entity, "project": r.project, "run": self.id})
-        expected_type = public.Artifact.expected_type(public_api.client, artifact.name, r.entity, r.project)
+        public_api = public.Api(
+            {"entity": r.entity, "project": r.project, "run": self.id}
+        )
+        expected_type = public.Artifact.expected_type(
+            public_api.client, artifact.name, r.entity, r.project
+        )
         if expected_type is not None and artifact.type != expected_type:
-            raise ValueError("Expected artifact type {}, got {}".format(expected_type, artifact.type))
+            raise ValueError(
+                "Expected artifact type {}, got {}".format(expected_type, artifact.type)
+            )
 
     def alert(self, title, text, level=None, wait_duration=None):
         """Launch an alert with the given title and text.

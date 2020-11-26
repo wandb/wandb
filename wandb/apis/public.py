@@ -2549,16 +2549,20 @@ class Artifact(object):
                 }
             }
         }
-        """)
+        """
+        )
         if ":" not in name:
             name += ":latest"
 
-        response = client.execute(query, variable_values={
-            "entityName": entityName,
-            "projectName": projectName,
-            "name": name
-        },)
-        
+        response = client.execute(
+            query,
+            variable_values={
+                "entityName": entityName,
+                "projectName": projectName,
+                "name": name,
+            },
+        )
+
         project = response.get("project")
         if project is not None:
             artifact = project.get("artifact")
@@ -2566,7 +2570,6 @@ class Artifact(object):
                 artifact_type = artifact.get("artifactType")
                 if artifact_type is not None:
                     return artifact_type.get("name")
-        
 
     def delete(self):
         """Delete artifact and it's files."""

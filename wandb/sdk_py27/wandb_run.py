@@ -1669,8 +1669,22 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
+        self._assert_can_log_artifact(artifact)
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
+
+    def _assert_can_log_artifact(self, artifact):
+        r = self._run_obj
+        public_api = public.Api(
+            {"entity": r.entity, "project": r.project, "run": self.id}
+        )
+        expected_type = public.Artifact.expected_type(
+            public_api.client, artifact.name, r.entity, r.project
+        )
+        if expected_type is not None and artifact.type != expected_type:
+            raise ValueError(
+                "Expected artifact type {}, got {}".format(expected_type, artifact.type)
+            )
 
     def alert(self, title, text, level=None, wait_duration=None):
         """Launch an alert with the given title and text.
