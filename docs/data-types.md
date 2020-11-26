@@ -5,7 +5,7 @@ title: Data Types
 <a name="wandb.data_types"></a>
 # wandb.data\_types
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1)
 
 Wandb has special data types for logging rich visualizations.
 
@@ -20,7 +20,7 @@ and upload them to the W&B server.
 class WBValue(object)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L83)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L83)
 
 Abstract parent class for things that can be logged by wandb.log() and
 visualized by wandb.
@@ -35,7 +35,7 @@ that indicates how to interpret the other fields.
  | to_json(run_or_artifact)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L100)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L100)
 
 Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
@@ -57,7 +57,7 @@ JSON for - this is useful to to store additional data if needed.
  | from_json(cls, json_obj, source_artifact)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L113)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L113)
 
 Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
 `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
@@ -77,7 +77,7 @@ during the `to_json` function.
  | with_suffix(cls, name, filetype="json")
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L126)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L126)
 
 Helper function to return the name with suffix added if not already
 
@@ -99,7 +99,7 @@ Helper function to return the name with suffix added if not already
  | init_from_json(json_obj, source_artifact)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L145)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L145)
 
 Looks through all subclasses and tries to match the json obj with the class which created it. It will then
 call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
@@ -126,7 +126,7 @@ during the `to_json` function.
  | type_mapping()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L169)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L169)
 
 Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
 
@@ -142,7 +142,7 @@ Returns a map from `artifact_type` to subclass. Used to lookup correct types for
  | artifact_source()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L196)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L196)
 
 Getter which returns the object's artifact source
 
@@ -159,7 +159,7 @@ stored as well as the name (optional)
  | artifact_source(artifact_source)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L206)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L206)
 
 Setter for artifact source
 
@@ -175,7 +175,7 @@ stored as well as the name (optional)
 class Histogram(WBValue)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L216)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L216)
 
 wandb class for histograms
 
@@ -216,7 +216,7 @@ is 64.  The maximum number of bins is 512
 class Media(WBValue)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L285)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L285)
 
 A WBValue that we store as a file outside JSON and show in a media panel
 on the front end.
@@ -231,7 +231,7 @@ uploaded.
  | bind_to_run(run, key, step, id_=None)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L332)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L332)
 
 Bind this object to a particular Run.
 
@@ -246,7 +246,7 @@ refer to it.
  | to_json(run)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L371)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L371)
 
 Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
 is a wandb.Run then `self.bind_to_run()` must have been previously been called.
@@ -268,7 +268,7 @@ JSON for - this is useful to to store additional data if needed.
 class BatchableMedia(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L410)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L410)
 
 Parent class for Media we treat specially in batches, like images and
 thumbnails.
@@ -283,7 +283,7 @@ in the media directory.
 class Table(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L426)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L426)
 
 This is a table designed to display sets of records.
 
@@ -302,7 +302,7 @@ When set, the other arguments are ignored.
  | __init__(columns=["Input", "Output", "Expected"], data=None, rows=None, dataframe=None)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L441)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L441)
 
 rows is kept for legacy reasons, we use data to mimic the Pandas api
 
@@ -313,7 +313,7 @@ rows is kept for legacy reasons, we use data to mimic the Pandas api
  | add_data(*data)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L482)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L482)
 
 Add a row of data to the table. Argument length should match column length
 
@@ -324,7 +324,7 @@ Add a row of data to the table. Argument length should match column length
 class Audio(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L575)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L575)
 
 Wandb class for audio clips.
 
@@ -343,7 +343,7 @@ numpy array of audio data.
  | __init__(data_or_path, sample_rate=None, caption=None)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L587)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L587)
 
 Accepts a path to an audio file or a numpy array of audio data.
 
@@ -354,7 +354,7 @@ Accepts a path to an audio file or a numpy array of audio data.
 class Object3D(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L680)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L680)
 
 Wandb class for 3D point clouds.
 
@@ -380,7 +380,7 @@ The shape of the numpy array must be one of either:
 class Molecule(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L832)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L832)
 
 Wandb class for Molecular data
 
@@ -396,7 +396,7 @@ Molecule can be initialized from a file name or an io object.
 class Html(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L925)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L925)
 
 Wandb class for arbitrary html
 
@@ -413,7 +413,7 @@ to False the HTML will pass through unchanged.
 class Video(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L994)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L994)
 
 Wandb representation of video.
 
@@ -438,7 +438,7 @@ Channels should be (time, channel, height, width) or
 class Classes(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1150)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1150)
 
 <a name="wandb.data_types.Classes.__init__"></a>
 #### \_\_init\_\_
@@ -447,7 +447,7 @@ class Classes(Media)
  | __init__(class_set)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1153)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1153)
 
 Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
 
@@ -462,7 +462,7 @@ Classes is holds class metadata intended to be used in concert with other object
 class JoinedTable(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1180)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1180)
 
 Joins two tables for visualization in the Artifact UI
 
@@ -482,7 +482,7 @@ key or keys to perform the join
 class Image(BatchableMedia)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1277)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1277)
 
 Wandb class for images.
 
@@ -502,7 +502,7 @@ the data format and converts it.
  | guess_mode(data)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1558)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1558)
 
 Guess what type of image the np.array is representing
 
@@ -514,7 +514,7 @@ Guess what type of image the np.array is representing
  | to_uint8(data)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1575)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1575)
 
 Converts floating point image on the range [0,1] and integer images
 on the range [0,255] to uint8, clipping if necessary.
@@ -527,7 +527,7 @@ on the range [0,255] to uint8, clipping if necessary.
  | seq_to_json(cls, images, run, key, step)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1599)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1599)
 
 Combines a list of images into a meta dictionary object describing the child images.
 
@@ -538,7 +538,7 @@ Combines a list of images into a meta dictionary object describing the child ima
 class JSONMetadata(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1718)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1718)
 
 JSONMetadata is a type for encoding arbitrary metadata as files.
 
@@ -549,7 +549,7 @@ JSONMetadata is a type for encoding arbitrary metadata as files.
 class BoundingBoxes2D(JSONMetadata)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1753)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1753)
 
 Wandb class for 2D bounding boxes
 
@@ -560,7 +560,7 @@ Wandb class for 2D bounding boxes
  | __init__(val, key, **kwargs)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1760)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1760)
 
 **Arguments**:
 
@@ -591,7 +591,7 @@ Wandb class for 2D bounding boxes
 class ImageMask(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1894)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1894)
 
 Wandb class for image masks, useful for segmentation tasks
 
@@ -602,7 +602,7 @@ Wandb class for image masks, useful for segmentation tasks
  | __init__(val, key, **kwargs)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L1901)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L1901)
 
 **Arguments**:
 
@@ -625,7 +625,7 @@ Wandb class for image masks, useful for segmentation tasks
 class Plotly(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2035)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2035)
 
 Wandb class for plotly plots.
 
@@ -640,7 +640,7 @@ Wandb class for plotly plots.
 class Graph(Media)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2082)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2082)
 
 Wandb class for graphs
 
@@ -672,7 +672,7 @@ edges ([(wandb.Node, wandb.Node)]): List of pairs of nodes interpreted as edges
 class Node(WBValue)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2243)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2243)
 
 Node used in `Graph`
 
@@ -684,7 +684,7 @@ Node used in `Graph`
  | id()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2295)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2295)
 
 Must be unique in the graph
 
@@ -696,7 +696,7 @@ Must be unique in the graph
  | name()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2305)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2305)
 
 Usually the type of layer or sublayer
 
@@ -708,7 +708,7 @@ Usually the type of layer or sublayer
  | class_name()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2315)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2315)
 
 Usually the type of layer or sublayer
 
@@ -720,7 +720,7 @@ Usually the type of layer or sublayer
  | size(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2347)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2347)
 
 Tensor size
 
@@ -732,7 +732,7 @@ Tensor size
  | output_shape(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2357)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2357)
 
 Tensor output_shape
 
@@ -744,7 +744,7 @@ Tensor output_shape
  | is_output(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2367)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2367)
 
 Tensor is_output
 
@@ -756,7 +756,7 @@ Tensor is_output
  | num_parameters(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2377)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2377)
 
 Tensor num_parameters
 
@@ -768,7 +768,7 @@ Tensor num_parameters
  | child_parameters(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2387)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2387)
 
 Tensor child_parameters
 
@@ -780,7 +780,7 @@ Tensor child_parameters
  | is_constant(val)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2397)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2397)
 
 Tensor is_constant
 
@@ -791,7 +791,7 @@ Tensor is_constant
 class Edge(WBValue)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2420)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2420)
 
 Edge used in `Graph`
 
@@ -803,7 +803,7 @@ Edge used in `Graph`
  | name()
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2442)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2442)
 
 Optional, not necessarily unique
 
@@ -814,7 +814,7 @@ Optional, not necessarily unique
 data_frame_to_json(df, run, key, step)
 ```
 
-[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/data_types.py#L2576)
+[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/data_types.py#L2576)
 
 !NODOC Encode a Pandas DataFrame into the JSON/backend format.
 

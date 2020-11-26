@@ -19,7 +19,7 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
 
     Example:
         ```
-        wandb.log({'pr': wandb.plot.confusion_matrix(preds, y_true, labels)})
+        wandb.log({'my_matrix': wandb.plot.confusion_matrix(preds, y_true, labels)})
         ```
     """
 

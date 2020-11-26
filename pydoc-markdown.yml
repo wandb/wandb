@@ -75,17 +75,10 @@ renderer:
     - title: Log
       contents:
         - 'wandb.sdk.wandb_run.Run.log'
+    - title: Plot
+        - 'wandb.plot.confusion_matrix.*'
     ## TODO Plots
     ## TODO Frameworks
-    - title: Developer Documentation
-      name: index
-      source: CONTRIBUTING.md
-    - title: API Documentation
+    - title: Export API
       contents:
         - 'wandb.apis.public.*'
-    - title: CLI Documentation
-      contents:
-        - 'wandb.cli.cli.*'
-    - title: Framework Documentation
-      contents:
-        - 'wandb.framework.*'
