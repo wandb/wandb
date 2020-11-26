@@ -2531,6 +2531,43 @@ class Artifact(object):
                 )
         self._aliases = aliases
 
+    @staticmethod
+    def expected_type(client, name, entityName, projectName):
+        """Returns the expected type for a given artifact name and project"""
+        query = gql(
+            """
+        query Artifact(
+            $entityName: String!,
+            $projectName: String!,
+            $name: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifact(name: $name) {
+                    artifactType {
+                        name
+                    }
+                }
+            }
+        }
+        """)
+        if ":" not in name:
+            name += ":latest"
+
+        response = client.execute(query, variable_values={
+            "entityName": entityName,
+            "projectName": projectName,
+            "name": name
+        },)
+        
+        project = response.get("project")
+        if project is not None:
+            artifact = project.get("artifact")
+            if artifact is not None:
+                artifact_type = artifact.get("artifactType")
+                if artifact_type is not None:
+                    return artifact_type.get("name")
+        
+
     def delete(self):
         """Delete artifact and it's files."""
         mutation = gql(
