@@ -5,7 +5,7 @@ title: CLI Documentation
 <a name="wandb.cli.cli"></a>
 # wandb.cli.cli
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L4)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/cli/cli.py#L4)
 
 <a name="wandb.cli.cli.display_error"></a>
 #### display\_error
@@ -14,7 +14,7 @@ title: CLI Documentation
 display_error(func)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L80)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/cli/cli.py#L80)
 
 Function decorator for catching common errors and re-raising as wandb.Error
 
@@ -25,7 +25,7 @@ Function decorator for catching common errors and re-raising as wandb.Error
 prompt_for_project(ctx, entity)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L114)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/cli/cli.py#L114)
 
 Ask the user for a project, creating one if necessary.
 
@@ -40,7 +40,7 @@ Ask the user for a project, creating one if necessary.
 docker_run(ctx, docker_run_args, help)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L832)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/cli/cli.py#L832)
 
 Simple wrapper for `docker run` which sets W&B environment
 Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
@@ -82,19 +82,24 @@ and --runtime wasn't set.
 docker(ctx, docker_run_args, docker_image, nvidia, digest, jupyter, dir, no_dir, shell, port, cmd, no_tty)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/cli/cli.py#L900)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/cli/cli.py#L900)
 
-W&B docker lets you run your code in a docker image ensuring wandb is configured. It adds the WANDB_DOCKER and WANDB_API_KEY
-environment variables to your container and mounts the current directory in /app by default.  You can pass additional
-args which will be added to `docker run` before the image name is declared, we'll choose a default image for you if
-one isn't passed:
+Use W&B Docker to run your code in a Docker image, ensuring wandb is
+properly configured. This feature adds the WANDB_DOCKER and WANDB_API_KEY
+environment variables to your container and mounts the current directory in
+/app by default. You can pass additional args which will be added to
+`docker run` before the image name is declared, we'll choose a default image
+for you if one isn't passed:
 
+By default, we override the entrypoint to check for the existance of wandb,
+and install the library if it's msising. If you pass the --jupyter flag, we
+will ensure Jupyter is installed and start Jupyter Lab on port 8888. If we
+detect nvidia-docker on your system, we will use the nvidia runtime. If you
+just want wandb to set an environment variable to an existing docker run
+command, see the `wandb docker-run` command.
+```
 wandb docker -v /mnt/dataset:/app/data
 wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
 wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
-
-By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
-flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
-the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
-command.
+```
 

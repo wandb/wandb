@@ -5,32 +5,7 @@ title: Init
 <a name="wandb.sdk.wandb_init"></a>
 # wandb.sdk.wandb\_init
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_init.py#L3)
-
-wandb.init() indicates the beginning of a new run. In an ML training pipeline,
-you could add wandb.init() to the beginning of your training script as well as
-your evaluation script, and each piece steps would be tracked as a run in W&B.
-
-<a name="wandb.sdk.wandb_init._WandbInit"></a>
-## \_WandbInit Objects
-
-```python
-class _WandbInit(object)
-```
-
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_init.py#L50)
-
-<a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
-#### setup
-
-```python
- | setup(kwargs)
-```
-
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_init.py#L62)
-
-Complete setup for wandb.init(). This includes parsing all arguments,
-applying them with settings and enabling logging.
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_init.py#L4)
 
 <a name="wandb.sdk.wandb_init.init"></a>
 #### init
@@ -39,11 +14,15 @@ applying them with settings and enabling logging.
 init(job_type: Optional[str] = None, dir=None, config: Union[Dict, str, None] = None, project: Optional[str] = None, entity: Optional[str] = None, reinit: bool = None, tags: Optional[Sequence] = None, group: Optional[str] = None, name: Optional[str] = None, notes: Optional[str] = None, magic: Union[dict, str, bool] = None, config_exclude_keys=None, config_include_keys=None, anonymous: Optional[str] = None, mode: Optional[str] = None, allow_val_change: Optional[bool] = None, resume: Optional[Union[bool, str]] = None, force: Optional[bool] = None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, save_code=None, id=None, settings: Union[Settings, Dict[str, Any], None] = None) -> Union[Run, Dummy]
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_init.py#L456)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_init.py#L35)
 
-Initialize W&B
-Spawns a new process to start or resume a run locally and communicate with a
-wandb server. Should be called before any calls to wandb.log.
+Start a new tracked run with wandb.init(). In an ML training pipeline,
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece would be tracked as a run in W&B.
+
+wandb.init() spawns a new background process to log data to a run, and it
+also syncs data to wandb.ai by default so you can see live visualizations.
+Call wandb.init() to start a run before logging data with wandb.log().
 
 **Arguments**:
 
@@ -127,29 +106,45 @@ wandb will crash.
 See https://docs.wandb.com/library/advanced/resuming for more.
 - `reinit` _bool, optional_ - Allow multiple wandb.init() calls in the same
 process. (default: False)
-
-- `magic` _bool, dict, or str, optional_ - magic configuration as bool, dict,
-json string, yaml filename.
+- `magic` _bool, dict, or str, optional_ - The bool controls whether we try to
+auto-instrument your script, capturing basic details of your run
+without you having to add more wandb code. (default: False)
+You can also pass a dict, json string, or yaml filename.
 - `config_exclude_keys` _list, optional_ - string keys to exclude from
 wandb.config.
 - `config_include_keys` _list, optional_ - string keys to include in
 wandb.config.
-- `anonymous` _str, optional_ - Can be "allow", "must", or "never". Controls
-whether anonymous logging is allowed.  Defaults to never.
+- `anonymous` _str, optional_ - Controls anonymous data logging. Options:
+- "never" (default): requires you to link your W&B account before
+tracking the run so you don't accidentally create an anonymous
+run.
+- "allow": lets a logged-in user track runs with their account, but
+lets someone who is running the script without a W&B account see
+the charts in the UI.
+- "must": sends the run to an anonymous account instead of to a
+signed-up user account.
 - `mode` _str, optional_ - Can be "online", "offline" or "disabled". Defaults to
 online.
-- `allow_val_change` _bool, optional_ - allow config values to be changed after
-setting. Defaults to true in jupyter and false otherwise.
-- `force` _bool, optional_ - If true, will cause script to crash if user can't or isn't
-logged in to a wandb server.  If false, will cause script to run in offline
-modes if user can't or isn't logged in to a wandb server. Defaults to false.
+- `allow_val_change` _bool, optional_ - Whether to allow config values to
+change after setting the keys once. By default we throw an exception
+if a config value is overwritten. If you want to track something
+like a varying learning_rate at multiple times during training, use
+wandb.log() instead. (default: False in scripts, True in Jupyter)
+- `force` _bool, optional_ - If True, this crashes the script if a user isn't
+logged in to W&B. If False, this will let the script run in offline
+mode if a user isn't logged in to W&B. (default: False)
 - `sync_tensorboard` _bool, optional_ - Synchronize wandb logs from tensorboard or
 tensorboardX and saves the relevant events file. Defaults to false.
 - `monitor_gym` - (bool, optional): automatically logs videos of environment when
-using OpenAI Gym (see https://docs.wandb.com/library/integrations/openai-gym)
-Defaults to false.
-- `id` _str, optional_ - A globally unique (per project) identifier for the run. This
-is primarily used for resuming.
+using OpenAI Gym. (default: False)
+See https://docs.wandb.com/library/integrations/openai-gym
+- `id` _str, optional_ - A unique ID for this run, used for Resuming. It must
+be unique in the project, and if you delete a run you can't reuse
+the ID. Use the name field for a short descriptive name, or config
+for saving hyperparameters to compare across runs. The ID cannot
+contain special characters.
+See https://docs.wandb.com/library/resuming
+
 
 
 **Examples**:
@@ -176,4 +171,25 @@ for y in range(100):
 **Returns**:
 
 A `Run` object.
+
+<a name="wandb.sdk.wandb_init._WandbInit"></a>
+## \_WandbInit Objects
+
+```python
+class _WandbInit(object)
+```
+
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_init.py#L271)
+
+<a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
+#### setup
+
+```python
+ | setup(kwargs)
+```
+
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_init.py#L283)
+
+Complete setup for wandb.init(). This includes parsing all arguments,
+applying them with settings and enabling logging.
 

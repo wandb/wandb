@@ -34,7 +34,7 @@ renderer:
   content_directory: .
   build_directory: docs
   markdown:
-    source_format: "[[link string here]]({url})"
+    source_format: "[[source]]({url})"
     source_linker:
       type: github
       repo: wandb/client

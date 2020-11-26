@@ -1,10 +1,5 @@
 #
 # -*- coding: utf-8 -*-
-"""
-wandb.init() indicates the beginning of a new run. In an ML training pipeline,
-you could add wandb.init() to the beginning of your training script as well as
-your evaluation script, and each piece would be tracked as a run in W&B.
-"""
 
 from __future__ import print_function
 
@@ -63,8 +58,8 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, Dummy]:
-    """Initialize W&B
-    wandb.init() indicates the beginning of a new run. In an ML training pipeline,
+    """
+    Start a new tracked run with wandb.init(). In an ML training pipeline,
     you could add wandb.init() to the beginning of your training script as well as
     your evaluation script, and each piece would be tracked as a run in W&B.
     

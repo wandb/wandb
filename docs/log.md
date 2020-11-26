@@ -5,7 +5,7 @@ title: Log
 <a name="wandb.sdk.wandb_run"></a>
 # wandb.sdk.wandb\_run
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_run.py#L4)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_run.py#L4)
 
 <a name="wandb.sdk.wandb_run.Run"></a>
 ## Run Objects
@@ -14,7 +14,7 @@ title: Log
 class Run(object)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_run.py#L131)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_run.py#L131)
 
 The run object corresponds to a single execution of your script,
 typically this is an ML experiment. Create a run with wandb.init().
@@ -42,7 +42,7 @@ final value.
  | log(data, step=None, commit=None, sync=None)
 ```
 
-[[link string here]](https://github.com/wandb/client/blob/fb5e96d790f1aedcb1f074195e0f7e2209ddc90a/wandb/sdk/wandb_run.py#L675)
+[[source]](https://github.com/wandb/client/blob/21787ccda9c60578fcf0c7f7b0d06c887b48a343/wandb/sdk/wandb_run.py#L675)
 
 Log a dict to the global run's history.
 
