@@ -2532,7 +2532,7 @@ class Artifact(object):
         self._aliases = aliases
 
     @staticmethod
-    def expected_type(client, name, entityName, projectName):
+    def expected_type(client, name, entity_name, project_name):
         """Returns the expected type for a given artifact name and project"""
         query = gql(
             """
@@ -2557,8 +2557,8 @@ class Artifact(object):
         response = client.execute(
             query,
             variable_values={
-                "entityName": entityName,
-                "projectName": projectName,
+                "entityName": entity_name,
+                "projectName": project_name,
                 "name": name,
             },
         )
