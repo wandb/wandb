@@ -73,7 +73,7 @@ class SystemStats(object):
 
     def start(self):
         from . import tpu
-        if tpu.is_tpu_available():
+        if tpu.is_tpu_available() and self._tpu_profiler is None:
             try:
                 self._tpu_profiler = tpu.TPUProfiler()
             except Exception as e:
@@ -122,9 +122,6 @@ class SystemStats(object):
                     return
 
     def shutdown(self):
-        if self._tpu_profiler:
-            self._tpu_profiler.stop()
-            self._tpu_profiler = None
         self._shutdown = True
         try:
             if self._thread is not None:
