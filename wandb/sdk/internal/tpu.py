@@ -1,6 +1,9 @@
+from __future__ import absolute_import
+
 import logging
 import multiprocessing
 import os
+
 
 try:
     from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore

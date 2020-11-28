@@ -4,6 +4,7 @@ from numbers import Number
 import threading
 import time
 
+
 import wandb
 from wandb import util
 from wandb.vendor.pynvml import pynvml  # type: ignore[import]
@@ -71,9 +72,10 @@ class SystemStats(object):
         self._tpu_profiler = None
 
     def start(self):
-        if wandb.wandb_sdk.internal.tpu.is_tpu_available():
+        from . import tpu
+        if tpu.is_tpu_available():
             try:
-                self._tpu_profiler = wandb.wandb_sdk.internal.tpu.TPUProfiler()
+                self._tpu_profiler = tpu.TPUProfiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
         if self._thread is None:
@@ -139,7 +141,8 @@ class SystemStats(object):
                 samples = list(self.sampler.get(stat, [stats[stat]]))
                 stats[stat] = round(sum(samples) / len(samples), 2)
         # self.run.events.track("system", stats, _wandb=True)
-        self._interface.publish_stats(stats)
+        if self._interface:
+            self._interface.publish_stats(stats)
         self.samples = 0
         self.sampler = {}
 
