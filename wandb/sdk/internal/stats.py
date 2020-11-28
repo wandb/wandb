@@ -69,6 +69,7 @@ class SystemStats(object):
                 "psutil not installed, only GPU stats will be reported.  Install with pip install psutil"
             )
         self._thread = None
+        self._tpu_profiler = None
         from . import tpu
 
         if tpu.is_tpu_available():
