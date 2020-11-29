@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 class TPUProfiler(object):
     def __init__(self):
         try:
-            import cloud_tpu_profiler
-
+            import cloud_tpu_profiler  # type: ignore
             del cloud_tpu_profiler  # flake8
             self._enabled = True
         except ImportError:
