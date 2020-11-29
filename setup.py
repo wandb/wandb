@@ -16,7 +16,8 @@ test_requirements = [
     'tox-pyenv>=1.0.3'
 ]
 
-gcp_requirements = ['google-cloud-storage']
+gcp_requirements = ['google-cloud-storage', 'cloud_tpu_profiler']
+colab_requirements = ['cloud_tpu_profiler']
 aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
@@ -74,6 +75,7 @@ setup(
     extras_require={
         'kubeflow': kubeflow_requirements,
         'gcp': gcp_requirements,
+        'colab': colab_requirements,
         'aws': aws_requirements,
         'grpc': grpc_requirements,
     }
