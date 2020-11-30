@@ -60,7 +60,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     for model in models:
         if not isinstance(model, torch.nn.Module):
             raise ValueError(
-                "Expected a torch model (torch.nn.Module). Received " + str(type(model))
+                "Expected a pytorch model (torch.nn.Module). Received " + str(type(model))
             )
 
     graphs = []
