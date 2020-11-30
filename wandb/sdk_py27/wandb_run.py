@@ -1674,12 +1674,17 @@ class Run(object):
         return artifact
 
     def _assert_can_log_artifact(self, artifact):
-        r = self._run_obj
-        public_api = public.Api(
-            {"entity": r.entity, "project": r.project, "run": self.id}
-        )
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        public_api = public.Api(overrides)
         expected_type = public.Artifact.expected_type(
-            public_api.client, artifact.name, r.entity, r.project
+            public_api.client,
+            artifact.name,
+            public_api.settings["entity"],
+            public_api.settings["project"],
         )
         if expected_type is not None and artifact.type != expected_type:
             raise ValueError(
