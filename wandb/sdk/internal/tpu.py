@@ -30,7 +30,7 @@ class TPUProfiler(object):
             return
         self._tpu_utilization = 0
         self._stop_thread = False
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_body, daemon=True)
         self._thread.start()
 
     def _thread_body(self):
