@@ -1560,3 +1560,10 @@ def enabled():
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
         )
+
+
+@cli.command("gc", hidden=True)
+def gc():
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )
