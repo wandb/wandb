@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import logging
 import os
-from subprocess import PIPE, Popen, STDOUT
+from subprocess import PIPE, Popen
 import threading
 
 import wandb
@@ -28,37 +28,31 @@ class TPUProfiler(object):
             )
             self._enabled = False
             return
-        self._tpu_utilization = 0.0
-        self._start_capture_process()
+        self._tpu_utilization = 0
         self._stop_thread = False
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.start()
 
-    def _start_capture_process(self):
+    def _thread_body(self):
+        while not self._stop_thread:
+            self._tpu_utilization = self._get_tpu_utilization()
+
+    def _get_tpu_utilization(self):
+        # blocking
         args = [
             "capture_tpu_profile",
             "--tpu=" + os.environ["TPU_NAME"],
             "--monitoring_level=2",
-            "--num_queries=100",
+            "--num_queries=1",
+            "--duration_ms=100",
         ]
-        self._capture_process = Popen(
-            args, stdout=PIPE, stderr=STDOUT, universal_newlines=True
-        )
-
-    def _is_capture_process_alive(self):
-        return self._capture_process.poll() is None
-
-    def _readline(self):
-        if not self._is_capture_process_alive():
-            self._start_capture_process()
-        return self._capture_process.stdout.readline()
-
-    def _thread_body(self):
-        while not self._stop_thread:
-            line = self._readline()
-            if line.startswith("Utilization "):
-                self._tpu_utilization = float(line.split(": ")[1].split("%")[0])
-                continue
+        try:
+            p = Popen(args, stdout=PIPE, stderr=None, universal_newlines=True)
+            return float(
+                p.stdout.read().split("Utilization ")[1].split(": ")[1].split("%")[0]
+            )
+        except Exception:
+            return 0.0
 
     def get_tpu_utilization(self):
         return self._tpu_utilization
