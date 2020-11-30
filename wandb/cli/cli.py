@@ -1562,8 +1562,9 @@ def enabled():
         )
 
 
-@cli.command("gc", hidden=True)
-def gc():
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
     click.echo(
         "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
     )
