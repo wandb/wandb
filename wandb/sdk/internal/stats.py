@@ -4,10 +4,12 @@ from numbers import Number
 import threading
 import time
 
-
 import wandb
 from wandb import util
 from wandb.vendor.pynvml import pynvml  # type: ignore[import]
+
+from . import tpu
+
 
 psutil = util.get_module("psutil")
 
@@ -70,7 +72,6 @@ class SystemStats(object):
             )
         self._thread = None
         self._tpu_profiler = None
-        from . import tpu
 
         if tpu.is_tpu_available():
             try:
