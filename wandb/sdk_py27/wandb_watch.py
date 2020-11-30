@@ -55,7 +55,9 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     if not isinstance(models, (tuple, list)):
         models = (models,)
 
-    import torch  # type: ignore
+    torch = wandb.util.get_module(
+        "torch", required="wandb.watch only works with pytorch, couldn't import torch."
+    )
 
     for model in models:
         if not isinstance(model, torch.nn.Module):
