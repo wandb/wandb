@@ -14,6 +14,7 @@ from . import tpu
 psutil = util.get_module("psutil")
 
 
+
 def gpu_in_use_by_this_process(gpu_handle):
     if not psutil:
         return False
