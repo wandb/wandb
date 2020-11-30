@@ -385,39 +385,6 @@ class WandbCallback(keras.callbacks.Callback):
         self._grad_accumulator_model = grad_acc_model
         self._grad_accumulator_callback = GradAccumulatorCallback()
 
-        if isinstance(model_out, list):
-            ground_truth = [
-                tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out
-            ]
-        else:
-            ground_truth = [tf.keras.layers.Input(shape=model_out.shape[1:])]
-            model_out = [model_out]
-        losses = []
-        loss_f = self.model.loss
-        if not callable(loss_f):
-            loss_f = tf.keras.losses.get(loss_f)
-        for y_true, y_pred in zip(ground_truth, model_out):
-            losses.append(loss_f(y_true, y_pred))
-        if len(losses) == 1:
-            total_loss = losses[0]
-        else:
-            total_loss = tf.keras.layers.add(losses)
-        self._loss_model = tf.keras.models.Model(inputs + ground_truth, total_loss)
-
-    def _training_data_generator(self):
-        X, Y = self.training_data
-        if len(self.model.inputs) == 1:
-            X = [X]
-        if len(self.model.outputs) == 1:
-            Y = [Y]
-        idx = 0
-        batch_size = self._training_data_batch_size
-        while idx < len(X[0]):
-            x_slice = [x[idx : idx + batch_size] for x in X]
-            y_slice = [y[idx : idx + batch_size] for y in Y]
-            idx += batch_size
-            yield x_slice, y_slice
-
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
 
