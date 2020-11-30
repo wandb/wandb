@@ -303,9 +303,13 @@ class WandbCallback(keras.callbacks.Callback):
                 raise ValueError(
                     "training_data argument is required for gradient logging."
                 )
-            if len(self.training_data) != 2:
-                raise ValueError("training data must be a tuple of length two")
-            self._get_grads = tf.function(self._get_grads)
+            if isinstance(self.training_data, (list, tuple)):
+                if len(self.training_data) != 2:
+                    raise ValueError("training data must be a tuple of length two")
+                self._training_data_x, self._training_data_y = self.training_data
+            else:
+                self._training_data_x = self.training_data  # generator, tf.data.Dataset etc
+                self._training_data_y = None
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
@@ -334,27 +338,47 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
-    def _get_training_data_batch_size(self):
-        for inp in self.model.inputs:
-            if inp.shape[0] is not None:
-                self._training_data_batch_size = inp.shape[0]
-                return
-        X, Y = self.training_data
-        if len(self.model.inputs) == 1:
-            X = [X]
-        if len(self.model.outputs) == 1:
-            Y = [Y]
-        x_batch = [x[0] for x in X]
-        x_batch_num_bytes = sum([x.itemsize * x.size for x in x_batch])
-        y_batch = [y[0] for y in Y]
-        y_batch_num_bytes = sum([y.itemsize * y.size for y in y_batch])
-        batch_num_bytes = x_batch_num_bytes + y_batch_num_bytes
-        MAX_KB = 1
-        self._training_data_batch_size = max(1, int(MAX_KB * 1024 / batch_num_bytes))
-
-    def _build_loss_model(self):
+    def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
         model_out = self.model(inputs)
+
+        class CustomOptimizer(tf.keras.optimizers.Optimizer):
+            def __init__(self):
+                super(_Optimzer, self).__init__(name="CustomOptimizer")
+
+            @tf.function
+            def _resource_apply_dense(self, grad, var):
+                var.assign(grad)
+
+        class GradAccumulatorCallback(tf.keras.callbacks.Callback):
+            
+            def set_model(self, model):
+                super(GradAccumulatorCallback, self).set_model(model)
+                self.og_weights = model.get_weights()
+                self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
+
+            def on_batch_end(self, batch, logs=None):
+                for g, w in zip(self.grads, self.model.trainable_weights):
+                    g += w.numpy()
+                self.model.set_weights(self.og_weights)
+
+            def get_grads():
+                return [g.copy() for g in self.grads]
+
+            def clear_grads():
+                for g in self.grads:
+                    g *= 0
+
+        grad_acc_model = tf.keras.models.Model(inputs, model_out)
+        grad_acc_model.compile(loss=self.model.loss, optimizer=CustomOptimizer())
+
+        # make sure magic doesn't think this is a user model
+        grad_acc_model._wandb_internal_model = True
+
+        self._grad_accumulator_model = grad_acc_model
+        self._grad_accumulator_callback = GradAccumulatorCallback()
+
+
         if isinstance(model_out, list):
             ground_truth = [
                 tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out
@@ -409,8 +433,7 @@ class WandbCallback(keras.callbacks.Callback):
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
         if self.log_gradients:
-            self._build_loss_model()
-            self._get_training_data_batch_size()
+            self._build_grad_accumulator_model()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -704,24 +727,20 @@ class WandbCallback(keras.callbacks.Callback):
                 )
         return metrics
 
-    def _get_grads(self, x, y):
-        with tf.GradientTape() as tape:
-            loss = tf.reduce_sum(self._loss_model([x, y]))
-        grads = tape.gradient(loss, self.model.trainable_weights)
-        return tuple(grads)
-
     def _log_gradients(self):
-        weights = self.model.trainable_weights
-        grads = [np.zeros(tuple(w.shape)) for w in weights]
-        for x, y in self._training_data_generator():
-            batch_grads = self._get_grads(x, y)
-            for g, bg in zip(grads, batch_grads):
-                g += bg.numpy()
+        self._grad_accumulator_model.fit(
+            self._training_data_x,
+            self._training_data_y,
+            verbose = 0,
+            callbacks = [self._grad_accumulator_callback]
+        )
+        grads = self._grad_accumulator_callback.grads
         metrics = {}
         for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
+        self._grad_accumulator_callback.clear_grads()
         return metrics
 
     def _log_dataframe(self):
