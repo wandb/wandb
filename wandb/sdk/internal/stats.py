@@ -211,6 +211,6 @@ class SystemStats(object):
                 stats["proc.cpu.threads"] = self.proc.num_threads()
             except psutil.NoSuchProcess:
                 pass
-        if self._tpu_profiler:
+        if self._tpu_profiler and self._tpu_profiler.is_enabled():
             stats["tpu"] = self._tpu_profiler.get_tpu_utilization()
         return stats

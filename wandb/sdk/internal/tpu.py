@@ -4,7 +4,6 @@ import logging
 import os
 from subprocess import PIPE, Popen, STDOUT
 import threading
-import time
 
 import wandb
 
@@ -15,6 +14,7 @@ class TPUProfiler(object):
     def __init__(self):
         try:
             import cloud_tpu_profiler  # type: ignore
+
             del cloud_tpu_profiler  # flake8
             self._enabled = True
         except ImportError:
@@ -58,7 +58,6 @@ class TPUProfiler(object):
             line = self._readline()
             if line.startswith("Utilization "):
                 self._tpu_utilization = float(line.split(": ")[1].split("%")[0])
-                self._time = time.time()
                 continue
 
     def get_tpu_utilization(self):
