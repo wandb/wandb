@@ -36,12 +36,12 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, samp
     """
     np = util.get_module(
         "numpy",
-        required="roc requires the numpy library, install with `pip install numpy`",
+        required="pr_curve requires the numpy library, install with `pip install numpy`",
     )
 
     metrics = util.get_module(
         "sklearn.metrics",
-        "roc requires the scikit metrics submodule, install with `pip install scikit-learn`",
+        "pr_curve requires the scikit metrics submodule, install with `pip install scikit-learn`",
     )
 
     y_true = np.array(y_true)
