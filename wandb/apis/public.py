@@ -2930,7 +2930,7 @@ class Artifact(object):
         """Retrieves the runs which use this artifact directly
 
         Returns:
-            {id}: set of run ids using this artifact
+            [Run]: a list of Run objects which use this artifact
         """
         query = gql(
             """
@@ -2946,6 +2946,10 @@ class Artifact(object):
                         edges {
                             node {
                                 name
+                                project {
+                                    name
+                                    entityName
+                                }
                             }
                         }
                     }
@@ -2955,17 +2959,22 @@ class Artifact(object):
         )
         response = self.client.execute(query, variable_values={"id": self.id},)
         # yes, "name" is actually id
-        run_ids = {
-            edge["node"]["name"]
+        runs = [
+            Run(
+                self.client,
+                edge["node"]["project"]["entityName"],
+                edge["node"]["project"]["name"],
+                edge["node"]["name"],
+            )
             for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
-        }
-        return run_ids
+        ]
+        return runs
 
     def logged_by(self):
-        """Retrieves the runs which use this artifact
+        """Retrieves the run which logged this artifact
 
         Returns:
-            str: id of the run which logged this artifact
+            Run: Run object which logged this artifact
         """
         query = gql(
             """
@@ -2976,6 +2985,10 @@ class Artifact(object):
                     createdBy {
                         ... on Run {
                             name
+                            project {
+                                name
+                                entityName
+                            }
                         }
                     }
                 }
@@ -2983,7 +2996,14 @@ class Artifact(object):
         """
         )
         response = self.client.execute(query, variable_values={"id": self.id},)
-        return response.get("artifact", {}).get("createdBy", {}).get("name")
+        run_obj = response.get("artifact", {}).get("createdBy", {})
+        if run_obj is not None:
+            return Run(
+                self.client,
+                run_obj["project"]["entityName"],
+                run_obj["project"]["name"],
+                run_obj["name"],
+            )
 
 
 class ArtifactVersions(Paginator):
