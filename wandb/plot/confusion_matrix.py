@@ -4,13 +4,14 @@ from wandb import util
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(preds=None, y_true=None, class_names=None):
+def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
     """
     Computes a multi-run confusion matrix.
 
     Arguments:
-        preds (arr): Array of predicted label indices.
+        probs (2-d arr): Shape [n_examples, n_classes]
         y_true (arr): Array of label indices.
+        preds (arr): Array of predicted label indices.
         class_names (arr): Array of class names.
 
     Returns:
@@ -27,9 +28,17 @@ def confusion_matrix(preds=None, y_true=None, class_names=None):
         "numpy",
         required="confusion matrix requires the numpy library, install with `pip install numpy`",
     )
+    assert (probs is None or preds is None) and not (
+        probs is None and preds is None
+    ), "Must provide probabilties or predictions but not both to confusion matrix"
+
+    if probs is not None:
+        preds = np.argmax(probs, axis=1).tolist()
+
     assert len(preds) == len(
         y_true
     ), "Number of predictions and label indices must match"
+
     if class_names is not None:
         n_classes = len(class_names)
         class_inds = set(preds).union(set(y_true))
