@@ -6,7 +6,7 @@ from wandb.plots.utils import test_missing, test_types
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
+def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, samples=20):
     """
     Computes the tradeoff between precision and recall for different thresholds.
     A high area under the curve represents both high recall and high precision,
@@ -23,6 +23,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
             read by replacing target values with corresponding index.
             For example labels= ['dog', 'cat', 'owl'] all 0s are
             replaced by 'dog', 1s by 'cat'.
+        samples (int): Number of samples from the curve to plot.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -36,10 +37,6 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
     np = util.get_module(
         "numpy",
         required="roc requires the numpy library, install with `pip install numpy`",
-    )
-    preprocessing = util.get_module(
-        "sklearn.preprocessing",
-        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
     )
 
     metrics = util.get_module(
@@ -59,10 +56,6 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         if classes_to_plot is None:
             classes_to_plot = classes
 
-        binarized_y_true = preprocessing.label_binarize(y_true, classes=classes)
-        if len(classes) == 2:
-            binarized_y_true = np.hstack((1 - binarized_y_true, binarized_y_true))
-
         pr_curves = {}
         indices_to_plot = np.in1d(classes, classes_to_plot)
         for i, to_plot in enumerate(indices_to_plot):
@@ -71,7 +64,6 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
                     y_true, probas[:, i], pos_label=classes[i]
                 )
 
-                samples = 20
                 sample_precision = []
                 sample_recall = []
                 for k in range(samples):
