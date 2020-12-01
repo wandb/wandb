@@ -2571,6 +2571,8 @@ class Artifact(object):
                 if artifact_type is not None:
                     return artifact_type.get("name")
 
+        return None
+
     def delete(self):
         """Delete artifact and it's files."""
         mutation = gql(
