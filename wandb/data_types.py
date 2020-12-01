@@ -28,6 +28,8 @@ import json
 import codecs
 import tempfile
 import sys
+import base64
+import binascii
 from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
@@ -1249,8 +1251,10 @@ class JoinedTable(Media):
             table = entry.path
         # Check if this is an ArtifactEntry
         elif hasattr(table, "ref_url"):
+            # Give the new object a unique, yet deterministic name
+            name = binascii.hexlify(base64.standard_b64decode(table.entry.digest)).decode("ascii")[:8]
             entry = artifact.add_reference(
-                table.ref_url(), "{}.table.json".format(table.entry.digest)
+                table.ref_url(), "{}.table.json".format(name)
             )[0]
             table = entry.path
 
