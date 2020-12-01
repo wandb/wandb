@@ -28,6 +28,7 @@ from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
 
+import collections
 import click
 import requests
 import six
@@ -328,11 +329,11 @@ def is_numpy_array(obj):
 
 
 def is_2d_array(data):
-    if isinstance(data, list):
+    if isinstance(data, collections.Sequence):
         return (
             len(data) > 0
-            and (isinstance(data[0], list) and len(data[0]))
-            and not isinstance(data[0][0], list)
+            and (isinstance(data[0], collections.Sequence) and len(data[0]))
+            and not isinstance(data[0][0], collections.Sequence)
         )
     return False
 

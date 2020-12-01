@@ -450,7 +450,7 @@ class Table(Media):
         super(Table, self).__init__()
         # check types of columns and data
         assert isinstance(
-            columns, list
+            columns, collections.Sequence
         ), "Columns argument of wandb.Table must be a list of column names"
         assert util.is_2d_array(data), "Data must be a 2-D array of values"
         self.columns = columns
