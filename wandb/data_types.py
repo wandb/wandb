@@ -1181,10 +1181,10 @@ class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
     Arguments:
-        table1 (str, wandb.Table):
-            the path of a wandb.Table or the table object
+        table1 (str, wandb.Table, ArtifactEntry):
+            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
         table2 (str, wandb.Table):
-            the path of a wandb.Table or the table object
+            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
         join_key (str, [str, str]):
             key or keys to perform the join
     """
@@ -1201,14 +1201,14 @@ class JoinedTable(Media):
                 "JoinedTable join_key should be a string or a list of two strings"
             )
 
-        if not isinstance(table1, str) and not isinstance(table1, Table):
+        if not self._validate_table_input(table1):
             raise ValueError(
-                "JoinedTable table1 should be a path or wandb.Table object"
+                "JoinedTable table1 should be an artifact path to a table or wandb.Table object"
             )
 
-        if not isinstance(table2, str) and not isinstance(table2, Table):
+        if not self._validate_table_input(table2):
             raise ValueError(
-                "JoinedTable table2 should be a path or wandb.Table object"
+                "JoinedTable table2 should be an artifact path to a table or wandb.Table object"
             )
 
         self._table1 = table1
@@ -1227,31 +1227,44 @@ class JoinedTable(Media):
 
         return cls(t1, t2, json_obj["join_key"],)
 
+    @staticmethod
+    def _validate_table_input(table):
+        """Helper method to validate that the table input is one of the 3 supported types"""
+        return (
+            (type(table) == str and table.endswith(".table.json"))
+            or isinstance(table, Table)
+            or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
+        )
+
+    def _ensure_table_in_artifact(self, table, artifact, table_ndx):
+        """Helper method to add the table to the incoming artifact. Returns the path"""
+        if isinstance(table, Table):
+            table_name = "t{}_{}".format(table_ndx, str(id(self)))
+            if (
+                table.artifact_source is not None
+                and table.artifact_source["name"] is not None
+            ):
+                table_name = os.path.basename(table.artifact_source["name"])
+            entry = artifact.add(table, table_name)
+            table = entry.path
+        # Check if this is an ArtifactEntry
+        elif hasattr(table, "ref_url"):
+            entry = artifact.add_reference(
+                table.ref_url(), "{}.table.json".format(table.entry.digest)
+            )[0]
+            table = entry.path
+
+        err_str = "JoinedTable table:{} not found in artifact. Add a table to the artifact using Artifact#add(<table>, {}) before adding this JoinedTable"
+        if table not in artifact._manifest.entries:
+            raise ValueError(err_str.format(table, table))
+
+        return table
+
     def to_json(self, artifact):
         json_obj = super(JoinedTable, self).to_json(artifact)
 
-        table1 = self._table1
-        table2 = self._table2
-
-        if isinstance(self._table1, Table):
-            table_name = "t1_" + str(id(self))
-            if (
-                self._table1.artifact_source is not None
-                and self._table1.artifact_source["name"] is not None
-            ):
-                table_name = os.path.basename(self._table1.artifact_source["name"])
-            entry = artifact.add(self._table1, table_name)
-            table1 = entry.path
-
-        if isinstance(self._table2, Table):
-            table_name = "t2_" + str(id(self))
-            if (
-                self._table2.artifact_source is not None
-                and self._table2.artifact_source["name"] is not None
-            ):
-                table_name = os.path.basename(self._table2.artifact_source["name"])
-            entry = artifact.add(self._table2, table_name)
-            table2 = entry.path
+        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
+        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
 
         json_obj.update(
             {

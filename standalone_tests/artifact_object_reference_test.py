@@ -508,6 +508,49 @@ def test_joined_table_referential():
         src_jt_2 = art2.get("src_jt_2")
         assert src_jt_1 == src_jt_2
 
+def test_joined_table_add_by_path():
+    src_image_1 = _make_wandb_image()
+    src_image_2 = _make_wandb_image()
+    src_image_3 = _make_wandb_image()
+    src_image_4 = _make_wandb_image()
+    src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
+    src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
+    with wandb.init(project=PROJECT_NAME) as run:
+        tables = wandb.Artifact("tables", "database")
+        tables.add(src_table_1, "src_table_1")
+        tables.add(src_table_2, "src_table_2")
+
+        # Should be able to add by name directly
+        jt = wandb.JoinedTable("src_table_1.table.json", "src_table_2.table.json", "id")
+        tables.add(jt, "jt")
+
+        # Make sure it errors when you are not referencing the correct table names
+        jt_bad = wandb.JoinedTable("bad_table_name.table.json", "bad_table_name.table.json", "id")
+        got_err = False
+        try:
+            tables.add(jt_bad, "jt_bad")
+        except ValueError as err:
+            got_err = True
+        assert got_err
+
+        run.log_artifact(tables)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        tables_2 = wandb.Artifact("tables_2", "database")
+        upstream = run.use_artifact("tables:latest")
+        
+        # Able to add by reference
+        jt = wandb.JoinedTable(upstream.get_path("src_table_1"), upstream.get_path("src_table_2"), "id")
+        tables_2.add(jt, "jt")
+        run.log_artifact(tables_2)
+
+    _cleanup()
+    with wandb.init(project=PROJECT_NAME) as run:
+        tables_2 = run.use_artifact("tables_2:latest")
+        jt_2 = tables_2.get("jt")
+        assert wandb.JoinedTable(upstream.get("src_table_1"), upstream.get("src_table_2"), "id") == jt_2
+
 def test_image_reference_with_preferred_path():
     orig_im_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test.png")
     orig_im_path_2 = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test2.png")
@@ -551,18 +594,19 @@ def test_image_reference_with_preferred_path():
 if __name__ == "__main__":
     _cleanup()
     for test_fn in [
-        test_artifact_add_reference_via_url,
-        test_add_reference_via_artifact_entry,
-        test_adding_artifact_by_object,
-        test_get_artifact_obj_by_name,
-        test_image_reference_artifact,
-        test_nested_reference_artifact,
-        test_table_slice_reference_artifact,
-        test_image_refs,
-        test_table_refs,
-        test_joined_table_refs,
-        test_joined_table_referential,
-        test_image_reference_with_preferred_path
+        # test_artifact_add_reference_via_url,
+        # test_add_reference_via_artifact_entry,
+        # test_adding_artifact_by_object,
+        # test_get_artifact_obj_by_name,
+        # test_image_reference_artifact,
+        # test_nested_reference_artifact,
+        # test_table_slice_reference_artifact,
+        # test_image_refs,
+        # test_table_refs,
+        # test_joined_table_refs,
+        # test_joined_table_referential,
+        test_joined_table_add_by_path,
+        # test_image_reference_with_preferred_path,
     ]:
         try:
             test_fn()
