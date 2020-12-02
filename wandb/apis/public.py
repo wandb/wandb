@@ -2405,7 +2405,7 @@ class Artifact(object):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": id},)
+        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
 
         name = None
         if response.get("artifact") is not None:
