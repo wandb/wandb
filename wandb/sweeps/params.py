@@ -130,7 +130,7 @@ class HyperParameter():
 
     def cdf(self, x):
         """
-        Percent point function or inverse cdf
+        Cumulative distribution function
         Inputs: sample from selected distribution at the xth percentile.
         Ouputs: float in the range [0, 1]
         """
