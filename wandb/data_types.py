@@ -382,7 +382,7 @@ class Media(WBValue):
             dict: JSON representation
         """
         json_obj = {}
-        wandb_run, _ = _safe_sdk_import()
+        wandb_run, wandb_artifacts = _safe_sdk_import()
         if isinstance(run, wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(
@@ -405,7 +405,38 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+        elif isinstance(run, wandb_artifacts.Artifact):
+            if self.file_is_set():
+                artifact = run
+                # Checks if the concrete image has already been added to this artifact
+                name = artifact.get_added_local_path_name(self._path)
+                if name is None:
+                    name = os.path.join(
+                        self.get_media_subdir(), os.path.basename(self._path)
+                    )
 
+                    # if not, check to see if there is a source artifact for this object
+                    if (
+                        self.artifact_source is not None
+                        and self.artifact_source["artifact"] != artifact
+                    ):
+                        default_root = self.artifact_source["artifact"]._default_root()
+                        # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                        if self._path.startswith(default_root):
+                            name = self._path[len(default_root) :]
+                            name = name.lstrip(os.sep)
+
+                        # Add this image as a reference
+                        path = self.artifact_source["artifact"].get_path(name)
+                        artifact.add_reference(path.ref_url(), name=name)
+                    else:
+                        entry = artifact.add_file(
+                            self._path, name=name, is_tmp=self._is_tmp
+                        )
+                        name = entry.path
+
+                json_obj["path"] = name
+            json_obj["_type"] = self.artifact_type
         return json_obj
 
 
@@ -1515,32 +1546,6 @@ class Image(BatchableMedia):
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
 
-            # Checks if the concrete image has already been added to this artifact
-            name = artifact.get_added_local_path_name(self._path)
-            if name is None:
-                name = os.path.join(
-                    self.get_media_subdir(), os.path.basename(self._path)
-                )
-
-                # if not, check to see if there is a source artifact for this object
-                if (
-                    self.artifact_source is not None
-                    and self.artifact_source["artifact"] != artifact
-                ):
-                    default_root = self.artifact_source["artifact"]._default_root()
-                    # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
-                    if self._path.startswith(default_root):
-                        name = self._path[len(default_root) :]
-                        name = name.lstrip(os.sep)
-
-                    # Add this image as a reference
-                    path = self.artifact_source["artifact"].get_path(name)
-                    artifact.add_reference(path.ref_url(), name=name)
-                else:
-                    artifact.add_file(self._path, name=name)
-
-            json_dict["path"] = name
-
             if self._classes is not None:
                 # Here, rather than give each class definition it's own name (and entry), we
                 # purposely are giving a non-unique class name of /media/cls.classes.json.
@@ -1982,39 +1987,15 @@ class ImageMask(Media):
         )
 
     def to_json(self, run_or_artifact):
+        json_dict = super(ImageMask, self).to_json(run_or_artifact)
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
-            run = run_or_artifact
-            json_dict = super(ImageMask, self).to_json(run)
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact = run_or_artifact
-            mask_path = os.path.join(
-                self.get_media_subdir(), os.path.basename(self._path)
-            )
-            mask_name = artifact.get_added_local_path_name(mask_path)
-            mask_entry_digest = None
-            if mask_name is None:
-                if (
-                    self.artifact_source is not None
-                    and self.artifact_source["artifact"] != artifact
-                ):
-                    path = self.artifact_source["artifact"].get_path(mask_path)
-                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_path)[
-                        0
-                    ]
-                else:
-                    mask_entry = artifact.add_file(self._path, name=mask_path)
-
-                mask_name = mask_path
-                mask_entry_digest = mask_entry.digest
-            return {
-                "_type": ImageMask.artifact_type,
-                "path": mask_name,
-                "digest": mask_entry_digest,
-            }
+            # Nothing special to add (used to add "digest", but no longer used.)
+            return json_dict
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
