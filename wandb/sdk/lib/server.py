@@ -3,10 +3,11 @@ module server
 """
 
 import json
-import sys
 import os
-from wandb.errors.error import CommError
+import sys
+
 from wandb import util
+from wandb.errors.error import CommError
 from wandb.apis import InternalApi
 
 
