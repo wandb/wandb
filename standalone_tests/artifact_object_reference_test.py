@@ -540,7 +540,7 @@ def test_joined_table_add_by_path():
     src_image_4 = _make_wandb_image()
     src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
     src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
-    with wandb.init(project=PROJECT_NAME) as run:
+    with wandb.init(project=WANDB_PROJECT) as run:
         tables = wandb.Artifact("tables", "database")
         tables.add(src_table_1, "src_table_1")
         tables.add(src_table_2, "src_table_2")
@@ -561,7 +561,7 @@ def test_joined_table_add_by_path():
         run.log_artifact(tables)
 
     _cleanup()
-    with wandb.init(project=PROJECT_NAME) as run:
+    with wandb.init(project=WANDB_PROJECT) as run:
         tables_2 = wandb.Artifact("tables_2", "database")
         upstream = run.use_artifact("tables:latest")
         
@@ -571,7 +571,7 @@ def test_joined_table_add_by_path():
         run.log_artifact(tables_2)
 
     _cleanup()
-    with wandb.init(project=PROJECT_NAME) as run:
+    with wandb.init(project=WANDB_PROJECT) as run:
         tables_2 = run.use_artifact("tables_2:latest")
         jt_2 = tables_2.get("jt")
         assert wandb.JoinedTable(upstream.get("src_table_1"), upstream.get("src_table_2"), "id") == jt_2
