@@ -4,6 +4,7 @@ import shutil
 import numpy as np
 import pickle
 import time
+import shutil
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -49,13 +50,16 @@ train_ids = None
 
 def cleanup():
     if os.path.isdir("artifacts"):
-        shrmtree("artifacts")
+        shutil.rmtree("artifacts")
 
     if os.path.isdir(LOCAL_FOLDER_NAME):
-        shrmtree(LOCAL_FOLDER_NAME)
+        shutil.rmtree(LOCAL_FOLDER_NAME)
 
-    if os.path.isdir(wandb):
-        shrmtree(wandb)
+    if os.path.isdir("wandb"):
+        shutil.rmtree("wandb")
+
+    if os.path.isfile(LOCAL_ASSET_NAME):
+        os.remove(LOCAL_ASSET_NAME)
 
 def download_data():
     global train_ids
@@ -90,7 +94,7 @@ def get_dominant_id_ndx(np_image):
 
 def clean_artifacts_dir():
     if os.path.isdir("artifacts"):
-        shrmtree("artifacts")
+        shutil.rmtree("artifacts")
         
 def mask_to_bounding(np_image):
     if isinstance(np_image, wandb.Image):
