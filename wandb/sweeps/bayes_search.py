@@ -358,6 +358,9 @@ class BayesianSearch(Search):
     def next_run(self, sweep):
         if 'parameters' not in sweep['config']:
             raise ValueError('Bayesian search requires "parameters" section')
+        if 'metric' not in sweep['config']:
+            raise ValueError('Bayesian search requires "metric" section')
+
         config = sweep['config']['parameters']
         params = HyperParameterSet.from_config(config)
 
