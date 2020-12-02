@@ -130,15 +130,15 @@ class HyperParameter():
 
     def cdf(self, x):
         """
-        Percent point function or inverse cdf
+        Cumulative distribution function
         Inputs: sample from selected distribution at the xth percentile.
         Ouputs: float in the range [0, 1]
         """
         if self.type == HyperParameter.CONSTANT:
             return 0.0
         elif self.type == HyperParameter.CATEGORICAL:
-            idxs = [self.values.index(v) for v in x] if type(x) == np.ndarray else self.values.index(x)
-            return stats.randint.cdf(idxs, 0, len(self.values))
+            # NOTE: Indices expected for categorical parameters, not values.
+            return stats.randint.cdf(x, 0, len(self.values))
         elif self.type == HyperParameter.INT_UNIFORM:
             return stats.randint.cdf(x, self.min, self.max + 1)
         elif (self.type == HyperParameter.UNIFORM or
@@ -373,10 +373,7 @@ class HyperParameterSet(list):
             if key in self.param_names_to_index:
                 param = self.param_names_to_param[key]
                 bayes_opt_index = self.param_names_to_index[key]
-                # if param.type == HyperParameter.CATEGORICAL:
-                #    bayes_opt_value = param.value_to_int(config_value["value"])
-                # else:
-                bayes_opt_value = param.cdf(config_value["value"])
+                bayes_opt_value = param.cdf(param.value_to_int(config_value["value"]))
 
                 X[bayes_opt_index] = bayes_opt_value
         return X
@@ -386,13 +383,13 @@ class HyperParameterSet(list):
         X = np.zeros([len(self.searchable_params), len(runs)])
 
         for key, bayes_opt_index in self.param_names_to_index.items():
+            param = self.param_names_to_param[key]
             row = np.array([
-                config[key]['value']
-                if key in config
-                else float('nan')
+                (param.value_to_int(config[key]['value'])
+                if param.type == HyperParameter.CATEGORICAL else config[key]['value'])
+                if key in config else float('nan')
                 for config in runs_params
             ])
-            param = self.param_names_to_param[key]
             X_row = param.cdf(row)
 
             # only use values where input wasn't nan
