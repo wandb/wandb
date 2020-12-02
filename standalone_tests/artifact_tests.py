@@ -26,10 +26,13 @@ def test_artifact_creation_with_diff_type():
     with wandb.init() as run:
         artifact = wandb.Artifact(artifact_name, "artifact_type_2")
         artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image_2")
+        did_err = False
         try:
             run.log_artifact(artifact)
         except ValueError as err:
+            did_err = True
             assert str(err) == "Expected artifact type artifact_type_1, got artifact_type_2"
+        assert did_err
         
     with wandb.init() as run:
         artifact = run.use_artifact(artifact_name + ":latest")
