@@ -165,6 +165,44 @@ import tensorflow.keras.backend as K
 patch_tf_keras()
 
 
+### For gradient logging ###
+
+
+class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+    def __init__(self):
+        super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+
+    @tf.function
+    def _resource_apply_dense(self, grad, var):
+        var.assign(grad)
+
+    def get_config(self):
+        return super(_CustomOptimizer, self).get_config()
+
+
+class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
+    """
+    Accumulates gradients during a fit() call when used in conjunction with
+    the CustomOptimizer above.
+    """
+
+    def set_model(self, model):
+        super(_GradAccumulatorCallback, self).set_model(model)
+        self.og_weights = model.get_weights()
+        self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
+
+    def on_batch_end(self, batch, logs=None):
+        for g, w in zip(self.grads, self.model.trainable_weights):
+            g += w.numpy()
+        self.model.set_weights(self.og_weights)
+
+    def get_grads(self):
+        return [g.copy() for g in self.grads]
+
+
+###
+
+
 class WandbCallback(keras.callbacks.Callback):
     """WandbCallback automatically integrates keras with wandb.
 
@@ -342,48 +380,15 @@ class WandbCallback(keras.callbacks.Callback):
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
-        model_out = self.model(inputs)
-
-        class CustomOptimizer(tf.keras.optimizers.Optimizer):
-            def __init__(self):
-                super(CustomOptimizer, self).__init__(name="CustomOptimizer")
-
-            @tf.function
-            def _resource_apply_dense(self, grad, var):
-                var.assign(grad)
-
-            def get_config(self):
-                return super(CustomOptimizer, self).get_config()
-
-        class GradAccumulatorCallback(tf.keras.callbacks.Callback):
-            """
-            Accumulates gradients during a fit() call when used in conjunction with
-            the CustomOptimizer above.
-            """
-
-            def set_model(self, model):
-                super(GradAccumulatorCallback, self).set_model(model)
-                self.og_weights = model.get_weights()
-                self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
-                self.num_batches = 0
-
-            def on_batch_end(self, batch, logs=None):
-                for g, w in zip(self.grads, self.model.trainable_weights):
-                    g += w.numpy()
-                self.model.set_weights(self.og_weights)
-                self.num_batches += 1
-
-            def get_grads(self):
-                return [g / self.num_batches for g in self.grads]
-
-        grad_acc_model = tf.keras.models.Model(inputs, model_out)
-        grad_acc_model.compile(loss=self.model.loss, optimizer=CustomOptimizer())
+        outputs = self.model(inputs)
+        grad_acc_model = tf.keras.models.Model(inputs, outputs)
+        grad_acc_model.compile(loss=self.model.loss, optimizer=_CustomOptimizer())
 
         # make sure magic doesn't think this is a user model
         grad_acc_model._wandb_internal_model = True
 
         self._grad_accumulator_model = grad_acc_model
-        self._grad_accumulator_callback = GradAccumulatorCallback()
+        self._grad_accumulator_callback = _GradAccumulatorCallback()
 
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
