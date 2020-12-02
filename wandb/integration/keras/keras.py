@@ -713,7 +713,7 @@ class WandbCallback(keras.callbacks.Callback):
             callbacks=[self._grad_accumulator_callback],
         )
         weights = self.model.trainable_weights
-        grads = self._grad_accumulator_callback.get_grads()
+        grads = self._grad_accumulator_callback.grads
         metrics = {}
         for (weight, grad) in zip(weights, grads):
             metrics[
