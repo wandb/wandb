@@ -162,6 +162,9 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
+tf_logger = tf.get_logger()
+
+
 patch_tf_keras()
 
 
@@ -706,12 +709,17 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
+        # Suppress callback warnings grad accumulator
+        og_level = tf_logger.level
+        tf_logger.setLevel("ERROR")
+
         self._grad_accumulator_model.fit(
             self._training_data_x,
             self._training_data_y,
             verbose=0,
             callbacks=[self._grad_accumulator_callback],
         )
+        tf_logger.setLevel(og_level)
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
