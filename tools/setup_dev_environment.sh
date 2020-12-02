@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-PYTHON_VERSIONS="2.7 3.5 3.6 3.7 3.8"
+PYTHON_VERSIONS="2.7 3.5 3.6 3.7 3.8 3.9"
 
 echo "Configuring test environment..."
 full_all=""

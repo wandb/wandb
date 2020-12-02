@@ -73,6 +73,12 @@ optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 
+def test_image_accepts_other_images(mocked_run):
+    image_a = wandb.Image(np.random.random((300, 300, 3)))
+    image_b = wandb.Image(image_a)
+    assert image_a == image_b
+
+
 def test_image_accepts_bounding_boxes(mocked_run):
     img = wandb.Image(image, boxes={"predictions": {"box_data": [full_box]}})
     img.bind_to_run(mocked_run, "images", 0)
@@ -253,6 +259,9 @@ def test_matplotlib_image_with_multiple_axes():
         wandb.Image(plt)  # this should not error.
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_matplotlib_plotly_with_multiple_axes():
     """Ensures that wandb.Plotly constructor can accept a plotly figure 
     reference in which the figure has multiple axes. Importantly, there is 
@@ -296,6 +305,9 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
     there is no image

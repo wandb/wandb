@@ -27,7 +27,14 @@ def dict_from_proto_list(obj_list):
 def dict_no_value_from_proto_list(obj_list):
     d = dict()
     for item in obj_list:
-        d[item.key] = json.loads(item.value_json)["value"]
+        possible_dict = json.loads(item.value_json)
+        if not isinstance(possible_dict, dict) or "value" not in possible_dict:
+            # (tss) TODO: This is protecting against legacy 'wandb_version' field.
+            # Should investigate why the config payload even has 'wandb_version'.
+            logger.warning("key '{}' has no 'value' attribute".format(item.key))
+            continue
+        d[item.key] = possible_dict["value"]
+
     return d
 
 
