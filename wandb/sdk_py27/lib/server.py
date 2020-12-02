@@ -3,13 +3,23 @@ module server
 """
 
 import json
+import os
+import sys
 
 from wandb import util
 from wandb.apis import InternalApi
+from wandb.errors.error import CommError
 
 
 class ServerError(Exception):
     pass
+
+
+def _is_kaggle() -> bool:
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules  # noqa: W503
+    )
 
 
 class Server(object):
@@ -32,6 +42,10 @@ class Server(object):
             self._error_network = True
             return
         if viewer_thread.is_alive():
+            if _is_kaggle():
+                raise CommError(
+                    "To use W&B in kaggle you must enable internet in the settings panel on the right."  # noqa: E501
+                )
             # this is likely a DNS hang
             self._error_network = True
             return
