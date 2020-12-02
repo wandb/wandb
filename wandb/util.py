@@ -329,11 +329,6 @@ def is_numpy_array(obj):
 
 
 def is_2d_array(data):
-    print(len(data))
-    print("asdasdasdas")
-    print(isinstance(data, collections.Sequence))
-    print(isinstance(data[0], collections.Sequence), type(data[0]), len(data[0]))
-    print(isinstance(data[0][0], collections.Sequence), type(data[0][0]), len(data[0]))
     if isinstance(data, collections.Sequence):
         return (
             len(data) > 0
