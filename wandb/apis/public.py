@@ -2405,7 +2405,7 @@ class Artifact(object):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": id},)
+        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
 
         name = None
         if response.get("artifact") is not None:
@@ -2462,6 +2462,7 @@ class Artifact(object):
         ]
         self._manifest = None
         self._is_downloaded = False
+        self._dependent_artifacts = []
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
@@ -2601,6 +2602,26 @@ class Artifact(object):
     def add_reference(self, path, name=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
+    def _get_obj_entry(self, name):
+        """When objects are added with `.add(obj, name)`, the name is typically
+        changed to include the suffix of the object type when serializing to JSON. So we need
+        to be able to resolve a name, without tasking the user with appending .THING.json.
+        This method returns an entry if it exists by a suffixed name.
+
+        Args:
+            name (str): name used when adding
+        """
+        self._load_manifest()
+
+        type_mapping = WBValue.type_mapping()
+        for artifact_type_str in type_mapping:
+            wb_class = type_mapping[artifact_type_str]
+            wandb_file_name = wb_class.with_suffix(name)
+            entry = self._manifest.entries.get(wandb_file_name)
+            if entry is not None:
+                return entry, wb_class
+        return None, None
+
     def get_path(self, name):
         parent_self = self
         manifest = parent_self._load_manifest()
@@ -2609,12 +2630,17 @@ class Artifact(object):
 
         entry = manifest.entries.get(name)
         if entry is None:
-            raise KeyError("Path not contained in artifact: %s" % name)
+            entry = self._get_obj_entry(name)[0]
+            if entry is None:
+                raise KeyError("Path not contained in artifact: %s" % name)
+            else:
+                name = entry.path
 
         class ArtifactEntry(object):
             def __init__(self):
                 self.parent_artifact = parent_self
                 self.name = name
+                self.entry = entry
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2676,38 +2702,42 @@ class Artifact(object):
         Returns:
             A `wandb.Media` which has been stored at `name`
         """
-        self._load_manifest()
+        entry, wb_class = self._get_obj_entry(name)
+        if entry is not None:
+            # If the entry is a reference from another artifact, then get it directly from that artifact
+            if self._manifest_entry_is_artifact_reference(entry):
+                artifact = self._get_ref_artifact_from_entry(entry)
+                return artifact.get(util.uri_from_path(entry.ref))
 
-        type_mapping = WBValue.type_mapping()
-        for artifact_type_str in type_mapping:
-            wb_class = type_mapping[artifact_type_str]
-            wandb_file_name = wb_class.with_suffix(name)
-            entry = self._manifest.entries.get(wandb_file_name)
-            if entry is not None:
-                # If the entry is a reference from another artifact, then get it directly from that artifact
-                if self._manifest_entry_is_artifact_reference(entry):
-                    artifact = self._get_ref_artifact_from_entry(entry)
-                    return artifact.get(util.uri_from_path(entry.ref))
+            # Special case for wandb.Table. This is intended to be a short term optimization.
+            # Since tables are likely to download many other assets in artifact(s), we eagerly download
+            # the artifact using the parallelized `artifact.download`. In the future, we should refactor
+            # the deserialization pattern such that this special case is not needed.
+            if wb_class == wandb.Table:
+                self.download(recursive=True)
 
-                # Get the ArtifactEntry
-                item = self.get_path(wandb_file_name)
-                item_path = item.download()
+            # Get the ArtifactEntry
+            item = self.get_path(entry.path)
+            item_path = item.download()
 
-                # Load the object from the JSON blob
-                result = None
-                json_obj = {}
-                with open(item_path, "r") as file:
-                    json_obj = json.load(file)
-                result = wb_class.from_json(json_obj, self)
-                result.artifact_source = {"artifact": self, "name": name}
-                return result
+            # Load the object from the JSON blob
+            result = None
+            json_obj = {}
+            with open(item_path, "r") as file:
+                json_obj = json.load(file)
+            result = wb_class.from_json(json_obj, self)
+            result.artifact_source = {"artifact": self, "name": name}
+            return result
 
-    def download(self, root=None):
+    def download(self, root=None, recursive=False):
         """Download the artifact to dir specified by the <root>
 
         Arguments:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
+            recursive (bool, optional): if set to true, then all dependent artifacts are
+                eagerly downloaded as well. If false, then the dependent artifact will
+                only be downloaded when needed.
 
         Returns:
             The path to the downloaded contents.
@@ -2731,6 +2761,8 @@ class Artifact(object):
 
         pool = multiprocessing.dummy.Pool(32)
         pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        if recursive:
+            pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
         pool.join()
 
@@ -2954,6 +2986,7 @@ class Artifact(object):
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
                 dep_artifact._load_manifest()
+                self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):

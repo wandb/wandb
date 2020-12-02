@@ -294,6 +294,10 @@ def _magic_fit(
     *args,
     **kwargs
 ):
+    if hasattr(self, "_wandb_internal_model"):
+        return self._fit(
+            x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs
+        )
     return _fit_wrapper(
         self, self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs
     )
