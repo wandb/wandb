@@ -2462,6 +2462,7 @@ class Artifact(object):
         ]
         self._manifest = None
         self._is_downloaded = False
+        self._dependent_artifacts = []
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
@@ -2647,6 +2648,13 @@ class Artifact(object):
                     artifact = self._get_ref_artifact_from_entry(entry)
                     return artifact.get(util.uri_from_path(entry.ref))
 
+                # Special case for wandb.Table. This is intended to be a short term optimization.
+                # Since tables are likely to download many other assets in artifact(s), we eagerly download
+                # the artifact using the parallelized `artifact.download`. In the future, we should refactor
+                # the deserialization pattern such that this special case is not needed.
+                if wb_class == wandb.Table:
+                    self.download(recursive=True)
+
                 # Get the ArtifactEntry
                 item = self.get_path(wandb_file_name)
                 item_path = item.download()
@@ -2660,12 +2668,15 @@ class Artifact(object):
                 result.artifact_source = {"artifact": self, "name": name}
                 return result
 
-    def download(self, root=None):
+    def download(self, root=None, recursive=False):
         """Download the artifact to dir specified by the <root>
 
         Arguments:
             root (str, optional): directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
+            recursive (bool, optional): if set to true, then all dependent artifacts are
+                eagerly downloaded as well. If false, then the dependent artifact will
+                only be downloaded when needed.
 
         Returns:
             The path to the downloaded contents.
@@ -2689,6 +2700,8 @@ class Artifact(object):
 
         pool = multiprocessing.dummy.Pool(32)
         pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        if recursive:
+            pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
         pool.join()
 
@@ -2912,6 +2925,7 @@ class Artifact(object):
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
                 dep_artifact._load_manifest()
+                self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
