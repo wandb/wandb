@@ -61,6 +61,9 @@ def cleanup():
     if os.path.isfile(LOCAL_ASSET_NAME):
         os.remove(LOCAL_ASSET_NAME)
 
+    if os.path.isfile("model.pkl"):
+        os.remove("model.pkl")
+
 def download_data():
     global train_ids
     if not os.path.exists(LOCAL_ASSET_NAME):
