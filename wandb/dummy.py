@@ -168,6 +168,9 @@ class Dummy(str):
     def __bool__(self):
         return True
 
+    def __getstate__(self):
+        return 1
+
 
 class DummyDict(dict):
     __setattr__ = dict.__setitem__
