@@ -28,6 +28,8 @@ import json
 import codecs
 import tempfile
 import sys
+import base64
+import binascii
 from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
@@ -380,7 +382,7 @@ class Media(WBValue):
             dict: JSON representation
         """
         json_obj = {}
-        wandb_run, _ = _safe_sdk_import()
+        wandb_run, wandb_artifacts = _safe_sdk_import()
         if isinstance(run, wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(
@@ -403,7 +405,38 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+        elif isinstance(run, wandb_artifacts.Artifact):
+            if self.file_is_set():
+                artifact = run
+                # Checks if the concrete image has already been added to this artifact
+                name = artifact.get_added_local_path_name(self._path)
+                if name is None:
+                    name = os.path.join(
+                        self.get_media_subdir(), os.path.basename(self._path)
+                    )
 
+                    # if not, check to see if there is a source artifact for this object
+                    if (
+                        self.artifact_source is not None
+                        and self.artifact_source["artifact"] != artifact
+                    ):
+                        default_root = self.artifact_source["artifact"]._default_root()
+                        # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                        if self._path.startswith(default_root):
+                            name = self._path[len(default_root) :]
+                            name = name.lstrip(os.sep)
+
+                        # Add this image as a reference
+                        path = self.artifact_source["artifact"].get_path(name)
+                        artifact.add_reference(path.ref_url(), name=name)
+                    else:
+                        entry = artifact.add_file(
+                            self._path, name=name, is_tmp=self._is_tmp
+                        )
+                        name = entry.path
+
+                json_obj["path"] = name
+            json_obj["_type"] = self.artifact_type
         return json_obj
 
 
@@ -1181,10 +1214,10 @@ class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
     Arguments:
-        table1 (str, wandb.Table):
-            the path of a wandb.Table or the table object
+        table1 (str, wandb.Table, ArtifactEntry):
+            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
         table2 (str, wandb.Table):
-            the path of a wandb.Table or the table object
+            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
         join_key (str, [str, str]):
             key or keys to perform the join
     """
@@ -1201,14 +1234,14 @@ class JoinedTable(Media):
                 "JoinedTable join_key should be a string or a list of two strings"
             )
 
-        if not isinstance(table1, str) and not isinstance(table1, Table):
+        if not self._validate_table_input(table1):
             raise ValueError(
-                "JoinedTable table1 should be a path or wandb.Table object"
+                "JoinedTable table1 should be an artifact path to a table or wandb.Table object"
             )
 
-        if not isinstance(table2, str) and not isinstance(table2, Table):
+        if not self._validate_table_input(table2):
             raise ValueError(
-                "JoinedTable table2 should be a path or wandb.Table object"
+                "JoinedTable table2 should be an artifact path to a table or wandb.Table object"
             )
 
         self._table1 = table1
@@ -1227,31 +1260,48 @@ class JoinedTable(Media):
 
         return cls(t1, t2, json_obj["join_key"],)
 
+    @staticmethod
+    def _validate_table_input(table):
+        """Helper method to validate that the table input is one of the 3 supported types"""
+        return (
+            (type(table) == str and table.endswith(".table.json"))
+            or isinstance(table, Table)
+            or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
+        )
+
+    def _ensure_table_in_artifact(self, table, artifact, table_ndx):
+        """Helper method to add the table to the incoming artifact. Returns the path"""
+        if isinstance(table, Table):
+            table_name = "t{}_{}".format(table_ndx, str(id(self)))
+            if (
+                table.artifact_source is not None
+                and table.artifact_source["name"] is not None
+            ):
+                table_name = os.path.basename(table.artifact_source["name"])
+            entry = artifact.add(table, table_name)
+            table = entry.path
+        # Check if this is an ArtifactEntry
+        elif hasattr(table, "ref_url"):
+            # Give the new object a unique, yet deterministic name
+            name = binascii.hexlify(
+                base64.standard_b64decode(table.entry.digest)
+            ).decode("ascii")[:8]
+            entry = artifact.add_reference(
+                table.ref_url(), "{}.table.json".format(name)
+            )[0]
+            table = entry.path
+
+        err_str = "JoinedTable table:{} not found in artifact. Add a table to the artifact using Artifact#add(<table>, {}) before adding this JoinedTable"
+        if table not in artifact._manifest.entries:
+            raise ValueError(err_str.format(table, table))
+
+        return table
+
     def to_json(self, artifact):
         json_obj = super(JoinedTable, self).to_json(artifact)
 
-        table1 = self._table1
-        table2 = self._table2
-
-        if isinstance(self._table1, Table):
-            table_name = "t1_" + str(id(self))
-            if (
-                self._table1.artifact_source is not None
-                and self._table1.artifact_source["name"] is not None
-            ):
-                table_name = os.path.basename(self._table1.artifact_source["name"])
-            entry = artifact.add(self._table1, table_name)
-            table1 = entry.path
-
-        if isinstance(self._table2, Table):
-            table_name = "t2_" + str(id(self))
-            if (
-                self._table2.artifact_source is not None
-                and self._table2.artifact_source["name"] is not None
-            ):
-                table_name = os.path.basename(self._table2.artifact_source["name"])
-            entry = artifact.add(self._table2, table_name)
-            table2 = entry.path
+        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
+        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
 
         json_obj.update(
             {
@@ -1495,32 +1545,6 @@ class Image(BatchableMedia):
                 raise ValueError(
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
-
-            # Checks if the concrete image has already been added to this artifact
-            name = artifact.get_added_local_path_name(self._path)
-            if name is None:
-                name = os.path.join(
-                    self.get_media_subdir(), os.path.basename(self._path)
-                )
-
-                # if not, check to see if there is a source artifact for this object
-                if (
-                    self.artifact_source is not None
-                    and self.artifact_source["artifact"] != artifact
-                ):
-                    default_root = self.artifact_source["artifact"]._default_root()
-                    # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
-                    if self._path.startswith(default_root):
-                        name = self._path[len(default_root) :]
-                        name = name.lstrip(os.sep)
-
-                    # Add this image as a reference
-                    path = self.artifact_source["artifact"].get_path(name)
-                    artifact.add_reference(path.ref_url(), name=name)
-                else:
-                    artifact.add_file(self._path, name=name)
-
-            json_dict["path"] = name
 
             if self._classes is not None:
                 # Here, rather than give each class definition it's own name (and entry), we
@@ -1963,39 +1987,15 @@ class ImageMask(Media):
         )
 
     def to_json(self, run_or_artifact):
+        json_dict = super(ImageMask, self).to_json(run_or_artifact)
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
-            run = run_or_artifact
-            json_dict = super(ImageMask, self).to_json(run)
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact = run_or_artifact
-            mask_path = os.path.join(
-                self.get_media_subdir(), os.path.basename(self._path)
-            )
-            mask_name = artifact.get_added_local_path_name(mask_path)
-            mask_entry_digest = None
-            if mask_name is None:
-                if (
-                    self.artifact_source is not None
-                    and self.artifact_source["artifact"] != artifact
-                ):
-                    path = self.artifact_source["artifact"].get_path(mask_path)
-                    mask_entry = artifact.add_reference(path.ref_url(), name=mask_path)[
-                        0
-                    ]
-                else:
-                    mask_entry = artifact.add_file(self._path, name=mask_path)
-
-                mask_name = mask_path
-                mask_entry_digest = mask_entry.digest
-            return {
-                "_type": ImageMask.artifact_type,
-                "path": mask_name,
-                "digest": mask_entry_digest,
-            }
+            # Nothing special to add (used to add "digest", but no longer used.)
+            return json_dict
         else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
