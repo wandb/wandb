@@ -2,6 +2,7 @@ import wandb
 import numpy as np
 import time
 import shutil
+import os
 
 def teardown():
     wandb.finish()
