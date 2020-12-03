@@ -1586,9 +1586,7 @@ class Run(object):
 
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
-            public_api = public.Api(
-                {"entity": r.entity, "project": r.project, "run": self.id}
-            )
+            public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
@@ -1669,8 +1667,33 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
+        self._assert_can_log_artifact(artifact)
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
+
+    def _assert_can_log_artifact(self, artifact):
+        if not self._settings._offline:
+            public_api = self._public_api()
+            expected_type = public.Artifact.expected_type(
+                public_api.client,
+                artifact.name,
+                public_api.settings["entity"],
+                public_api.settings["project"],
+            )
+            if expected_type is not None and artifact.type != expected_type:
+                raise ValueError(
+                    "Expected artifact type {}, got {}".format(
+                        expected_type, artifact.type
+                    )
+                )
+
+    def _public_api(self):
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return public.Api(overrides)
 
     def alert(self, title, text, level=None, wait_duration=None):
         """Launch an alert with the given title and text.
