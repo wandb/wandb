@@ -6,15 +6,6 @@ import threading
 import time
 
 
-try:
-    from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore
-    from tensorflow.python.profiler import profiler_client  # type: ignore
-except ImportError:
-    tpu_cluster_resolver = None
-    profiler_client = None
-    pass
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +18,9 @@ class TPUProfiler(object):
         gcp_project=None,
         duration_ms=1000,
     ):
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore
+        from tensorflow.python.profiler import profiler_client  # type: ignore
+
         if service_addr:
             if tpu:
                 logger.warn(
@@ -58,11 +52,12 @@ class TPUProfiler(object):
         self.duration_ms = duration_ms
         self._tpu_utilization = 0.0
         self._stop = True
+        self._profiler_client = profiler_client
         self.start()
 
     def _get_tpu_utilization(self):
         # this call blocks for duration_ms milliseconds
-        res = profiler_client.monitor(
+        res = self._profiler_client.monitor(
             self.service_addr, duration_ms=self.duration_ms, level=2
         )
         return float(res.split("Utilization ")[1].split(": ")[1].split("%")[0])
@@ -91,7 +86,12 @@ class TPUProfiler(object):
 
 
 def is_tpu_available():
-    return profiler_client is not None and "TPU_NAME" in os.environ
+    try:
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
+        from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
+    except ImportError:
+        return False
+    return "TPU_NAME" in os.environ
 
 
 # Avoid multiple TPUProfiler instances
