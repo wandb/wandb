@@ -466,6 +466,71 @@ def test_add_obj_wbimage(runner):
             }
 
 
+def test_deduplicate_wbimage_from_file(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
+    im_path_2 = os.path.join(test_folder, "..", "assets", "test2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_image_1 = wandb.Image(im_path_1)
+        wb_image_2 = wandb.Image(im_path_2)
+        artifact.add(wb_image_1, "my-image_1")
+        artifact.add(wb_image_2, "my-image_2")
+        assert len(artifact.manifest.entries) == 4
+
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_image_1 = wandb.Image(im_path_1)
+        wb_image_2 = wandb.Image(im_path_1)
+        artifact.add(wb_image_1, "my-image_1")
+        artifact.add(wb_image_2, "my-image_2")
+        assert len(artifact.manifest.entries) == 3
+
+
+def test_deduplicate_wbimage_from_array(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_data_1 = np.random.rand(300, 300, 3)
+    im_data_2 = np.random.rand(300, 300, 3)
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_image_1 = wandb.Image(im_data_1)
+        wb_image_2 = wandb.Image(im_data_2)
+        artifact.add(wb_image_1, "my-image_1")
+        artifact.add(wb_image_2, "my-image_2")
+        assert len(artifact.manifest.entries) == 4
+
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_image_1 = wandb.Image(im_data_1)
+        wb_image_2 = wandb.Image(im_data_2)
+        wb_image_3 = wandb.Image(im_data_1)  # yes, should be 1
+        artifact.add(wb_image_1, "my-image_1")
+        artifact.add(wb_image_2, "my-image_2")
+        artifact.add(wb_image_3, "my-image_3")
+        assert len(artifact.manifest.entries) == 5
+
+
+def test_deduplicate_wbimagemask_from_array(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_data_1 = np.random.randint(0, 10, (300, 300))
+    im_data_2 = np.random.randint(0, 10, (300, 300))
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_imagemask_1 = data_types.ImageMask({"mask_data": im_data_1}, key="test")
+        wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_2}, key="test2")
+        artifact.add(wb_imagemask_1, "my-imagemask_1")
+        artifact.add(wb_imagemask_2, "my-imagemask_2")
+        assert len(artifact.manifest.entries) == 4
+
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="artifact")
+        wb_imagemask_1 = data_types.ImageMask({"mask_data": im_data_1}, key="test")
+        wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
+        artifact.add(wb_imagemask_1, "my-imagemask_1")
+        artifact.add(wb_imagemask_2, "my-imagemask_2")
+        assert len(artifact.manifest.entries) == 3
+
+
 def test_add_obj_wbimage_classes_obj(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
