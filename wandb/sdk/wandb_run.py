@@ -961,8 +961,12 @@ class Run(object):
 
     def _get_url_query_string(self):
         s = self._settings
-        if s.anonymous != "true":
+
+        # TODO(jhr): migrate to new settings, but for now this is safer
+        api = internal.Api()
+        if api.settings().get("anonymous") != "true":
             return ""
+
         api_key = apikey.api_key(settings=s)
         return "?" + urlencode({"apiKey": api_key})
 
