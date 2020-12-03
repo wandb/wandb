@@ -14,7 +14,6 @@ from . import tpu
 psutil = util.get_module("psutil")
 
 
-
 def gpu_in_use_by_this_process(gpu_handle):
     if not psutil:
         return False
@@ -87,6 +86,8 @@ class SystemStats(object):
             self._thread.daemon = True
         if not self._thread.is_alive():
             self._thread.start()
+        if self._tpu_profiler:
+            self._tpu_profiler.start()
 
     @property
     def proc(self):
@@ -131,6 +132,8 @@ class SystemStats(object):
                 self._thread.join()
         finally:
             self._thread = None
+        if self._tpu_profiler:
+            self._tpu_profiler.stop()
 
     def flush(self):
         stats = self.stats()
@@ -213,6 +216,6 @@ class SystemStats(object):
                 stats["proc.cpu.threads"] = self.proc.num_threads()
             except psutil.NoSuchProcess:
                 pass
-        if self._tpu_profiler and self._tpu_profiler.is_enabled():
+        if self._tpu_profiler:
             stats["tpu"] = self._tpu_profiler.get_tpu_utilization()
         return stats

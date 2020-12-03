@@ -57,10 +57,8 @@ class TPUProfiler(object):
         self.service_addr = service_addr
         self.duration_ms = duration_ms
         self._tpu_utilization = 0.0
-        self._start_time = time.time()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._stop = False
-        self._thread.start()
+        self._stop = True
+        self.start()
 
     def _get_tpu_utilization(self):
         # this call blocks for duration_ms milliseconds
@@ -81,7 +79,15 @@ class TPUProfiler(object):
         return self._tpu_utilization
 
     def stop(self):
-        self._stop = True
+        if not self._stop:
+            self._stop = True
+            self._thread.join()
+
+    def start(self):
+        if self._stop:
+            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._stop = False
+            self._thread.start()
 
 
 def is_tpu_available():
