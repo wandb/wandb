@@ -76,7 +76,7 @@ class SystemStats(object):
 
         if tpu.is_tpu_available():
             try:
-                self._tpu_profiler = tpu.TPUProfiler()
+                self._tpu_profiler = tpu.get_profiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
 

@@ -2,69 +2,100 @@ from __future__ import absolute_import
 
 import logging
 import os
-from subprocess import PIPE, Popen
 import threading
+import time
 
-import wandb
+
+try:
+    from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore
+    from tensorflow.python.profiler import profiler_client  # type: ignore
+except ImportError:
+    tpu_cluster_resolver = None
+    profiler_client = None
+    pass
+
 
 logger = logging.getLogger(__name__)
 
 
 class TPUProfiler(object):
-    def __init__(self):
-        try:
-            import cloud_tpu_profiler  # type: ignore
-
-            del cloud_tpu_profiler  # flake8
-            self._enabled = True
-        except ImportError:
-            wandb.termwarn(
-                "cloud_tpu_profiler is not installed. "
-                "TPU stats will not be captured."
-            )
-            logger.warn(
-                "cloud_tpu_profiler is not installed. "
-                "TPU stats will not be captured."
-            )
-            self._enabled = False
-            return
-        self._tpu_utilization = 0
-        self._stop_thread = False
-        self._thread = threading.Thread(target=self._thread_body, daemon=True)
+    def __init__(
+        self,
+        service_addr=None,
+        tpu=None,
+        tpu_zone=None,
+        gcp_project=None,
+        duration_ms=1000,
+    ):
+        if service_addr:
+            if tpu:
+                logger.warn(
+                    "Both service_addr and tpu arguments provided. "
+                    "Ignoring tpu and using service_addr."
+                )
+        else:
+            if not tpu:
+                tpu = os.environ.get("TPU_NAME")
+                if tpu is None:
+                    raise Exception("Required environment variable TPU_NAME.")
+            if tpu_zone is None:
+                tpu_zone = os.environ.get("CLOUDSDK_COMPUTE_ZONE")
+            if gcp_project is None:
+                gcp_project = os.environ.get("CLOUDSDK_CORE_PROJECT")
+            try:
+                service_addr = tpu_cluster_resolver.TPUClusterResolver(
+                    [tpu], zone=tpu_zone, project=gcp_project
+                ).get_master()
+            except (ValueError, TypeError):
+                raise Exception(
+                    "Failed to find TPU. Try specifying TPU zone "
+                    "(via CLOUDSDK_COMPUTE_ZONE environment variable)"
+                    " and GCP project (via CLOUDSDK_CORE_PROJECT "
+                    "environment variable)."
+                )
+        service_addr = service_addr.replace("grpc://", "").replace(":8470", ":8466")
+        self.service_addr = service_addr
+        self.duration_ms = duration_ms
+        self._tpu_utilization = 0.0
+        self._start_time = time.time()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._stop = False
         self._thread.start()
 
-    def _thread_body(self):
-        while not self._stop_thread:
-            self._tpu_utilization = self._get_tpu_utilization()
-
     def _get_tpu_utilization(self):
-        # blocking
-        args = [
-            "capture_tpu_profile",
-            "--tpu=" + os.environ["TPU_NAME"],
-            "--monitoring_level=2",
-            "--num_queries=1",
-            "--duration_ms=100",
-        ]
-        try:
-            p = Popen(args, stdout=PIPE, stderr=None, universal_newlines=True)
-            return float(
-                p.stdout.read().split("Utilization ")[1].split(": ")[1].split("%")[0]
-            )
-        except Exception:
-            return 0.0
+        # this call blocks for duration_ms milliseconds
+        res = profiler_client.monitor(
+            self.service_addr, duration_ms=self.duration_ms, level=2
+        )
+        return float(res.split("Utilization ")[1].split(": ")[1].split("%")[0])
+
+    def _loop(self):
+        while not self._stop:
+            time.sleep(0.5)
+            try:
+                self._tpu_utilization = self._get_tpu_utilization()
+            except Exception:
+                time.sleep(1)
 
     def get_tpu_utilization(self):
         return self._tpu_utilization
 
     def stop(self):
-        if self._enabled:
-            self._stop_thread = True
-            self._thread.join()
-
-    def is_enabled(self):
-        return self._enabled
+        self._stop = True
 
 
 def is_tpu_available():
-    return "TPU_NAME" in os.environ
+    return profiler_client is not None and "TPU_NAME" in os.environ
+
+
+# Avoid multiple TPUProfiler instances
+
+_INSTANCE = None
+
+
+def get_profiler(*args, **kwargs):
+    # NOTE: Only arguments from the first call to this method is used.
+    global _INSTANCE
+    if _INSTANCE is None:
+        _INSTANCE = TPUProfiler(*args, **kwargs)
+    return _INSTANCE

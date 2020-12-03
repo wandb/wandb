@@ -14,7 +14,6 @@ from . import tpu
 psutil = util.get_module("psutil")
 
 
-
 def gpu_in_use_by_this_process(gpu_handle):
     if not psutil:
         return False
@@ -76,7 +75,7 @@ class SystemStats(object):
 
         if tpu.is_tpu_available():
             try:
-                self._tpu_profiler = tpu.TPUProfiler()
+                self._tpu_profiler = tpu.get_profiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
 
