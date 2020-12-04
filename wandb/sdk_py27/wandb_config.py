@@ -169,7 +169,7 @@ class Config(object):
                 if key in sweep_params and d[key] != sweep_params[key]:
                     raise config_util.ConfigError(
                         (
-                            "You can't change the config parameter \"{}\" from {} to {}"
+                            'You can\'t change the config parameter "{}" from {} to {}'
                             " because it's part of the sweep.\n"
                             "If you want to save a new copy, you need to use a new key in config."
                         ).format(key, sweep_params[key], d[key])
