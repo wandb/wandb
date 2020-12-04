@@ -3001,6 +3001,85 @@ class Artifact(object):
         artifact_id = util.host_from_path(entry.ref)
         return Artifact.from_id(util.hex_to_b64_id(artifact_id), self.client)
 
+    def used_by(self):
+        """Retrieves the runs which use this artifact directly
+
+        Returns:
+            [Run]: a list of Run objects which use this artifact
+        """
+        query = gql(
+            """
+            query Artifact(
+                $id: ID!,
+                $before: String,
+                $after: String,
+                $first: Int,
+                $last: Int
+            ) {
+                artifact(id: $id) {
+                    usedBy(before: $before, after: $after, first: $first, last: $last) {
+                        edges {
+                            node {
+                                name
+                                project {
+                                    name
+                                    entityName
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
+        # yes, "name" is actually id
+        runs = [
+            Run(
+                self.client,
+                edge["node"]["project"]["entityName"],
+                edge["node"]["project"]["name"],
+                edge["node"]["name"],
+            )
+            for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
+        ]
+        return runs
+
+    def logged_by(self):
+        """Retrieves the run which logged this artifact
+
+        Returns:
+            Run: Run object which logged this artifact
+        """
+        query = gql(
+            """
+            query Artifact(
+                $id: ID!
+            ) {
+                artifact(id: $id) {
+                    createdBy {
+                        ... on Run {
+                            name
+                            project {
+                                name
+                                entityName
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
+        run_obj = response.get("artifact", {}).get("createdBy", {})
+        if run_obj is not None:
+            return Run(
+                self.client,
+                run_obj["project"]["entityName"],
+                run_obj["project"]["name"],
+                run_obj["name"],
+            )
+
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
