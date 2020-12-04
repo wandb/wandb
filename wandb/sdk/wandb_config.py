@@ -4,6 +4,7 @@
 config.
 """
 
+import json
 import logging
 
 try:
@@ -13,6 +14,7 @@ except ImportError:
 
 import six
 import wandb
+from wandb.apis import InternalApi
 from wandb.util import json_friendly
 
 from . import wandb_helper
@@ -153,6 +155,25 @@ class Config(object):
         self._items.update(sanitized)
 
     def update(self, d, allow_val_change=None):
+        # check if it's updating existing sweep parameters. if so, throw a specific error.
+        sweep_id = self._settings and self._settings.sweep_id
+        if sweep_id:
+            runs = InternalApi().sweep(sweep_id, "{}")["runs"]
+            sweep_params = dict()
+            for run in runs:
+                if run["name"] == self._settings.run_id:
+                    sweep_config = run["config"]
+                break
+            sweep_params = config_util.parse_config_params(json.loads(sweep_config))
+            for key in d:
+                if key in sweep_params and d[key] != sweep_params[key]:
+                    raise config_util.ConfigError(
+                        (
+                            "You can't change the config parameter \"{}\" from {} to {}"
+                            " because it's part of the sweep.\n"
+                            "If you want to save a new copy, you need to use a new key in config."
+                        ).format(key, sweep_params[key], d[key])
+                    )
         self._update(d, allow_val_change)
         if self._callback:
             self._callback(data=self._as_dict())

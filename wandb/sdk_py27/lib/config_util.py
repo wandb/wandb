@@ -34,7 +34,6 @@ def dict_no_value_from_proto_list(obj_list):
             logger.warning("key '{}' has no 'value' attribute".format(item.key))
             continue
         d[item.key] = possible_dict["value"]
-
     return d
 
 
@@ -72,7 +71,14 @@ def dict_from_config_file(filename, must_exist=False):
     config_version = loaded.pop("wandb_version", None)
     if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
+    return parse_config_params(loaded)
+
+
+def parse_config_params(d):
     data = dict()
-    for k, v in six.iteritems(loaded):
-        data[k] = v["value"]
+    for k, v in six.iteritems(d):
+        if k in ["_wandb", "wandb_version"]:
+            continue
+        if "value" in v:
+            data[k] = v["value"]
     return data
