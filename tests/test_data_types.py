@@ -549,6 +549,58 @@ def test_table_init():
     }
 
 
+data = [
+    ["a", 1, True],
+    ["b", 2, False],
+    ["c", 3, True],
+]
+
+
+def test_table_from_list():
+    table = wandb.Table(data=data)
+    assert table.data == data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=data)
+
+    # legacy
+    table = wandb.Table(rows=data)
+    assert table.data == data
+
+
+def test_table_from_numpy():
+    np_data = np.array(data)
+    table = wandb.Table(data=np_data)
+    assert table.data == np_data.tolist()
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(np_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=np_data)
+
+
+def test_table_from_pandas():
+    pd_data = pd.DataFrame(data)
+    table = wandb.Table(data=pd_data)
+    assert table.data == data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(pd_data)
+
+    # legacy
+    table = wandb.Table(dataframe=pd_data)
+    assert table.data == data
+
+
 def test_graph():
     graph = wandb.Graph()
     node_a = data_types.Node("a", "Node A", size=(4,))
