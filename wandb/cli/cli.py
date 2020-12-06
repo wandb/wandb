@@ -1488,6 +1488,7 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.set_setting("mode", "online", persist=True)
     except configparser.Error:
         pass
     click.echo(
@@ -1501,6 +1502,7 @@ def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline, running your script from this directory will only write metadata locally."
         )
