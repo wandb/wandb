@@ -549,7 +549,7 @@ def test_table_init():
     }
 
 
-data = [
+table_data = [
     ["a", 1, True],
     ["b", 2, False],
     ["c", 3, True],
@@ -557,24 +557,24 @@ data = [
 
 
 def test_table_from_list():
-    table = wandb.Table(data=data)
-    assert table.data == data
+    table = wandb.Table(data=table_data)
+    assert table.data == table_data
 
     with pytest.raises(AssertionError):
         # raises when user accidentally overrides columns
-        table = wandb.Table(data)
+        table = wandb.Table(table_data)
 
     with pytest.raises(AssertionError):
         # raises when user uses list in "dataframe"
-        table = wandb.Table(dataframe=data)
+        table = wandb.Table(dataframe=table_data)
 
     # legacy
-    table = wandb.Table(rows=data)
-    assert table.data == data
+    table = wandb.Table(rows=table_data)
+    assert table.data == table_data
 
 
 def test_table_from_numpy():
-    np_data = np.array(data)
+    np_data = np.array(table_data)
     table = wandb.Table(data=np_data)
     assert table.data == np_data.tolist()
 
@@ -588,9 +588,9 @@ def test_table_from_numpy():
 
 
 def test_table_from_pandas():
-    pd_data = pd.DataFrame(data)
+    pd_data = pd.DataFrame(table_data)
     table = wandb.Table(data=pd_data)
-    assert table.data == data
+    assert table.data == table_data
 
     with pytest.raises(AssertionError):
         # raises when user accidentally overrides columns
@@ -598,7 +598,7 @@ def test_table_from_pandas():
 
     # legacy
     table = wandb.Table(dataframe=pd_data)
-    assert table.data == data
+    assert table.data == table_data
 
 
 def test_graph():
