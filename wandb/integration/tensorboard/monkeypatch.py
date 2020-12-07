@@ -65,8 +65,6 @@ def _patch_tensorflow2(
         )
         logdir_hist.append(logdir)
         root_logdir_arg = root_logdir
-        if root_logdir is None:
-            root_logdir_arg = logdir
 
         if len(set(logdir_hist)) > 1 and root_logdir is None:
             wandb.termwarn(
@@ -106,7 +104,6 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
         def __init__(self, logdir, *args, **kwargs):
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir
-
             if len(set(logdir_hist)) > 1 and root_logdir is None:
                 wandb.termwarn(
                     'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
