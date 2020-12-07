@@ -72,10 +72,10 @@ def _patch_tensorflow2(
             wandb.termwarn(
                 'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
             )
-        # if the logdir containts the hostName, the writer was not given a logdir. In this case, the generated logdir
-        # is genetered and ends with the hostName, update the root_logdir to match.
-        hostName = socket.gethostname()
-        search = re.search(hostName, logdir)
+        # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
+        # is genetered and ends with the hostname, update the root_logdir to match.
+        hostname = socket.gethostname()
+        search = re.search(hostname, logdir)
         if search:
             wandb.termwarn(
                 "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
@@ -115,10 +115,10 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
                     'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
                 )
 
-            # if the logdir containts the hostName, the writer was not given a logdir. In this case, the generated logdir
-            # is genetered and ends with the hostName, update the root_logdir to match.
-            hostName = socket.gethostname()
-            search = re.search(hostName, logdir)
+            # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
+            # is genetered and ends with the hostname, update the root_logdir to match.
+            hostname = socket.gethostname()
+            search = re.search(hostname, logdir)
             if search:
                 wandb.termwarn(
                     "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
