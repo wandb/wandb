@@ -504,9 +504,12 @@ class Table(Media):
 
     @staticmethod
     def _assert_valid_columns(columns):
+        valid_col_types = [str, int]
+        if sys.version_info.major < 3:
+            valid_col_types.append(unicode)
         assert type(columns) is list, "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
-            [type(col) in [str, int] for col in columns]
+            [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
     def _init_from_list(self, data, columns):
