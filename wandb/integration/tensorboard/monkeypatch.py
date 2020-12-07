@@ -3,6 +3,8 @@ monkeypatch: patch code to add tensorboard hooks
 """
 
 import os
+import socket
+import re
 
 import wandb
 
@@ -13,6 +15,7 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
+    print("patch")
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
             "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once."
@@ -63,13 +66,23 @@ def _patch_tensorflow2(
         )
         logdir_hist.append(logdir)
         root_logdir_arg = root_logdir
+        if root_logdir is None:
+            root_logdir_arg = logdir
 
         if len(set(logdir_hist)) > 1 and root_logdir is None:
             wandb.termwarn(
                 'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
             )
-
-        if root_logdir is not None and not os.path.abspath(logdir).startswith(
+        # if the logdir containts the hostName, the writer was not given a logdir. In this case, the generated logdir
+        # is genetered and ends with the hostName, update the root_logdir to match.
+        hostName = socket.gethostname()
+        search = re.search(hostName, logdir)
+        if search:
+            wandb.termwarn(
+                "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
+            )
+            root_logdir_arg = logdir[: search.span()[1]]
+        elif root_logdir is not None and not os.path.abspath(logdir).startswith(
             os.path.abspath(root_logdir)
         ):
             wandb.termwarn(
@@ -97,12 +110,23 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
         def __init__(self, logdir, *args, **kwargs):
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir
-            if len(set(logdir_hist)) > 1:
+
+            if len(set(logdir_hist)) > 1 and root_logdir is None:
                 wandb.termwarn(
                     'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
                 )
 
-            if root_logdir is not None and not os.path.abspath(logdir).startswith(
+            # if the logdir containts the hostName, the writer was not given a logdir. In this case, the generated logdir
+            # is genetered and ends with the hostName, update the root_logdir to match.
+            hostName = socket.gethostname()
+            search = re.search(hostName, logdir)
+            if search:
+                wandb.termwarn(
+                    "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
+                )
+                root_logdir_arg = logdir[: search.span()[1]]
+
+            elif root_logdir is not None and not os.path.abspath(logdir).startswith(
                 os.path.abspath(root_logdir)
             ):
                 wandb.termwarn(
@@ -122,4 +146,5 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
 
 
 def _notify_tensorboard_logdir(logdir, save=None, root_logdir=None):
+    print("notify logidr", logdir)
     wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)
