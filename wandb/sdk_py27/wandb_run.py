@@ -21,6 +21,7 @@ import click
 from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.urllib.parse import quote as url_quote
+from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
 from wandb.apis import internal, public
@@ -39,6 +40,7 @@ from . import wandb_history
 from . import wandb_summary
 from .interface.summary_record import SummaryRecord
 from .lib import (
+    apikey,
     config_util,
     filenames,
     ipython,
@@ -957,19 +959,34 @@ class Run(object):
 
         self._config_callback(data=self._config._as_dict())
 
+    def _get_url_query_string(self):
+        s = self._settings
+
+        # TODO(jhr): migrate to new settings, but for now this is safer
+        api = internal.Api()
+        if api.settings().get("anonymous") != "true":
+            return ""
+
+        api_key = apikey.api_key(settings=s)
+        return "?" + urlencode({"apiKey": api_key})
+
     def _get_project_url(self):
         s = self._settings
         r = self._run_obj
         app_url = wandb.util.app_url(s.base_url)
-        url = "{}/{}/{}".format(app_url, url_quote(r.entity), url_quote(r.project))
+        qs = self._get_url_query_string()
+        url = "{}/{}/{}{}".format(
+            app_url, url_quote(r.entity), url_quote(r.project), qs
+        )
         return url
 
     def _get_run_url(self):
         s = self._settings
         r = self._run_obj
         app_url = wandb.util.app_url(s.base_url)
-        url = "{}/{}/{}/runs/{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id)
+        qs = self._get_url_query_string()
+        url = "{}/{}/{}/runs/{}{}".format(
+            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id), qs
         )
         return url
 
@@ -987,12 +1004,14 @@ class Run(object):
             return
 
         app_url = wandb.util.app_url(self._settings.base_url)
+        qs = self._get_url_query_string()
 
-        return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
+        return "{base}/{entity}/{project}/sweeps/{sweepid}{qs}".format(
             base=app_url,
             entity=url_quote(r.entity),
             project=url_quote(r.project),
             sweepid=url_quote(sweep_id),
+            qs=qs,
         )
 
     def _get_run_name(self):
