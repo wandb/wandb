@@ -75,11 +75,8 @@ def _patch_tensorflow2(
         # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
         # is genetered and ends with the hostname, update the root_logdir to match.
         hostname = socket.gethostname()
-        search = re.search(hostname, logdir)
+        search = re.search(r"-\d+_{}".format(hostname), logdir)
         if search:
-            wandb.termwarn(
-                "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
-            )
             root_logdir_arg = logdir[: search.span()[1]]
         elif root_logdir is not None and not os.path.abspath(logdir).startswith(
             os.path.abspath(root_logdir)
@@ -118,11 +115,8 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
             # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
             # is genetered and ends with the hostname, update the root_logdir to match.
             hostname = socket.gethostname()
-            search = re.search(hostname, logdir)
+            search = re.search(r"-\d+_{}".format(hostname), logdir)
             if search:
-                wandb.termwarn(
-                    "Experiment writer logdir is likely not given, updating root_logdir to match generated logdir."
-                )
                 root_logdir_arg = logdir[: search.span()[1]]
 
             elif root_logdir is not None and not os.path.abspath(logdir).startswith(
