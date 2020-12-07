@@ -15,7 +15,6 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
-    print("patch")
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
             "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once."
@@ -146,5 +145,4 @@ def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
 
 
 def _notify_tensorboard_logdir(logdir, save=None, root_logdir=None):
-    print("notify logidr", logdir)
     wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)
