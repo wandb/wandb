@@ -27,7 +27,7 @@ def _get_python_type():
 def display_html(html):
     """Displays HTML in notebooks, is a noop outside of a jupyter context"""
     if wandb.run and wandb.run._settings._silent:
-        return logger.info(html)
+        return
     try:
         from IPython.core.display import display, HTML  # type: ignore
     except ImportError:
@@ -39,7 +39,7 @@ def display_html(html):
 def display_widget(widget):
     """Displays ipywidgets in notebooks, is a noop outside of a jupyter context"""
     if wandb.run and wandb.run._settings._silent:
-        return None
+        return
     try:
         from IPython.core.display import display
     except ImportError:
