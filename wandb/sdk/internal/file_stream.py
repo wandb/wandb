@@ -4,6 +4,7 @@ import collections
 import logging
 import threading
 import requests
+import six
 import time
 import wandb
 import itertools
@@ -267,11 +268,78 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        self._handle_response(
-            util.request_with_retry(
-                self._client.post, self._endpoint, json={"files": files}
+        for fs in self._split(files):
+            self._handle_response(
+                util.request_with_retry(
+                    self._client.post, self._endpoint, json={"files": fs}
+                )
             )
-        )
+    
+    def _split(self, files, MAX_MB=50):
+        current_volume = {}
+        current_size = 0
+        max_size = MAX_MB * 1024 * 1024
+        def _str_size(x):
+            return len(x) if isinstance(x, six.binary_type) else len(x.encode('utf-8'))
+
+        def _file_size(file):
+            return sum(map(_str_size, file["content"]))
+
+        def _split_file(file, num_lines):
+            offset = file["offset"]
+            content = file["content"]
+            name = file["name"]
+            f1 = {"offset": offset, "content": content[:num_lines], "name": name}
+            f2 = {"offset": offset + num_lines, "content": content[num_lines:], "name": name}
+            return f1, f2
+        
+        def _num_lines_from_num_bytes(file, num_bytes):
+            size = 0
+            num_lines = 0
+            content = file["content"]
+            while True:
+                size += _str_size(content[num_lines])
+                if size > num_bytes:
+                    break
+                num_lines += 1
+            return num_lines
+
+
+        files_stack = [{"name": k, "offset": v["offset"], "content": v["content"]} for k, v in files.items()]
+
+        while files_stack:
+            f = files_stack.pop()
+            # For each file, we have to do 1 of 4 things:
+            # - Add the file as such to the current volume if possible.
+            # - Split the file and add the first part to the current volume and push the second part back onto the stack.
+            # - If that's not possible, check if current volume is empty:
+            # - If empty, add first line of file to current volume and push rest onto stack (This volume will exceed MAX_MB).
+            # - If not, push file back to stack and yield current volume.
+            fsize = _file_size(f)
+            rem = max_size - current_size
+            if fsize <= rem:
+                current_volume[f.pop("name")] = f
+                current_size += fsize
+            else:
+                num_lines = _num_lines_from_num_bytes(f, rem)
+                if not num_lines and not current_volume:
+                    num_lines = 1
+                if num_lines:
+                    f1, f2 = _split_file(f, num_lines)
+                    current_volume[f1.pop("name")] = f1
+                    current_size += _file_size(f1)
+                    files_stack.append(f2)
+                else:
+                    files_stack.append(f)
+                    yield current_volume
+                    current_volume = {}
+                    current_size = 0
+                    continue
+            if current_size >= max_size:
+                yield current_volume
+                current_volume = {}
+                current_size = 0
+                continue
 
     def stream_file(self, path):
         name = path.split("/")[-1]
