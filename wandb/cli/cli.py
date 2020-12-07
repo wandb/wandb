@@ -1488,7 +1488,7 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
-        api.set_setting("mode", "online", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
