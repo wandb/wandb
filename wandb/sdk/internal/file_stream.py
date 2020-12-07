@@ -274,13 +274,14 @@ class FileStreamApi(object):
                     self._client.post, self._endpoint, json={"files": fs}
                 )
             )
-    
-    def _split(self, files, MAX_MB=50):
+
+    def _split(self, files, MAX_MB=75):
         current_volume = {}
         current_size = 0
         max_size = MAX_MB * 1024 * 1024
+
         def _str_size(x):
-            return len(x) if isinstance(x, six.binary_type) else len(x.encode('utf-8'))
+            return len(x) if isinstance(x, six.binary_type) else len(x.encode("utf-8"))
 
         def _file_size(file):
             return sum(map(_str_size, file["content"]))
@@ -290,9 +291,13 @@ class FileStreamApi(object):
             content = file["content"]
             name = file["name"]
             f1 = {"offset": offset, "content": content[:num_lines], "name": name}
-            f2 = {"offset": offset + num_lines, "content": content[num_lines:], "name": name}
+            f2 = {
+                "offset": offset + num_lines,
+                "content": content[num_lines:],
+                "name": name,
+            }
             return f1, f2
-        
+
         def _num_lines_from_num_bytes(file, num_bytes):
             size = 0
             num_lines = 0
@@ -304,8 +309,10 @@ class FileStreamApi(object):
                 num_lines += 1
             return num_lines
 
-
-        files_stack = [{"name": k, "offset": v["offset"], "content": v["content"]} for k, v in files.items()]
+        files_stack = [
+            {"name": k, "offset": v["offset"], "content": v["content"]}
+            for k, v in files.items()
+        ]
 
         while files_stack:
             f = files_stack.pop()
