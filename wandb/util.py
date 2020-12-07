@@ -701,8 +701,10 @@ def request_with_retry(func, *args, **kwargs):
                 logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
                     e,
+                    func,
+                    response.content,
                     args,
                     kwargs,
                 )
