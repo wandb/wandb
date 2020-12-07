@@ -271,3 +271,38 @@ def test_runs_bayes_nan():
     sweep = {'config': sweep_config_2params, 'runs': runs}
     params, info = bs.next_run(sweep)
     assert params['v1']['value'] == 10 and params['v2']['value'] == 2
+
+
+sweep_config_2params_categorical = {
+    'metric': {
+        'name': 'acc',
+        'goal': 'maximize',
+    },
+    'parameters': {
+        'v1': {
+            'distribution': 'categorical',
+            'values': [(2, 3), [3, 4], ["5", "6"], [(7, 8), ["9", [10, 11]]]]
+        },
+        'v2': {
+            'min': 1,
+            'max': 10
+        }
+    }
+}
+
+
+def test_runs_bayes_categorical_list():
+    np.random.seed(73)
+    bs = bayes.BayesianSearch()
+    r1 = Run('b', 'finished', {
+        'v1': {
+            'value': [3, 4]
+        },
+        'v2': {
+            'value': 5
+        }
+    }, {'acc': 0.2}, [])
+    runs = [r1, r1]
+    sweep = {'config': sweep_config_2params_categorical, 'runs': runs}
+    params, info = bs.next_run(sweep)
+    assert params['v1']['value'] == [(7, 8), ['9', [10, 11]]] and params['v2']['value'] == 1
