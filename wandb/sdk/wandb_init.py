@@ -400,6 +400,7 @@ class _WandbInit(object):
             ret = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
+            print("a", ret)
             if ret:
                 if ret.upgrade_message:
                     run._set_upgraded_version_message(ret.upgrade_message)
@@ -407,8 +408,10 @@ class _WandbInit(object):
                     run._set_deleted_version_message(ret.delete_message)
                 if ret.yank_message:
                     run._set_yanked_version_message(ret.yank_message)
+            print("b", ret)
             run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
+            print("c", ret)
             error_message = None
             if not ret:
                 error_message = "Error communicating with backend"
