@@ -20,25 +20,30 @@ import os
 import pprint
 import shutil
 import sys
-import tempfile
 import warnings
-
 
 import six
 import wandb
 from wandb import util
 from wandb.util import has_num
 
+_is_py_3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
+
+if _is_py_3:
+    import tempfile
+else:
+    from wandb.compat import tempfile
+
+from wandb.compat import tempfile
 
 
 # TODO: REMOVE THIS
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
-
-    is_py_3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-    if is_py_3:
+    if _is_py_3:
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
     else:
