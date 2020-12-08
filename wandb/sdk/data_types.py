@@ -23,68 +23,45 @@ import sys
 import warnings
 
 import six
-import wandb
 from wandb import util
-from wandb.util import has_num
+from wandb.__globals import _datatypes_callback
 
-_is_py_3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
+_use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 6
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
-if _is_py_3:
+if _use_type_checks:
     import tempfile
+    import typing as t
+    from .. import wandb_run
+    from .. import wandb_artifacts
 
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 else:
     from wandb.compat import tempfile as compat_tempfile
+    from .. import wandb_run
+    from .. import wandb_artifacts
 
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
 # TODO: REMOVE THIS
-def _safe_sdk_import():
-    """Safely imports sdks respecting python version"""
-    if _is_py_3:
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
-    else:
-        from wandb.sdk_py27 import wandb_run
-        from wandb.sdk_py27 import wandb_artifacts
+# def _safe_sdk_import():
+#     """Safely imports sdks respecting python version"""
+#     if _use_type_checks:
+#         from wandb.sdk import wandb_run
+#         from wandb.sdk import wandb_artifacts
+#     else:
+#         from wandb.sdk_py27 import wandb_run
+#         from wandb.sdk_py27 import wandb_artifacts
 
-    return wandb_run, wandb_artifacts
+#     return wandb_run, wandb_artifacts
 
 
 # Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
-
-
-DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
-
-
-# cling below
-_glob_datatypes_callback = None
-
-
-def _datatypes_set_callback(cb):
-    global _glob_datatypes_callback
-    _glob_datatypes_callback = cb
-
-
-def _datatypes_callback(fname):
-    if _glob_datatypes_callback:
-        _glob_datatypes_callback(fname)
-
-
-# cling above
-
-
-def wb_filename(key, step, id, extension):
-    return "{}_{}_{}{}".format(key, step, id, extension)
+# warnings.filterwarnings(
+#     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
+# )
 
 
 class WBValue(object):
@@ -96,14 +73,16 @@ class WBValue(object):
     that indicates how to interpret the other fields.
     """
 
-    _type_mapping = None
+    _type_mapping: t.Optional[t.Dict[str, WBValue]] = None
     # override artifact_type to indicate type that the subclass deserializes
-    artifact_type = None
+    artifact_type: t.Optional[str] = None
 
     def __init__(self):
         self._artifact_source = None
 
-    def to_json(self, run_or_artifact):
+    def to_json(
+        self, run_or_artifact: t.Union[wandb_run.Run, wandb_artifacts.Artifact]
+    ) -> t.Dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
@@ -116,7 +95,9 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj: t.Dict, source_artifact: wandb_artifacts.Artifact
+    ) -> WBValue:
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
         `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
         the `source_artifact`.
@@ -129,7 +110,7 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls, name, filetype="json"):
+    def with_suffix(cls, name: str, filetype="json") -> str:
         """Helper function to return the name with suffix added if not already
 
         Args:
@@ -148,7 +129,9 @@ class WBValue(object):
         return name
 
     @staticmethod
-    def init_from_json(json_obj, source_artifact):
+    def init_from_json(
+        json_obj: t.Dict, source_artifact: wandb_artifacts.Artifact
+    ) -> WBValue:
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
         attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create
@@ -172,7 +155,7 @@ class WBValue(object):
         return None
 
     @staticmethod
-    def type_mapping():
+    def type_mapping() -> t.Dict[str, WBValue]:
         """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
@@ -192,10 +175,10 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def __eq__(self, other):
+    def __eq__(self, other: WBValue) -> bool:
         return super(WBValue, self).__eq__(other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: WBValue) -> bool:
         return not self.__eq__(other)
 
     @property
@@ -358,7 +341,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(key, step, id_, extension)
+        file_path = "{}_{}_{}{}".format(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
@@ -1868,15 +1851,15 @@ class BoundingBoxes2D(JSONMetadata):
                 if (
                     "middle" in box["position"]
                     and len(box["position"]["middle"]) == 2
-                    and has_num(box["position"], "width")
-                    and has_num(box["position"], "height")
+                    and util.has_num(box["position"], "width")
+                    and util.has_num(box["position"], "height")
                 ):
                     valid = True
                 elif (
-                    has_num(box["position"], "minX")
-                    and has_num(box["position"], "maxX")
-                    and has_num(box["position"], "minY")
-                    and has_num(box["position"], "maxY")
+                    util.has_num(box["position"], "minX")
+                    and util.has_num(box["position"], "maxX")
+                    and util.has_num(box["position"], "minY")
+                    and util.has_num(box["position"], "maxY")
                 ):
                     valid = True
 
@@ -2654,7 +2637,7 @@ def data_frame_to_json(df, run, key, step):
     df["wandb_data_frame_id"] = pandas.Series(
         [six.text_type(data_frame_id)] * len(df.index), index=df.index
     )
-    frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
+    frames_dir = os.path.join(run.dir, "media", "data_frames")
     util.mkdir_exists_ok(frames_dir)
     path = os.path.join(frames_dir, "{}-{}.parquet".format(key, data_frame_id))
     fastparquet.write(path, df)
@@ -2691,7 +2674,6 @@ __all__ = [
     "Graph",
     "Node",
     "Edge",
-    "_datatypes_set_callback",
     "prune_max_seq",
     "numpy_arrays_to_lists",
     "val_to_json",

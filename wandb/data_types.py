@@ -17,7 +17,7 @@ import sys
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
-    from wandb.sdk.interface.data_types import (
+    from wandb.sdk.data_types import (
         WBValue,
         Histogram,
         Media,
@@ -38,14 +38,13 @@ if PY3:
         Graph,
         Node,
         Edge,
-        _datatypes_set_callback,
         prune_max_seq,
         numpy_arrays_to_lists,
         val_to_json,
         history_dict_to_json,
     )
 else:
-    from wandb.sdk_py27.interface.data_types import (
+    from wandb.sdk_py27.data_types import (
         WBValue,
         Histogram,
         Media,
@@ -66,7 +65,6 @@ else:
         Graph,
         Node,
         Edge,
-        _datatypes_set_callback,
         prune_max_seq,
         numpy_arrays_to_lists,
         val_to_json,
@@ -94,7 +92,6 @@ __all__ = [
     "Graph",
     "Node",
     "Edge",
-    "_datatypes_set_callback",
     "prune_max_seq",
     "numpy_arrays_to_lists",
     "val_to_json",

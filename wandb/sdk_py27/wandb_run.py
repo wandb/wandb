@@ -25,7 +25,7 @@ from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
 from wandb.apis import internal, public
-from wandb.data_types import _datatypes_set_callback
+from wandb.__globals import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
