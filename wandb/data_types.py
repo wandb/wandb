@@ -42,6 +42,7 @@ if PY3:
         prune_max_seq,
         numpy_arrays_to_lists,
         val_to_json,
+        history_dict_to_json,
     )
 else:
     from wandb.sdk_py27.interface.data_types import (
@@ -69,6 +70,7 @@ else:
         prune_max_seq,
         numpy_arrays_to_lists,
         val_to_json,
+        history_dict_to_json,
     )
 
 __all__ = [
@@ -96,4 +98,5 @@ __all__ = [
     "prune_max_seq",
     "numpy_arrays_to_lists",
     "val_to_json",
+    "history_dict_to_json",
 ]

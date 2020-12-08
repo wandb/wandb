@@ -2695,4 +2695,5 @@ __all__ = [
     "prune_max_seq",
     "numpy_arrays_to_lists",
     "val_to_json",
+    "history_dict_to_json",
 ]
