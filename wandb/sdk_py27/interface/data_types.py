@@ -32,12 +32,16 @@ _is_py_3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
 
+# Staging directory so we can encode raw data into files, then hash them before
+# we put them into the Run directory to be uploaded.
 if _is_py_3:
     import tempfile
-else:
-    from wandb.compat import tempfile
 
-from wandb.compat import tempfile
+    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+else:
+    from wandb.compat import tempfile as compat_tempfile
+
+    MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
 # TODO: REMOVE THIS
@@ -58,9 +62,6 @@ warnings.filterwarnings(
     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
 )
 
-# Staging directory so we can encode raw data into files, then hash them before
-# we put them into the Run directory to be uploaded.
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
