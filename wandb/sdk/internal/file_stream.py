@@ -275,7 +275,7 @@ class FileStreamApi(object):
                 )
             )
 
-    def _split(self, files, MAX_MB=75):
+    def _split(self, files, MAX_MB=50):
         current_volume = {}
         current_size = 0
         max_size = MAX_MB * 1024 * 1024

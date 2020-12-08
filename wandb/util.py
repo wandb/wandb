@@ -687,7 +687,7 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409}:
+                if e.response.status_code in {400, 403, 404, 409} or (e.response.status_code == 500 and e.response.content == b'{"error":"context deadline exceeded"}\n'):
                     return e
 
             if retry_count == max_retries:
@@ -701,14 +701,14 @@ def request_with_retry(func, *args, **kwargs):
                 logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
                 pass
-                # logger.warning(
-                #     "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
-                #     e,
-                #     func,
-                #     response.content,
-                #     args,
-                #     kwargs,
-                # )
+                logger.warning(
+                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
+                    e,
+                    func,
+                    e.response.content,
+                    args,
+                    kwargs,
+                )
             time.sleep(delay)
             sleep *= 2
             if sleep > MAX_SLEEP_SECONDS:
