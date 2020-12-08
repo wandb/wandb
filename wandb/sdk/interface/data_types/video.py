@@ -1,3 +1,11 @@
+import os
+
+import six
+from wandb import util
+
+from .media import BatchableMedia, Media
+
+
 class Video(BatchableMedia):
 
     """
@@ -33,7 +41,7 @@ class Video(BatchableMedia):
 
         if isinstance(data_or_path, six.BytesIO):
             filename = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + self._format
+                Media.MEDIA_TMP.name, util.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
@@ -69,7 +77,9 @@ class Video(BatchableMedia):
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
-        filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
+        filename = os.path.join(
+            Media.MEDIA_TMP.name, util.generate_id() + "." + self._format
+        )
         try:  # older version of moviepy does not support progress_bar argument.
             if self._format == "gif":
                 clip.write_gif(filename, verbose=False, progress_bar=False)
@@ -99,39 +109,41 @@ class Video(BatchableMedia):
 
         return json_dict
 
-    def _prepare_video(self, V):
+    def _prepare_video(self, video):
         """This logic was mostly taken from tensorboardX"""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',
         )
-        if V.ndim < 4:
+        if video.ndim < 4:
             raise ValueError(
                 "Video must be atleast 4 dimensions: time, channels, height, width"
             )
-        if V.ndim == 4:
-            V = V.reshape(1, *V.shape)
-        b, t, c, h, w = V.shape
+        if video.ndim == 4:
+            video = video.reshape(1, *video.shape)
+        b, t, c, h, w = video.shape
 
-        if V.dtype != np.uint8:
+        if video.dtype != np.uint8:
             logging.warning("Converting video data to uint8")
-            V = V.astype(np.uint8)
+            video = video.astype(np.uint8)
 
         def is_power2(num):
             return num != 0 and ((num & (num - 1)) == 0)
 
         # pad to nearest power of 2, all at once
-        if not is_power2(V.shape[0]):
-            len_addition = int(2 ** V.shape[0].bit_length() - V.shape[0])
-            V = np.concatenate((V, np.zeros(shape=(len_addition, t, c, h, w))), axis=0)
+        if not is_power2(video.shape[0]):
+            len_addition = int(2 ** video.shape[0].bit_length() - video.shape[0])
+            video = np.concatenate(
+                (video, np.zeros(shape=(len_addition, t, c, h, w))), axis=0
+            )
 
         n_rows = 2 ** ((b.bit_length() - 1) // 2)
-        n_cols = V.shape[0] // n_rows
+        n_cols = video.shape[0] // n_rows
 
-        V = np.reshape(V, newshape=(n_rows, n_cols, t, c, h, w))
-        V = np.transpose(V, axes=(2, 0, 4, 1, 5, 3))
-        V = np.reshape(V, newshape=(t, n_rows * h, n_cols * w, c))
-        return V
+        video = np.reshape(video, newshape=(n_rows, n_cols, t, c, h, w))
+        video = np.transpose(video, axes=(2, 0, 4, 1, 5, 3))
+        video = np.reshape(video, newshape=(t, n_rows * h, n_cols * w, c))
+        return video
 
     @classmethod
     def seq_to_json(cls, videos, run, key, step):
@@ -148,7 +160,7 @@ class Video(BatchableMedia):
 
     @classmethod
     def captions(cls, videos):
-        if videos[0]._caption != None:
+        if videos[0]._caption is not None:
             return [v._caption for v in videos]
         else:
             return False

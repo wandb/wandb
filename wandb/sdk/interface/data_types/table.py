@@ -1,3 +1,8 @@
+from wandb.sdk import wandb_run
+from wandb.sdk import wandb_artifacts
+from .media import Media
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -74,8 +79,10 @@ class Table(Media):
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_table_json()
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
-        data = numpy_arrays_to_lists(data)
+        tmp_path = os.path.join(
+            Media.MEDIA_TMP.name, util.generate_id() + ".table.json"
+        )
+        data = dt_util.numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
@@ -102,7 +109,6 @@ class Table(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict.update(

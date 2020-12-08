@@ -1,3 +1,8 @@
+from wandb.sdk import wandb_run
+from wandb.sdk import wandb_artifacts
+from .media import Media
+
+
 class ImageMask(Media):
     """
     Wandb class for image masks, useful for segmentation tasks
@@ -39,7 +44,7 @@ class ImageMask(Media):
             self._key = key
 
             ext = "." + self.type_name() + ".png"
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+            tmp_path = os.path.join(Media.MEDIA_TMP.name, util.generate_id() + ext)
 
             PILImage = util.get_module(
                 "PIL.Image",
@@ -71,7 +76,6 @@ class ImageMask(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(ImageMask, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict["_type"] = self.type_name()

@@ -1,3 +1,5 @@
+from .media import Media
+
 # Allows encoding of arbitrary JSON structures
 # as a file
 #
@@ -17,7 +19,7 @@ class JSONMetadata(Media):
         self._val = val
 
         ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        tmp_path = os.path.join(Media.MEDIA_TMP.name, util.generate_id() + ext)
         util.json_dump_uncompressed(
             self._val, codecs.open(tmp_path, "w", encoding="utf-8")
         )

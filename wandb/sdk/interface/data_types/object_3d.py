@@ -1,3 +1,11 @@
+import os
+import six
+
+from wandb import util
+import dt_util
+from .media import BatchableMedia
+
+
 class Object3D(BatchableMedia):
     """
         Wandb class for 3D point clouds.
@@ -30,10 +38,10 @@ class Object3D(BatchableMedia):
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
                 data_or_path.seek(0)
-            object3D = data_or_path.read()
+            object3d = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
-            if extension == None:
+            if extension is None:
                 raise ValueError(
                     "Must pass file type keyword argument when using io objects."
                 )
@@ -44,10 +52,10 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
+                Media.MEDIA_TMP.name, util.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
-                f.write(object3D)
+                f.write(object3d)
 
             self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
@@ -83,7 +91,9 @@ class Object3D(BatchableMedia):
                     "Type not supported, only 'lidar/beta' is currently supported"
                 )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            tmp_path = os.path.join(
+                Media.MEDIA_TMP.name, util.generate_id() + ".pts.json"
+            )
             json.dump(
                 data,
                 codecs.open(tmp_path, "w", encoding="utf-8"),
@@ -92,7 +102,7 @@ class Object3D(BatchableMedia):
                 indent=4,
             )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
-        elif is_numpy_array(data_or_path):
+        elif dt_util.is_numpy_array(data_or_path):
             data = data_or_path
 
             if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
@@ -104,7 +114,9 @@ class Object3D(BatchableMedia):
                 )
 
             data = data.tolist()
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            tmp_path = os.path.join(
+                Media.MEDIA_TMP.name, util.generate_id() + ".pts.json"
+            )
             json.dump(
                 data,
                 codecs.open(tmp_path, "w", encoding="utf-8"),

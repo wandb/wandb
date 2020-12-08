@@ -1,3 +1,6 @@
+from .media import BatchableMedia
+
+
 class Molecule(BatchableMedia):
     """
         Wandb class for Molecular data
@@ -24,7 +27,7 @@ class Molecule(BatchableMedia):
             molecule = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
-            if extension == None:
+            if extension is None:
                 raise ValueError(
                     "Must pass file type keyword argument when using io objects."
                 )
@@ -35,7 +38,7 @@ class Molecule(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
+                Media.MEDIA_TMP.name, util.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(molecule)

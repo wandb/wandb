@@ -1,3 +1,6 @@
+from .media import BatchableMedia
+
+
 class Html(BatchableMedia):
     """
         Wandb class for arbitrary html
@@ -22,7 +25,7 @@ class Html(BatchableMedia):
         if inject:
             self.inject_head()
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
+        tmp_path = os.path.join(Media.MEDIA_TMP.name, util.generate_id() + ".html")
         with open(tmp_path, "w") as out:
             print(self.html, file=out)
 

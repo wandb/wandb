@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class WBValue(object):
     """
     Abstract parent class for things that can be logged by wandb.log() and
@@ -8,9 +11,9 @@ class WBValue(object):
     """
 
     _type_mapping = None
-    artifact_type = (
-        None  # override this value to indicate the type which the subclass deserializes
-    )
+    artifact_type: Optional[
+        str
+    ] = None  # override to indicate the type which the subclass deserializes
 
     def __init__(self):
         self._artifact_source = None

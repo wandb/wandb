@@ -1,3 +1,6 @@
+from .media import Media
+
+
 class Classes(Media):
     artifact_type = "classes"
 

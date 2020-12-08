@@ -1,3 +1,6 @@
+from .media import Media
+
+
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 

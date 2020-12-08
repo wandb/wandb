@@ -1,3 +1,6 @@
+from .media import Media
+
+
 class Plotly(Media):
     """
         Wandb class for plotly plots.
@@ -31,8 +34,10 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".plotly.json")
-        val = numpy_arrays_to_lists(val.to_plotly_json())
+        tmp_path = os.path.join(
+            Media.MEDIA_TMP.name, util.generate_id() + ".plotly.json"
+        )
+        val = dt_util.numpy_arrays_to_lists(val.to_plotly_json())
         util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 

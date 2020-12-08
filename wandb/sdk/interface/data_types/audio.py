@@ -1,3 +1,6 @@
+from .media import BatchableMedia
+
+
 class Audio(BatchableMedia):
     """
         Wandb class for audio clips.
@@ -21,7 +24,7 @@ class Audio(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
         else:
-            if sample_rate == None:
+            if sample_rate is None:
                 raise ValueError(
                     'Argument "sample_rate" is required when instantiating wandb.Audio with raw data.'
                 )
@@ -31,7 +34,7 @@ class Audio(BatchableMedia):
                 required='Raw audio requires the soundfile package. To get it, run "pip install soundfile"',
             )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".wav")
+            tmp_path = os.path.join(Media.MEDIA_TMP.name, util.generate_id() + ".wav")
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
@@ -93,4 +96,4 @@ class Audio(BatchableMedia):
         if all(c is None for c in captions):
             return False
         else:
-            return ["" if c == None else c for c in captions]
+            return ["" if c is None else c for c in captions]

@@ -1,3 +1,7 @@
+from .wbvalue import WBValue
+from .media import Media
+
+
 class Graph(Media):
     """Wandb class for graphs
 
@@ -42,8 +46,10 @@ class Graph(Media):
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
-        data = numpy_arrays_to_lists(data)
+        tmp_path = os.path.join(
+            Media.MEDIA_TMP.name, util.generate_id() + ".graph.json"
+        )
+        data = dt_util.numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():

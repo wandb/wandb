@@ -1,3 +1,17 @@
+import logging
+import os
+
+import six
+from wandb import util
+from wandb.sdk import wandb_artifacts
+from wandb.sdk import wandb_run
+
+from .bounding_boxes_2d import BoundingBoxes2D
+from .media import BatchableMedia, Media
+from .classes import Classes
+from .image_mask import ImageMask
+
+
 class Image(BatchableMedia):
     """
         Wandb class for images.
@@ -62,13 +76,13 @@ class Image(BatchableMedia):
             # self._boxes = data_or_path._boxes
             # self._masks = data_or_path._masks
         else:
-            PILImage = util.get_module(
+            pil_image = util.get_module(
                 "PIL.Image",
                 required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
             )
             if isinstance(data_or_path, six.string_types):
                 self._set_file(data_or_path, is_tmp=False)
-                self._image = PILImage.open(data_or_path)
+                self._image = pil_image.open(data_or_path)
                 self._image.load()
                 ext = os.path.splitext(data_or_path)[1][1:]
                 self.format = ext
@@ -78,8 +92,8 @@ class Image(BatchableMedia):
                 if util.is_matplotlib_typename(util.get_full_typename(data)):
                     buf = six.BytesIO()
                     util.ensure_matplotlib_figure(data).savefig(buf)
-                    self._image = PILImage.open(buf)
-                elif isinstance(data, PILImage.Image):
+                    self._image = pil_image.open(buf)
+                elif isinstance(data, pil_image.Image):
                     self._image = data
                 elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
                     vis_util = util.get_module(
@@ -88,7 +102,7 @@ class Image(BatchableMedia):
                     if hasattr(data, "requires_grad") and data.requires_grad:
                         data = data.detach()
                     data = vis_util.make_grid(data, normalize=True)
-                    self._image = PILImage.fromarray(
+                    self._image = pil_image.fromarray(
                         data.mul(255)
                         .clamp(0, 255)
                         .byte()
@@ -103,11 +117,13 @@ class Image(BatchableMedia):
                         data = (
                             data.squeeze()
                         )  # get rid of trivial dimensions as a convenience
-                    self._image = PILImage.fromarray(
+                    self._image = pil_image.fromarray(
                         self.to_uint8(data), mode=mode or self.guess_mode(data)
                     )
 
-                tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
+                tmp_path = os.path.join(
+                    Media.MEDIA_TMP.name, util.generate_id() + ".png"
+                )
                 self.format = "png"
                 self._image.save(tmp_path, transparency=None)
                 self._set_file(tmp_path, is_tmp=True)
@@ -211,11 +227,11 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            if (self._masks != None or self._boxes != None) and self._classes is None:
+            if (
+                self._masks is not None or self._boxes is not None
+            ) and self._classes is None:
                 raise ValueError(
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
@@ -270,7 +286,7 @@ class Image(BatchableMedia):
             )
 
     @classmethod
-    def to_uint8(self, data):
+    def to_uint8(cls, data):
         """
         Converts floating point image on the range [0,1] and integer images
         on the range [0,255] to uint8, clipping if necessary.
@@ -387,7 +403,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_captions(cls, images):
-        if images[0]._caption != None:
+        if images[0]._caption is not None:
             return [i._caption for i in images]
         else:
             return False

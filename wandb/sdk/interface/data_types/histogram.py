@@ -1,3 +1,6 @@
+from .wbvalue import WBValue
+
+
 class Histogram(WBValue):
     """
     wandb class for histograms

@@ -1,3 +1,8 @@
+from wandb.sdk import wandb_run
+from wandb.sdk import wandb_artifacts
+from .json_metadata import JSONMetadata
+
+
 class BoundingBoxes2D(JSONMetadata):
     """
     Wandb class for 2D bounding boxes
@@ -122,8 +127,6 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
 
     def to_json(self, run_or_artifact):
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
         if isinstance(run_or_artifact, wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):

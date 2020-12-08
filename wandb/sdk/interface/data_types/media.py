@@ -1,3 +1,8 @@
+from wandb.sdk import wandb_run
+from wandb.sdk import wandb_artifacts
+from .wbvalue import WBValue
+
+
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
@@ -5,6 +10,10 @@ class Media(WBValue):
     If necessary, we move or copy the file into the Run's media directory so that it gets
     uploaded.
     """
+
+    # Staging directory so we can encode raw data into files, then hash them before
+    # we put them into the Run directory to be uploaded.
+    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
     def __init__(self, caption=None):
         super(Media, self).__init__()
@@ -34,7 +43,7 @@ class Media(WBValue):
 
     @classmethod
     def captions(cls, media_items):
-        if media_items[0]._caption != None:
+        if media_items[0]._caption is not None:
             return [m._caption for m in media_items]
         else:
             return False
@@ -96,7 +105,6 @@ class Media(WBValue):
             dict: JSON representation
         """
         json_obj = {}
-        wandb_run, wandb_artifacts = _safe_sdk_import()
         if isinstance(run, wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(

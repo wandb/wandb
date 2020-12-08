@@ -1,13 +1,3 @@
-# -*- coding: utf-8 -*-
-
-"""
-Wandb has special data types for logging rich visualizations.
-
-All of the special data types are subclasses of WBValue. All of the data types
-serialize to JSON, since that is what wandb uses to save the objects locally
-and upload them to the W&B server.
-"""
-
 from __future__ import print_function
 
 import hashlib
@@ -34,31 +24,13 @@ import base64
 import binascii
 from wandb import util
 from wandb.util import has_num
-from wandb.compat import tempfile
 
-
-def _safe_sdk_import():
-    """Safely imports sdks respecting python version"""
-
-    PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-    if PY3:
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
-    else:
-        from wandb.sdk_py27 import wandb_run
-        from wandb.sdk_py27 import wandb_artifacts
-
-    return wandb_run, wandb_artifacts
-
+# from wandb.compat import tempfile
 
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings(
     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
 )
-
-# Staging directory so we can encode raw data into files, then hash them before
-# we put them into the Run directory to be uploaded.
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
@@ -84,11 +56,11 @@ def wb_filename(key, step, id, extension):
     return "{}_{}_{}{}".format(key, step, id, extension)
 
 
-def is_numpy_array(data):
-    np = util.get_module(
-        "numpy", required="Logging raw point cloud data requires numpy"
-    )
-    return isinstance(data, np.ndarray)
+# def is_numpy_array(data):
+#     np = util.get_module(
+#         "numpy", required="Logging raw point cloud data requires numpy"
+#     )
+#     return isinstance(data, np.ndarray)
 
 
 def nest(thing):
@@ -119,22 +91,22 @@ def history_dict_to_json(run, payload, step=None):
     return payload
 
 
-def numpy_arrays_to_lists(payload):
-    # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
+# def numpy_arrays_to_lists(payload):
+#     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
-    if isinstance(payload, dict):
-        res = {}
-        for key, val in six.iteritems(payload):
-            res[key] = numpy_arrays_to_lists(val)
-        return res
-    elif isinstance(payload, collections.Sequence) and not isinstance(
-        payload, six.string_types
-    ):
-        return [numpy_arrays_to_lists(v) for v in payload]
-    elif util.is_numpy_array(payload):
-        return [numpy_arrays_to_lists(v) for v in payload.tolist()]
+#     if isinstance(payload, dict):
+#         res = {}
+#         for key, val in six.iteritems(payload):
+#             res[key] = numpy_arrays_to_lists(val)
+#         return res
+#     elif isinstance(payload, collections.Sequence) and not isinstance(
+#         payload, six.string_types
+#     ):
+#         return [numpy_arrays_to_lists(v) for v in payload]
+#     elif util.is_numpy_array(payload):
+#         return [numpy_arrays_to_lists(v) for v in payload.tolist()]
 
-    return payload
+#     return payload
 
 
 def prune_max_seq(seq):
@@ -151,7 +123,7 @@ def prune_max_seq(seq):
 
 def val_to_json(run, key, val, namespace=None):
     # Converts a wandb datatype to its JSON representation.
-    if namespace == None:
+    if namespace is None:
         raise ValueError(
             "val_to_json must be called with a namespace(a step number, or 'summary') argument"
         )
