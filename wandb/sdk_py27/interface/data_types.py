@@ -92,7 +92,7 @@ class WBValue(object):
 
     _type_mapping = None
     # override artifact_type to indicate type that the subclass deserializes
-    artifact_type: t.Optional[str] = None
+    artifact_type = None
 
     def __init__(self):
         self._artifact_source = None
