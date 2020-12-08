@@ -153,6 +153,7 @@ class Media(WBValue):
             json_obj["_type"] = self.artifact_type
         return json_obj
 
+
 class BatchableMedia(Media):
     """Parent class for Media we treat specially in batches, like images and
     thumbnails.

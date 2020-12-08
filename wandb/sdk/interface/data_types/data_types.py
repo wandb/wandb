@@ -90,6 +90,7 @@ def is_numpy_array(data):
     )
     return isinstance(data, np.ndarray)
 
+
 def nest(thing):
     # Use tensorflows nest function if available, otherwise just wrap object in an array"""
 
