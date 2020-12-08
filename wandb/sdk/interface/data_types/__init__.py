@@ -7,51 +7,27 @@
 # `import wandb.data_types`
 # `from wandb import data_types`
 
-from .data_types import WBValue
-from .data_types import Histogram
-from .data_types import Media
-from .data_types import BatchableMedia
-from .data_types import Table
-from .data_types import Audio
-from .data_types import Object3D
-from .data_types import Molecule
-from .data_types import Html
-from .data_types import Video
-from .data_types import Classes
-from .data_types import JoinedTable
-from .data_types import Image
-from .data_types import JSONMetadata
-from .data_types import BoundingBoxes2D
-from .data_types import Image
-from .data_types import Plotly
-from .data_types import Graph
-from .data_types import Node
-from .data_types import Edge
+from .wbvalue import WBValue
+from .histogram import Histogram
+from .media import Media, BatchableMedia
+from .table import Table
+from .audio import Audio
+from .object_3d import Object3D
+from .molecule import Molecule
+from .html import Html
+from .video import Video
+from .classes import Classes
+from .joined_table import JoinedTable
+from .image import Image
+from .json_metadata import JSONMetadata
+from .bounding_boxes_2d import BoundingBoxes2D
+from .image_mask import ImageMask
+from .plotly import Plotly
+from .graph import Graph, Node, Edge
 
 from .data_types import _datatypes_set_callback
 from .data_types import prune_max_seq
 from .data_types import numpy_arrays_to_lists
-
-# from .WBValue import WBValue
-# from .Histogram import Histogram
-# from .Media import Media
-# from .Batchable import BatchableMedia
-# from .Table import Table
-# from .Audio import Audio
-# from .Object3D import Object3D
-# from .Molecule import Molecule
-# from .Html import Html
-# from .Video import Video
-# from .Classes import Classes
-# from .Joined import JoinedTable
-# from .Image import Image
-# from .JSONMetadata import JSONMetadata
-# from .Bounding import BoundingBoxes2D
-# from .Image import Image
-# from .Plotly import Plotly
-# from .Graph import Graph
-# from .Node import Node
-# from .Edge import Edge
 
 __all__ = [
     "WBValue",
@@ -69,7 +45,7 @@ __all__ = [
     "Image",
     "JSONMetadata",
     "BoundingBoxes2D",
-    "Image",
+    "ImageMask",
     "Plotly",
     "Graph",
     "Node",
