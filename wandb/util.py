@@ -1144,3 +1144,10 @@ def uri_from_path(path):
     """returns the URI of the path"""
     url = urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+def _is_kaggle():
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules  # noqa: W503
+    )

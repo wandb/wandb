@@ -39,6 +39,8 @@ import time
 import six
 import wandb
 
+from wandb import util
+
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
@@ -104,13 +106,6 @@ def _build_inverse_map(prefix, d):
         v = v or prefix + k.upper()
         inv_map[v] = k
     return inv_map
-
-
-def _is_kaggle():
-    return (
-        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
-    )
 
 
 def _error_choices(value, choices):
@@ -407,7 +402,7 @@ class Settings(object):
 
     @property
     def _kaggle(self):
-        return _is_kaggle()
+        return util._is_kaggle()
 
     @property
     def _windows(self):
