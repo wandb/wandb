@@ -1262,7 +1262,7 @@ class JoinedTable(Media):
         """Helper method to add the table to the incoming artifact. Returns the path"""
         if isinstance(table, Table):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
-            if table.has_artifact_source():
+            if table.artifact_source is not None:
                 table_name = os.path.basename(table.artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
