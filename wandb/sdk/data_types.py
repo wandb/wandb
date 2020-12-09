@@ -25,7 +25,7 @@ import six
 from wandb import util
 from wandb.__globals import _datatypes_callback
 
-_use_type_checks = sys.version_info.major == 3  # and sys.version_info.minor >= 6
+_use_type_checks: bool = sys.version_info.major == 3  # and sys.version_info.minor >= 6
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
@@ -33,15 +33,21 @@ if _use_type_checks:
     import tempfile
     import typing as t
 
-    # This is assumed to be true at type checking time, see
+    # This is assumed to be true at type checking time, but otherwise false
     # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
     if t.TYPE_CHECKING:
         from . import wandb_run
-        from . import wandb_artifacts
+        from .wandb_artifacts import Artifact as DraftArtifact
+        from wandb.apis.public import Artifact as DownloadedArtifact
+        import numpy  # type: ignore # noqa: F401
+        import pandas  # type: ignore
 
     _TypeMappingType = t.Dict[str, t.Type["WBValue"]]
+    _TypeTableData = t.Union[
+        t.List[t.List], "numpy.ndarray", "pandas.core.frame.DataFrame"
+    ]
 
-    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+    MEDIA_TMP: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory("wandb-media")
 
 else:
     from wandb.compat import tempfile as compat_tempfile
@@ -49,7 +55,6 @@ else:
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
-# TODO: REMOVE THIS
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
     from . import wandb_run
@@ -61,10 +66,10 @@ def _safe_sdk_import():
 class WBValueArtifactSource:
     """the artifact from which this object was originally stored as well as the name"""
 
-    artifact: "wandb_artifacts.Artifact"
+    artifact: "DownloadedArtifact"
     name: str
 
-    def __init__(self, artifact: "wandb_artifacts.Artifact", name: str):
+    def __init__(self, artifact: "DownloadedArtifact", name: str):
         self.artifact = artifact
         self.name = name
 
@@ -87,7 +92,7 @@ class WBValue(object):
         self.artifact_source = None
 
     def to_json(
-        self, run_or_artifact: t.Union["wandb_run.Run", "wandb_artifacts.Artifact"]
+        self, run_or_artifact: t.Union["wandb_run.Run", "DraftArtifact"]
     ) -> t.Dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
@@ -102,7 +107,7 @@ class WBValue(object):
 
     @classmethod
     def from_json(
-        cls, json_obj: t.Dict, source_artifact: "wandb_artifacts.Artifact"
+        cls, json_obj: t.Dict, source_artifact: "DownloadedArtifact"
     ) -> "WBValue":
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
         `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
@@ -136,7 +141,7 @@ class WBValue(object):
 
     @staticmethod
     def init_from_json(
-        json_obj: t.Dict, source_artifact: "wandb_artifacts.Artifact", name: str = None
+        json_obj: t.Dict, source_artifact: "DownloadedArtifact", name: str = None
     ) -> t.Optional["WBValue"]:
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
@@ -182,12 +187,7 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def has_artifact_source(self) -> bool:
-        return self.artifact_source is not None
-
-    def set_artifact_source(
-        self, artifact: "wandb_artifacts.Artifact", name: str
-    ) -> None:
+    def set_artifact_source(self, artifact: "DownloadedArtifact", name: str) -> None:
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
@@ -270,6 +270,10 @@ class Media(WBValue):
     uploaded.
     """
 
+    _path: t.Optional[str]
+    _run: t.Optional["wandb_run.Run"]
+    _caption: t.Optional[str]
+
     def __init__(self, caption: str = None):
         super(Media, self).__init__()
         self._path = None
@@ -277,7 +281,7 @@ class Media(WBValue):
         self._run = None
         self._caption = caption
 
-    def _set_file(self, path, is_tmp=False, extension=None):
+    def _set_file(self, path: str, is_tmp: bool = False, extension: str = None) -> None:
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -293,23 +297,27 @@ class Media(WBValue):
         self._size = os.path.getsize(self._path)
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: t.Type["Media"]) -> str:
         raise NotImplementedError
 
     @classmethod
-    def captions(cls, media_items):
+    def captions(
+        cls: t.Type["Media"], media_items: t.List[t.Type["Media"]]
+    ) -> t.Optional[t.List[str]]:
         if media_items[0]._caption is not None:
-            return [m._caption for m in media_items]
+            return [m._caption if m._caption else "" for m in media_items]
         else:
-            return False
+            return None
 
-    def is_bound(self):
+    def is_bound(self) -> bool:
         return self._run is not None
 
-    def file_is_set(self):
+    def file_is_set(self) -> bool:
         return self._path is not None
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(
+        self, run: "wandb_run.Run", key: str, step: int, id_: str = None
+    ) -> None:
         """Bind this object to a particular Run.
 
         Calling this function is necessary so that we have somewhere specific to
@@ -318,8 +326,13 @@ class Media(WBValue):
         """
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
+        assert (
+            self._path is not None
+        )  # this is true by definition of `.file_is_set`, but helps mypy
+
         if run is None:
             raise TypeError('Argument "run" must not be None.')
+        assert run is not None  # this is true by definition of above, but helps mypy
         self._run = run
 
         base_path = os.path.join(self._run.dir, self.get_media_subdir())
@@ -347,7 +360,7 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run):
+    def to_json(self, run: t.Union["wandb_run.Run", "DraftArtifact"]) -> t.Dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
         is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
@@ -372,6 +385,8 @@ class Media(WBValue):
                 self._run is run
             ), "We don't support referring to media files across runs."
 
+            assert self._path is not None, "File location unknown."
+
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -384,6 +399,9 @@ class Media(WBValue):
             )
         elif isinstance(run, wandb_artifacts.Artifact):
             if self.file_is_set():
+                assert (
+                    self._path is not None
+                )  # this is true by definition of `.file_is_set`, but helps mypy
                 artifact = run
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
@@ -393,7 +411,7 @@ class Media(WBValue):
                     )
 
                     # if not, check to see if there is a source artifact for this object
-                    if self.has_artifact_source():
+                    if self.artifact_source is not None:
                         default_root = self.artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
@@ -441,12 +459,16 @@ class Table(Media):
             When set, the other arguments are ignored.
     """
 
-    MAX_ROWS = 10000
-    MAX_ARTIFACT_ROWS = 50000
+    MAX_ROWS: int = 10000
+    MAX_ARTIFACT_ROWS: int = 50000
     artifact_type = "table"
 
     def __init__(
-        self, columns=None, data=None, rows=None, dataframe=None,
+        self,
+        columns: t.Optional[t.List[str]] = None,
+        data: t.Optional[_TypeTableData] = None,
+        rows: t.Optional[t.List[t.List]] = None,
+        dataframe: t.Optional["pandas.core.frame.DataFrame"] = None,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """

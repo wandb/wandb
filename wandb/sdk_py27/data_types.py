@@ -33,13 +33,19 @@ if _use_type_checks:
     import tempfile
     import typing as t
 
-    # This is assumed to be true at type checking time, see
+    # This is assumed to be true at type checking time, but otherwise false
     # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
     if t.TYPE_CHECKING:
         from . import wandb_run
-        from . import wandb_artifacts
+        from .wandb_artifacts import Artifact as DraftArtifact
+        from wandb.apis.public import Artifact as DownloadedArtifact
+        import numpy  # type: ignore # noqa: F401
+        import pandas  # type: ignore
 
     _TypeMappingType = t.Dict[str, t.Type["WBValue"]]
+    _TypeTableData = t.Union[
+        t.List[t.List], "numpy.ndarray", "pandas.core.frame.DataFrame"
+    ]
 
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -49,7 +55,6 @@ else:
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
-# TODO: REMOVE THIS
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
     from . import wandb_run
@@ -61,7 +66,7 @@ def _safe_sdk_import():
 class WBValueArtifactSource:
     """the artifact from which this object was originally stored as well as the name"""
 
-    # artifact: "wandb_artifacts.Artifact"
+    # artifact: "DownloadedArtifact"
     # name: str
 
     def __init__(self, artifact, name):
@@ -182,12 +187,7 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def has_artifact_source(self):
-        return self.artifact_source is not None
-
-    def set_artifact_source(
-        self, artifact, name
-    ):
+    def set_artifact_source(self, artifact, name):
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
@@ -270,6 +270,10 @@ class Media(WBValue):
     uploaded.
     """
 
+    # _path: t.Optional[str]
+    # _run: t.Optional["wandb_run.Run"]
+    # _caption: t.Optional[str]
+
     def __init__(self, caption = None):
         super(Media, self).__init__()
         self._path = None
@@ -277,7 +281,7 @@ class Media(WBValue):
         self._run = None
         self._caption = caption
 
-    def _set_file(self, path, is_tmp=False, extension=None):
+    def _set_file(self, path, is_tmp = False, extension = None):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -297,11 +301,13 @@ class Media(WBValue):
         raise NotImplementedError
 
     @classmethod
-    def captions(cls, media_items):
+    def captions(
+        cls, media_items
+    ):
         if media_items[0]._caption is not None:
-            return [m._caption for m in media_items]
+            return [m._caption if m._caption else "" for m in media_items]
         else:
-            return False
+            return None
 
     def is_bound(self):
         return self._run is not None
@@ -309,7 +315,9 @@ class Media(WBValue):
     def file_is_set(self):
         return self._path is not None
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
         """Bind this object to a particular Run.
 
         Calling this function is necessary so that we have somewhere specific to
@@ -318,8 +326,13 @@ class Media(WBValue):
         """
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
+        assert (
+            self._path is not None
+        )  # this is true by definition of `.file_is_set`, but helps mypy
+
         if run is None:
             raise TypeError('Argument "run" must not be None.')
+        assert run is not None  # this is true by definition of above, but helps mypy
         self._run = run
 
         base_path = os.path.join(self._run.dir, self.get_media_subdir())
@@ -372,6 +385,8 @@ class Media(WBValue):
                 self._run is run
             ), "We don't support referring to media files across runs."
 
+            assert self._path is not None, "File location unknown."
+
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -384,6 +399,9 @@ class Media(WBValue):
             )
         elif isinstance(run, wandb_artifacts.Artifact):
             if self.file_is_set():
+                assert (
+                    self._path is not None
+                )  # this is true by definition of `.file_is_set`, but helps mypy
                 artifact = run
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
@@ -393,7 +411,7 @@ class Media(WBValue):
                     )
 
                     # if not, check to see if there is a source artifact for this object
-                    if self.has_artifact_source():
+                    if self.artifact_source is not None:
                         default_root = self.artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
@@ -446,7 +464,11 @@ class Table(Media):
     artifact_type = "table"
 
     def __init__(
-        self, columns=None, data=None, rows=None, dataframe=None,
+        self,
+        columns = None,
+        data = None,
+        rows = None,
+        dataframe = None,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
