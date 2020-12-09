@@ -20,7 +20,6 @@ import os
 import pprint
 import shutil
 import sys
-import warnings
 
 import six
 from wandb import util
@@ -58,12 +57,6 @@ def _safe_sdk_import():
     from . import wandb_artifacts
 
     return wandb_run, wandb_artifacts
-
-
-# Get rid of cleanup warnings in Python 2.7.
-# warnings.filterwarnings(
-#     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-# )
 
 
 class WBValueArtifactSource:
@@ -196,10 +189,10 @@ class WBValue(object):
     def __ne__(self, other: "WBValue") -> bool:
         return not self.__eq__(other)
 
-    def has_artifact_source(self):
+    def has_artifact_source(self) -> bool:
         return self.artifact_source is not None
 
-    def set_artifact_source(self, artifact: "wandb_artifacts.Artifact", name: str):
+    def set_artifact_source(self, artifact: "wandb_artifacts.Artifact", name: str) -> None:
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
@@ -282,7 +275,7 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, caption=None):
+    def __init__(self, caption:str = None):
         super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
@@ -2609,7 +2602,7 @@ def data_frame_to_json(df, run, key, step):
     if not fastparquet:
         missing_reqs.append("fastparquet")
     if len(missing_reqs) > 0:
-        raise wandb.Error(
+        raise Exception(
             "Failed to save data frame. Please run 'pip install %s'"
             % " ".join(missing_reqs)
         )
