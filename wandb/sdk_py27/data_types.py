@@ -26,42 +26,55 @@ import six
 from wandb import util
 from wandb.__globals import _datatypes_callback
 
-_use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 6
+_use_type_checks = sys.version_info.major == 3  # and sys.version_info.minor >= 6
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 if _use_type_checks:
     import tempfile
     import typing as t
-    from .. import wandb_run
-    from .. import wandb_artifacts
 
-    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+    # This is assumed to be true at type checking time, see
+    # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
+    if t.TYPE_CHECKING:
+        from . import wandb_run
+        from . import wandb_artifacts
+
+    # class ArtifactSourceType(t.TypedDict):
+    #     artifact: 'wandb_artifacts.Artifact'
+    #     name: t.Optional[str]
+
 else:
-    from wandb.compat import tempfile as compat_tempfile
-    from .. import wandb_run
-    from .. import wandb_artifacts
+    from wandb.compat import tempfile
 
-    MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
+
+MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
 # TODO: REMOVE THIS
-# def _safe_sdk_import():
-#     """Safely imports sdks respecting python version"""
-#     if _use_type_checks:
-#         from wandb.sdk import wandb_run
-#         from wandb.sdk import wandb_artifacts
-#     else:
-#         from wandb.sdk_py27 import wandb_run
-#         from wandb.sdk_py27 import wandb_artifacts
+def _safe_sdk_import():
+    """Safely imports sdks respecting python version"""
+    from . import wandb_run
+    from . import wandb_artifacts
 
-#     return wandb_run, wandb_artifacts
+    return wandb_run, wandb_artifacts
 
 
 # Get rid of cleanup warnings in Python 2.7.
 # warnings.filterwarnings(
 #     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
 # )
+
+
+class WBValueArtifactSource:
+    """the artifact from which this object was originally stored as well as the name"""
+
+    # artifact: "wandb_artifacts.Artifact"
+    # name: str
+
+    def __init__(self, artifact, name):
+        self.artifact = artifact
+        self.name = name
 
 
 class WBValue(object):
@@ -76,9 +89,10 @@ class WBValue(object):
     _type_mapping = None
     # override artifact_type to indicate type that the subclass deserializes
     artifact_type = None
+    # artifact_source: t.Optional[WBValueArtifactSource]
 
     def __init__(self):
-        self._artifact_source = None
+        self.artifact_source = None
 
     def to_json(
         self, run_or_artifact
@@ -130,7 +144,7 @@ class WBValue(object):
 
     @staticmethod
     def init_from_json(
-        json_obj, source_artifact
+        json_obj, source_artifact, name = None
     ):
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
@@ -149,7 +163,8 @@ class WBValue(object):
         class_option = WBValue.type_mapping().get(json_obj["_type"])
         if class_option is not None:
             obj = class_option.from_json(json_obj, source_artifact)
-            obj.artifact_source = {"artifact": source_artifact}
+            if name is not None:
+                obj.set_artifact_source(source_artifact, name)
             return obj
 
         return None
@@ -181,25 +196,13 @@ class WBValue(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    @property
-    def artifact_source(self):
-        """Getter which returns the object's artifact source
+    def has_artifact_source(self):
+        return self.artifact_source is not None
 
-        Returns:
-            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
-            stored as well as the name (optional)
-        """
-        return self._artifact_source
-
-    @artifact_source.setter
-    def artifact_source(self, artifact_source):
+    def set_artifact_source(self, artifact, name):
         """Setter for artifact source
-
-        Args:
-            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
-            stored as well as the name (optional)
         """
-        self._artifact_source = artifact_source
+        self.artifact_source = WBValueArtifactSource(artifact, name)
 
 
 class Histogram(WBValue):
@@ -402,18 +405,15 @@ class Media(WBValue):
                     )
 
                     # if not, check to see if there is a source artifact for this object
-                    if (
-                        self.artifact_source is not None
-                        and self.artifact_source["artifact"] != artifact
-                    ):
-                        default_root = self.artifact_source["artifact"]._default_root()
+                    if self.has_artifact_source():
+                        default_root = self.artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self.artifact_source["artifact"].get_path(name)
+                        path = self.artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     else:
                         entry = artifact.add_file(
@@ -1252,11 +1252,8 @@ class JoinedTable(Media):
         """Helper method to add the table to the incoming artifact. Returns the path"""
         if isinstance(table, Table):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
-            if (
-                table.artifact_source is not None
-                and table.artifact_source["name"] is not None
-            ):
-                table_name = os.path.basename(table.artifact_source["name"])
+            if table.has_artifact_source():
+                table_name = os.path.basename(table.artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactEntry
@@ -1474,7 +1471,7 @@ class Image(BatchableMedia):
             _masks = {}
             for key in masks:
                 _masks[key] = ImageMask.from_json(masks[key], source_artifact)
-                _masks[key].artifact_source = {"artifact": source_artifact}
+                # _masks[key].set_artifact_source(source_artifact)
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
