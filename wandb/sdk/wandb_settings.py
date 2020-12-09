@@ -38,7 +38,6 @@ import time
 
 import six
 import wandb
-
 from wandb import util
 
 from .lib.git import GitRepo

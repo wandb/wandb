@@ -3,8 +3,6 @@ module server
 """
 
 import json
-import os
-import sys
 
 from wandb import util
 from wandb.apis import InternalApi
