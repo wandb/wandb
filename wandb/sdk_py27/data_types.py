@@ -20,7 +20,6 @@ import os
 import pprint
 import shutil
 import sys
-import warnings
 
 import six
 from wandb import util
@@ -40,15 +39,12 @@ if _use_type_checks:
         from . import wandb_run
         from . import wandb_artifacts
 
-    # class ArtifactSourceType(t.TypedDict):
-    #     artifact: 'wandb_artifacts.Artifact'
-    #     name: t.Optional[str]
+    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 else:
-    from wandb.compat import tempfile
+    from wandb.compat import tempfile as compat_tempfile
 
-
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+    MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
 # TODO: REMOVE THIS
@@ -60,12 +56,6 @@ def _safe_sdk_import():
     return wandb_run, wandb_artifacts
 
 
-# Get rid of cleanup warnings in Python 2.7.
-# warnings.filterwarnings(
-#     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-# )
-
-
 class WBValueArtifactSource:
     """the artifact from which this object was originally stored as well as the name"""
 
@@ -75,6 +65,9 @@ class WBValueArtifactSource:
     def __init__(self, artifact, name):
         self.artifact = artifact
         self.name = name
+
+
+_TypeMappingType = t.Dict[str, t.Type["WBValue"]]
 
 
 class WBValue(object):
@@ -190,16 +183,12 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def __eq__(self, other):
-        return super(WBValue, self).__eq__(other)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def has_artifact_source(self):
         return self.artifact_source is not None
 
-    def set_artifact_source(self, artifact, name):
+    def set_artifact_source(
+        self, artifact, name
+    ):
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
@@ -282,7 +271,7 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, caption=None):
+    def __init__(self, caption = None):
         super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
@@ -2609,7 +2598,7 @@ def data_frame_to_json(df, run, key, step):
     if not fastparquet:
         missing_reqs.append("fastparquet")
     if len(missing_reqs) > 0:
-        raise wandb.Error(
+        raise Exception(
             "Failed to save data frame. Please run 'pip install %s'"
             % " ".join(missing_reqs)
         )

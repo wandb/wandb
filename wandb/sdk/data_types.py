@@ -39,15 +39,12 @@ if _use_type_checks:
         from . import wandb_run
         from . import wandb_artifacts
 
-    # class ArtifactSourceType(t.TypedDict):
-    #     artifact: 'wandb_artifacts.Artifact'
-    #     name: t.Optional[str]
+    MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 else:
-    from wandb.compat import tempfile
+    from wandb.compat import tempfile as compat_tempfile
 
-
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+    MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
 # TODO: REMOVE THIS
@@ -70,6 +67,9 @@ class WBValueArtifactSource:
         self.name = name
 
 
+_TypeMappingType = t.Dict[str, t.Type["WBValue"]]
+
+
 class WBValue(object):
     """
     Abstract parent class for things that can be logged by wandb.log() and
@@ -79,7 +79,7 @@ class WBValue(object):
     that indicates how to interpret the other fields.
     """
 
-    _type_mapping: t.ClassVar[t.Optional[t.Dict[str, "WBValue"]]] = None
+    _type_mapping: t.ClassVar[t.Optional[_TypeMappingType]] = None
     # override artifact_type to indicate type that the subclass deserializes
     artifact_type: t.ClassVar[t.Optional[str]] = None
     artifact_source: t.Optional[WBValueArtifactSource]
@@ -138,7 +138,7 @@ class WBValue(object):
     @staticmethod
     def init_from_json(
         json_obj: t.Dict, source_artifact: "wandb_artifacts.Artifact", name: str = None
-    ) -> "WBValue":
+    ) -> t.Optional["WBValue"]:
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
         attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create
@@ -163,7 +163,7 @@ class WBValue(object):
         return None
 
     @staticmethod
-    def type_mapping() -> t.Dict[str, "WBValue"]:
+    def type_mapping() -> _TypeMappingType:
         """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
@@ -183,16 +183,12 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def __eq__(self, other: "WBValue") -> bool:
-        return super(WBValue, self).__eq__(other)
-
-    def __ne__(self, other: "WBValue") -> bool:
-        return not self.__eq__(other)
-
     def has_artifact_source(self) -> bool:
         return self.artifact_source is not None
 
-    def set_artifact_source(self, artifact: "wandb_artifacts.Artifact", name: str) -> None:
+    def set_artifact_source(
+        self, artifact: "wandb_artifacts.Artifact", name: str
+    ) -> None:
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
@@ -275,7 +271,7 @@ class Media(WBValue):
     uploaded.
     """
 
-    def __init__(self, caption:str = None):
+    def __init__(self, caption: str = None):
         super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
