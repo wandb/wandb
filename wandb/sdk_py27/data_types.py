@@ -39,6 +39,8 @@ if _use_type_checks:
         from . import wandb_run
         from . import wandb_artifacts
 
+    _TypeMappingType = t.Dict[str, t.Type["WBValue"]]
+
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 else:
@@ -65,9 +67,6 @@ class WBValueArtifactSource:
     def __init__(self, artifact, name):
         self.artifact = artifact
         self.name = name
-
-
-_TypeMappingType = t.Dict[str, t.Type["WBValue"]]
 
 
 class WBValue(object):
