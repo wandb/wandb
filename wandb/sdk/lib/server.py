@@ -6,6 +6,7 @@ import json
 
 from wandb import util
 from wandb.apis import InternalApi
+from wandb.errors.error import CommError
 
 
 class ServerError(Exception):
@@ -32,6 +33,10 @@ class Server(object):
             self._error_network = True
             return
         if viewer_thread.is_alive():
+            if util._is_kaggle():
+                raise CommError(
+                    "To use W&B in kaggle you must enable internet in the settings panel on the right."  # noqa: E501
+                )
             # this is likely a DNS hang
             self._error_network = True
             return
