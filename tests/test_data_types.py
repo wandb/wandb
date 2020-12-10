@@ -445,6 +445,236 @@ def test_table_custom():
     assert table._to_table_json() == table_df._to_table_json()
 
 
+def test_table_init():
+    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
+    assert table._to_table_json() == {
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"],
+    }
+
+
+def test_table_column_types():
+    primitive_table = wandb.Table(columns=["text", "number", "boolean"])
+    primitive_table.add_data(*[None, None, None])
+    primitive_table.add_data(*["a", 1, True])
+    primitive_table.add_data(*[None, None, None])
+    primitive_table.add_data(*["b", 2, False])
+    primitive_table.add_data(*[None, None, None])
+    with pytest.raises(TypeError):
+        primitive_table.add_data(*[1, 1, True])  # should fail
+    with pytest.raises(TypeError):
+        primitive_table.add_data(*["a", "a", True])  # should fail
+    with pytest.raises(TypeError):
+        primitive_table.add_data(*["a", 1, "a"])  # should fail
+
+    listlike_table = wandb.Table(columns=["list_number", "list_list", "list_dict"])
+    listlike_table.add_data(*[None, None, None])
+    listlike_table.add_data(
+        *[[None, 1, None, 2], [[None, 1, None, 2]], [None, {}, None, {"a": 1}]]
+    )
+    listlike_table.add_data(*[None, None, None])
+    listlike_table.add_data(
+        *[[None, 3, None, 4], [[None, 5, None, 6]], [None, {"b": 3}, None, {"c": 1}]]
+    )
+    listlike_table.add_data(*[None, None, None])
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[1, None, None])  # should fail
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[None, 1, None])  # should fail
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[None, None, {}])  # should fail
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[[None, "a", None, 2], None, None])  # should fail
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[None, [[None, "a", None, 6]], None])  # should fail
+    with pytest.raises(TypeError):
+        listlike_table.add_data(*[None, None, [None, "a"]])  # should fail
+
+    obj_table = wandb.Table(columns=["dict"])
+    obj_table.add_data(*[None])
+    obj_table.add_data(*[{}])
+    obj_table.add_data(*[None])
+    obj_table.add_data(*[{"a": 1}])
+    obj_table.add_data(*[None])
+    obj_table.add_data(*[{1: 1}])
+    with pytest.raises(TypeError):
+        obj_table.add_data(*[1])  # should fail
+    with pytest.raises(TypeError):
+        obj_table.add_data(*[""])  # should fail
+    with pytest.raises(TypeError):
+        obj_table.add_data(*[[{}]])  # should fail
+
+    class_labels = {1: "tree", 2: "car", 3: "road"}
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "test.png")
+    simple_image = wandb.Image(im_path,)
+    boxes_image = wandb.Image(
+        im_path,
+        boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+    )
+    mask_image = wandb.Image(
+        im_path,
+        masks={
+            "predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "ground_truth": {"path": im_path, "class_labels": class_labels},
+        },
+    )
+    rich_image = wandb.Image(
+        im_path,
+        boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+        masks={
+            "predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "ground_truth": {"path": im_path, "class_labels": class_labels},
+        },
+    )
+    rich_image_2 = wandb.Image(
+        im_path,
+        boxes={
+            "predictions_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "ground_truth_2": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+        masks={
+            "predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "ground_truth": {"path": im_path, "class_labels": class_labels},
+        },
+    )
+
+    image_table = wandb.Table(
+        columns=["simple", "with_masks", "with_boxes", "with_both"]
+    )
+    image_table.add_data(None, None, None, None)
+    image_table.add_data(simple_image, mask_image, boxes_image, rich_image)
+    image_table.add_data(None, None, None, None)
+    image_table.add_data(simple_image, mask_image, boxes_image, rich_image)
+    with pytest.raises(TypeError):
+        image_table.add_data(None, simple_image, None, None)  # should fail
+    with pytest.raises(TypeError):
+        image_table.add_data(None, None, simple_image, None)  # should fail
+    with pytest.raises(TypeError):
+        image_table.add_data(None, None, None, simple_image)  # should fail
+    with pytest.raises(TypeError):
+        image_table.add_data(None, None, None, rich_image_2)  # should fail
+
+    mega_table = wandb.Table(columns=["primitive", "list", "obj", "image"])
+    mega_table.add_data(None, None, None, None)
+    mega_table.add_data(primitive_table, listlike_table, obj_table, image_table)
+    mega_table.add_data(None, None, None, None)
+    mega_table.add_data(primitive_table, listlike_table, obj_table, image_table)
+    with pytest.raises(TypeError):
+        image_table.add_data(None, primitive_table, None, None)  # should fail
+
+    with pytest.raises(TypeError):
+        image_table.add_data(None, None, primitive_table, None)  # should fail
+
+    with pytest.raises(TypeError):
+        image_table.add_data(None, None, None, primitive_table)  # should fail
+
+
 point_cloud_1 = np.array([[0, 0, 0, 1], [0, 0, 1, 13], [0, 1, 0, 2], [0, 1, 0, 4]])
 
 point_cloud_2 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 0]])
@@ -539,14 +769,6 @@ def test_object3d_seq_to_json(mocked_run):
         cube,
         pts,
     ]
-
-
-def test_table_init():
-    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
-    assert table._to_table_json() == {
-        "data": [["Some awesome text", "Positive", "Negative"]],
-        "columns": ["Input", "Output", "Expected"],
-    }
 
 
 def test_graph():

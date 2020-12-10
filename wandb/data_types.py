@@ -456,6 +456,122 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
+class _WBType:
+    name = "undefined"
+    spec = None
+
+    def __init__(self, name="undefined", spec=None):
+        self.name = name
+        self.spec = spec if spec is not None else {}
+
+    def __repr__(self):
+        return "<WBType:{} | {}>".format(self.name, self.spec)
+
+    @classmethod
+    def extract_type(cls, obj):
+        obj_type = type(obj)
+        if obj is None:
+            return cls()
+        elif obj_type == str:
+            return cls("text")
+        elif obj_type in [int, float, complex]:
+            return cls("number")
+        elif obj_type in [list, tuple, set, frozenset]:
+            data = list(obj)
+            item_type = _WBType()
+            for item in data:
+                _item_type = _WBType.extract_type(item)
+                if not item_type.accept_by_extension(_item_type):
+                    raise TypeError(
+                        "List contained incompatible types. Expected {} found {}".format(
+                            item_type, _item_type
+                        )
+                    )
+            return cls("list", {"element_type": item_type})
+
+        elif obj_type == dict:
+            # TODO: actually extract dict keys
+            return cls("dict", {})
+
+        elif obj_type == wandb.Image:
+            return cls(
+                "wandb.Image",
+                {
+                    "box_keys": list(obj._boxes.keys()) if obj._boxes else [],
+                    "mask_keys": list(obj._masks.keys()) if obj._masks else [],
+                },
+            )
+
+        elif obj_type == wandb.Table:
+            return cls(
+                "wandb.Table",
+                {
+                    "ncols": len(obj.columns),
+                    "nrows": len(obj.data),
+                    "columns": obj.columns,
+                    "column_types": obj._column_types,
+                },
+            )
+
+        else:
+            return cls(obj_type.__name__)
+
+    def accept_by_extension(self, other):
+        if self.name == "undefined":
+            self.name = other.name
+            self.spec = other.spec
+            return True
+        elif other.name == "undefined":
+            return True
+        elif self.name != other.name:
+            return False
+        elif self.name == "list":
+            return self.spec["element_type"].accept_by_extension(
+                other.spec["element_type"]
+            )
+        elif self.name == "dict":
+            # TODO: actually validate dict keys
+            return True
+        elif self.name == "wandb.Image":
+            return (
+                self.spec["box_keys"] == other.spec["box_keys"]
+                and self.spec["mask_keys"] == other.spec["mask_keys"]
+            )
+        elif self.name == "wandb.Table":
+            return (
+                self.spec["ncols"] == other.spec["ncols"]
+                and self.spec["columns"] == other.spec["columns"]
+                and all(
+                    [
+                        self.spec["column_types"][i].wbtype.accept_by_extension(
+                            other.spec["column_types"][i].wbtype
+                        )
+                        for i in range(self.spec["ncols"])
+                    ]
+                )
+            )
+        else:
+            return True
+
+
+class _WBColumnType:
+    wbtype = None
+    context = None
+
+    def __init__(self, wbtype=None, context=None):
+        self.wbtype = wbtype if wbtype is not None else _WBType()
+        self.context = context if context is not None else []
+
+
+class _WBColumnContext:
+    name = ""
+    spec_obj = None
+
+    def __init__(self, name, spec_obj=None):
+        self.name = name
+        self.spec_obj = spec_obj
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -481,18 +597,24 @@ class Table(Media):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
-        self.columns = columns
-        self.data = list(rows or data or [])
         if dataframe is not None:
             assert util.is_pandas_data_frame(
                 dataframe
             ), "dataframe argument expects a `Dataframe` object"
             self.columns = list(dataframe.columns)
+            self._column_types = [_WBColumnType() for _ in range(len(columns))]
             self.data = []
             for row in range(len(dataframe)):
                 self.add_data(
                     *tuple(dataframe[col].values[row] for col in self.columns)
                 )
+        else:
+            self.columns = columns
+            self._column_types = [_WBColumnType() for _ in range(len(columns))]
+            self.data = []
+            _data = list(rows or data or [])
+            for row in _data:
+                self.add_data(*row)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -504,6 +626,17 @@ class Table(Media):
         for row_ndx in range(len(self.data)):
             for col_ndx in range(len(self.data[row_ndx])):
                 if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
+                    return False
+
+        for ndx, column_type in enumerate(self._column_types):
+            if len(column_type.context) != len(other._column_types[ndx].context):
+                return False
+            if column_type.wbtype.name != other._column_types[ndx].wbtype.name:
+                return False
+            for c_ndx, context in enumerate(column_type.context):
+                if context.name != other._column_types[ndx].context[c_ndx].name:
+                    return False
+                if context.spec_obj != other._column_types[ndx].context[c_ndx].spec_obj:
                     return False
 
         return True
@@ -520,7 +653,31 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
+        self._validate_data(data)
         self.data.append(list(data))
+
+    def _validate_data(self, data):
+        for ndx, item in enumerate(data):
+            item_type = _WBType.extract_type(item)
+            if not self._column_types[ndx].wbtype.accept_by_extension(item_type):
+                raise TypeError(
+                    "Data column contained incompatible types. Expected type {}, found type {}".format(
+                        self._column_types[ndx], item_type
+                    )
+                )
+
+    def add_column_context(self, col_ndx, context):
+        # We should eventually pull this out into OO design, but since we only support classes right now, keeping simple
+        if type(context) == Classes:
+            self._column_types[col_ndx].context.append(
+                _WBColumnContext("classes", context)
+            )
+        else:
+            TypeError(
+                "Unsupported context. Found {}, expected {}".format(
+                    type(context), Classes
+                )
+            )
 
     def _to_table_json(self, max_rows=None):
         # seperate method for testing
@@ -556,7 +713,18 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        return cls(json_obj["columns"], data=data,)
+        new_obj = cls(json_obj["columns"], data=data,)
+
+        for ndx, column_type in enumerate(json_obj["column_types"]):
+            for context in column_type["context"]:
+                new_obj._column_types[ndx].context.append(
+                    _WBColumnContext(
+                        context["name"],
+                        WBValue.init_from_json(context["spec"], source_artifact),
+                    )
+                )
+
+        return new_obj
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
@@ -590,6 +758,20 @@ class Table(Media):
                     else:
                         mapped_row.append(v)
                 mapped_data.append(mapped_row)
+
+            column_types = [
+                {
+                    "wbtype": {
+                        "name": column_type.wbtype.name,
+                        "spec": column_type.wbtype.spec,
+                    },
+                    "context": [
+                        {"name": c.name, "spec": c.spec_obj.to_json(artifact)}
+                        for c in column_type.context
+                    ],
+                }
+                for column_type in self._column_types
+            ]
             json_dict.update(
                 {
                     "_type": Table.artifact_type,
@@ -597,6 +779,7 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
+                    "column_types": column_types,
                 }
             )
         else:
