@@ -1,13 +1,13 @@
 import wandb
 
 
-def line_series(x, ys, title, xname=None):
+def line_series(xs, ys, keys=None, title=None, xname=None):
     """
     Construct a line series plot.
 
     Arguments:
-        x (array): Array of x values
-        ys (array of dicts of {key: array}): Array of dictionaries with line names and values
+        xs (array of array): Array of arrays of x values
+        ys (array of arrays): Array of y values
         title (string): Plot title.
         xname: Title of x-axis
 
@@ -16,22 +16,23 @@ def line_series(x, ys, title, xname=None):
 
     Example:
         ```
-        x = [i for i in range(1,10)]
+        x = [i for i in range(10)]
         ys = {
-            "y1": [i for i in range(1,10)],
-            "y2": [i**2 for i in range(1,10)]
+            "y1": [i for i in range(10)],
+            "y2": [i**2 for i in range(10)]
         }
         wandb.log({'line-series-plot1': wandb.plot.line_series(x, ys, "title", "step")})
         ```
     """
-
-    for _, value in ys.items():
-        assert len(value) == len(x), "All y arrays must match with length of x"
-
+    assert len(xs) == len(ys), "Number of x-lines and y-lines must match"
     data = []
-    for i in range(len(x)):
-        for key in ys.keys():
-            data.append([x[i], key, ys[key][i]])
+    for i,series in enumerate([list(zip(xs[i],ys[i])) for i in range(len(xs))]):
+        for x,y in series:
+            if keys is None:
+                key = "key_{}".format(i)
+            else:
+                key = keys[i]
+            data.append([x, key, y])
 
     table = wandb.Table(data=data, columns=["step", "lineKey", "lineVal"])
 
