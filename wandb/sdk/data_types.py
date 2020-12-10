@@ -32,6 +32,7 @@ _use_type_checks: bool = sys.version_info.major == 3 and sys.version_info.minor 
 if _use_type_checks:
     import tempfile
     import typing as t
+    import typing_extensions as te
 
     MEDIA_TMP: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory("wandb-media")
 
@@ -40,11 +41,14 @@ else:
 
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
-
-def _should_declare_types() -> bool:
-    # This is assumed to be true at type checking time, but otherwise false
-    # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
-    return _use_type_checks and t.TYPE_CHECKING
+# This is assumed to be true at type checking time, but otherwise false
+# https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
+if _use_type_checks and t.TYPE_CHECKING:
+    from . import wandb_run
+    from .wandb_artifacts import Artifact as DraftArtifact
+    from wandb.apis.public import Artifact as DownloadedArtifact
+    import numpy  # type: ignore # noqa: F401
+    import pandas  # type: ignore
 
 
 def _safe_sdk_import():
@@ -53,15 +57,6 @@ def _safe_sdk_import():
     from . import wandb_artifacts
 
     return wandb_run, wandb_artifacts
-
-
-if _should_declare_types():
-    import typing_extensions as te
-    from . import wandb_run
-    from .wandb_artifacts import Artifact as DraftArtifact
-    from wandb.apis.public import Artifact as DownloadedArtifact
-    import numpy  # type: ignore # noqa: F401
-    import pandas  # type: ignore
 
 
 class WBValueArtifactSource:
@@ -75,7 +70,7 @@ class WBValueArtifactSource:
         self.name = name
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeWBValueJSON(te.TypedDict, total=False):
         _type: str
@@ -207,7 +202,7 @@ class WBValue(object):
         self.artifact_source = WBValueArtifactSource(artifact, name)
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeHistogramJSON(_TypeWBValueJSON, total=False):
         values: t.List
@@ -286,7 +281,7 @@ class Histogram(WBValue):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeMediaJSONArtifact(_TypeWBValueJSON, total=False):
         path: t.Optional[str]
@@ -492,7 +487,7 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
-if _should_declare_types():
+if _use_type_checks:
     _TypeTableData = t.Union[
         t.List[t.List], "numpy.ndarray", "pandas.core.frame.DataFrame"
     ]
@@ -685,7 +680,7 @@ class Table(Media):
         return json_dict
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeAudioJSON(_TypeMediaJSONRun, total=False):
         sample_rate: int
@@ -954,7 +949,7 @@ class Object3D(BatchableMedia):
         }
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeMoleculeJSONRun(_TypeMediaJSONRun, total=False):
         caption: t.Optional[str]
@@ -1127,7 +1122,7 @@ class Html(BatchableMedia):
         return meta
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeVideoJSONRun(_TypeMediaJSONRun, total=False):
         height: t.Optional[int]
@@ -1299,7 +1294,7 @@ class Video(BatchableMedia):
             return None
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeClassSet(te.TypedDict):
         id: t.Union[int, str]
@@ -1352,7 +1347,7 @@ class Classes(Media):
         return self._class_set == other._class_set
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeJoinedTableJSONArtifact(_TypeMediaJSONArtifact, total=False):
         class_set: t.Union[_TypeClassSet]
@@ -1533,7 +1528,7 @@ class JSONMetadata(Media):
         return True
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeBoundingBoxes2DValPositionBounded(te.TypedDict):
         minX: float  # noqa: N815
@@ -1722,7 +1717,7 @@ class BoundingBoxes2D(JSONMetadata):
         return cls({"box_data": json_obj, "class_labels": None}, "")
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     class _TypeImageMaskValData(te.TypedDict):
         mask_data: t.List[t.List[int]]
@@ -1867,7 +1862,7 @@ class ImageMask(Media):
                     )
 
 
-if _should_declare_types():
+if _use_type_checks:
 
     _TypeClassesFileJSON = te.TypedDict(
         "_TypeClassesFileJSON", {"type": str, "path": str, "digest": str}, total=False
