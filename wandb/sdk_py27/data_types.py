@@ -25,15 +25,25 @@ import six
 from wandb import util  # type: ignore
 from wandb.__globals import _datatypes_callback
 
-_use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 6
+
+_use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 9
+if _use_type_checks:
+    import typing as t
+
+    # This is assumed to be true at type checking time, but otherwise false
+    # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
+    if t.TYPE_CHECKING:
+        from . import wandb_run
+        from .wandb_artifacts import Artifact as DraftArtifact
+        from wandb.apis.public import Artifact as DownloadedArtifact
+        import numpy  # type: ignore # noqa: F401
+        import pandas  # type: ignore
+
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
-if _use_type_checks:
+if sys.version_info.major == 3 and sys.version_info.minor >= 6:
     import tempfile
-    import typing as t
-
-    # import typing_extensions as te
 
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -41,15 +51,6 @@ else:
     from wandb.compat import tempfile as compat_tempfile
 
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
-
-# This is assumed to be true at type checking time, but otherwise false
-# https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
-if _use_type_checks and t.TYPE_CHECKING:
-    from . import wandb_run
-    from .wandb_artifacts import Artifact as DraftArtifact
-    from wandb.apis.public import Artifact as DownloadedArtifact
-    import numpy  # type: ignore # noqa: F401
-    import pandas  # type: ignore
 
 
 def _safe_sdk_import():
