@@ -32,7 +32,8 @@ _use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if _use_type_checks:
     import tempfile
     import typing as t
-    import typing_extensions as te
+
+    # import typing_extensions as te
 
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -72,7 +73,7 @@ class WBValueArtifactSource:
 
 if _use_type_checks:
 
-    class _TypeWBValueJSON(te.TypedDict, total=False):
+    class _TypeWBValueJSON(t.TypedDict, total=False):
         # _type: str
         pass
 
@@ -1296,7 +1297,7 @@ class Video(BatchableMedia):
 
 if _use_type_checks:
 
-    class _TypeClassSet(te.TypedDict):
+    class _TypeClassSet(t.TypedDict):
         # id: t.Union[int, str]
         # name: str
         pass
@@ -1530,14 +1531,14 @@ class JSONMetadata(Media):
 
 if _use_type_checks:
 
-    class _TypeBoundingBoxes2DValPositionBounded(te.TypedDict):
+    class _TypeBoundingBoxes2DValPositionBounded(t.TypedDict):
         # minX: float  # noqa: N815
         # maxX: float  # noqa: N815
         # minY: float  # noqa: N815
         # maxY: float  # noqa: N815
         pass
 
-    class _TypeBoundingBoxes2DValPositionCentered(te.TypedDict):
+    class _TypeBoundingBoxes2DValPositionCentered(t.TypedDict):
         # middle: float
         # width: float
         # height: float
@@ -1548,7 +1549,7 @@ if _use_type_checks:
     _a = _TypeBoundingBoxes2DValPositionBounded
     _b = _TypeBoundingBoxes2DValPositionCentered
 
-    class _TypeBoundingBoxes2DValBoxData(te.TypedDict):
+    class _TypeBoundingBoxes2DValBoxData(t.TypedDict):
         # position: t.Union[_a, _b]
         # class_id: t.Optional[int]
         # box_caption: t.Optional[str]
@@ -1557,7 +1558,7 @@ if _use_type_checks:
 
     _TypeBoundingBoxes2DBoxData = t.List[_TypeBoundingBoxes2DValBoxData]
 
-    class _TypeBoundingBoxes2DVal(te.TypedDict):
+    class _TypeBoundingBoxes2DVal(t.TypedDict):
         # class_labels: t.Optional[t.Dict[int, str]]
         # box_data: _TypeBoundingBoxes2DBoxData
         pass
@@ -1719,12 +1720,12 @@ class BoundingBoxes2D(JSONMetadata):
 
 if _use_type_checks:
 
-    class _TypeImageMaskValData(te.TypedDict):
+    class _TypeImageMaskValData(t.TypedDict):
         # mask_data: t.List[t.List[int]]
         # class_labels: t.Optional[t.Dict[int, str]]
         pass
 
-    class _TypeImageMaskValPath(te.TypedDict):
+    class _TypeImageMaskValPath(t.TypedDict):
         # mask_data: str
         # class_labels: t.Optional[t.Dict[int, str]]
         pass
@@ -1864,7 +1865,7 @@ class ImageMask(Media):
 
 if _use_type_checks:
 
-    _TypeClassesFileJSON = te.TypedDict(
+    _TypeClassesFileJSON = t.TypedDict(
         "_TypeClassesFileJSON", {"type": str, "path": str, "digest": str}, total=False
     )
 
