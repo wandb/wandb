@@ -22,30 +22,16 @@ import shutil
 import sys
 
 import six
-from wandb import util
+from wandb import util  # type: ignore
 from wandb.__globals import _datatypes_callback
 
-_use_type_checks = sys.version_info.major == 3  # and sys.version_info.minor >= 6
+_use_type_checks = sys.version_info.major == 3 and sys.version_info.minor >= 6
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 if _use_type_checks:
     import tempfile
     import typing as t
-
-    # This is assumed to be true at type checking time, but otherwise false
-    # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
-    if t.TYPE_CHECKING:
-        from . import wandb_run
-        from .wandb_artifacts import Artifact as DraftArtifact
-        from wandb.apis.public import Artifact as DownloadedArtifact
-        import numpy  # type: ignore # noqa: F401
-        import pandas  # type: ignore
-
-    _TypeMappingType = t.Dict[str, t.Type["WBValue"]]
-    _TypeTableData = t.Union[
-        t.List[t.List], "numpy.ndarray", "pandas.core.frame.DataFrame"
-    ]
 
     MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -55,12 +41,27 @@ else:
     MEDIA_TMP = compat_tempfile.TemporaryDirectory("wandb-media")
 
 
+def _should_declare_types():
+    # This is assumed to be true at type checking time, but otherwise false
+    # https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING
+    return _use_type_checks and t.TYPE_CHECKING
+
+
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
     from . import wandb_run
     from . import wandb_artifacts
 
     return wandb_run, wandb_artifacts
+
+
+if _should_declare_types():
+    import typing_extensions as te
+    from . import wandb_run
+    from .wandb_artifacts import Artifact as DraftArtifact
+    from wandb.apis.public import Artifact as DownloadedArtifact
+    import numpy  # type: ignore # noqa: F401
+    import pandas  # type: ignore
 
 
 class WBValueArtifactSource:
@@ -72,6 +73,17 @@ class WBValueArtifactSource:
     def __init__(self, artifact, name):
         self.artifact = artifact
         self.name = name
+
+
+if _should_declare_types():
+
+    class _TypeWBValueJSON(te.TypedDict, total=False):
+        # _type: str
+        pass
+
+    _TypeMappingType = t.Dict[str, t.Type["WBValue"]]
+    # This is a bit of a hack since bounding boxes and node breaks the pattern
+    _TypeWBValueJSONAll = t.Union[_TypeWBValueJSON, t.List, t.Dict]
 
 
 class WBValue(object):
@@ -141,7 +153,9 @@ class WBValue(object):
 
     @staticmethod
     def init_from_json(
-        json_obj, source_artifact, name = None
+        json_obj,
+        source_artifact,
+        name = None,
     ):
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
@@ -191,6 +205,14 @@ class WBValue(object):
         """Setter for artifact source
         """
         self.artifact_source = WBValueArtifactSource(artifact, name)
+
+
+if _should_declare_types():
+
+    class _TypeHistogramJSON(_TypeWBValueJSON, total=False):
+        # values: t.List
+        # bins: t.List[float]
+        pass
 
 
 class Histogram(WBValue):
@@ -258,8 +280,28 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run=None):
+    def to_json(
+        self, run_or_artifact
+    ):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
+
+
+if _should_declare_types():
+
+    class _TypeMediaJSONArtifact(_TypeWBValueJSON, total=False):
+        # path: t.Optional[str]
+        pass
+
+    class _TypeMediaJSONRun(_TypeWBValueJSON, total=False):
+        # path: str
+        # sha256: str
+        # size: int
+        pass
+
+    _TypeMediaJSON = t.Union[_TypeMediaJSONArtifact, _TypeMediaJSONRun]
+    _TypeMediaJSONAll = t.Union[
+        _TypeMediaJSONArtifact, _TypeMediaJSONRun, t.List, t.Dict
+    ]
 
 
 class Media(WBValue):
@@ -296,14 +338,12 @@ class Media(WBValue):
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         raise NotImplementedError
 
-    @classmethod
-    def captions(
-        cls, media_items
-    ):
+    @staticmethod
+    def captions(media_items):
         if media_items[0]._caption is not None:
             return [m._caption if m._caption else "" for m in media_items]
         else:
@@ -360,7 +400,9 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run):
+    def to_json(
+        self, run_or_artifact
+    ):
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
         is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
@@ -371,9 +413,10 @@ class Media(WBValue):
         Returns:
             dict: JSON representation
         """
-        json_obj = {}
+        # json_obj: _TypeMediaJSONAll
         wandb_run, wandb_artifacts = _safe_sdk_import()
-        if isinstance(run, wandb_run.Run):
+        if isinstance(run_or_artifact, wandb_run.Run):
+            run = run_or_artifact
             if not self.is_bound():
                 raise RuntimeError(
                     "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
@@ -387,7 +430,8 @@ class Media(WBValue):
 
             assert self._path is not None, "File location unknown."
 
-            json_obj.update(
+            json_obj = t.cast(
+                _TypeMediaJSONRun,
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
                     "path": util.to_forward_slash_path(
@@ -395,14 +439,15 @@ class Media(WBValue):
                     ),
                     "sha256": self._sha256,
                     "size": self._size,
-                }
+                },
             )
-        elif isinstance(run, wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+            json_obj = t.cast(_TypeMediaJSONArtifact, {"_type": self.artifact_type})
             if self.file_is_set():
                 assert (
                     self._path is not None
                 )  # this is true by definition of `.file_is_set`, but helps mypy
-                artifact = run
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -428,7 +473,6 @@ class Media(WBValue):
                         name = entry.path
 
                 json_obj["path"] = name
-            json_obj["_type"] = self.artifact_type
         return json_obj
 
 
@@ -446,6 +490,26 @@ class BatchableMedia(Media):
     @classmethod
     def seq_to_json(cls, seq, run, key, step):
         raise NotImplementedError
+
+
+if _should_declare_types():
+    _TypeTableData = t.Union[
+        t.List[t.List], "numpy.ndarray", "pandas.core.frame.DataFrame"
+    ]
+
+    class _TypeTableJSONArtifact(_TypeMediaJSONArtifact, total=False):
+        # columns: t.List[str]
+        # data: _TypeTableData
+        # nrows: int
+        # ncols: int
+        pass
+
+    class _TypeTableJSONRun(_TypeMediaJSONRun, total=False):
+        # nrows: int
+        # ncols: int
+        pass
+
+    _TypeTableJSON = t.Union[_TypeTableJSONArtifact, _TypeTableJSONRun]
 
 
 class Table(Media):
@@ -492,7 +556,11 @@ class Table(Media):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        if len(self.data) != len(other.data) or self.columns != other.columns:
+        if (
+            type(other) != Table
+            or len(self.data) != len(other.data)
+            or self.columns != other.columns
+        ):
             return False
 
         for row_ndx in range(len(self.data)):
@@ -506,6 +574,7 @@ class Table(Media):
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
+    # TODO: proper type annotation and validation
     def add_data(self, *data):
         """Add a row of data to the table. Argument length should match column length"""
         if len(data) != len(self.columns):
@@ -516,7 +585,9 @@ class Table(Media):
             )
         self.data.append(list(data))
 
-    def _to_table_json(self, max_rows=None):
+    def _to_table_json(
+        self, max_rows = None
+    ):
         # seperate method for testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
@@ -524,27 +595,35 @@ class Table(Media):
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
-    def bind_to_run(self, *args, **kwargs):
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
         data = self._to_table_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super(Table, self).bind_to_run(*args, **kwargs)
+        super(Table, self).bind_to_run(run, key, step, id_=id_)
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeTableJSONArtifact, json_obj)
+
         data = []
         for row in json_obj["data"]:
             row_data = []
             for item in row:
                 cell = item
                 if isinstance(item, dict):
-                    obj = WBValue.init_from_json(item, source_artifact)
+                    obj = WBValue.init_from_json(
+                        t.cast(_TypeWBValueJSON, item), source_artifact
+                    )
                     if obj is not None:
                         cell = obj
                 row_data.append(cell)
@@ -552,11 +631,16 @@ class Table(Media):
 
         return cls(json_obj["columns"], data=data,)
 
-    def to_json(self, run_or_artifact):
-        json_dict = super(Table, self).to_json(run_or_artifact)
+    def to_json(
+        self, run_or_artifact
+    ):
+        # json_dict: _TypeTableJSON
         wandb_run, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_run.Run):
+            json_dict = t.cast(
+                _TypeTableJSONRun, super(Table, self).to_json(run_or_artifact)
+            )
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -564,8 +648,10 @@ class Table(Media):
                     "nrows": len(self.data),
                 }
             )
-
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            json_dict = t.cast(
+                _TypeTableJSONArtifact, super(Table, self).to_json(run_or_artifact)
+            )
             for column in self.columns:
                 if "." in column:
                     raise ValueError(
@@ -597,6 +683,14 @@ class Table(Media):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
+
+
+if _should_declare_types():
+
+    class _TypeAudioJSON(_TypeMediaJSONRun, total=False):
+        # sample_rate: int
+        # caption: t.Optional[str]
+        pass
 
 
 class Audio(BatchableMedia):
@@ -638,12 +732,14 @@ class Audio(BatchableMedia):
 
             self._set_file(tmp_path, is_tmp=True)
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "audio")
 
-    def to_json(self, run):
-        json_dict = super(Audio, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(_TypeAudioJSON, super(Audio, self).to_json(run_or_artifact))
         json_dict.update(
             {
                 "_type": "audio-file",
@@ -689,11 +785,12 @@ class Audio(BatchableMedia):
     def sample_rates(cls, audio_list):
         return [a._sample_rate for a in audio_list]
 
-    @classmethod
-    def captions(cls, audio_list):
-        captions = [a._caption for a in audio_list]
+    # TODO: Remove: this is redundant with parent class
+    @staticmethod
+    def captions(media_items):
+        captions = [a._caption for a in media_items]
         if all(c is None for c in captions):
-            return False
+            return None
         else:
             return ["" if c is None else c for c in captions]
 
@@ -819,12 +916,16 @@ class Object3D(BatchableMedia):
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "object3D")
 
-    def to_json(self, run):
-        json_dict = super(Object3D, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSONRun, super(Object3D, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "object3D-file"
         return json_dict
 
@@ -851,6 +952,13 @@ class Object3D(BatchableMedia):
             "count": len(jsons),
             "objects": jsons,
         }
+
+
+if _should_declare_types():
+
+    class _TypeMoleculeJSONRun(_TypeMediaJSONRun, total=False):
+        # caption: t.Optional[str]
+        pass
 
 
 class Molecule(BatchableMedia):
@@ -908,12 +1016,16 @@ class Molecule(BatchableMedia):
         else:
             raise ValueError("Data must be file name or a file object")
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "molecule")
 
-    def to_json(self, run):
-        json_dict = super(Molecule, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMoleculeJSONRun, super(Molecule, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "molecule-file"
         if self._caption:
             json_dict["caption"] = self._caption
@@ -989,12 +1101,16 @@ class Html(BatchableMedia):
         )
         self.html = join.join(parts).strip()
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "html")
 
-    def to_json(self, run):
-        json_dict = super(Html, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSONRun, super(Html, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "html-file"
         return json_dict
 
@@ -1009,6 +1125,15 @@ class Html(BatchableMedia):
             "html": [h.to_json(run) for h in html_list],
         }
         return meta
+
+
+if _should_declare_types():
+
+    class _TypeVideoJSONRun(_TypeMediaJSONRun, total=False):
+        # height: t.Optional[int]
+        # width: t.Optional[int]
+        # caption: t.Optional[str]
+        pass
 
 
 class Video(BatchableMedia):
@@ -1095,12 +1220,16 @@ class Video(BatchableMedia):
                 clip.write_videofile(filename, verbose=False)
         self._set_file(filename, is_tmp=True)
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "videos")
 
-    def to_json(self, run):
-        json_dict = super(Video, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeVideoJSONRun, super(Video, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "video-file"
 
         if self._width is not None:
@@ -1161,12 +1290,25 @@ class Video(BatchableMedia):
         }
         return meta
 
-    @classmethod
-    def captions(cls, videos):
-        if videos[0]._caption is not None:
-            return [v._caption for v in videos]
+    # TODO: Remove: this is redundant with parent class
+    @staticmethod
+    def captions(media_items):
+        if media_items[0]._caption is not None:
+            return [v._caption if v._caption is not None else "" for v in media_items]
         else:
-            return False
+            return None
+
+
+if _should_declare_types():
+
+    class _TypeClassSet(te.TypedDict):
+        # id: t.Union[int, str]
+        # name: str
+        pass
+
+    class _TypeClassesJSONArtifact(_TypeMediaJSONArtifact, total=False):
+        # class_set: t.Union[_TypeClassSet]
+        pass
 
 
 class Classes(Media):
@@ -1183,13 +1325,24 @@ class Classes(Media):
         # TODO: validate
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeClassesJSONArtifact, json_obj)
         return cls(json_obj.get("class_set"))
 
-    def to_json(self, artifact):
-        json_obj = super(Classes, self).to_json(artifact)
-        json_obj["_type"] = Classes.artifact_type
-        json_obj["class_set"] = self._class_set
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_obj = t.cast(
+            _TypeClassesJSONArtifact, super(Classes, self).to_json(run_or_artifact)
+        )
+        wandb_run, wandb_artifacts = _safe_sdk_import()
+        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            json_obj["_type"] = Classes.artifact_type
+            json_obj["class_set"] = self._class_set
+        elif isinstance(run_or_artifact, wandb_run.Run):
+            raise TypeError("Cannot add JoinedTables to Runs")
         return json_obj
 
     def __ne__(self, other):
@@ -1197,6 +1350,16 @@ class Classes(Media):
 
     def __eq__(self, other):
         return self._class_set == other._class_set
+
+
+if _should_declare_types():
+
+    class _TypeJoinedTableJSONArtifact(_TypeMediaJSONArtifact, total=False):
+        # class_set: t.Union[_TypeClassSet]
+        # table1: str
+        # table2: str
+        # join_key: t.Union[str, t.Tuple[str, str]]
+        pass
 
 
 class JoinedTable(Media):
@@ -1238,7 +1401,10 @@ class JoinedTable(Media):
         self._join_key = join_key
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeJoinedTableJSONArtifact, json_obj)
         t1 = source_artifact.get(json_obj["table1"])
         if t1 is None:
             t1 = json_obj["table1"]
@@ -1283,20 +1449,30 @@ class JoinedTable(Media):
 
         return table
 
-    def to_json(self, artifact):
-        json_obj = super(JoinedTable, self).to_json(artifact)
-
-        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
-        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
-
-        json_obj.update(
-            {
-                "_type": JoinedTable.artifact_type,
-                "table1": table1,
-                "table2": table2,
-                "join_key": self._join_key,
-            }
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_obj = t.cast(
+            _TypeJoinedTableJSONArtifact,
+            super(JoinedTable, self).to_json(run_or_artifact),
         )
+        wandb_run, wandb_artifacts = _safe_sdk_import()
+        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact = run_or_artifact
+
+            table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
+            table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
+
+            json_obj.update(
+                {
+                    "_type": JoinedTable.artifact_type,
+                    "table1": table1,
+                    "table2": table2,
+                    "join_key": self._join_key,
+                }
+            )
+        elif isinstance(run_or_artifact, wandb_run.Run):
+            raise TypeError("Cannot add JoinedTables to Runs")
         return json_obj
 
     def __ne__(self, other):
@@ -1308,6 +1484,410 @@ class JoinedTable(Media):
             and self._table2 == other._table2
             and self._join_key == other._join_key
         )
+
+
+# Allows encoding of arbitrary JSON structures
+# as a file
+#
+# This class should be used as an abstract class
+# extended to have validation methods
+
+
+class JSONMetadata(Media):
+    """
+    JSONMetadata is a type for encoding arbitrary metadata as files.
+    """
+
+    def __init__(self, val, **kwargs):
+        super(JSONMetadata, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".json"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        util.json_dump_uncompressed(
+            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
+        )
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    @staticmethod
+    def get_media_subdir():
+        return os.path.join("media", "metadata", "metadata")
+
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSONRun, super(JSONMetadata, self).to_json(run_or_artifact)
+        )
+        json_dict["_type"] = self.type_name()
+
+        return json_dict
+
+    # These methods should be overridden in the child class
+    def type_name(self):
+        return "metadata"
+
+    def validate(self, val):
+        return True
+
+
+if _should_declare_types():
+
+    class _TypeBoundingBoxes2DValPositionBounded(te.TypedDict):
+        # minX: float  # noqa: N815
+        # maxX: float  # noqa: N815
+        # minY: float  # noqa: N815
+        # maxY: float  # noqa: N815
+        pass
+
+    class _TypeBoundingBoxes2DValPositionCentered(te.TypedDict):
+        # middle: float
+        # width: float
+        # height: float
+        pass
+
+    # Naming hack so the codegen will comment out "position" below.
+    # since the long names cause line breaks
+    _a = _TypeBoundingBoxes2DValPositionBounded
+    _b = _TypeBoundingBoxes2DValPositionCentered
+
+    class _TypeBoundingBoxes2DValBoxData(te.TypedDict):
+        # position: t.Union[_a, _b]
+        # class_id: t.Optional[int]
+        # box_caption: t.Optional[str]
+        # scores: t.MutableMapping[str, t.Any]  # TODO: make this explicit
+        pass
+
+    _TypeBoundingBoxes2DBoxData = t.List[_TypeBoundingBoxes2DValBoxData]
+
+    class _TypeBoundingBoxes2DVal(te.TypedDict):
+        # class_labels: t.Optional[t.Dict[int, str]]
+        # box_data: _TypeBoundingBoxes2DBoxData
+        pass
+
+
+class BoundingBoxes2D(JSONMetadata):
+    """
+    Wandb class for 2D bounding boxes
+    """
+
+    artifact_type = "bounding-boxes"
+    # _key: str
+    # _val: _TypeBoundingBoxes2DBoxData
+
+    def __init__(self, val, key):
+        """
+        Args:
+            val (dict): dictionary following the form:
+            {
+                "class_labels": optional mapping from class ids to strings {id: str}
+                "box_data": list of boxes: [
+                    {
+                        "position": {
+                            "minX": float,
+                            "maxX": float,
+                            "minY": float,
+                            "maxY": float,
+                        },
+                        "class_id": 1,
+                        "box_caption": optional str
+                        "scores": optional dict of scores
+                    },
+                    ...
+                ],
+            }
+            key (str): id for set of bounding boxes
+        """
+        super(BoundingBoxes2D, self).__init__(val)
+        self._val = val["box_data"]
+        self._key = key
+        # Add default class mapping
+        if "class_labels" not in val:
+            np = util.get_module(
+                "numpy", required="Semantic Segmentation mask support requires numpy"
+            )
+            classes = (
+                np.unique(list(map(lambda box: box["class_id"], val["box_data"])))
+                .astype(np.int32)
+                .tolist()
+            )
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            self._class_labels = class_labels
+        else:
+            assert val["class_labels"] is not None  # Typechecking helper
+            self._class_labels = val["class_labels"]
+
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
+        run._add_singleton(
+            "bounding_box/class_labels",
+            key + "_wandb_delimeter_" + self._key,
+            self._class_labels,
+        )
+
+    def type_name(self):
+        return "boxes2D"
+
+    def validate(self, val):
+        # Optional argument
+        if "class_labels" in val:
+            for k, v in list(val["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (
+                    not isinstance(v, six.string_types)
+                ):
+                    raise TypeError(
+                        "Class labels must be a dictionary of numbers to string"
+                    )
+
+        boxes = val["box_data"]
+        if not isinstance(boxes, collections.Sequence):
+            raise TypeError("Boxes must be a list")
+
+        for box in boxes:
+            # Required arguments
+            error_str = "Each box must contain a position with: middle, width, and height or \
+                    \nminX, maxX, minY, maxY."
+            if "position" not in box:
+                raise TypeError(error_str)
+            else:
+                valid = False
+                if (
+                    "middle" in box["position"]
+                    and len(box["position"]["middle"]) == 2
+                    and util.has_num(box["position"], "width")
+                    and util.has_num(box["position"], "height")
+                ):
+                    valid = True
+                elif (
+                    util.has_num(box["position"], "minX")
+                    and util.has_num(box["position"], "maxX")
+                    and util.has_num(box["position"], "minY")
+                    and util.has_num(box["position"], "maxY")
+                ):
+                    valid = True
+
+                if not valid:
+                    raise TypeError(error_str)
+
+            # Optional arguments
+            if ("scores" in box) and not isinstance(box["scores"], dict):
+                raise TypeError("Box scores must be a dictionary")
+            elif "scores" in box:
+                for k, v in list(box["scores"].items()):
+                    if not isinstance(k, six.string_types):
+                        raise TypeError("A score key must be a string")
+                    if not isinstance(v, numbers.Number):
+                        raise TypeError("A score value must be a number")
+
+            if ("class_id" in box) and not isinstance(
+                box["class_id"], six.integer_types
+            ):
+                raise TypeError("A box's class_id must be an integer")
+
+            # Optional
+            if ("box_caption" in box) and not isinstance(
+                box["box_caption"], six.string_types
+            ):
+                raise TypeError("A box's caption must be a string")
+
+    def to_json(
+        self, run_or_artifact
+    ):
+        wandb_run, wandb_artifacts = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, wandb_run.Run):
+            json_obj = t.cast(
+                _TypeMediaJSONRun, super(BoundingBoxes2D, self).to_json(run_or_artifact)
+            )
+            return json_obj
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
+            # want to mess with the visualizations that are currently available in the UI. This really should output
+            # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
+            return self._val
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
+    @classmethod
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeBoundingBoxes2DBoxData, json_obj)
+        return cls({"box_data": json_obj, "class_labels": None}, "")
+
+
+if _should_declare_types():
+
+    class _TypeImageMaskValData(te.TypedDict):
+        # mask_data: t.List[t.List[int]]
+        # class_labels: t.Optional[t.Dict[int, str]]
+        pass
+
+    class _TypeImageMaskValPath(te.TypedDict):
+        # mask_data: str
+        # class_labels: t.Optional[t.Dict[int, str]]
+        pass
+
+    _TypeImageMaskVal = t.Union[_TypeImageMaskValData, _TypeImageMaskValPath]
+
+
+class ImageMask(Media):
+    """
+    Wandb class for image masks, useful for segmentation tasks
+    """
+
+    artifact_type = "mask"
+    # _key: str
+    # _val: _TypeImageMaskVal
+
+    def __init__(self, val, key, **kwargs):
+        """
+        Args:
+            val (dict): dictionary following 1 of two forms:
+            {
+                "mask_data": 2d array of integers corresponding to classes,
+                "class_labels": optional mapping from class ids to strings {id: str}
+            }
+
+            {
+                "path": path to an image file containing integers corresponding to classes,
+                "class_labels": optional mapping from class ids to strings {id: str}
+            }
+            key (str): id for set of masks
+        """
+        super(ImageMask, self).__init__()
+
+        if "path" in val:
+            self._set_file(val["path"])
+        else:
+            np = util.get_module(
+                "numpy", required="Semantic Segmentation mask support requires numpy"
+            )
+            # Add default class mapping
+            if "class_labels" not in val:
+                classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+                class_labels = dict((c, "class_" + str(c)) for c in classes)
+                val["class_labels"] = class_labels
+
+            self.validate(val)
+            self._val = val
+            self._key = key
+
+            ext = "." + self.type_name() + ".png"
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+
+            pil_module = util.get_module(
+                "PIL.Image",
+                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+            )
+            image = pil_module.fromarray(val["mask_data"].astype(np.int8), mode="L")
+
+            image.save(tmp_path, transparency=None)
+            self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
+        class_labels = self._val["class_labels"]
+
+        run._add_singleton(
+            "mask/class_labels", key + "_wandb_delimeter_" + self._key, class_labels
+        )
+
+    @staticmethod
+    def get_media_subdir():
+        return os.path.join("media", "images", "mask")
+
+    @classmethod
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeMediaJSONArtifact, json_obj)
+        return cls(
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+        )
+
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSON, super(ImageMask, self).to_json(run_or_artifact)
+        )
+        wandb_run, wandb_artifacts = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, wandb_run.Run):
+            json_dict = t.cast(_TypeMediaJSONRun, json_dict)
+            json_dict["_type"] = self.type_name()
+            return json_dict
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            # Nothing special to add (used to add "digest", but no longer used.)
+            return json_dict
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
+    def type_name(self):
+        return "mask"
+
+    def validate(self, mask):
+        np = util.get_module(
+            "numpy", required="Semantic Segmentation mask support requires numpy"
+        )
+        # 2D Make this work with all tensor(like) types
+        if "mask_data" not in mask:
+            raise TypeError(
+                'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
+            )
+        else:
+            error_str = "mask_data must be a 2d array"
+            shape = mask["mask_data"].shape
+            if len(shape) != 2:
+                raise TypeError(error_str)
+            if not (
+                (mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()
+            ) and issubclass(mask["mask_data"].dtype.type, np.integer):
+                raise TypeError("Mask data must be integers between 0 and 255")
+
+        # Optional argument
+        if "class_labels" in mask:
+            for k, v in list(mask["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (
+                    not isinstance(v, six.string_types)
+                ):
+                    raise TypeError(
+                        "Class labels must be a dictionary of numbers to string"
+                    )
+
+
+if _should_declare_types():
+
+    _TypeClassesFileJSON = te.TypedDict(
+        "_TypeClassesFileJSON", {"type": str, "path": str, "digest": str}, total=False
+    )
+
+    class _TypeImageJSONRun(_TypeMediaJSONRun, total=False):
+        # format: str
+        # width: int
+        # height: int
+        # grouping: str
+        # caption: str
+        # boxes: t.Dict[str, _TypeBoundingBoxes2DVal]
+        # masks: t.Dict[str, _TypeMediaJSON]
+        pass
+
+    class _TypeImageJSONArtifact(_TypeImageJSONRun, total=False):
+        # classes: _TypeClassesFileJSON
+        pass
+
+    _TypeImageJSON = t.Union[_TypeImageJSONRun, _TypeImageJSONArtifact]
 
 
 class Image(BatchableMedia):
@@ -1470,7 +2050,10 @@ class Image(BatchableMedia):
         self._width, self._height = self._image.size
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        json_obj = t.cast(_TypeImageJSONArtifact, json_obj)
         classes = None
         if json_obj.get("classes") is not None:
             classes = source_artifact.get(json_obj["classes"]["path"])
@@ -1489,7 +2072,8 @@ class Image(BatchableMedia):
         if boxes:
             _boxes = {}
             for key in boxes:
-                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
+                box_json = t.cast(_TypeBoundingBoxes2DBoxData, boxes[key])
+                _boxes[key] = BoundingBoxes2D.from_json(box_json, source_artifact)
                 _boxes[key]._key = key
 
         return cls(
@@ -1501,25 +2085,38 @@ class Image(BatchableMedia):
             masks=_masks,
         )
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "images")
 
-    def bind_to_run(self, *args, **kwargs):
-        super(Image, self).bind_to_run(*args, **kwargs)
-        id_ = kwargs.get("id_")
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
+        super(Image, self).bind_to_run(run, key, step, id_=id_)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(*args, **kwargs)
+                self._boxes[k].bind_to_run(
+                    run,
+                    key,
+                    step,
+                    id_="{}{}".format(id_, i) if id_ is not None else None,
+                )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(*args, **kwargs)
+                self._boxes[k].bind_to_run(
+                    run,
+                    key,
+                    step,
+                    id_="{}{}".format(id_, i) if id_ is not None else None,
+                )
 
-    def to_json(self, run_or_artifact):
-        json_dict = super(Image, self).to_json(run_or_artifact)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeImageJSONRun, super(Image, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = Image.artifact_type
         json_dict["format"] = self.format
 
@@ -1531,11 +2128,21 @@ class Image(BatchableMedia):
             json_dict["grouping"] = self._grouping
         if self._caption:
             json_dict["caption"] = self._caption
+        if self._boxes:
+            json_dict["boxes"] = {
+                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
+            }
+        if self._masks:
+            json_dict["masks"] = {
+                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
+            }
 
         wandb_run, wandb_artifacts = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb_run.Run):
+            pass
+        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
+            json_dict = t.cast(_TypeImageJSONArtifact, json_dict)
             if (
                 self._masks is not None or self._boxes is not None
             ) and self._classes is None:
@@ -1563,17 +2170,8 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, wandb_run.Run):
+        else:
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-
-        if self._boxes:
-            json_dict["boxes"] = {
-                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
-            }
-        if self._masks:
-            json_dict["masks"] = {
-                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
-            }
         return json_dict
 
     def guess_mode(self, data):
@@ -1729,306 +2327,6 @@ class Image(BatchableMedia):
         )
 
 
-# Allows encoding of arbitrary JSON structures
-# as a file
-#
-# This class should be used as an abstract class
-# extended to have validation methods
-
-
-class JSONMetadata(Media):
-    """
-    JSONMetadata is a type for encoding arbitrary metadata as files.
-    """
-
-    def __init__(self, val, **kwargs):
-        super(JSONMetadata, self).__init__()
-
-        self.validate(val)
-        self._val = val
-
-        ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_uncompressed(
-            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
-        )
-        self._set_file(tmp_path, is_tmp=True, extension=ext)
-
-    def get_media_subdir(self):
-        return os.path.join("media", "metadata", self.type_name())
-
-    def to_json(self, run):
-        json_dict = super(JSONMetadata, self).to_json(run)
-        json_dict["_type"] = self.type_name()
-
-        return json_dict
-
-    # These methods should be overridden in the child class
-    def type_name(self):
-        return "metadata"
-
-    def validate(self, val):
-        return True
-
-
-class BoundingBoxes2D(JSONMetadata):
-    """
-    Wandb class for 2D bounding boxes
-    """
-
-    artifact_type = "bounding-boxes"
-
-    def __init__(self, val, key, **kwargs):
-        """
-        Args:
-            val (dict): dictionary following the form:
-            {
-                "class_labels": optional mapping from class ids to strings {id: str}
-                "box_data": list of boxes: [
-                    {
-                        "position": {
-                            "minX": float,
-                            "maxX": float,
-                            "minY": float,
-                            "maxY": float,
-                        },
-                        "class_id": 1,
-                        "box_caption": optional str
-                        "scores": optional dict of scores
-                    },
-                    ...
-                ],
-            }
-            key (str): id for set of bounding boxes
-        """
-        super(BoundingBoxes2D, self).__init__(val)
-        self._val = val["box_data"]
-        self._key = key
-        # Add default class mapping
-        if "class_labels" not in val:
-            np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
-            )
-            classes = (
-                np.unique(list(map(lambda box: box["class_id"], val["box_data"])))
-                .astype(np.int32)
-                .tolist()
-            )
-            class_labels = dict((c, "class_" + str(c)) for c in classes)
-            self._class_labels = class_labels
-        else:
-            self._class_labels = val["class_labels"]
-
-    def bind_to_run(self, run, key, step, id_=None):
-        # bind_to_run key argument is the Image parent key
-        # the self._key value is the mask's sub key
-        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
-        run._add_singleton(
-            "bounding_box/class_labels",
-            key + "_wandb_delimeter_" + self._key,
-            self._class_labels,
-        )
-
-    def type_name(self):
-        return "boxes2D"
-
-    def validate(self, val):
-        # Optional argument
-        if "class_labels" in val:
-            for k, v in list(val["class_labels"].items()):
-                if (not isinstance(k, numbers.Number)) or (
-                    not isinstance(v, six.string_types)
-                ):
-                    raise TypeError(
-                        "Class labels must be a dictionary of numbers to string"
-                    )
-
-        boxes = val["box_data"]
-        if not isinstance(boxes, collections.Sequence):
-            raise TypeError("Boxes must be a list")
-
-        for box in boxes:
-            # Required arguments
-            error_str = "Each box must contain a position with: middle, width, and height or \
-                    \nminX, maxX, minY, maxY."
-            if "position" not in box:
-                raise TypeError(error_str)
-            else:
-                valid = False
-                if (
-                    "middle" in box["position"]
-                    and len(box["position"]["middle"]) == 2
-                    and util.has_num(box["position"], "width")
-                    and util.has_num(box["position"], "height")
-                ):
-                    valid = True
-                elif (
-                    util.has_num(box["position"], "minX")
-                    and util.has_num(box["position"], "maxX")
-                    and util.has_num(box["position"], "minY")
-                    and util.has_num(box["position"], "maxY")
-                ):
-                    valid = True
-
-                if not valid:
-                    raise TypeError(error_str)
-
-            # Optional arguments
-            if ("scores" in box) and not isinstance(box["scores"], dict):
-                raise TypeError("Box scores must be a dictionary")
-            elif "scores" in box:
-                for k, v in list(box["scores"].items()):
-                    if not isinstance(k, six.string_types):
-                        raise TypeError("A score key must be a string")
-                    if not isinstance(v, numbers.Number):
-                        raise TypeError("A score value must be a number")
-
-            if ("class_id" in box) and not isinstance(
-                box["class_id"], six.integer_types
-            ):
-                raise TypeError("A box's class_id must be an integer")
-
-            # Optional
-            if ("box_caption" in box) and not isinstance(
-                box["box_caption"], six.string_types
-            ):
-                raise TypeError("A box's caption must be a string")
-
-    def to_json(self, run_or_artifact):
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, wandb_run.Run):
-            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
-            # want to mess with the visualizations that are currently available in the UI. This really should output
-            # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
-            return self._val
-        else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls({"box_data": json_obj}, "")
-
-
-class ImageMask(Media):
-    """
-    Wandb class for image masks, useful for segmentation tasks
-    """
-
-    artifact_type = "mask"
-
-    def __init__(self, val, key, **kwargs):
-        """
-        Args:
-            val (dict): dictionary following 1 of two forms:
-            {
-                "mask_data": 2d array of integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
-
-            {
-                "path": path to an image file containing integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
-            key (str): id for set of masks
-        """
-        super(ImageMask, self).__init__()
-
-        if "path" in val:
-            self._set_file(val["path"])
-        else:
-            np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
-            )
-            # Add default class mapping
-            if "class_labels" not in val:
-                classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
-                class_labels = dict((c, "class_" + str(c)) for c in classes)
-                val["class_labels"] = class_labels
-
-            self.validate(val)
-            self._val = val
-            self._key = key
-
-            ext = "." + self.type_name() + ".png"
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
-
-            pil_module = util.get_module(
-                "PIL.Image",
-                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-            )
-            image = pil_module.fromarray(val["mask_data"].astype(np.int8), mode="L")
-
-            image.save(tmp_path, transparency=None)
-            self._set_file(tmp_path, is_tmp=True, extension=ext)
-
-    def bind_to_run(self, run, key, step, id_=None):
-        # bind_to_run key argument is the Image parent key
-        # the self._key value is the mask's sub key
-        super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
-        class_labels = self._val["class_labels"]
-
-        run._add_singleton(
-            "mask/class_labels", key + "_wandb_delimeter_" + self._key, class_labels
-        )
-
-    def get_media_subdir(self):
-        return os.path.join("media", "images", self.type_name())
-
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
-        )
-
-    def to_json(self, run_or_artifact):
-        json_dict = super(ImageMask, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, wandb_run.Run):
-            json_dict["_type"] = self.type_name()
-            return json_dict
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            # Nothing special to add (used to add "digest", but no longer used.)
-            return json_dict
-        else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-
-    def type_name(self):
-        return "mask"
-
-    def validate(self, mask):
-        np = util.get_module(
-            "numpy", required="Semantic Segmentation mask support requires numpy"
-        )
-        # 2D Make this work with all tensor(like) types
-        if "mask_data" not in mask:
-            raise TypeError(
-                'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
-            )
-        else:
-            error_str = "mask_data must be a 2d array"
-            shape = mask["mask_data"].shape
-            if len(shape) != 2:
-                raise TypeError(error_str)
-            if not (
-                (mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()
-            ) and issubclass(mask["mask_data"].dtype.type, np.integer):
-                raise TypeError("Mask data must be integers between 0 and 255")
-
-        # Optional argument
-        if "class_labels" in mask:
-            for k, v in list(mask["class_labels"].items()):
-                if (not isinstance(k, numbers.Number)) or (
-                    not isinstance(v, six.string_types)
-                ):
-                    raise TypeError(
-                        "Class labels must be a dictionary of numbers to string"
-                    )
-
-
 class Plotly(Media):
     """
         Wandb class for plotly plots.
@@ -2067,11 +2365,16 @@ class Plotly(Media):
         util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
-    def get_media_subdir(self):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "plotly")
 
-    def to_json(self, run):
-        json_dict = super(Plotly, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSONRun, super(Plotly, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "plotly-file"
         return json_dict
 
@@ -2118,7 +2421,9 @@ class Graph(Media):
             "edges": [edge.to_json() for edge in self.edges],
         }
 
-    def bind_to_run(self, *args, **kwargs):
+    def bind_to_run(
+        self, run, key, step, id_ = None
+    ):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = numpy_arrays_to_lists(data)
@@ -2126,14 +2431,18 @@ class Graph(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
-        super(Graph, self).bind_to_run(*args, **kwargs)
+        super(Graph, self).bind_to_run(run, key, step, id_=id_)
 
-    @classmethod
-    def get_media_subdir(cls):
+    @staticmethod
+    def get_media_subdir():
         return os.path.join("media", "graph")
 
-    def to_json(self, run):
-        json_dict = super(Graph, self).to_json(run)
+    def to_json(
+        self, run_or_artifact
+    ):
+        json_dict = t.cast(
+            _TypeMediaJSONRun, super(Graph, self).to_json(run_or_artifact)
+        )
         json_dict["_type"] = "graph-file"
         return json_dict
 
@@ -2283,7 +2592,9 @@ class Node(WBValue):
         if num_parameters is not None:
             self.num_parameters = num_parameters
 
-    def to_json(self, run=None):
+    def to_json(
+        self, run_or_artifact
+    ):
         return self._attributes
 
     def __repr__(self):
@@ -2433,7 +2744,10 @@ class Edge(WBValue):
         temp_attr["to_id"] = self.to_node.id
         return str(temp_attr)
 
-    def to_json(self, run=None):
+    # TODO: Make this valid json, not just array
+    def to_json(
+        self, run_or_artifact
+    ):
         return [self.from_node.id, self.to_node.id]
 
     @property
