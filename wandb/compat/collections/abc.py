@@ -28,8 +28,8 @@ ByteString = None
 
 if sys.version_info.major == 3 and sys.version_info.minor >= 3:
     # serves as a pass through
-    from collections.abs import *
-    from collections.abs import __all__
+    from collections.abc import *
+    from collections.abc import __all__
 else:
     import collections as __collections
 
