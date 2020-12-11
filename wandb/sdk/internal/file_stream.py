@@ -4,7 +4,6 @@ import collections
 import logging
 import threading
 import requests
-import six
 import time
 import wandb
 import itertools
@@ -281,7 +280,7 @@ class FileStreamApi(object):
         max_size = MAX_MB * 1024 * 1024
 
         def _str_size(x):
-            return len(x) if isinstance(x, six.binary_type) else len(x) * 2.5
+            return len(x) if isinstance(x, bytes) else len(x.encode('utf-8'))
 
         def _file_size(file):
             size = file.get("_size")
