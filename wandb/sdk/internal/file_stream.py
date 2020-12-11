@@ -358,6 +358,9 @@ class FileStreamApi(object):
                 current_size = 0
                 continue
 
+        if current_volume:
+            yield current_volume
+
     def stream_file(self, path):
         name = path.split("/")[-1]
         with open(path) as f:
