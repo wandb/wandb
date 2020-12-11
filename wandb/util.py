@@ -687,7 +687,10 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409} or (e.response.status_code == 500 and e.response.content == b'{"error":"context deadline exceeded"}\n'):
+                if e.response.status_code in {400, 403, 404, 409} or (
+                    e.response.status_code == 500
+                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
+                ):
                     return e
 
             if retry_count == max_retries:

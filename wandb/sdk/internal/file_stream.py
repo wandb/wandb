@@ -281,10 +281,14 @@ class FileStreamApi(object):
         max_size = MAX_MB * 1024 * 1024
 
         def _str_size(x):
-            return len(x) if isinstance(x, six.binary_type) else len(x.encode("utf-8"))
+            return len(x) if isinstance(x, six.binary_type) else len(x) * 2.5
 
         def _file_size(file):
-            return sum(map(_str_size, file["content"]))
+            size = file.get("_size")
+            if size is None:
+                size = sum(map(_str_size, file["content"]))
+                file["_size"] = size
+            return size
 
         def _split_file(file, num_lines):
             offset = file["offset"]
@@ -325,7 +329,10 @@ class FileStreamApi(object):
             fsize = _file_size(f)
             rem = max_size - current_size
             if fsize <= rem:
-                current_volume[f.pop("name")] = f
+                current_volume[f["name"]] = {
+                    "offset": f["offset"],
+                    "content": f["content"],
+                }
                 current_size += fsize
             else:
                 num_lines = _num_lines_from_num_bytes(f, rem)
@@ -333,7 +340,10 @@ class FileStreamApi(object):
                     num_lines = 1
                 if num_lines:
                     f1, f2 = _split_file(f, num_lines)
-                    current_volume[f1.pop("name")] = f1
+                    current_volume[f1["name"]] = {
+                        "offset": f1["offset"],
+                        "content": f1["content"],
+                    }
                     current_size += _file_size(f1)
                     files_stack.append(f2)
                 else:
