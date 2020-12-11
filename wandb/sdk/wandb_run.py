@@ -198,7 +198,7 @@ class Run(object):
         self._final_summary = None
         self._sampled_history = None
         self._jupyter_progress = None
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
@@ -1034,7 +1034,7 @@ class Run(object):
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             sweep_line = (
                 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
                     sweep_url, sweep_url
@@ -1352,7 +1352,7 @@ class Run(object):
                 status_str += "\nProgram failed with code {}. ".format(self._exit_code)
                 if not self._settings._offline:
                     status_str += " Press ctrl-c to abort syncing."
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
             else:
                 print("")
@@ -1403,7 +1403,7 @@ class Run(object):
             if self._settings._jupyter:
                 log_user = "<code>{}</code>".format(log_user)
             log_str = "Find user logs for this run at: {}".format(log_user)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
@@ -1412,7 +1412,7 @@ class Run(object):
             if self._settings._jupyter:
                 log_internal = "<code>{}</code>".format(log_internal)
             log_str = "Find internal logs for this run at: {}".format(log_internal)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
@@ -1424,7 +1424,7 @@ class Run(object):
         if self._run_obj:
             run_url = self._get_run_url()
             run_name = self._get_run_name()
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(
                     """
                     <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a><br/>
@@ -1480,7 +1480,7 @@ class Run(object):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
                     summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1513,7 +1513,7 @@ class Run(object):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
                 history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1544,7 +1544,7 @@ class Run(object):
             self._poll_exit_response.file_counts.artifact_count,
             self._poll_exit_response.file_counts.other_count,
         )
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             ipython.display_html(file_str)
         else:
             wandb.termlog(file_str)
