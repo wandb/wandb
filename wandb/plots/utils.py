@@ -2,13 +2,7 @@ import logging
 import wandb
 from wandb import util
 
-try:
-    from collections.abc import Sequence, Iterable
-except ImportError:
-    from collections import Sequence, Iterable
-collections = util.get_module(
-    "collections", required="Logging python iterables requires collections"
-)
+from wandb.compat.collections.abc import Sequence, Iterable
 
 
 def deprecation_notice():

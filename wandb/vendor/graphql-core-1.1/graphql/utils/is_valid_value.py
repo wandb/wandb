@@ -2,7 +2,7 @@
     Implementation of isValidJSValue from graphql.s
 """
 
-import collections
+from wandb.compat.collections.abc import Iterable, Mapping
 import json
 
 from six import string_types
@@ -27,7 +27,7 @@ def is_valid_value(value, type):
 
     if isinstance(type, GraphQLList):
         item_type = type.of_type
-        if not isinstance(value, string_types) and isinstance(value, collections.Iterable):
+        if not isinstance(value, string_types) and isinstance(value, Iterable):
             errors = []
             for i, item in enumerate(value):
                 item_errors = is_valid_value(item, item_type)
@@ -40,7 +40,7 @@ def is_valid_value(value, type):
             return is_valid_value(value, item_type)
 
     if isinstance(type, GraphQLInputObjectType):
-        if not isinstance(value, collections.Mapping):
+        if not isinstance(value, Mapping):
             return [u'Expected "{}", found not an object.'.format(type)]
 
         fields = type.fields

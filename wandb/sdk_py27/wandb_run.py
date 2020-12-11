@@ -4,7 +4,6 @@
 from __future__ import print_function
 
 import atexit
-import collections
 from datetime import timedelta
 import glob
 import json
@@ -25,6 +24,7 @@ from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
 from wandb.apis import internal, public
+from wandb.compat.collections.abc import Mapping
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
@@ -783,7 +783,7 @@ class Run(object):
 
         """
         # TODO(cling): sync is a noop for now
-        if not isinstance(data, collections.Mapping):
+        if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, string_types) for key in data.keys()):

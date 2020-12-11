@@ -1,4 +1,4 @@
-import collections
+from wandb.compat.collections.abc import Iterable, Mapping
 
 from ..pyutils.ordereddict import OrderedDict
 from ..utils.assert_valid_name import assert_valid_name
@@ -52,14 +52,14 @@ class GraphQLDirective(object):
     def __init__(self, name, description=None, args=None, locations=None):
         assert name, 'Directive must be named.'
         assert_valid_name(name)
-        assert isinstance(locations, collections.Iterable), 'Must provide locations for directive.'
+        assert isinstance(locations, Iterable), 'Must provide locations for directive.'
 
         self.name = name
         self.description = description
         self.locations = locations
 
         if args:
-            assert isinstance(args, collections.Mapping), '{} args must be a dict with argument names as keys.'.format(name)
+            assert isinstance(args, Mapping), '{} args must be a dict with argument names as keys.'.format(name)
             for arg_name, _arg in args.items():
                 assert_valid_name(arg_name)
                 assert is_input_type(_arg.type), '{}({}) argument type must be Input Type but got {}.'.format(

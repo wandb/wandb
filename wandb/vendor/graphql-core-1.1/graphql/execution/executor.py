@@ -1,4 +1,5 @@
 import collections
+from wandb.compat.collections.abc import Iterable
 import functools
 import logging
 import sys
@@ -294,7 +295,7 @@ def complete_list_value(exe_context, return_type, field_asts, info, result):
     """
     Complete a list value by completing each item in the list with the inner type
     """
-    assert isinstance(result, collections.Iterable), \
+    assert isinstance(result, Iterable), \
         ('User Error: expected iterable, but did not find one ' +
          'for field {}.{}.').format(info.parent_type, info.field_name)
 

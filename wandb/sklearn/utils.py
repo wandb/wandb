@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import collections
+from wandb.compat.collections.abc import Sequence, Iterable
 import sklearn
 import scipy
 import wandb
@@ -31,8 +31,8 @@ def test_types(**kwargs):
             if not isinstance(
                 v,
                 (
-                    collections.Sequence,
-                    collections.Iterable,
+                    Sequence,
+                    Iterable,
                     np.ndarray,
                     np.generic,
                     pd.DataFrame,
