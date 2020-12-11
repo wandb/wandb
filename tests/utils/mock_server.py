@@ -664,6 +664,7 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
+        CTX.persist(g.ctx)
         return json.dumps({"exitcode": None, "limits": {}})
 
     @app.route("/api/v1/namespaces/default/pods/test")
