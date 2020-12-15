@@ -33,7 +33,7 @@ import binascii
 from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
-
+from wandb.errors.error import UsageError
 
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
@@ -731,6 +731,7 @@ class Object3D(BatchableMedia):
     """
 
     SUPPORTED_TYPES = set(["obj", "gltf", "babylon", "stl"])
+    artifact_type = "object3D-file"
 
     def __init__(self, data_or_path, **kwargs):
         super(Object3D, self).__init__()
@@ -832,9 +833,42 @@ class Object3D(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join("media", "object3D")
 
-    def to_json(self, run):
-        json_dict = super(Object3D, self).to_json(run)
-        json_dict["_type"] = "object3D-file"
+    def to_json(self, run_or_artifact):
+        json_dict = super(Object3D, self).to_json(run_or_artifact)
+        json_dict["_type"] = Object3D.artifact_type
+
+        _, wandb_artifacts = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+            artifact: wandb_artifacts.Artifact = run_or_artifact
+            if not self._path.endswith(".pts.json"):
+                raise UsageError("Non-point cloud 3D objects are not yet supported with Artifacts")
+
+            # Checks if the concrete object has already been added to this artifact
+            name = artifact.get_added_local_path_name(self._path)
+            if name is None:
+                name = os.path.join(
+                    self.get_media_subdir(), os.path.basename(self._path)
+                )
+
+                # if not, check to see if there is a source artifact for this object
+                if (
+                    self.artifact_source is not None
+                    and self.artifact_source["artifact"] != artifact
+                ):
+                    default_root = self.artifact_source["artifact"]._default_root()
+                    # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                    if self._path.startswith(default_root):
+                        name = self._path[len(default_root) :]
+                        name = name.lstrip(os.sep)
+
+                    # Add this object as a reference
+                    path = self.artifact_source["artifact"].get_path(name)
+                    artifact.add_reference(path.ref_url(), name=name)
+                else:
+                    artifact.add_file(self._path, name=name)
+
+
         return json_dict
 
     @classmethod
