@@ -681,7 +681,6 @@ class _WBAllowableType(_WBType):
         return new_type
 
 
-# TODO: Allow users to update the Classes' class_set retroactively
 class _WBClassesIdType(_WBAllowableType):
     name = "wandb.Classes_id"
 
@@ -879,8 +878,6 @@ class Table(Media):
                     current_type, incoming_type
                 )
             )
-
-    # TODO: Consider: (classes.get_class(ID), pull up classes from image)
 
     # TODO: In the future, it would be great to have a "column" class similar to
     # pandas "Series" class. However, this requires reorienting the table into
