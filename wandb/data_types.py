@@ -529,11 +529,24 @@ class _WBType(object):
             del res["schema"]
         return res
 
+    @staticmethod
+    def _from_dict(json_dict, artifact=None):
+        if type(json_dict) == dict:
+            if "wb_type" in json_dict:
+                return _WBType.parse_dict(json_dict, artifact)
+            else:
+                return {
+                    key: _WBType._from_dict(json_dict[key], artifact)
+                    for key in json_dict
+                }
+        else:
+            return json_dict
+
     # Safe to override
     @classmethod
     def from_dict(cls, json_dict, artifact=None):
         new_type = cls()
-        new_type.schema = json_dict.get("schema", {})
+        new_type.schema = _WBType._from_dict(json_dict.get("schema", {}), artifact)
         return new_type
 
     # Safe to override
@@ -584,7 +597,9 @@ class _WBObjectType(_WBType):
 class _WBListType(_WBType):
     name = "list"
 
-    def __init__(self, py_list=[]):
+    def __init__(self, py_list=None):
+        if py_list is None:
+            py_list = []
         super(_WBListType, self).__init__(py_list)
         elm_type = _WBType()
         for item in py_list:
@@ -614,7 +629,9 @@ class _WBListType(_WBType):
 class _WBDictType(_WBType):
     name = "dictionary"
 
-    def __init__(self, py_dict={}):
+    def __init__(self, py_dict=None):
+        if py_dict is None:
+            py_dict = {}
         super(_WBDictType, self).__init__(py_dict)
         key_types = {}
         for key in py_dict:
@@ -653,7 +670,9 @@ class _WBDictType(_WBType):
 class _WBAllowableType(_WBType):
     name = "allowable"
 
-    def __init__(self, value_list=[]):
+    def __init__(self, value_list=None):
+        if value_list is None:
+            value_list = []
         super(_WBAllowableType, self).__init__(value_list)
         self.schema["allowed_values"] = set(value_list)
 
@@ -712,11 +731,13 @@ class _WBClassesIdType(_WBAllowableType):
 
     @classmethod
     def from_dict(cls, json_dict, artifact=None):
-        new_type = super(_WBClassesIdType, self).from_dict(json_dict, artifact=None)
+        new_type = super(_WBAllowableType, _WBClassesIdType).from_dict(
+            json_dict, artifact=None
+        )
         assert type(new_type) == _WBClassesIdType
-        if artifact is not None and "path" in json_obj["schema"]["classes"]:
+        if artifact is not None and "path" in json_dict["schema"]["classes"]:
             new_type.classes_obj_ref = artifact.get(
-                json_obj["schema"]["classes"]["path"]
+                json_dict["schema"]["classes"]["path"]
             )
         else:
             new_type.classes_obj_ref = Classes.from_json(
@@ -728,18 +749,18 @@ class _WBClassesIdType(_WBAllowableType):
 class _WBImageType(_WBType):
     name = "wandb.Image"
 
-    def __init__(self, wb_image):
-        assert wb_image.__class__ == Image
+    def __init__(self, wb_image=None):
+        assert wb_image is None or wb_image.__class__ == Image
         super(_WBImageType, self).__init__(wb_image)
         # It would be nice to use the dict type here, but this is a special case
         # where we only care about the first-level keys of a few fields.
         self.schema.update(
             {
                 "box_keys": set(
-                    list(wb_image._boxes.keys()) if wb_image._boxes else []
+                    list(wb_image._boxes.keys()) if wb_image and wb_image._boxes else []
                 ),
                 "mask_keys": set(
-                    list(wb_image._masks.keys()) if wb_image._masks else []
+                    list(wb_image._masks.keys()) if wb_image and wb_image._masks else []
                 ),
             }
         )
