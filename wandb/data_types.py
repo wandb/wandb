@@ -830,7 +830,7 @@ class Table(Media):
                 dataframe
             ), "dataframe argument expects a `Dataframe` object"
             self.columns = list(dataframe.columns)
-            self._column_types = _WBType({col_key: _WBType() for col_key in columns})
+            self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
             self.data = []
             for row in range(len(dataframe)):
                 self.add_data(
@@ -838,7 +838,7 @@ class Table(Media):
                 )
         else:
             self.columns = columns
-            self._column_types = _WBType({col_key: _WBType() for col_key in columns})
+            self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
             self.data = []
             _data = list(rows or data or [])
             for row in _data:
