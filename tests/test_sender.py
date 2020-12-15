@@ -320,6 +320,7 @@ def test_save_live_glob_multi_write(
         f.write("TEST TEST TEST TEST")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
+    time.sleep(1.5)
     stop_backend()
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1

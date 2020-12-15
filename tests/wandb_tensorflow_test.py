@@ -127,10 +127,12 @@ def test_compat_tensorboard(live_mock_server, test_settings):
 
     with tf.compat.v1.Session() as sess:
         initializer = tf.compat.v1.truncated_normal_initializer(mean=0, stddev=1)
-        x_scalar = tf.compat.v1.get_variable('x_scalar', shape=[], initializer=initializer)
-        x_summary = tf.compat.v1.summary.scalar('x_scalar', x_scalar)
+        x_scalar = tf.compat.v1.get_variable(
+            "x_scalar", shape=[], initializer=initializer
+        )
+        x_summary = tf.compat.v1.summary.scalar("x_scalar", x_scalar)
         init = tf.compat.v1.global_variables_initializer()
-        writer = tf.compat.v1.summary.FileWriter('./summary', sess.graph)
+        writer = tf.compat.v1.summary.FileWriter("./summary", sess.graph)
         for step in range(10):
             sess.run(init)
             summary = sess.run(x_summary)
