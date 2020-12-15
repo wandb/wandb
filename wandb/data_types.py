@@ -569,6 +569,7 @@ class _WBObjectType(_WBType):
     name = "object"
 
     def __init__(self, py_obj=None):
+        super(_WBObjectType, self).__init__(py_obj)
         self.schema["class_name"] = py_obj.__class__.__name__
 
 
