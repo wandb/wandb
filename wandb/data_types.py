@@ -523,7 +523,7 @@ class _WBType(object):
     def to_dict(self, artifact=None):
         res = {
             "wb_type": self.name,
-            "schema": _WBType._to_dict(self.schema),
+            "schema": _WBType._to_dict(self.schema, artifact),
         }
         if res["schema"] == {}:
             del res["schema"]
@@ -537,11 +537,9 @@ class _WBType(object):
         return new_type
 
     # Safe to override
-    def type_by_obj_assignment(self, py_obj):
-        self.type_by_assignment(_WBType.from_obj(py_obj))
-
-    # Safe to override
-    def type_by_assignment(self, wb_type):
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        if wb_type is None:
+            wb_type = _WBType.from_obj(py_obj)
         if wb_type.name == "none":
             return self
         elif self.name == "none" or self.name == wb_type.name:
@@ -572,6 +570,16 @@ class _WBObjectType(_WBType):
         super(_WBObjectType, self).__init__(py_obj)
         self.schema["class_name"] = py_obj.__class__.__name__
 
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        other_type = super(_WBObjectType, self).type_by_assignment(py_obj, wb_type)
+        if (
+            other_type is not None
+            and other_type.schema["class_name"] == self.schema["class_name"]
+        ):
+            return self
+        else:
+            return None
+
 
 class _WBListType(_WBType):
     name = "list"
@@ -580,41 +588,27 @@ class _WBListType(_WBType):
         super(_WBListType, self).__init__(py_list)
         elm_type = _WBType()
         for item in py_list:
-            _elm_type = _WBType.from_obj(item)
-            elm_type = elm_type.type_by_assignment(_elm_type)
-            if elm_type is None:
+            _elm_type = elm_type.type_by_assignment(item)
+            if _elm_type is None:
                 raise TypeError(
                     "List contained incompatible types. Expected {} found {}".format(
-                        elm_type, _elm_type
+                        elm_type, item
                     )
                 )
+            elm_type = _elm_type
         self.schema["element_type"] = elm_type
 
-    def type_by_assignment(self, wb_type):
-        other_type = super(_WBListType, self).type_by_assignment(wb_type)
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        other_type = super(_WBListType, self).type_by_assignment(py_obj, wb_type)
         new_list_type = None
         if other_type is not None:
             new_elm_type = self.schema["element_type"].type_by_assignment(
-                other_type.schema["element_type"]
+                py_obj, other_type.schema["element_type"]
             )
             if new_elm_type is not None:
                 new_list_type = _WBListType()
                 new_list_type.schema["element_type"] = new_elm_type
         return new_list_type
-
-    # def type_by_obj_append(self, py_obj):
-    #     self.type_by_append(_WBType.from_obj(py_obj))
-
-    # def type_by_append(self, wb_type):
-    #     new_list_type = None
-    #     if wb_type.name == "none":
-    #         new_list_type = self
-    #     else:
-    #         new_elm_type = self.schema["element_type"].type_by_assignment(wb_type)
-    #         if new_elm_type is not None:
-    #             new_list_type = _WBListType()
-    #             new_list_type.schema["element_type"] = new_elm_type
-    #     return new_list_type
 
 
 class _WBDictType(_WBType):
@@ -627,16 +621,17 @@ class _WBDictType(_WBType):
             key_types[key] = _WBType.from_obj(py_dict[key])
         self.schema["key_types"] = key_types
 
-    def type_by_assignment(self, wb_type):
+    def type_by_assignment(self, py_obj=None, wb_type=None):
         # if the key exists, then it must be assignable to the type
-        other_type = super(_WBDictType, self).type_by_assignment(wb_type)
+        other_type = super(_WBDictType, self).type_by_assignment(py_obj, wb_type)
         new_dict_type = None
         if other_type is not None:
             key_types = {}
             for key in self.schema["key_types"]:
                 if key in other_type.schema["key_types"]:
                     new_key_type = self.schema["key_types"][key].type_by_assignment(
-                        other_type.schema["key_types"][key]
+                        py_obj[key] if py_obj else None,
+                        other_type.schema["key_types"][key],
                     )
                     if new_key_type is None:
                         return None
@@ -662,22 +657,23 @@ class _WBAllowableType(_WBType):
         super(_WBAllowableType, self).__init__(value_list)
         self.schema["allowed_values"] = set(value_list)
 
-    def type_by_obj_assignment(self, py_obj):
-        if py_obj in self.schema["allowed_values"]:
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        if py_obj is None or py_obj in self.schema["allowed_values"]:
             return self
         else:
-            return None
-
-    def type_by_assignment(self, wb_type):
-        other_type = super(_WBAllowableType, self).type_by_assignment(wb_type)
-        if (
-            other_type is not None
-            and len(other_type.schema["allowed_values"] - self.schema["allowed_values"])
-            == 0
-        ):
-            return self
-        else:
-            return None
+            other_type = super(_WBAllowableType, self).type_by_assignment(
+                py_obj, wb_type
+            )
+            if (
+                other_type is not None
+                and len(
+                    other_type.schema["allowed_values"] - self.schema["allowed_values"]
+                )
+                == 0
+            ):
+                return self
+            else:
+                return None
 
     @classmethod
     def from_dict(cls, json_dict, artifact=None):
@@ -748,8 +744,8 @@ class _WBImageType(_WBType):
             }
         )
 
-    def type_by_assignment(self, wb_type):
-        other_type = super(_WBImageType, self).type_by_assignment(wb_type)
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        other_type = super(_WBImageType, self).type_by_assignment(py_obj, wb_type)
         if other_type is not None and (
             self.schema["box_keys"] == other_type.schema["box_keys"]
             and self.schema["mask_keys"] == other_type.schema["mask_keys"]
@@ -773,12 +769,12 @@ class _WBTableType(_WBType):
             }
         )
 
-    def type_by_assignment(self, wb_type):
-        other_type = super(_WBTableType, self).type_by_assignment(wb_type)
+    def type_by_assignment(self, py_obj=None, wb_type=None):
+        other_type = super(_WBTableType, self).type_by_assignment(py_obj, wb_type)
         new_table_type = None
         if other_type is not None:
             combined_column_types = self.schema["column_types"].type_by_assignment(
-                other_type.schema["column_types"]
+                None, other_type.schema["column_types"]
             )
             if combined_column_types is not None:
                 new_table_type = _WBTableType()
@@ -830,7 +826,9 @@ class Table(Media):
                 dataframe
             ), "dataframe argument expects a `Dataframe` object"
             self.columns = list(dataframe.columns)
-            self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+            self._column_types = _WBType.from_obj(
+                {col_key: None for col_key in columns}
+            )
             self.data = []
             for row in range(len(dataframe)):
                 self.add_data(
@@ -838,7 +836,9 @@ class Table(Media):
                 )
         else:
             self.columns = columns
-            self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+            self._column_types = _WBType.from_obj(
+                {col_key: None for col_key in columns}
+            )
             self.data = []
             _data = list(rows or data or [])
             for row in _data:
@@ -874,15 +874,15 @@ class Table(Media):
         self.data.append(list(data))
 
     def _validate_data(self, data):
-        incoming_type = _WBDictType(
-            {col_key: data[ndx] for ndx, col_key in enumerate(self.columns)}
-        )
+        incoming_data_dict = {
+            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+        }
         current_type = self._column_types
-        result_type = current_type.type_by_assignment(incoming_type)
+        result_type = current_type.type_by_assignment(incoming_data_dict)
         if result_type is None:
             raise TypeError(
-                "Data column contained incompatible types. Expected type {}, found type {}".format(
-                    current_type, incoming_type
+                "Data column contained incompatible types. Expected type {}, found data {}".format(
+                    current_type, incoming_data_dict
                 )
             )
         self._column_types = result_type
@@ -894,7 +894,7 @@ class Table(Media):
         assert isinstance(new_type, _WBType)
         col_ndx = self.columns.index(col_name)
         for row in self.data:
-            result_type = new_type.type_by_obj_assignment(row[col_ndx])
+            result_type = new_type.type_by_assignment(row[col_ndx])
             if result_type is None:
                 raise TypeError(
                     "Existing data {}, of type {} cannot be coerced into {}".format(
@@ -973,13 +973,22 @@ class Table(Media):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
+
+            def json_helper(val):
+                if isinstance(val, WBValue):
+                    return val.to_json(artifact)
+                elif val.__class__ == dict:
+                    res = {}
+                    for key in val:
+                        res[key] = json_helper(val[key])
+                    return res
+                else:
+                    return val
+
             for row in data:
                 mapped_row = []
                 for v in row:
-                    if isinstance(v, WBValue):
-                        mapped_row.append(v.to_json(artifact))
-                    else:
-                        mapped_row.append(v)
+                    mapped_row.append(json_helper(v))
                 mapped_data.append(mapped_row)
             json_dict.update(
                 {
