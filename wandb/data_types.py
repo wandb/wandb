@@ -456,7 +456,7 @@ class BatchableMedia(Media):
         raise NotImplementedError
 
 
-class _WBType:
+class _WBType(object):
     name = "none"
     schema = None
 
