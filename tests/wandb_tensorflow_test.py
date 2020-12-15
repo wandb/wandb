@@ -3,7 +3,7 @@
 import pprint
 
 import os
-import six
+import json
 import sys
 import pytest
 
@@ -119,3 +119,27 @@ def test_hook(mocked_run):
 
     assert wandb.tensorboard.tf_summary_to_dict(summary) == {"c1": 42.0}
     assert summaries_logged[0]["c1"] == 42.0
+
+
+def test_compat_tensorboard(live_mock_server, test_settings):
+    # TODO: we currently don't unpatch tensorflow so this is the only test that can do it...
+    wandb.init(sync_tensorboard=True, settings=test_settings)
+
+    with tf.compat.v1.Session() as sess:
+        initializer = tf.compat.v1.truncated_normal_initializer(mean=0, stddev=1)
+        x_scalar = tf.compat.v1.get_variable('x_scalar', shape=[], initializer=initializer)
+        x_summary = tf.compat.v1.summary.scalar('x_scalar', x_scalar)
+        init = tf.compat.v1.global_variables_initializer()
+        writer = tf.compat.v1.summary.FileWriter('./summary', sess.graph)
+        for step in range(10):
+            sess.run(init)
+            summary = sess.run(x_summary)
+            writer.add_summary(summary, step)
+        writer.close()
+    wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+    print("CONTEXT!", server_ctx)
+    first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
+    print(first_stream_hist)
+    assert json.loads(first_stream_hist["content"][-1])["_step"] == 9
+    assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9
