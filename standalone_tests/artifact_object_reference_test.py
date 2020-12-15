@@ -112,6 +112,11 @@ def _make_wandb_image(suffix=""):
 
 
 def _make_wandb_table():
+    classes = wandb.Classes([
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
+        {"id": 3, "name": "road"},
+    ])
     table = wandb.Table(
         columns=columns,
         data=[
@@ -121,11 +126,7 @@ def _make_wandb_table():
             [3, "string2", False, -0, -1.4, _make_wandb_image("2")],
         ],
     )
-    table.add_column_context(0, wandb.Classes([
-        {"id": 1, "name": "tree"},
-        {"id": 2, "name": "car"},
-        {"id": 3, "name": "road"},
-    ]))
+    table.convert_column("class_id", classes.id_type())
     return table
 
 def _make_wandb_joinedtable():
