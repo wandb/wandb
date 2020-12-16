@@ -183,6 +183,8 @@ def stop_backend(
             ret = sender.communicate_poll_exit()
             if ret.response.poll_exit_response.done:
                 break
+            elif i == 4:
+                print("!!! Failed to poll backend for exit")
             else:
                 time.sleep(1)
 
@@ -319,18 +321,24 @@ def test_save_live_glob_multi_write(
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
     test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
+    print("Wrote file 1")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
     time.sleep(1.5)
+    print("Wrote file 1 2nd time")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST")
     # File system polling happens every second
     time.sleep(1.5)
+    print("Wrote file 2")
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
+    print("Wrote file 1 3rd time")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
+    print("Stopping backend")
     stop_backend()
+    print("Backend stopped")
     print(
         "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
@@ -438,13 +446,17 @@ def test_save_glob_multi_write(
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
     test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
+    print("Wrote file 1")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
     # File system polling happens every second
     time.sleep(1.5)
+    print("Wrote file 2")
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
+    print("Stopping backend")
     stop_backend()
+    print("Backend stopped")
     print(
         "CTX", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
