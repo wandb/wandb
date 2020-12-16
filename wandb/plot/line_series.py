@@ -7,7 +7,7 @@ def line_series(xs, ys, keys=None, title=None, xname=None):
     Construct a line series plot.
 
     Arguments:
-        xs (array of array): Array of arrays of x values
+        xs (array of arrays, or array): Array of arrays of x values
         ys (array of arrays): Array of y values
         title (string): Plot title.
         xname: Title of x-axis
@@ -17,7 +17,7 @@ def line_series(xs, ys, keys=None, title=None, xname=None):
 
     Example:
         ```
-        When logging a singlular array for x, all ys are plotted against that x
+        When logging a singular array for x, all ys are plotted against that x
         x = [i for i in range(10)]
         ys = [
             [i for i in range(10)],
