@@ -5,6 +5,7 @@ import pprint
 import os
 import json
 import sys
+import platform
 import pytest
 
 if sys.version_info >= (3, 9):
@@ -121,7 +122,10 @@ def test_hook(mocked_run):
     assert summaries_logged[0]["c1"] == 42.0
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
 def test_compat_tensorboard(live_mock_server, test_settings):
     # TODO: we currently don't unpatch tensorflow so this is the only test that can do it...
     wandb.init(sync_tensorboard=True, settings=test_settings)
