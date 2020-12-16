@@ -481,18 +481,59 @@ class Table(Media):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
-        self.columns = columns
-        self.data = list(rows or data or [])
+        # Explicit dataframe option
         if dataframe is not None:
-            assert util.is_pandas_data_frame(
-                dataframe
-            ), "dataframe argument expects a `Dataframe` object"
-            self.columns = list(dataframe.columns)
-            self.data = []
-            for row in range(len(dataframe)):
-                self.add_data(
-                    *tuple(dataframe[col].values[row] for col in self.columns)
-                )
+            self._init_from_dataframe(dataframe, columns)
+        else:
+            # Expected pattern
+            if data is not None:
+                if util.is_numpy_array(data):
+                    self._init_from_ndarray(data, columns)
+                elif util.is_pandas_data_frame(data):
+                    self._init_from_dataframe(data, columns)
+                else:
+                    self._init_from_list(data, columns)
+
+            # legacy
+            elif rows is not None:
+                self._init_from_list(rows, columns)
+
+            # Default empty case
+            else:
+                self._init_from_list([], columns)
+
+    @staticmethod
+    def _assert_valid_columns(columns):
+        valid_col_types = [str, int]
+        if sys.version_info.major < 3:
+            valid_col_types.append(unicode)
+        assert type(columns) is list, "columns argument expects a `list` object"
+        assert len(columns) == 0 or all(
+            [type(col) in valid_col_types for col in columns]
+        ), "columns argument expects list of strings or ints"
+
+    def _init_from_list(self, data, columns):
+        assert type(data) is list, "data argument expects a `list` object"
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self.data = data
+
+    def _init_from_ndarray(self, ndarray, columns):
+        assert util.is_numpy_array(
+            ndarray
+        ), "ndarray argument expects a `numpy.ndarray` object"
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self.data = ndarray.tolist()
+
+    def _init_from_dataframe(self, dataframe, columns):
+        assert util.is_pandas_data_frame(
+            dataframe
+        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        self.columns = list(dataframe.columns)
+        self.data = []
+        for row in range(len(dataframe)):
+            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def __ne__(self, other):
         return not self.__eq__(other)
