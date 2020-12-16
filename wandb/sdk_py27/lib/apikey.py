@@ -63,7 +63,7 @@ def prompt_api_key(  # noqa: C901
     """
     input_callback = input_callback or getpass.getpass
     log_string = term.LOG_STRING
-    api = api or InternalApi()
+    api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)
     jupyter = settings._jupyter or False
     app_url = api.app_url
