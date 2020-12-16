@@ -730,7 +730,7 @@ class Object3D(BatchableMedia):
 
     """
 
-    SUPPORTED_TYPES = set(["obj", "gltf", "babylon", "stl"])
+    SUPPORTED_TYPES = set(["obj", "gltf", "babylon", "stl", "pts.json"])
     artifact_type = "object3D-file"
 
     def __init__(self, data_or_path, **kwargs):
@@ -765,15 +765,17 @@ class Object3D(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
             path = data_or_path
-            try:
-                extension = os.path.splitext(data_or_path)[1][1:]
-            except:
-                raise ValueError("File type must have an extension")
-            if extension not in Object3D.SUPPORTED_TYPES:
+            extension = None
+            for supported_type in Object3D.SUPPORTED_TYPES:
+                if path.endswith(supported_type):
+                    extension = supported_type
+                    break
+            
+            if not extension:
                 raise ValueError(
-                    "Object 3D only supports numpy arrays or files of the type: "
-                    + ", ".join(Object3D.SUPPORTED_TYPES)
-                )
+                    "File '" + path +
+                    "' is not compatible with Object3D: supported types are: " +
+                    ", ".join(Object3D.SUPPORTED_TYPES))
 
             self._set_file(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
@@ -833,6 +835,12 @@ class Object3D(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join("media", "object3D")
 
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        return cls(
+            source_artifact.get_path(json_obj["path"]).download()
+        )
+
     def to_json(self, run_or_artifact):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D.artifact_type
@@ -842,7 +850,7 @@ class Object3D(BatchableMedia):
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact: wandb_artifacts.Artifact = run_or_artifact
             if not self._path.endswith(".pts.json"):
-                raise UsageError("Non-point cloud 3D objects are not yet supported with Artifacts")
+                raise ValueError("Non-point cloud 3D objects are not yet supported with Artifacts")
 
             # Checks if the concrete object has already been added to this artifact
             name = artifact.get_added_local_path_name(self._path)
