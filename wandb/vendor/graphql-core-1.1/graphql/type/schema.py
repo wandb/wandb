@@ -1,4 +1,4 @@
-from wandb.compat.collections.abc import Iterable
+from six.moves.collections_abc import Iterable
 
 from .definition import GraphQLObjectType
 from .directives import GraphQLDirective, specified_directives

@@ -1,4 +1,4 @@
-from wandb.compat.collections.abc import Mapping, Hashable
+from six.moves.collections_abc import Mapping, Hashable
 import collections
 import copy
 

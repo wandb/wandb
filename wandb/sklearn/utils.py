@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from wandb.compat.collections.abc import Sequence, Iterable
+from six.moves.collections_abc import Sequence, Iterable
 import sklearn
 import scipy
 import wandb

@@ -7,8 +7,8 @@ config.
 import logging
 
 import six
+from six.moves.collections_abc import Sequence
 import wandb
-from wandb.compat.collections.abc import Sequence
 from wandb.util import json_friendly
 
 from . import wandb_helper

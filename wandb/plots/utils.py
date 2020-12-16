@@ -2,7 +2,7 @@ import logging
 import wandb
 from wandb import util
 
-from wandb.compat.collections.abc import Sequence, Iterable
+from six.moves.collections_abc import Sequence, Iterable
 
 
 def deprecation_notice():

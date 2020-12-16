@@ -17,7 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
-from wandb.compat.collections.abc import Sequence
+from six.moves.collections_abc import Sequence
 import os
 import io
 import logging

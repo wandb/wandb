@@ -2,7 +2,7 @@
     Implementation of isValidJSValue from graphql.s
 """
 
-from wandb.compat.collections.abc import Iterable, Mapping
+from six.moves.collections_abc import Iterable, Mapping
 import json
 
 from six import string_types

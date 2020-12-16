@@ -1,4 +1,4 @@
-from wandb.compat.collections.abc import Iterable
+from six.moves.collections_abc import Iterable
 import json
 
 from six import string_types

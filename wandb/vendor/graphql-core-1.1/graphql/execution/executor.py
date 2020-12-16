@@ -1,5 +1,5 @@
 import collections
-from wandb.compat.collections.abc import Iterable
+from six.moves.collections_abc import Iterable
 import functools
 import logging
 import sys
