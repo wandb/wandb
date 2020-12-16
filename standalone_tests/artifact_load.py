@@ -25,7 +25,7 @@ TODO:
 """
 
 import argparse
-from wandb.compat.collections import defaultdict
+from collections import defaultdict
 from datetime import datetime
 import random
 import multiprocessing
