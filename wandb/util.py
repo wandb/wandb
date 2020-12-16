@@ -137,9 +137,9 @@ def vendor_setup():
     return reset_import_path
 
 
-def gpu_stats_binary():
+def apple_gpu_stats_binary():
     parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "vendor", "apple_gpu_stats")
+    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
 
 
 def vendor_import(name):

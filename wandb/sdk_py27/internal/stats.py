@@ -16,7 +16,8 @@ from . import tpu
 
 
 psutil = util.get_module("psutil")
-# TODO: hard coded max watts as 16.5, found this number in the SMC list...
+# TODO: hard coded max watts as 16.5, found this number in the SMC list.
+# Eventually we can have the apple_gpu_stats binary query for this.
 M1_MAX_POWER_WATTS = 16.5
 
 
@@ -205,15 +206,14 @@ class SystemStats(object):
             except pynvml.NVMLError:
                 pass
 
-        # On apple let's look for the gpu
+        # On Apple M1 systems let's look for the gpu
         if (
             platform.system() == "Darwin"
             and platform.processor() == "arm"
             and self.gpu_count == 0
         ):
             try:
-                # TODO: only add gpu utilization on arm64
-                out = subprocess.check_output([util.gpu_stats_binary(), "--json"])
+                out = subprocess.check_output([util.apple_gpu_stats_binary(), "--json"])
                 m1_stats = json.loads(out.split(b"\n")[0])
                 stats["gpu.0.gpu"] = m1_stats["utilization"]
                 stats["gpu.0.memoryAllocated"] = m1_stats["mem_used"]
@@ -222,6 +222,9 @@ class SystemStats(object):
                 stats["gpu.0.powerPercent"] = (
                     m1_stats["power"] / M1_MAX_POWER_WATTS
                 ) * 100
+                # TODO: this stat could be useful eventually, it was consistently
+                # 0 in my experimentation and requires a frontend change
+                # so leaving it out for now.
                 # stats["gpu.0.cpuWaitMs"] = m1_stats["cpu_wait_ms"]
             except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
                 wandb.termwarn("GPU stats error %s", e)
