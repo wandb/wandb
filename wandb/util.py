@@ -34,7 +34,8 @@ import six
 from six.moves import queue
 import textwrap
 from sys import getsizeof
-from collections import namedtuple, Mapping, Sequence
+from collections import namedtuple
+from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception

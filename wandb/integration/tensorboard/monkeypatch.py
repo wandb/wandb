@@ -10,6 +10,7 @@ import wandb
 
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
+TENSORFLOW_PY_MODULE = "tensorflow.python.summary.writer.writer"
 TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
@@ -20,8 +21,11 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
             "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once."
         )
 
+    # TODO: Some older versions of tensorflow don't require tensorboard to be present.
+    # we may want to lift this requirement, but it's safer to have it for now
     wandb.util.get_module("tensorboard", required="Please install tensorboard package")
     c_writer = wandb.util.get_module(TENSORBOARD_C_MODULE)
+    py_writer = wandb.util.get_module(TENSORFLOW_PY_MODULE)
     tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE)
     pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
 
@@ -32,15 +36,23 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
             save=save,
             root_logdir=root_logdir,
         )
+    # This is for tensorflow <= 1.15 (tf.compat.v1.summary.FileWriter)
+    if py_writer:
+        _patch_file_writer(
+            writer=py_writer,
+            module=TENSORFLOW_PY_MODULE,
+            save=save,
+            root_logdir=root_logdir,
+        )
     if tb_writer:
-        _patch_nontensorflow(
+        _patch_file_writer(
             writer=tb_writer,
             module=TENSORBOARD_WRITER_MODULE,
             save=save,
             root_logdir=root_logdir,
         )
     if pt_writer:
-        _patch_nontensorflow(
+        _patch_file_writer(
             writer=pt_writer,
             module=TENSORBOARD_PYTORCH_MODULE,
             save=save,
@@ -94,8 +106,8 @@ def _patch_tensorflow2(
     wandb.patched["tensorboard"].append([module, "create_summary_file_writer"])
 
 
-def _patch_nontensorflow(writer, module, save=None, root_logdir=None):
-    # This configures non-TensorFlow Tensorboard logging
+def _patch_file_writer(writer, module, save=None, root_logdir=None):
+    # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
     old_efw_class = writer.EventFileWriter
 
     logdir_hist = []
