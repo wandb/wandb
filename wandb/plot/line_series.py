@@ -26,12 +26,12 @@ def line_series(xs, ys, keys=None, title=None, xname=None):
         wandb.log({'line-series-plot1': wandb.plot.line_series(x, ys, "title", "step")})
 
         xs can also contain an array of arrays for having different steps for each metric
-        x = [[i for i in range(10)], [2*i for i in range(10)]]
+        xs = [[i for i in range(10)], [2*i for i in range(10)]]
         ys = [
             [i for i in range(10)],
             [i**2 for i in range(10)]
         ]
-        wandb.log({'line-series-plot1': wandb.plot.line_series(x, ys, "title", "step")})
+        wandb.log({'line-series-plot1': wandb.plot.line_series(xs, ys, "title", "step")})
         ```
     """
     data = []
