@@ -18,17 +18,20 @@ def test_attrib_get():
     assert s.this == 2
 
 
-@pytest.mark.skip(
-    reason=(
-        "re-enable this test when we have time to investigate "
-        "locking w/ allow_val_change"
-    )
-)
 def test_locked_set():
     s = wandb_sdk.Config()
     s.update_locked(dict(this=2, that=4), "sweep")
     s.this = 8
     assert s.this == 2
+    assert s.that == 4
+
+
+def test_locked_update():
+    s = wandb_sdk.Config()
+    s.update_locked(dict(this=2, that=4), "sweep")
+    s.update(dict(this = 8))
+    assert s.this == 2
+    assert s.that == 4
 
 
 def test_load_config_default():
