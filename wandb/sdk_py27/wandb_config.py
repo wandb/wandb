@@ -189,7 +189,6 @@ class Config(object):
 
     def update_locked(self, d, user=None):
         if user not in self._users:
-            # TODO(jhr): use __setattr__ madness
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
             object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
