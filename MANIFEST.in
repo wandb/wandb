@@ -1,7 +1,7 @@
 include wandb/py.typed
 include package_readme.md
 include requirements.txt
-include wandb/bin/*
+include wandb/bin/apple_gpu_stats
 
 recursive-include wandb *.py
 recursive-include wandb *.sh
