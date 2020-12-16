@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:/Users/vanpelt/Development/client/wandb/c/apple_gpu_stats/apple_gpu_stats.xcodeproj">
+      location = "self:">
    </FileRef>
 </Workspace>
