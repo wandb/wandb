@@ -1,6 +1,9 @@
 from __future__ import absolute_import
 
+import json
 from numbers import Number
+import platform
+import subprocess
 import threading
 import time
 
@@ -12,6 +15,8 @@ from . import tpu
 
 
 psutil = util.get_module("psutil")
+# TODO: hard coded max watts as 16.5, found this number in the SMC list...
+M1_MAX_POWER_WATTS = 16.5
 
 
 def gpu_in_use_by_this_process(gpu_handle):
@@ -154,23 +159,23 @@ class SystemStats(object):
         for i in range(0, self.gpu_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             try:
-                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                utilz = pynvml.nvmlDeviceGetUtilizationRates(handle)
                 memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
                 temp = pynvml.nvmlDeviceGetTemperature(
                     handle, pynvml.NVML_TEMPERATURE_GPU
                 )
                 in_use_by_us = gpu_in_use_by_this_process(handle)
 
-                stats["gpu.{}.{}".format(i, "gpu")] = util.gpu
-                stats["gpu.{}.{}".format(i, "memory")] = util.memory
+                stats["gpu.{}.{}".format(i, "gpu")] = utilz.gpu
+                stats["gpu.{}.{}".format(i, "memory")] = utilz.memory
                 stats["gpu.{}.{}".format(i, "memoryAllocated")] = (
                     memory.used / float(memory.total)
                 ) * 100
                 stats["gpu.{}.{}".format(i, "temp")] = temp
 
                 if in_use_by_us:
-                    stats["gpu.process.{}.{}".format(i, "gpu")] = util.gpu
-                    stats["gpu.process.{}.{}".format(i, "memory")] = util.memory
+                    stats["gpu.process.{}.{}".format(i, "gpu")] = utilz.gpu
+                    stats["gpu.process.{}.{}".format(i, "memory")] = utilz.memory
                     stats["gpu.process.{}.{}".format(i, "memoryAllocated")] = (
                         memory.used / float(memory.total)
                     ) * 100
@@ -198,6 +203,29 @@ class SystemStats(object):
 
             except pynvml.NVMLError:
                 pass
+
+        # On apple let's look for the gpu
+        if (
+            platform.system() == "Darwin"
+            and platform.processor() == "arm"
+            and self.gpu_count == 0
+        ):
+            try:
+                # TODO: only add gpu utilization on arm64
+                out = subprocess.check_output([util.gpu_stats_binary(), "--json"])
+                m1_stats = json.loads(out.split(b"\n")[0])
+                stats["gpu.0.gpu"] = m1_stats["utilization"]
+                stats["gpu.0.memoryAllocated"] = m1_stats["mem_used"]
+                stats["gpu.0.temp"] = m1_stats["temperature"]
+                stats["gpu.0.powerWatts"] = m1_stats["power"]
+                stats["gpu.0.powerPercent"] = (
+                    m1_stats["power"] / M1_MAX_POWER_WATTS
+                ) * 100
+                # stats["gpu.0.cpuWaitMs"] = m1_stats["cpu_wait_ms"]
+            except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+                wandb.termwarn("GPU stats error %s", e)
+                pass
+
         if psutil:
             net = psutil.net_io_counters()
             sysmem = psutil.virtual_memory()

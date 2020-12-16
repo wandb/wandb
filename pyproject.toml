@@ -5,6 +5,7 @@ exclude = '''
 | wandb/sdk_py27/
 | wandb/sweeps/
 | wandb/old/
+| wandb/c/
 | wandb/proto/
 | wandb/docker/wandb-entrypoint.sh
 | tests/fixtures/
@@ -13,6 +14,6 @@ exclude = '''
 | tests/notebooks/
 '''
 include = '''
-  wandb/
-| tests/
+  wandb/*\.pyi?$
+| tests/*\.pyi?$
 '''
