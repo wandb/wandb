@@ -133,7 +133,9 @@ def test_compat_tensorboard(live_mock_server, test_settings):
         )
         x_summary = tf.compat.v1.summary.scalar("x_scalar", x_scalar)
         init = tf.compat.v1.global_variables_initializer()
-        writer = tf.compat.v1.summary.FileWriter(os.path.join(".", "summary"), sess.graph)
+        writer = tf.compat.v1.summary.FileWriter(
+            os.path.join(".", "summary"), sess.graph
+        )
         for step in range(10):
             sess.run(init)
             summary = sess.run(x_summary)
