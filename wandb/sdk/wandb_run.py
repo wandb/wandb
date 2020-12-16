@@ -4,7 +4,6 @@
 from __future__ import print_function
 
 import atexit
-import collections
 from datetime import timedelta
 import glob
 import json
@@ -20,6 +19,7 @@ import traceback
 import click
 from six import iteritems, string_types
 from six.moves import _thread as thread
+from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
@@ -785,7 +785,7 @@ class Run(object):
 
         """
         # TODO(cling): sync is a noop for now
-        if not isinstance(data, collections.Mapping):
+        if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, string_types) for key in data.keys()):

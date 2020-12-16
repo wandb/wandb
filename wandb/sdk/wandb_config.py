@@ -6,12 +6,8 @@ config.
 
 import logging
 
-try:
-    from collections.abc import Sequence
-except ImportError:
-    from collections import Sequence
-
 import six
+from six.moves.collections_abc import Sequence
 import wandb
 from wandb.util import json_friendly
 

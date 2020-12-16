@@ -17,7 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
-import collections
+from six.moves.collections_abc import Sequence
 import os
 import io
 import logging
@@ -1847,7 +1847,7 @@ class BoundingBoxes2D(JSONMetadata):
                     )
 
         boxes = val["box_data"]
-        if not isinstance(boxes, collections.Sequence):
+        if not isinstance(boxes, Sequence):
             raise TypeError("Boxes must be a list")
 
         for box in boxes:
@@ -2503,9 +2503,7 @@ def numpy_arrays_to_lists(payload):
         for key, val in six.iteritems(payload):
             res[key] = numpy_arrays_to_lists(val)
         return res
-    elif isinstance(payload, collections.Sequence) and not isinstance(
-        payload, six.string_types
-    ):
+    elif isinstance(payload, Sequence) and not isinstance(payload, six.string_types):
         return [numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
         return [numpy_arrays_to_lists(v) for v in payload.tolist()]
@@ -2540,9 +2538,7 @@ def val_to_json(run, key, val, namespace=None):
         return data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, collections.Sequence) and all(
-        isinstance(v, WBValue) for v in val
-    ):
+    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)
