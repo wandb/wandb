@@ -855,12 +855,21 @@ def load_yaml(file):
 
 
 def image_id_from_k8s():
-    """Pings the k8s metadata service for the image id"""
+    """Pings the k8s metadata service for the image id.  Specify the
+    KUBERNETES_NAMESPACE environment variable if your pods are not in
+    the default namespace:
+
+    - name: KUBERNETES_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     if os.path.exists(token_path):
-        k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
+        k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
             os.getenv("KUBERNETES_SERVICE_HOST"),
             os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+            os.getenv("KUBERNETES_NAMESPACE", "default"),
             os.getenv("HOSTNAME"),
         )
         try:
