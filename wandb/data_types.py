@@ -35,6 +35,7 @@ from wandb.util import has_num
 from wandb.compat import tempfile
 from wandb.errors.error import UsageError
 
+
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
 
@@ -113,8 +114,8 @@ class WBValue(object):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the 
-        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in 
+        """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
+        `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
         the `source_artifact`.
 
         Args:
@@ -478,8 +479,7 @@ class Table(Media):
         rows=None,
         dataframe=None,
     ):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api
-        """
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
         self.columns = columns
         self.data = list(rows or data or [])
@@ -556,7 +556,10 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        return cls(json_obj["columns"], data=data,)
+        return cls(
+            json_obj["columns"],
+            data=data,
+        )
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
@@ -607,19 +610,18 @@ class Table(Media):
 
 class Audio(BatchableMedia):
     """
-        Wandb class for audio clips.
+    Wandb class for audio clips.
 
-        Arguments:
-            data_or_path (string or numpy array): A path to an audio file
-                or a numpy array of audio data.
-            sample_rate (int): Sample rate, required when passing in raw
-                numpy array of audio data.
-            caption (string): Caption to display with audio.
+    Arguments:
+        data_or_path (string or numpy array): A path to an audio file
+            or a numpy array of audio data.
+        sample_rate (int): Sample rate, required when passing in raw
+            numpy array of audio data.
+        caption (string): Caption to display with audio.
     """
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data.
-        """
+        """Accepts a path to an audio file or a numpy array of audio data."""
         super(Audio, self).__init__()
         self._duration = None
         self._sample_rate = sample_rate
@@ -712,21 +714,21 @@ def is_numpy_array(data):
 
 class Object3D(BatchableMedia):
     """
-        Wandb class for 3D point clouds.
+    Wandb class for 3D point clouds.
 
-        Arguments:
-            data_or_path (numpy array, string, io):
-                Object3D can be initialized from a file or a numpy array.
+    Arguments:
+        data_or_path (numpy array, string, io):
+            Object3D can be initialized from a file or a numpy array.
 
-                The file types supported are obj, gltf, babylon, stl.  You can pass a path to
-                    a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
+            The file types supported are obj, gltf, babylon, stl.  You can pass a path to
+                a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
-                The shape of the numpy array must be one of either:
-                ```
-                [[x y z],       ...] nx3
-                [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-                [x y z r g b], ...] nx4 where is rgb is color
-                ```
+            The shape of the numpy array must be one of either:
+            ```
+            [[x y z],       ...] nx3
+            [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+            [x y z r g b], ...] nx4 where is rgb is color
+            ```
 
     """
 
@@ -770,12 +772,14 @@ class Object3D(BatchableMedia):
                 if path.endswith(supported_type):
                     extension = supported_type
                     break
-            
+
             if not extension:
                 raise ValueError(
-                    "File '" + path +
-                    "' is not compatible with Object3D: supported types are: " +
-                    ", ".join(Object3D.SUPPORTED_TYPES))
+                    "File '"
+                    + path
+                    + "' is not compatible with Object3D: supported types are: "
+                    + ", ".join(Object3D.SUPPORTED_TYPES)
+                )
 
             self._set_file(data_or_path, is_tmp=False)
         # Supported different types and scene for 3D scenes
@@ -837,9 +841,7 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        return cls(
-            source_artifact.get_path(json_obj["path"]).download()
-        )
+        return cls(source_artifact.get_path(json_obj["path"]).download())
 
     def to_json(self, run_or_artifact):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
@@ -850,7 +852,9 @@ class Object3D(BatchableMedia):
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact: wandb_artifacts.Artifact = run_or_artifact
             if not self._path.endswith(".pts.json"):
-                raise ValueError("Non-point cloud 3D objects are not yet supported with Artifacts")
+                raise ValueError(
+                    "Non-point cloud 3D objects are not yet supported with Artifacts"
+                )
 
             # Checks if the concrete object has already been added to this artifact
             name = artifact.get_added_local_path_name(self._path)
@@ -875,7 +879,6 @@ class Object3D(BatchableMedia):
                     artifact.add_reference(path.ref_url(), name=name)
                 else:
                     artifact.add_file(self._path, name=name)
-
 
         return json_dict
 
@@ -906,11 +909,11 @@ class Object3D(BatchableMedia):
 
 class Molecule(BatchableMedia):
     """
-        Wandb class for Molecular data
+    Wandb class for Molecular data
 
-        Arguments:
-            data_or_path (string, io):
-                Molecule can be initialized from a file name or an io object.
+    Arguments:
+        data_or_path (string, io):
+            Molecule can be initialized from a file name or an io object.
     """
 
     SUPPORTED_TYPES = set(
@@ -999,12 +1002,12 @@ class Molecule(BatchableMedia):
 
 class Html(BatchableMedia):
     """
-        Wandb class for arbitrary html
+    Wandb class for arbitrary html
 
-        Arguments:
-            data (string or io object): HTML to display in wandb
-            inject (boolean): Add a stylesheet to the HTML object.  If set
-                to False the HTML will pass through unchanged.
+    Arguments:
+        data (string or io object): HTML to display in wandb
+        inject (boolean): Add a stylesheet to the HTML object.  If set
+            to False the HTML will pass through unchanged.
     """
 
     def __init__(self, data, inject=True):
@@ -1069,20 +1072,20 @@ class Html(BatchableMedia):
 class Video(BatchableMedia):
 
     """
-        Wandb representation of video.
+    Wandb representation of video.
 
-        Arguments:
-            data_or_path (numpy array, string, io):
-                Video can be initialized with a path to a file or an io object.
-                    The format must be "gif", "mp4", "webm" or "ogg".
-                    The format must be specified with the format argument.
-                Video can be initialized with a numpy tensor.
-                    The numpy tensor must be either 4 dimensional or 5 dimensional.
-                    Channels should be (time, channel, height, width) or
-                        (batch, time, channel, height width)
-            caption (string): caption associated with the video for display
-            fps (int): frames per second for video. Default is 4.
-            format (string): format of video, necessary if initializing with path or io object.
+    Arguments:
+        data_or_path (numpy array, string, io):
+            Video can be initialized with a path to a file or an io object.
+                The format must be "gif", "mp4", "webm" or "ogg".
+                The format must be specified with the format argument.
+            Video can be initialized with a numpy tensor.
+                The numpy tensor must be either 4 dimensional or 5 dimensional.
+                Channels should be (time, channel, height, width) or
+                    (batch, time, channel, height width)
+        caption (string): caption associated with the video for display
+        fps (int): frames per second for video. Default is 4.
+        format (string): format of video, necessary if initializing with path or io object.
     """
 
     EXTS = ("gif", "mp4", "webm", "ogg")
@@ -1300,7 +1303,11 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(t1, t2, json_obj["join_key"],)
+        return cls(
+            t1,
+            t2,
+            json_obj["join_key"],
+        )
 
     @staticmethod
     def _validate_table_input(table):
@@ -1368,15 +1375,15 @@ class JoinedTable(Media):
 
 class Image(BatchableMedia):
     """
-        Wandb class for images.
+    Wandb class for images.
 
-        Arguments:
-            data_or_path (numpy array, string, io): Accepts numpy array of
-                image data, or a PIL image. The class attempts to infer
-                the data format and converts it.
-            mode (string): The PIL mode for an image. Most common are "L", "RGB",
-                "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
-            caption (string): Label for display of image.
+    Arguments:
+        data_or_path (numpy array, string, io): Accepts numpy array of
+            image data, or a PIL image. The class attempts to infer
+            the data format and converts it.
+        mode (string): The PIL mode for an image. Most common are "L", "RGB",
+            "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
+        caption (string): Label for display of image.
     """
 
     MAX_ITEMS = 108
@@ -1826,7 +1833,7 @@ class BoundingBoxes2D(JSONMetadata):
     def __init__(self, val, key, **kwargs):
         """
         Args:
-            val (dict): dictionary following the form: 
+            val (dict): dictionary following the form:
             {
                 "class_labels": optional mapping from class ids to strings {id: str}
                 "box_data": list of boxes: [
@@ -1967,7 +1974,7 @@ class ImageMask(Media):
     def __init__(self, val, key, **kwargs):
         """
         Args:
-            val (dict): dictionary following 1 of two forms: 
+            val (dict): dictionary following 1 of two forms:
             {
                 "mask_data": 2d array of integers corresponding to classes,
                 "class_labels": optional mapping from class ids to strings {id: str}
@@ -2025,7 +2032,8 @@ class ImageMask(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact):
@@ -2076,10 +2084,10 @@ class ImageMask(Media):
 
 class Plotly(Media):
     """
-        Wandb class for plotly plots.
+    Wandb class for plotly plots.
 
-        Arguments:
-            val: matplotlib or plotly figure
+    Arguments:
+        val: matplotlib or plotly figure
     """
 
     @classmethod
