@@ -1570,3 +1570,31 @@ def gc(args):
     click.echo(
         "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
     )
+
+
+@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@click.option("--host", default=None, help="Login to a specific instance of W&B")
+def verify(host):
+    api = InternalApi()
+    if api.api_key is None:
+        print('NOT LOGGED IN')
+    print(os.getcwd())
+    
+    ##### create a run
+    run = wandb.init(project='verify')
+    filepath = "./test with_special-characters.txt"
+    f = open(filepath, "w")
+    f.write("test")
+    f.close()
+    wandb.save(filepath)
+    wandb.finish()
+
+    public_api = wandb.Api()
+    run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
+    read_file = run.file(filepath).download(replace=True)
+    contents = read_file.read()
+    assert contents == "test"
+
+
+
+    
