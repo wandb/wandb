@@ -179,8 +179,6 @@ def stop_backend(
 ):
     def stop_backend_func():
         sender.communicate_exit(0, timeout=5)
-        # TODO: not sure if this is needed, desperate attempt to fix flaky tests
-        sm.finish()
 
     yield stop_backend_func
 
@@ -315,6 +313,7 @@ def test_save_live_glob_multi_write(
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
     test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
+    # To debug this test adds some prints to the dir_watcher.py _on_file_* handlers
     print("Wrote file 1")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
@@ -323,14 +322,13 @@ def test_save_live_glob_multi_write(
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST")
     # File system polling happens every second
-    time.sleep(2)
+    time.sleep(1.5)
     print("Wrote file 2")
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
     print("Wrote file 1 3rd time")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
-    time.sleep(2)
     print("Stopping backend")
     stop_backend()
     print("Backend stopped")
