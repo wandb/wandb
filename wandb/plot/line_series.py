@@ -1,5 +1,6 @@
-import wandb
 from collections.abc import Sequence
+
+import wandb
 
 
 def line_series(xs, ys, keys=None, title=None, xname=None):
