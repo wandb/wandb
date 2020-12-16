@@ -121,6 +121,7 @@ def test_hook(mocked_run):
     assert summaries_logged[0]["c1"] == 42.0
 
 
+@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_compat_tensorboard(live_mock_server, test_settings):
     # TODO: we currently don't unpatch tensorflow so this is the only test that can do it...
     wandb.init(sync_tensorboard=True, settings=test_settings)
@@ -132,7 +133,7 @@ def test_compat_tensorboard(live_mock_server, test_settings):
         )
         x_summary = tf.compat.v1.summary.scalar("x_scalar", x_scalar)
         init = tf.compat.v1.global_variables_initializer()
-        writer = tf.compat.v1.summary.FileWriter("./summary", sess.graph)
+        writer = tf.compat.v1.summary.FileWriter(os.path.join(".", "summary"), sess.graph)
         for step in range(10):
             sess.run(init)
             summary = sess.run(x_summary)

@@ -54,9 +54,7 @@ class PolicyNow(FileEventHandler):
 
     def on_modified(self, force=False):
         # only upload if we've never uploaded or when .save is called
-        print("Modified now", self.file_path)
         if self._last_sync is None or force:
-            print("Saving now", self.file_path)
             self._file_pusher.file_changed(self.save_name, self.file_path)
             self._last_sync = os.path.getmtime(self.file_path)
 
@@ -133,7 +131,6 @@ class PolicyLive(FileEventHandler):
             return 0
 
         time_elapsed = self.last_uploaded()
-        print("Modified live", self.file_path)
         if not self.synced or time_elapsed > self.min_wait_for_size(self.current_size):
             self.save_file()
         # if the run is finished, or wandb.save is called explicitly save me
@@ -141,7 +138,6 @@ class PolicyLive(FileEventHandler):
             self.save_file()
 
     def save_file(self):
-        print("Saving live", self.file_path)
         self._last_sync = os.path.getmtime(self.file_path)
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
