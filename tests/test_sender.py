@@ -124,10 +124,12 @@ def start_send_thread(sender_q, get_record):
 
     def start_send(send_manager):
         def target():
-            while not stop_event.is_set():
+            while True:
                 payload = get_record(input_q=sender_q, timeout=0.1)
                 if payload:
                     send_manager.send(payload)
+                elif stop_event.is_set():
+                    break
 
         t = threading.Thread(target=target)
         t.daemon = True
@@ -143,10 +145,12 @@ def start_handle_thread(record_q, get_record):
 
     def start_handle(handle_manager):
         def target():
-            while not stop_event.is_set():
+            while True:
                 payload = get_record(input_q=record_q, timeout=0.1)
                 if payload:
                     handle_manager.handle(payload)
+                elif stop_event.is_set():
+                    break
 
         t = threading.Thread(target=target)
         t.daemon = True
@@ -321,7 +325,9 @@ def test_save_live_glob_multi_write(
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
     stop_backend()
-    print("CTX:", [(k,v) for k,v in mock_server.ctx.items() if k.startswith("storage")])
+    print(
+        "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
+    )
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
@@ -433,7 +439,9 @@ def test_save_glob_multi_write(
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
     stop_backend()
-    print("CTX", [(k,v) for k,v in mock_server.ctx.items() if k.startswith("storage")])
+    print(
+        "CTX", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
+    )
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 1
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
