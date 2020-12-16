@@ -68,7 +68,8 @@ class GitRepo(object):
             return None
         if not self.repo.head or not self.repo.head.is_valid():
             return None
-        # Saw a user getting a Unicode decode error when parsing refs
+        # TODO: Saw a user getting a Unicode decode error when parsing refs,
+        # more details on implementing a real fix in [WB-4064]
         try:
             if len(self.repo.refs) > 0:
                 return self.repo.head.commit.hexsha
