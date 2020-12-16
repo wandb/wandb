@@ -178,15 +178,9 @@ def stop_backend(
     mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
 ):
     def stop_backend_func():
-        sender.publish_exit(0)
-        for i in range(5):
-            ret = sender.communicate_poll_exit()
-            if ret.response.poll_exit_response.done:
-                break
-            elif i == 4:
-                print("!!! Failed to poll backend for exit")
-            else:
-                time.sleep(1)
+        sender.communicate_exit(0, timeout=5)
+        # TODO: not sure if this is needed, desperate attempt to fix flaky tests
+        sm.finish()
 
     yield stop_backend_func
 
