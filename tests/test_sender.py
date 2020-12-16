@@ -318,18 +318,19 @@ def test_save_live_glob_multi_write(
     print("Wrote file 1")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
-    time.sleep(1.5)
+    time.sleep(2)
     print("Wrote file 1 2nd time")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST")
     # File system polling happens every second
-    time.sleep(1.5)
+    time.sleep(2)
     print("Wrote file 2")
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
     print("Wrote file 1 3rd time")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
+    time.sleep(2)
     print("Stopping backend")
     stop_backend()
     print("Backend stopped")
@@ -448,6 +449,7 @@ def test_save_glob_multi_write(
     print("Wrote file 2")
     with open(test_file_2, "w") as f:
         f.write("TEST TEST TEST TEST")
+    time.sleep(1.5)
     print("Stopping backend")
     stop_backend()
     print("Backend stopped")
