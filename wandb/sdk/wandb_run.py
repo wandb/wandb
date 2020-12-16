@@ -4,7 +4,6 @@
 from __future__ import print_function
 
 import atexit
-import collections
 from datetime import timedelta
 import glob
 import json
@@ -20,6 +19,7 @@ import traceback
 import click
 from six import iteritems, string_types
 from six.moves import _thread as thread
+from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
@@ -152,7 +152,7 @@ class Run(object):
             final value.
     """
 
-    def __init__(self, config=None, settings=None):
+    def __init__(self, config=None, settings=None, sweep_config=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
@@ -198,7 +198,7 @@ class Run(object):
         self._final_summary = None
         self._sampled_history = None
         self._jupyter_progress = None
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
@@ -248,7 +248,9 @@ class Run(object):
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
             )
-        self._config._update(config)
+        if sweep_config:
+            self._config.update_locked(sweep_config, user="sweep")
+        self._config._update(config, ignore_locked=True)
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
@@ -629,7 +631,7 @@ class Run(object):
             if "_wandb" in c_dict:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
-            self.config._update(c_dict, allow_val_change=True)
+            self.config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
@@ -783,7 +785,7 @@ class Run(object):
 
         """
         # TODO(cling): sync is a noop for now
-        if not isinstance(data, collections.Mapping):
+        if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, string_types) for key in data.keys()):
@@ -1034,7 +1036,7 @@ class Run(object):
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             sweep_line = (
                 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
                     sweep_url, sweep_url
@@ -1352,7 +1354,7 @@ class Run(object):
                 status_str += "\nProgram failed with code {}. ".format(self._exit_code)
                 if not self._settings._offline:
                     status_str += " Press ctrl-c to abort syncing."
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
             else:
                 print("")
@@ -1403,7 +1405,7 @@ class Run(object):
             if self._settings._jupyter:
                 log_user = "<code>{}</code>".format(log_user)
             log_str = "Find user logs for this run at: {}".format(log_user)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
@@ -1412,7 +1414,7 @@ class Run(object):
             if self._settings._jupyter:
                 log_internal = "<code>{}</code>".format(log_internal)
             log_str = "Find internal logs for this run at: {}".format(log_internal)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
@@ -1424,7 +1426,7 @@ class Run(object):
         if self._run_obj:
             run_url = self._get_run_url()
             run_name = self._get_run_name()
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(
                     """
                     <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a><br/>
@@ -1480,7 +1482,7 @@ class Run(object):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
                     summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1513,7 +1515,7 @@ class Run(object):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
                 history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1544,7 +1546,7 @@ class Run(object):
             self._poll_exit_response.file_counts.artifact_count,
             self._poll_exit_response.file_counts.other_count,
         )
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             ipython.display_html(file_str)
         else:
             wandb.termlog(file_str)

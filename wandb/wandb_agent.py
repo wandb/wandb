@@ -355,11 +355,12 @@ class Agent(object):
         )
 
         os.environ[wandb.env.RUN_ID] = run_id
-        os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
-            os.environ.get(wandb.env.DIR), config_file
-        )
+
+        base_dir = os.environ.get(wandb.env.DIR, "")
+        sweep_param_path = os.path.join(base_dir, config_file)
+        os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
         wandb_lib.config_util.save_config_file_from_dict(
-            os.environ[wandb.env.CONFIG_PATHS], command["args"]
+            sweep_param_path, command["args"]
         )
 
         env = dict(os.environ)

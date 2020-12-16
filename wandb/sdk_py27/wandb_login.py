@@ -133,7 +133,7 @@ class _WandbLogin(object):
             self._wl._update_user_settings()
 
     def prompt_api_key(self):
-        api = Api()
+        api = Api(self._settings)
         key = apikey.prompt_api_key(
             self._settings,
             api=api,
