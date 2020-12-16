@@ -15,9 +15,10 @@ IGNORE_KINDS = []
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
 
+# prefer tensorboard, fallback to protobuf in tensorflow when tboard isn't available
 pb = wandb.util.get_module(
     "tensorboard.compat.proto.summary_pb2"
-) or wandb.util.get_module("tensorflow.summary")
+) or wandb.util.get_module("tensorflow.core.framework.summary_pb2")
 if pb:
     Summary = pb.Summary
 else:
