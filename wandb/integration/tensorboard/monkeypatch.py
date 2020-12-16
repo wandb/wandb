@@ -3,6 +3,8 @@ monkeypatch: patch code to add tensorboard hooks
 """
 
 import os
+import socket
+import re
 
 import wandb
 
@@ -80,8 +82,13 @@ def _patch_tensorflow2(
             wandb.termwarn(
                 'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
             )
-
-        if root_logdir is not None and not os.path.abspath(logdir).startswith(
+        # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
+        # is genetered and ends with the hostname, update the root_logdir to match.
+        hostname = socket.gethostname()
+        search = re.search(r"-\d+_{}".format(hostname), logdir)
+        if search:
+            root_logdir_arg = logdir[: search.span()[1]]
+        elif root_logdir is not None and not os.path.abspath(logdir).startswith(
             os.path.abspath(root_logdir)
         ):
             wandb.termwarn(
@@ -109,12 +116,19 @@ def _patch_file_writer(writer, module, save=None, root_logdir=None):
         def __init__(self, logdir, *args, **kwargs):
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir
-            if len(set(logdir_hist)) > 1:
+            if len(set(logdir_hist)) > 1 and root_logdir is None:
                 wandb.termwarn(
                     'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
                 )
 
-            if root_logdir is not None and not os.path.abspath(logdir).startswith(
+            # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
+            # is genetered and ends with the hostname, update the root_logdir to match.
+            hostname = socket.gethostname()
+            search = re.search(r"-\d+_{}".format(hostname), logdir)
+            if search:
+                root_logdir_arg = logdir[: search.span()[1]]
+
+            elif root_logdir is not None and not os.path.abspath(logdir).startswith(
                 os.path.abspath(root_logdir)
             ):
                 wandb.termwarn(
