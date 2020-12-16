@@ -320,9 +320,8 @@ def test_save_live_glob_multi_write(
         f.write("TEST TEST TEST TEST")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST TEST TEST TEST TEST")
-    time.sleep(1.5)
     stop_backend()
-    print("CTX:", mock_server.ctx)
+    print("CTX:", [(k,v) for k,v in mock_server.ctx.items() if k.startswith("storage")])
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
@@ -429,12 +428,12 @@ def test_save_glob_multi_write(
     test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
     with open(test_file_1, "w") as f:
         f.write("TEST TEST")
-    with open(test_file_2, "w") as f:
-        f.write("TEST TEST TEST TEST")
     # File system polling happens every second
     time.sleep(1.5)
+    with open(test_file_2, "w") as f:
+        f.write("TEST TEST TEST TEST")
     stop_backend()
-    print("CTX", mock_server.ctx)
+    print("CTX", [(k,v) for k,v in mock_server.ctx.items() if k.startswith("storage")])
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 1
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
