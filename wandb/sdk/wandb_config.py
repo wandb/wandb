@@ -223,10 +223,6 @@ class Config(object):
         val = self._sanitize_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
-                import traceback
-
-                tb = traceback.format_stack()
-                raise Exception("error" + str(tb))
                 raise config_util.ConfigError(
                     (
                         'Attempted to change value of key "{}" '

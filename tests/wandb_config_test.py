@@ -29,7 +29,7 @@ def test_locked_set():
 def test_locked_update():
     s = wandb_sdk.Config()
     s.update_locked(dict(this=2, that=4), "sweep")
-    s.update(dict(this = 8))
+    s.update(dict(this=8))
     assert s.this == 2
     assert s.that == 4
 
