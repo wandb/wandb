@@ -1,4 +1,8 @@
 import pytest
+import sys
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("tensorflow")
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
@@ -76,6 +80,9 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
+)
 def test_keras_resume_best_metric(
     dummy_model, dummy_data, live_mock_server, test_settings
 ):

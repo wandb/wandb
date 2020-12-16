@@ -11,7 +11,7 @@ The most commonly used functions/objects are:
 - wandb.save — save files in association with your run, like model weights
 - wandb.restore — restore the state of your code when you ran a given run
 
-For examples usage, see https://docs.wandb.com/library/example-projects
+For examples usage, see github.com/wandb/examples
 """
 
 from __future__ import absolute_import
@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.11.dev1"
+__version__ = "0.10.13.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"

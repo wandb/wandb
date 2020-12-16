@@ -46,7 +46,6 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-    import tensorflow as tf
     from tensorflow.python.eager import context
     from tensorflow.python.keras.engine import training
 
@@ -159,11 +158,52 @@ if "keras" in sys.modules:
 else:
     add_import_hook("keras", _check_keras_version)
 
-
+import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
+tf_logger = tf.get_logger()
+
+
 patch_tf_keras()
+
+
+### For gradient logging ###
+
+
+class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+    def __init__(self):
+        super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+
+    @tf.function
+    def _resource_apply_dense(self, grad, var):
+        var.assign(grad)
+
+    def get_config(self):
+        return super(_CustomOptimizer, self).get_config()
+
+
+class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
+    """
+    Accumulates gradients during a fit() call when used in conjunction with
+    the CustomOptimizer above.
+    """
+
+    def set_model(self, model):
+        super(_GradAccumulatorCallback, self).set_model(model)
+        self.og_weights = model.get_weights()
+        self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
+
+    def on_batch_end(self, batch, logs=None):
+        for g, w in zip(self.grads, self.model.trainable_weights):
+            g += w.numpy()
+        self.model.set_weights(self.og_weights)
+
+    def get_grads(self):
+        return [g.copy() for g in self.grads]
+
+
+###
 
 
 class WandbCallback(keras.callbacks.Callback):
@@ -187,7 +227,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     WandbCallback can optionally save training and validation data for wandb to visualize.
 
-    Args:
+    Arguments:
         monitor (str): name of metric to monitor.  Defaults to val_loss.
         mode (str): one of {"auto", "min", "max"}.
             "min" - save model when monitor is minimized
@@ -297,9 +337,22 @@ class WandbCallback(keras.callbacks.Callback):
 
         self._prediction_batch_size = None
 
-        if self.training_data:
-            if len(self.training_data) != 2:
-                raise ValueError("training data must be a tuple of length two")
+        if self.log_gradients:
+            if int(tf.__version__.split(".")[0]) < 2:
+                raise Exception("Gradient logging requires tensorflow 2.0 or higher.")
+            if self.training_data is None:
+                raise ValueError(
+                    "training_data argument is required for gradient logging."
+                )
+            if isinstance(self.training_data, (list, tuple)):
+                if len(self.training_data) != 2:
+                    raise ValueError("training data must be a tuple of length two")
+                self._training_data_x, self._training_data_y = self.training_data
+            else:
+                self._training_data_x = (
+                    self.training_data
+                )  # generator, tf.data.Dataset etc
+                self._training_data_y = None
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
@@ -328,6 +381,18 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+    def _build_grad_accumulator_model(self):
+        inputs = self.model.inputs
+        outputs = self.model(inputs)
+        grad_acc_model = tf.keras.models.Model(inputs, outputs)
+        grad_acc_model.compile(loss=self.model.loss, optimizer=_CustomOptimizer())
+
+        # make sure magic doesn't think this is a user model
+        grad_acc_model._wandb_internal_model = True
+
+        self._grad_accumulator_model = grad_acc_model
+        self._grad_accumulator_callback = _GradAccumulatorCallback()
+
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
 
@@ -348,6 +413,8 @@ class WandbCallback(keras.callbacks.Callback):
             )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
+        if self.log_gradients:
+            self._build_grad_accumulator_model()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -642,58 +709,24 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
-        if not self.training_data:
-            raise ValueError("Need to pass in training data if logging gradients")
+        # Suppress callback warnings grad accumulator
+        og_level = tf_logger.level
+        tf_logger.setLevel("ERROR")
 
-        X_train = self.training_data[0]
-        y_train = self.training_data[1]
+        self._grad_accumulator_model.fit(
+            self._training_data_x,
+            self._training_data_y,
+            verbose=0,
+            callbacks=[self._grad_accumulator_callback],
+        )
+        tf_logger.setLevel(og_level)
+        weights = self.model.trainable_weights
+        grads = self._grad_accumulator_callback.grads
         metrics = {}
-        weights = self.model.trainable_weights  # weight tensors
-        # filter down weights tensors to only ones which are trainable
-        weights = [
-            weight
-            for weight in weights
-            if self.model.get_layer(weight.name.split("/")[0]).trainable
-        ]
-
-        gradients = self.model.optimizer.get_gradients(
-            self.model.total_loss, weights
-        )  # gradient tensors
-        if hasattr(self.model, "targets"):
-            # TF < 1.14
-            target = self.model.targets[0]
-            sample_weight = self.model.sample_weights[0]
-        elif (
-            hasattr(self.model, "_training_endpoints")
-            and len(self.model._training_endpoints) > 0
-        ):
-            # TF > 1.14 TODO: not sure if we're handling sample_weight properly here...
-            target = self.model._training_endpoints[0].training_target.target
-            sample_weight = self.model._training_endpoints[
-                0
-            ].sample_weight or K.variable(1)
-        else:
-            wandb.termwarn(
-                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client",
-                repeat=False,
-            )
-            return metrics
-        input_tensors = [
-            self.model.inputs[0],  # input data
-            # how much to weight each sample by
-            sample_weight,
-            target,  # labels
-            K.learning_phase(),  # train or test mode
-        ]
-
-        get_gradients = K.function(inputs=input_tensors, outputs=gradients)
-        grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
-
         for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
-
         return metrics
 
     def _log_dataframe(self):
@@ -744,6 +777,8 @@ class WandbCallback(keras.callbacks.Callback):
             return None
 
     def _save_model(self, epoch):
+        if wandb.run.disabled:
+            return
         if self.verbose > 0:
             print(
                 "Epoch %05d: %s improved from %0.5f to %0.5f,"
