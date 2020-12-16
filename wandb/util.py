@@ -34,7 +34,8 @@ import six
 from six.moves import queue
 import textwrap
 from sys import getsizeof
-from collections import namedtuple, Mapping, Sequence
+from collections import namedtuple
+from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
@@ -1144,3 +1145,10 @@ def uri_from_path(path):
     """returns the URI of the path"""
     url = urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+def _is_kaggle():
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules  # noqa: W503
+    )
