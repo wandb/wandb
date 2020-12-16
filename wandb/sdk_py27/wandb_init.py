@@ -51,6 +51,7 @@ class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
         self.settings = None
+        self.sweep_config = None
         self.config = None
         self.run = None
         self.backend = None
@@ -110,9 +111,13 @@ class _WandbInit(object):
         )
 
         # merge config with sweep or sm (or config file)
-        self.config = sm_config or self._wl._config or dict()
-        for k, v in init_config.items():
-            self.config.setdefault(k, v)
+        self.sweep_config = self._wl._sweep_config or dict()
+        self.config = dict()
+        for config_data in sm_config, self._wl._config, init_config:
+            if not config_data:
+                continue
+            for k, v in config_data.items():
+                self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -306,10 +311,12 @@ class _WandbInit(object):
     def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
+        sweep_config = self.sweep_config
         config = self.config
         if s._noop:
             run = Dummy()
             run.config = wandb.wandb_sdk.wandb_config.Config()
+            run.config.update(sweep_config)
             run.config.update(config)
             run.summary = DummyDict()
             run.log = lambda data, *_, **__: run.summary.update(data)
@@ -381,7 +388,7 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config, settings=s)
+        run = Run(config=config, settings=s, sweep_config=sweep_config)
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,

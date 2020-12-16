@@ -122,11 +122,22 @@ class Config(object):
     def __getitem__(self, key):
         return self._items[key]
 
+    def _check_locked(self, key, ignore_locked=False) -> bool:
+        locked = self._locked.get(key)
+        if locked is not None:
+            locked_user = self._users_inv[locked]
+            if not ignore_locked:
+                wandb.termwarn(
+                    "Config item '%s' was locked by '%s' (ignored update)."
+                    % (key, locked_user)
+                )
+            return True
+        return False
+
     def __setitem__(self, key, val):
-        key, val = self._sanitize(key, val)
-        if key in self._locked:
-            wandb.termwarn("Config item '%s' was locked." % key)
+        if self._check_locked(key):
             return
+        key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
@@ -143,8 +154,11 @@ class Config(object):
     def __contains__(self, key):
         return key in self._items
 
-    def _update(self, d, allow_val_change=None):
+    def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        for key in list(parsed_dict):
+            if self._check_locked(key, ignore_locked=ignore_locked):
+                del parsed_dict[key]
         sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
         self._items.update(sanitized)
 
@@ -171,10 +185,9 @@ class Config(object):
 
     def update_locked(self, d, user=None):
         if user not in self._users:
-            # TODO(jhr): use __setattr__ madness
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
-            self._users_cnt += 1
+            object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
 
         num = self._users[user]
 
