@@ -445,14 +445,6 @@ def test_table_custom():
     assert table._to_table_json() == table_df._to_table_json()
 
 
-def test_table_init():
-    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
-    assert table._to_table_json() == {
-        "data": [["Some awesome text", "Positive", "Negative"]],
-        "columns": ["Input", "Output", "Expected"],
-    }
-
-
 def test_table_column_types():
     primitive_table = wandb.Table(columns=["text", "number", "boolean"])
     primitive_table.add_data(*[None, None, None])
@@ -769,6 +761,66 @@ def test_object3d_seq_to_json(mocked_run):
         cube,
         pts,
     ]
+
+
+def test_table_init():
+    table = wandb.Table(data=[["Some awesome text", "Positive", "Negative"]])
+    assert table._to_table_json() == {
+        "data": [["Some awesome text", "Positive", "Negative"]],
+        "columns": ["Input", "Output", "Expected"],
+    }
+
+
+table_data = [
+    ["a", 1, True],
+    ["b", 2, False],
+    ["c", 3, True],
+]
+
+
+def test_table_from_list():
+    table = wandb.Table(data=table_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(table_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=table_data)
+
+    # legacy
+    table = wandb.Table(rows=table_data)
+    assert table.data == table_data
+
+
+def test_table_from_numpy():
+    np_data = np.array(table_data)
+    table = wandb.Table(data=np_data)
+    assert table.data == np_data.tolist()
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(np_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=np_data)
+
+
+def test_table_from_pandas():
+    pd_data = pd.DataFrame(table_data)
+    table = wandb.Table(data=pd_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(pd_data)
+
+    # legacy
+    table = wandb.Table(dataframe=pd_data)
+    assert table.data == table_data
 
 
 def test_graph():

@@ -17,7 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
-import collections
+from six.moves.collections_abc import Sequence
 import os
 import io
 import logging
@@ -842,28 +842,62 @@ class Table(Media):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
+        # Explicit dataframe option
         if dataframe is not None:
-            assert util.is_pandas_data_frame(
-                dataframe
-            ), "dataframe argument expects a `Dataframe` object"
-            self.columns = list(dataframe.columns)
-            self._column_types = _WBType.from_obj(
-                {col_key: None for col_key in columns}
-            )
-            self.data = []
-            for row in range(len(dataframe)):
-                self.add_data(
-                    *tuple(dataframe[col].values[row] for col in self.columns)
-                )
+            self._init_from_dataframe(dataframe, columns)
         else:
-            self.columns = columns
-            self._column_types = _WBType.from_obj(
-                {col_key: None for col_key in columns}
-            )
-            self.data = []
-            _data = list(rows or data or [])
-            for row in _data:
-                self.add_data(*row)
+            # Expected pattern
+            if data is not None:
+                if util.is_numpy_array(data):
+                    self._init_from_ndarray(data, columns)
+                elif util.is_pandas_data_frame(data):
+                    self._init_from_dataframe(data, columns)
+                else:
+                    self._init_from_list(data, columns)
+
+            # legacy
+            elif rows is not None:
+                self._init_from_list(rows, columns)
+
+            # Default empty case
+            else:
+                self._init_from_list([], columns)
+
+    @staticmethod
+    def _assert_valid_columns(columns):
+        valid_col_types = [str, int]
+        if sys.version_info.major < 3:
+            valid_col_types.append(unicode)
+        assert type(columns) is list, "columns argument expects a `list` object"
+        assert len(columns) == 0 or all(
+            [type(col) in valid_col_types for col in columns]
+        ), "columns argument expects list of strings or ints"
+
+    def _init_from_list(self, data, columns):
+        assert type(data) is list, "data argument expects a `list` object"
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self.data = data
+
+    def _init_from_ndarray(self, ndarray, columns):
+        assert util.is_numpy_array(
+            ndarray
+        ), "ndarray argument expects a `numpy.ndarray` object"
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self.data = ndarray.tolist()
+
+    def _init_from_dataframe(self, dataframe, columns):
+        assert util.is_pandas_data_frame(
+            dataframe
+        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        self.columns = list(dataframe.columns)
+        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self.data = []
+        for row in range(len(dataframe)):
+            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -2284,7 +2318,7 @@ class BoundingBoxes2D(JSONMetadata):
                     )
 
         boxes = val["box_data"]
-        if not isinstance(boxes, collections.Sequence):
+        if not isinstance(boxes, Sequence):
             raise TypeError("Boxes must be a list")
 
         for box in boxes:
@@ -2940,9 +2974,7 @@ def numpy_arrays_to_lists(payload):
         for key, val in six.iteritems(payload):
             res[key] = numpy_arrays_to_lists(val)
         return res
-    elif isinstance(payload, collections.Sequence) and not isinstance(
-        payload, six.string_types
-    ):
+    elif isinstance(payload, Sequence) and not isinstance(payload, six.string_types):
         return [numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
         return [numpy_arrays_to_lists(v) for v in payload.tolist()]
@@ -2977,9 +3009,7 @@ def val_to_json(run, key, val, namespace=None):
         return data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, collections.Sequence) and all(
-        isinstance(v, WBValue) for v in val
-    ):
+    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)

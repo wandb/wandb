@@ -1,4 +1,5 @@
 import json
+import threading
 import requests
 
 
@@ -45,9 +46,11 @@ class RequestsMock(object):
         self.app = app
         self.client = app.test_client()
         self.ctx = ctx
+        self._lock = threading.Lock()
 
     def set_context(self, key, value):
-        self.ctx[key] = value
+        with self._lock:
+            self.ctx[key] = value
 
     def Session(self):
         return self
@@ -110,8 +113,9 @@ class RequestsMock(object):
         if len(parts) > 1:
             # To make assertions easier, we remove the run from storage requests
             key = key + "?" + parts[1].split("&run=")[0]
-        self.ctx[key] = self.ctx.get(key, [])
-        self.ctx[key].append(body)
+        with self._lock:
+            self.ctx[key] = self.ctx.get(key, [])
+            self.ctx[key].append(body)
 
     def post(self, url, **kwargs):
         self._store_request(url, kwargs.get("json"))

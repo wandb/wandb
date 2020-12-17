@@ -4,7 +4,6 @@
 from __future__ import print_function
 
 import atexit
-import collections
 from datetime import timedelta
 import glob
 import json
@@ -20,6 +19,7 @@ import traceback
 import click
 from six import iteritems, string_types
 from six.moves import _thread as thread
+from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
@@ -152,7 +152,7 @@ class Run(object):
             final value.
     """
 
-    def __init__(self, config=None, settings=None):
+    def __init__(self, config=None, settings=None, sweep_config=None):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
@@ -248,7 +248,9 @@ class Run(object):
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
             )
-        self._config._update(config)
+        if sweep_config:
+            self._config.update_locked(sweep_config, user="sweep")
+        self._config._update(config, ignore_locked=True)
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
@@ -629,7 +631,7 @@ class Run(object):
             if "_wandb" in c_dict:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
-            self.config._update(c_dict, allow_val_change=True)
+            self.config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
@@ -783,7 +785,7 @@ class Run(object):
 
         """
         # TODO(cling): sync is a noop for now
-        if not isinstance(data, collections.Mapping):
+        if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, string_types) for key in data.keys()):
