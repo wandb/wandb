@@ -847,7 +847,7 @@ class Object3D(BatchableMedia):
         _, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact: wandb_artifacts.Artifact = run_or_artifact
+            artifact = run_or_artifact
             if not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
