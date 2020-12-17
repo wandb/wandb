@@ -1090,17 +1090,10 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query,
-            variable_values={
-                "name": project,
-                "run": run,
-                "entity": entity,
-            },
+            query, variable_values={"name": project, "run": run, "entity": entity,},
         )
         if query_result["model"] is None:
-            raise CommError(
-                "Run does not exist {}/{}/{}.".format(entity, project, run)
-            )
+            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
         files = self._flatten_edges(query_result["model"]["bucket"]["files"])
         return {file["name"]: file for file in files if file}
 
