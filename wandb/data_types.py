@@ -556,10 +556,7 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        return cls(
-            json_obj["columns"],
-            data=data,
-        )
+        return cls(json_obj["columns"], data=data,)
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
@@ -1303,11 +1300,7 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(
-            t1,
-            t2,
-            json_obj["join_key"],
-        )
+        return cls(t1, t2, json_obj["join_key"],)
 
     @staticmethod
     def _validate_table_input(table):
@@ -2032,8 +2025,7 @@ class ImageMask(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact):
