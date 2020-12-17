@@ -78,6 +78,7 @@ env_settings = dict(
     problem=None,
     console=None,
     config_paths=None,
+    sweep_param_path=None,
     run_id=None,
     notebook_name=None,
     host=None,
@@ -270,6 +271,7 @@ class Settings(object):
         system_samples=15,
         heartbeat_seconds=30,
         config_paths=None,
+        sweep_param_path=None,
         _config_dict=None,
         # directories and files
         root_dir=None,

@@ -1,3 +1,4 @@
+#
 CONFIG_FNAME = "config.yaml"
 OUTPUT_FNAME = "output.log"
 DIFF_FNAME = "diff.patch"

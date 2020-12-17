@@ -1,3 +1,4 @@
+#
 """leveldb log datastore.
 
 Format is described at:
