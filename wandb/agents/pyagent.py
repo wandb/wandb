@@ -287,11 +287,11 @@ class Agent(object):
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
             os.environ[wandb.env.RUN_ID] = run_id
-            os.environ[wandb.env.CONFIG_PATHS] = os.path.join(
-                os.environ[wandb.env.DIR], config_file
-            )
+            base_dir = os.environ.get(wandb.env.DIR, "")
+            sweep_param_path = os.path.join(base_dir, config_file)
+            os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
             wandb.wandb_lib.config_util.save_config_file_from_dict(
-                os.environ[wandb.env.CONFIG_PATHS], job.config
+                sweep_param_path, job.config
             )
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
