@@ -31,6 +31,7 @@ import sys
 import base64
 import binascii
 from wandb import util
+from wandb import dtypes
 from wandb.util import has_num
 from wandb.compat import tempfile
 
@@ -455,368 +456,6 @@ class BatchableMedia(Media):
     def seq_to_json(self, seq, run, key, step):
         raise NotImplementedError
 
-
-class _WBType(object):
-    name = "none"
-    schema = None
-
-    def __init__(self, py_obj=None):
-        self.schema = {}
-
-    def __repr__(self):
-        return "<WBType:{} | {}>".format(self.name, self.schema)
-
-    @staticmethod
-    def from_obj(py_obj):
-        obj_type = py_obj.__class__  # type() does not work in py2
-        if py_obj is None:
-            return _WBType(py_obj)
-        elif obj_type == str:
-            return _WBTextType(py_obj)
-        elif obj_type in [int, float, complex]:
-            return _WBNumberType(py_obj)
-        elif obj_type == bool:
-            return _WBBooleanType(py_obj)
-        elif obj_type in [list, tuple, set, frozenset]:
-            py_list = list(py_obj)
-            return _WBListType(py_list)
-        elif obj_type == dict:
-            return _WBDictType(py_obj)
-        elif hasattr(py_obj, "_get_wbtype"):
-            return py_obj._get_wbtype()
-        else:
-            return _WBObjectType(py_obj)
-
-    @staticmethod
-    def parse_dict(json_dict, artifact=None):
-        wb_type = json_dict.get("wb_type")
-        return _WBType._registed_types[wb_type].from_dict(json_dict, artifact)
-
-    @staticmethod
-    def register_type(wb_type):
-        assert issubclass(wb_type, _WBType)
-        if not hasattr(_WBType, "_registed_types"):
-            _WBType._registed_types = {}
-        _WBType._registed_types.update({wb_type.name: wb_type})
-
-    def __eq__(self, other):
-        # since we know that the to_dict method recursively build a jsonable dict
-        # with only lists, dicts, str, bool, and int, we can use this comparison
-        return self.to_dict() == other.to_dict()
-
-    @staticmethod
-    def _to_dict(data, artifact=None):
-        if type(data) == dict:
-            schema_dict = data
-            return {
-                key: _WBType._to_dict(schema_dict[key], artifact) for key in schema_dict
-            }
-        elif isinstance(data, _WBType):
-            wbtype = data
-            return wbtype.to_dict(artifact)
-        elif type(data) in [set, frozenset, tuple]:
-            return list(data)
-        else:
-            return data
-
-    # Safe to override
-    def to_dict(self, artifact=None):
-        res = {
-            "wb_type": self.name,
-            "schema": _WBType._to_dict(self.schema, artifact),
-        }
-        if res["schema"] == {}:
-            del res["schema"]
-        return res
-
-    @staticmethod
-    def _from_dict(json_dict, artifact=None):
-        if type(json_dict) == dict:
-            if "wb_type" in json_dict:
-                return _WBType.parse_dict(json_dict, artifact)
-            else:
-                return {
-                    key: _WBType._from_dict(json_dict[key], artifact)
-                    for key in json_dict
-                }
-        else:
-            return json_dict
-
-    # Safe to override
-    @classmethod
-    def from_dict(cls, json_dict, artifact=None):
-        new_type = cls()
-        new_type.schema = _WBType._from_dict(json_dict.get("schema", {}), artifact)
-        return new_type
-
-    # Safe to override
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        if wb_type is None:
-            wb_type = _WBType.from_obj(py_obj)
-        if wb_type.name == "none":
-            return self
-        elif self.name == "none" or self.name == wb_type.name:
-            return wb_type
-        else:
-            return None
-
-
-_WBType._registed_types = {}
-
-
-class _WBTextType(_WBType):
-    name = "text"
-
-
-class _WBNumberType(_WBType):
-    name = "number"
-
-
-class _WBBooleanType(_WBType):
-    name = "boolean"
-
-
-class _WBObjectType(_WBType):
-    name = "object"
-
-    def __init__(self, py_obj=None):
-        super(_WBObjectType, self).__init__(py_obj)
-        self.schema["class_name"] = py_obj.__class__.__name__
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        other_type = super(_WBObjectType, self).type_by_assignment(py_obj, wb_type)
-        if (
-            other_type is not None
-            and other_type.schema["class_name"] == self.schema["class_name"]
-        ):
-            return self
-        else:
-            return None
-
-
-class _WBListType(_WBType):
-    name = "list"
-
-    def __init__(self, py_list=None):
-        if py_list is None:
-            py_list = []
-        super(_WBListType, self).__init__(py_list)
-        elm_type = _WBType()
-        for item in py_list:
-            _elm_type = elm_type.type_by_assignment(item)
-            if _elm_type is None:
-                raise TypeError(
-                    "List contained incompatible types. Expected {} found {}".format(
-                        elm_type, item
-                    )
-                )
-            elm_type = _elm_type
-        self.schema["element_type"] = elm_type
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        other_type = super(_WBListType, self).type_by_assignment(py_obj, wb_type)
-        new_list_type = None
-        if other_type is not None:
-            new_elm_type = self.schema["element_type"].type_by_assignment(
-                py_obj, other_type.schema["element_type"]
-            )
-            if new_elm_type is not None:
-                new_list_type = _WBListType()
-                new_list_type.schema["element_type"] = new_elm_type
-        return new_list_type
-
-
-class _WBDictType(_WBType):
-    name = "dictionary"
-
-    def __init__(self, py_dict=None):
-        if py_dict is None:
-            py_dict = {}
-        super(_WBDictType, self).__init__(py_dict)
-        key_types = {}
-        for key in py_dict:
-            key_types[key] = _WBType.from_obj(py_dict[key])
-        self.schema["key_types"] = key_types
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        # if the key exists, then it must be assignable to the type
-        other_type = super(_WBDictType, self).type_by_assignment(py_obj, wb_type)
-        new_dict_type = None
-        if other_type is not None:
-            key_types = {}
-            for key in self.schema["key_types"]:
-                if key in other_type.schema["key_types"]:
-                    new_key_type = self.schema["key_types"][key].type_by_assignment(
-                        py_obj[key] if py_obj else None,
-                        other_type.schema["key_types"][key],
-                    )
-                    if new_key_type is None:
-                        return None
-                else:
-                    new_key_type = self.schema["key_types"][key]
-                key_types[key] = new_key_type
-
-            for key in other_type.schema["key_types"]:
-                if key not in key_types:
-                    key_types[key] = other_type.schema["key_types"][key]
-
-            new_dict_type = _WBDictType()
-            new_dict_type.schema["key_types"] = key_types
-
-        return new_dict_type
-
-
-# Currently only supports primitives
-class _WBAllowableType(_WBType):
-    name = "allowable"
-
-    def __init__(self, value_list=None):
-        if value_list is None:
-            value_list = []
-        super(_WBAllowableType, self).__init__(value_list)
-        self.schema["allowed_values"] = set(value_list)
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        if py_obj is None or py_obj in self.schema["allowed_values"]:
-            return self
-        else:
-            other_type = super(_WBAllowableType, self).type_by_assignment(
-                py_obj, wb_type
-            )
-            if (
-                other_type is not None
-                and len(
-                    other_type.schema["allowed_values"] - self.schema["allowed_values"]
-                )
-                == 0
-            ):
-                return self
-            else:
-                return None
-
-    @classmethod
-    def from_dict(cls, json_dict, artifact=None):
-        new_type = cls()
-        new_type.schema["allowed_values"] = set(json_dict["schema"]["allowed_values"])
-        return new_type
-
-
-class _WBClassesIdType(_WBAllowableType):
-    name = "wandb.Classes_id"
-
-    def __init__(self, wb_classes=None):
-        if wb_classes is None:
-            wb_classes = Classes({})
-        super(_WBClassesIdType, self).__init__(
-            [class_obj["id"] for class_obj in wb_classes._class_set]
-        )
-        self.classes_obj_ref = wb_classes
-
-    def to_dict(self, artifact=None):
-        cl_dict = super(_WBClassesIdType, self).to_dict(artifact)
-        # TODO (tss): Refactor this block with the similar one in wandb.Image.
-        # This is a bit of a smell that the classes object does not follow
-        # the same file-pattern as other media types.
-        if artifact is not None:
-            class_name = os.path.join("media", "cls")
-            classes_entry = artifact.add(self.classes_obj_ref, class_name)
-            cl_dict["schema"]["classes"] = {
-                "type": "classes-file",
-                "path": classes_entry.path,
-                "digest": classes_entry.digest,  # is this needed really?
-            }
-        else:
-            cl_dict["schema"]["classes"] = self.classes_obj_ref.to_json(artifact)
-        return cl_dict
-
-    @classmethod
-    def from_dict(cls, json_dict, artifact=None):
-        new_type = super(_WBAllowableType, _WBClassesIdType).from_dict(
-            json_dict, artifact=None
-        )
-        assert type(new_type) == _WBClassesIdType
-        if artifact is not None and "path" in json_dict["schema"]["classes"]:
-            new_type.classes_obj_ref = artifact.get(
-                json_dict["schema"]["classes"]["path"]
-            )
-        else:
-            new_type.classes_obj_ref = Classes.from_json(
-                json_dict["schema"]["classes"], artifact
-            )
-        return new_type
-
-
-class _WBImageType(_WBType):
-    name = "wandb.Image"
-
-    def __init__(self, wb_image=None):
-        assert wb_image is None or wb_image.__class__ == Image
-        super(_WBImageType, self).__init__(wb_image)
-        # It would be nice to use the dict type here, but this is a special case
-        # where we only care about the first-level keys of a few fields.
-        self.schema.update(
-            {
-                "box_keys": set(
-                    list(wb_image._boxes.keys()) if wb_image and wb_image._boxes else []
-                ),
-                "mask_keys": set(
-                    list(wb_image._masks.keys()) if wb_image and wb_image._masks else []
-                ),
-            }
-        )
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        other_type = super(_WBImageType, self).type_by_assignment(py_obj, wb_type)
-        if other_type is not None and (
-            self.schema["box_keys"] == other_type.schema["box_keys"]
-            and self.schema["mask_keys"] == other_type.schema["mask_keys"]
-        ):
-            return self
-        else:
-            return None
-
-
-class _WBTableType(_WBType):
-    name = "wandb.Table"
-
-    def __init__(self, wb_table=None):
-        assert wb_table is None or wb_table.__class__ == Table
-        super(_WBTableType, self).__init__(wb_table)
-        self.schema.update(
-            {
-                "column_types": wb_table._column_types
-                if wb_table and wb_table._column_types
-                else _WBDictType({}),
-            }
-        )
-
-    def type_by_assignment(self, py_obj=None, wb_type=None):
-        other_type = super(_WBTableType, self).type_by_assignment(py_obj, wb_type)
-        new_table_type = None
-        if other_type is not None:
-            combined_column_types = self.schema["column_types"].type_by_assignment(
-                None, other_type.schema["column_types"]
-            )
-            if combined_column_types is not None:
-                new_table_type = _WBTableType()
-                new_table_type.schema["column_types"] = combined_column_types
-
-        return new_table_type
-
-
-_WBType.register_type(_WBType)
-_WBType.register_type(_WBTextType)
-_WBType.register_type(_WBNumberType)
-_WBType.register_type(_WBBooleanType)
-_WBType.register_type(_WBObjectType)
-_WBType.register_type(_WBListType)
-_WBType.register_type(_WBDictType)
-_WBType.register_type(_WBAllowableType)
-_WBType.register_type(_WBClassesIdType)
-_WBType.register_type(_WBImageType)
-_WBType.register_type(_WBTableType)
-
-
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -877,7 +516,7 @@ class Table(Media):
         assert type(data) is list, "data argument expects a `list` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
         self.data = data
 
     def _init_from_ndarray(self, ndarray, columns):
@@ -886,7 +525,7 @@ class Table(Media):
         ), "ndarray argument expects a `numpy.ndarray` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
         self.data = ndarray.tolist()
 
     def _init_from_dataframe(self, dataframe, columns):
@@ -894,7 +533,7 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.columns = list(dataframe.columns)
-        self._column_types = _WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
         self.data = []
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
@@ -946,7 +585,7 @@ class Table(Media):
     # pandas "Series" class. However, this requires reorienting the table into
     # a columnar layout,
     def convert_column(self, col_name, new_type):
-        assert isinstance(new_type, _WBType)
+        assert isinstance(new_type, dtypes._WBType)
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = new_type.type_by_assignment(row[col_ndx])
@@ -998,7 +637,7 @@ class Table(Media):
 
         new_obj = cls(json_obj["columns"], data=data,)
 
-        new_obj._column_types = _WBType.parse_dict(
+        new_obj._column_types = dtypes._WBType.parse_dict(
             json_obj["column_types"], source_artifact
         )
 
@@ -1061,7 +700,7 @@ class Table(Media):
         return json_dict
 
     def _get_wbtype(self):
-        return _WBTableType(self)
+        return dtypes._WBTableType(self)
 
 
 class Audio(BatchableMedia):
@@ -1659,7 +1298,7 @@ class Classes(Media):
 
     def to_json(self, artifact=None):
         json_obj = {}
-        # This is a bit of a hack to allow _WBClassesIdType to
+        # This is a bit of a hack to allow dtypes._WBClassesIdType to
         # be able to operate fully without an artifact in play.
         # In all other cases, artifact should be a true artifact.
         if artifact is not None:
@@ -1669,7 +1308,7 @@ class Classes(Media):
         return json_obj
 
     def id_type(self):
-        return _WBClassesIdType(self)
+        return dtypes._WBClassesIdType(self)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -1979,7 +1618,7 @@ class Image(BatchableMedia):
         return os.path.join("media", "images")
 
     def _get_wbtype(self):
-        return _WBImageType(self)
+        return dtypes._WBImageType(self)
 
     def bind_to_run(self, *args, **kwargs):
         super(Image, self).bind_to_run(*args, **kwargs)
