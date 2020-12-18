@@ -73,6 +73,9 @@ optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 
+def test_image_logged_with_slash(wandb_init_run):
+    wandb.log({'prova / my_image': wandb.Image(np.random.rand(10,10))})
+
 def test_image_accepts_other_images(mocked_run):
     image_a = wandb.Image(np.random.random((300, 300, 3)))
     image_b = wandb.Image(image_a)
