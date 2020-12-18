@@ -517,8 +517,8 @@ class Table(Media):
         assert type(data) is list, "data argument expects a `list` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes.DictType.init_from_params(
-            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        self._column_types = dtypes.DictType(
+            {col_key: dtypes.UnknownType for col_key in columns}
         )
         self.data = data
 
@@ -528,8 +528,8 @@ class Table(Media):
         ), "ndarray argument expects a `numpy.ndarray` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes.DictType.init_from_params(
-            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        self._column_types = dtypes.DictType(
+            {col_key: dtypes.UnknownType for col_key in columns}
         )
         self.data = ndarray.tolist()
 
@@ -538,8 +538,8 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.columns = list(dataframe.columns)
-        self._column_types = dtypes.DictType.init_from_params(
-            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        self._column_types = dtypes.DictType(
+            {col_key: dtypes.UnknownType for col_key in columns}
         )
         self.data = []
         for row in range(len(dataframe)):
@@ -2775,41 +2775,22 @@ def data_frame_to_json(df, run, key, step):
 ## Custom dtypes for typing system
 
 
-class _ClassesMemberType(dtypes._ParameterizedType):
+class _ClassesMemberType(dtypes.UnionType):
     name = "wandb.Classes_member"
 
     # this is bit of a hack since the "type" of a classes object
     # is a class definition, not a member of the class
     @staticmethod
-    def types_py_obj(py_obj):
+    def types_py_obj(py_obj=None):
         return py_obj.__class__ == Classes
 
     @classmethod
-    def init_from_py_obj(cls, py_obj):
-        res = super(dtypes._ParameterizedType, _ClassesMemberType).init_from_py_obj(
-            py_obj
+    def init_from_py_obj(cls, py_obj=None):
+        res = super(UnionType, cls).__init__(
+            [dtypes.ConstType(class_obj["id"]) for class_obj in wb_classes._class_set]
         )
-        res.params["allowed_values"] = [
-            dtypes.ConstType.init_from_py_obj(class_obj["id"])
-            for class_obj in wb_classes._class_set
-        ]
         res.classes_obj_ref = py_obj
         return res
-
-    @staticmethod
-    def _validate_params(params):
-        value_types = params.get("allowed_values", [])
-
-        return all(
-            [isinstance(value_types[key], dtypes.ConstType) for key in value_types]
-        )
-
-    def assign(self, py_obj):
-        value_types = params.get("allowed_values", [])
-        if any([value_types[key].assign(py_obj) != None for key in value_types]):
-            return self
-        else:
-            return None
 
     def to_dict(self, artifact=None):
         cl_dict = super(_ClassesMemberType, self).to_dict(artifact)
@@ -2830,7 +2811,7 @@ class _ClassesMemberType(dtypes._ParameterizedType):
 
     @classmethod
     def init_from_dict(cls, json_dict, artifact=None):
-        new_type = super(_ParameterizedType, _ClassesMemberType).init_from_dict(
+        new_type = super(_ClassesMemberType, cls).init_from_dict(
             {"allowed_values": json_dict.get("allowed_values")}, artifact=artifact
         )
         assert new_type.__class__ == _ClassesMemberType
@@ -2850,12 +2831,12 @@ class _ImageType(dtypes._ParameterizedType):
     name = "wandb.Image"
 
     @staticmethod
-    def types_py_obj(py_obj):
+    def types_py_obj(py_obj=None):
         return py_obj.__class__ == Image
 
     @classmethod
-    def init_from_py_obj(cls, py_obj):
-        res = super(dtypes._ParameterizedType, _ImageType).init_from_py_obj(py_obj)
+    def init_from_py_obj(cls, py_obj=None):
+        res = super(_ImageType, cls).init_from_py_obj(py_obj)
         # It would be nice to use the dict type here, but this is a paramsial case
         # where we only care about the first-level keys of a few fields.
         res.params.update(
@@ -2876,7 +2857,7 @@ class _ImageType(dtypes._ParameterizedType):
             [key.__class__ == str for key in params.get("box_keys", [])]
         ) and all([key.__class__ == str for key in params.get("mask_keys", [])])
 
-    def assign(self, py_obj):
+    def assign(self, py_obj=None):
         if self.params["box_keys"] == list(py_obj._boxes.keys()) and self.params[
             "mask_keys"
         ] == list(py_obj._masks.keys()):
@@ -2889,12 +2870,12 @@ class _TableType(dtypes._ParameterizedType):
     name = "wandb.Table"
 
     @staticmethod
-    def types_py_obj(py_obj):
+    def types_py_obj(py_obj=None):
         return py_obj.__class__ == Table
 
     @classmethod
-    def init_from_py_obj(cls, py_obj):
-        res = super(dtypes._ParameterizedType, _TableType).init_from_py_obj(py_obj)
+    def init_from_py_obj(cls, py_obj=None):
+        res = super(_TableType, cls).init_from_py_obj(py_obj)
         # It would be nice to use the dict type here, but this is a paramsial case
         # where we only care about the first-level keys of a few fields.
         res.params.update(
@@ -2911,7 +2892,7 @@ class _TableType(dtypes._ParameterizedType):
     def _validate_params(params):
         return isinstance(params.get("column_types"), dtypes.DictType)
 
-    def assign(self, py_obj):
+    def assign(self, py_obj=None):
         if (
             self.params.get("column_types").assign(
                 _TableType.init_from_py_obj(py_obj).params.get("column_types")
