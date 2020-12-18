@@ -2,8 +2,9 @@ import random
 import sys
 import os
 import pytest
-import numpy
+import numpy as np
 import platform
+import pandas as pd
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
@@ -37,7 +38,7 @@ def nested_list(*shape):
     if not shape:
         # reduce precision so we can use == for comparison regardless
         # of conversions between other libraries
-        return [float(numpy.float16(random.random()))]
+        return [float(np.float16(random.random()))]
     else:
         return [nested_list(*shape[1:]) for _ in range(shape[0])]
 
@@ -47,6 +48,37 @@ def json_friendly_test(orig_data, obj):
     utils.assert_deep_lists_equal(orig_data, data)
     assert converted
 
+def test_json_friendly_np32():
+    # test single numbers
+    n = 0.123456789
+    obj, converted = util.json_friendly(n)
+    assert not converted
+
+    n32 = np.float32(n)
+    obj, converted = util.json_friendly(n32)
+    assert n == obj
+    
+    n64 = np.float64(n)
+    obj, converted = util.json_friendly(n64)
+    assert n == obj
+    
+    # test arrays
+    arr = np.array([n , n]).astype(np.float32)
+    obj, converted = util.json_friendly(arr)
+    print(n, arr, obj)
+    assert converted
+    assert [n, n] == obj
+
+    arr = np.array([n , n]).astype(np.float64)
+    obj, converted = util.json_friendly(arr)
+    print(n, arr, obj)
+    assert converted
+    assert [n, n] == obj
+
+    # test dataframes
+    df = pd.DataFrame({'col1': np.array([n, n]).astype(np.float32)})
+    obj, converted = util.json_friendly(df)
+    assert obj["col1"].to_list() == [n, n]
 
 def tensorflow_json_friendly_test(orig_data):
     json_friendly_test(orig_data, tensorflow.convert_to_tensor(orig_data))
