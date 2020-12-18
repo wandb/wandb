@@ -5,6 +5,7 @@ import os
 import binascii
 import base64
 import time
+from math import sin, cos, pi
 import numpy as np
 import sys
 
@@ -121,6 +122,34 @@ def _make_wandb_table():
             ["string2", False, -0, -1.4, _make_wandb_image("2")],
         ],
     )
+
+
+def _make_point_cloud():
+    # Generate a symetric pattern
+    POINT_COUNT = 20000
+
+    # Choose a random sample
+    theta_chi = pi * np.random.rand(POINT_COUNT, 2)
+
+    def gen_point(theta, chi, i):
+        p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + \
+            cos(chi) * 7 * sin((2 * i - 4) / 2 * (i + 2))
+
+        x = p * sin(chi) * cos(theta)
+        y = p * sin(chi) * sin(theta)
+        z = p * cos(chi)
+
+        r = sin(theta) * 120 + 120
+        g = sin(x) * 120 + 120
+        b = cos(y) * 120 + 120
+
+        return [x, y, z, r, g, b]
+
+    def wave_pattern(i):
+        return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
+
+    return wandb.Object3D(wave_pattern(0))
+
 
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
@@ -501,6 +530,10 @@ def test_image_refs():
     assert_media_obj_referential_equality(_make_wandb_image())
 
 
+def test_point_cloud_refs():
+    assert_media_obj_referential_equality(_make_point_cloud())
+
+
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
@@ -627,6 +660,7 @@ if __name__ == "__main__":
         test_nested_reference_artifact,
         test_table_slice_reference_artifact,
         test_image_refs,
+        test_point_cloud_refs,
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,
