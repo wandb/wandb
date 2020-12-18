@@ -4,6 +4,22 @@ import numpy as np
 import pytest
 from wandb.dtypes import *
 
+# TODO: Test Images
+# TODO: Test Classes
+# TODO: Test Tables
+# - Inference
+# starting with Nones
+# starting with Real Values
+# - OO Column API
+# Construction
+# Retroactive
+# - Fully Defined Types vs underdefined Types
+# consider -- lists, dicts, const, image, table should all be shells
+# TODO: Code Organization
+# TODO: Typing?
+# TODO: Documentation
+# TODO: Adapt Regressions Tests
+
 
 def test_none_type():
     wb_type = TypeRegistry.type_of(None)
@@ -114,18 +130,18 @@ def test_dict_type():
     assert wb_type.assign(subset) is None
     assert wb_type.assign(narrow) is None
 
-    wb_type = DictType(spec, policy=DictPolicy.SUBSET)
+    wb_type = DictType(spec, policy=KeyPolicy.SUBSET)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) is None
 
-    wb_type = DictType(spec, policy=DictPolicy.NARROW)
+    wb_type = DictType(spec, policy=KeyPolicy.UNRESTRICTED)
     combined = {
         "number": NumberType,
         "string": TextType,
         "nested": {"list_str": ListType(TextType),},
     }
-    exp_type = DictType(combined, policy=DictPolicy.NARROW)
+    exp_type = DictType(combined, policy=KeyPolicy.UNRESTRICTED)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) == exp_type
@@ -134,7 +150,7 @@ def test_dict_type():
         "optional_number": OptionalType(NumberType),
         "optional_unknown": OptionalType(UnknownType),
     }
-    wb_type = DictType(spec, policy=DictPolicy.EXACT)
+    wb_type = DictType(spec, policy=KeyPolicy.EXACT)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
     assert wb_type.assign({"optional_number": "1"}) is None
@@ -143,23 +159,25 @@ def test_dict_type():
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(TextType),
         },
-        policy=DictPolicy.EXACT,
+        policy=KeyPolicy.EXACT,
     )
     assert wb_type.assign({"optional_unknown": None}) == DictType(
         {
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(UnknownType),
         },
-        policy=DictPolicy.EXACT,
+        policy=KeyPolicy.EXACT,
     )
 
-    wb_type = DictType({"unknown": UnknownType}, policy=DictPolicy.EXACT)
-    assert wb_type.assign({}) is None
-    assert wb_type.assign({"unknown": None}) is DictType(
-        {"unknown": OptionalType(UnknownType)}, policy=DictPolicy.EXACT
+    wb_type = DictType({"unknown": UnknownType}, policy=KeyPolicy.EXACT)
+    assert wb_type.assign({}) == DictType(
+        {"unknown": OptionalType(UnknownType)}, policy=KeyPolicy.EXACT
     )
-    assert wb_type.assign({"unknown": 1}) is DictType(
-        {"unknown": NumberType}, policy=DictPolicy.EXACT
+    assert wb_type.assign({"unknown": None}) == DictType(
+        {"unknown": OptionalType(UnknownType)}, policy=KeyPolicy.EXACT
+    )
+    assert wb_type.assign({"unknown": 1}) == DictType(
+        {"unknown": NumberType}, policy=KeyPolicy.EXACT
     )
 
 

@@ -1,7 +1,5 @@
 from six import integer_types, string_types, text_type
 
-# TODO: add "frozen" param to assign call
-
 
 class _Type(object):
     name = ""
@@ -24,7 +22,11 @@ class _Type(object):
         return "<WBType:{}>".format(self.name)
 
     def __eq__(self, other):
-        return self is other or self.to_dict() == other.to_dict()
+        return self is other or (
+            isinstance(self, _Type)
+            and isinstance(other, _Type)
+            and self.to_dict() == other.to_dict()
+        )
 
 
 class _AnyType(_Type):
@@ -282,10 +284,11 @@ class ObjectType(_ParameterizedType):
     name = "object"
 
     # Free to define custom initializer for best UX
-    def __init__(self, clss):
-        params = {"class_name": clss.__name__}
-        self._assert_valid_params(params)
-        self._params = params
+    def __init__(self, clss=None, _params=None):
+        if _params is None:
+            _params = {"class_name": clss.__name__}
+        self._assert_valid_params(_params)
+        self._params = _params
 
     def assign(self, py_obj=None):
         if py_obj.__class__.__name__ == self.params["class_name"]:
@@ -295,9 +298,7 @@ class ObjectType(_ParameterizedType):
 
     @classmethod
     def init_from_py_obj(cls, py_obj=None):
-        res = super(ObjectType, cls).init_from_py_obj(py_obj)
-        res.params["class_name"] = py_obj.__class__.__name__
-        return res
+        return cls(py_obj.__class__)
 
     @staticmethod
     def types_py_obj(py_obj=None):
@@ -320,10 +321,9 @@ class ListType(_ParameterizedType):
 
     @classmethod
     def init_from_py_obj(cls, py_obj=None):
-        res = super(ListType, cls).init_from_py_obj(py_obj)
         py_obj = list(py_obj)
 
-        elm_type = UnknownType()
+        elm_type = UnknownType
         for item in py_obj:
             _elm_type = elm_type.assign(item)
             if _elm_type is None:
@@ -333,9 +333,8 @@ class ListType(_ParameterizedType):
                     )
                 )
             elm_type = _elm_type
-        res.params["element_type"] = elm_type
 
-        return res
+        return cls(elm_type)
 
     @staticmethod
     def types_py_obj(py_obj=None):
@@ -346,26 +345,37 @@ class ListType(_ParameterizedType):
         return isinstance(params["element_type"], _Type)
 
     def assign(self, py_obj=None):
-        new_element_type = self.params["element_type"].assign(py_obj)
-        if new_element_type is not None:
-            return ListType(new_element_type)
-        else:
+        if not self.types_py_obj(py_obj):
             return None
 
+        new_element_type = self.params["element_type"]
+        for obj in py_obj:
+            for obj in py_obj:
+                new_element_type = new_element_type.assign(obj)
+                if new_element_type is None:
+                    return None
+        return ListType(new_element_type)
 
-class DictPolicy:
-    EXACT = 0  # require exact key match
-    SUBSET = 1  # treat all known keys as optional and unknown keys disallowed
-    NARROW = 2  # treat all known keys as optional and unknown keys as Unknown
+
+class KeyPolicy:
+    EXACT = "E"  # require exact key match
+    SUBSET = "S"  # all known keys are optional and unknown keys are disallowed
+    UNRESTRICTED = "U"  # all known keys are optional and unknown keys are Unknown
 
 
 class DictType(_ParameterizedType):
     name = "dictionary"
 
     # Free to define custom initializer for best UX
-    def __init__(self, type_map, policy=DictPolicy.EXACT, _params=None):
+    def __init__(self, type_map, policy=KeyPolicy.EXACT, _params=None):
         if _params is None:
-            _params = {"type_map": type_map, "policy": policy}
+            new_type_map = {}
+            for key in type_map:
+                if type_map[key].__class__ == dict:
+                    new_type_map[key] = DictType(type_map[key], policy)
+                else:
+                    new_type_map[key] = type_map[key]
+            _params = {"type_map": new_type_map, "policy": policy}
         self._assert_valid_params(_params)
         self._params = _params
 
@@ -380,17 +390,8 @@ class DictType(_ParameterizedType):
                 key: TypeRegistry.type_of(py_obj[key], none_is_optional_unknown=True)
                 for key in py_obj
             },
-            DictPolicy.EXACT,
+            KeyPolicy.EXACT,
         )
-        # res = super(DictType, cls).init_from_py_obj(py_obj)
-        # params = {}
-        # res.params["type_map"] = {
-        #     key: TypeRegistry.type_of(py_obj[key], none_is_optional_unknown=True)
-        #     for key in py_obj
-        # }
-        # res.params["policy"] = DictPolicy.EXACT
-
-        # return res
 
     @staticmethod
     def _validate_params(params):
@@ -399,12 +400,15 @@ class DictType(_ParameterizedType):
 
         return all(
             [isinstance(type_map[key], _Type) for key in type_map]
-        ) and policy in [DictPolicy.EXACT, DictPolicy.SUBSET, DictPolicy.NARROW]
+        ) and policy in [KeyPolicy.EXACT, KeyPolicy.SUBSET, KeyPolicy.UNRESTRICTED]
 
     def assign(self, py_obj=None):
+        if not self.types_py_obj(py_obj):
+            return None
+
         new_type_map = {}
         type_map = self.params.get("type_map", {})
-        policy = self.params.get("policy", DictPolicy.EXACT)
+        policy = self.params.get("policy", KeyPolicy.EXACT)
 
         for key in type_map:
             if key in py_obj:
@@ -413,22 +417,28 @@ class DictType(_ParameterizedType):
                     return None
                 else:
                     new_type_map[key] = new_type
-            elif policy == DictPolicy.EXACT:
-                return None
+            else:
+                # Treat a missing key as if it is a None value.
+                new_type = type_map[key].assign(None)
+                if new_type is None:
+                    if policy in [KeyPolicy.EXACT]:
+                        return None
+                    elif policy in [KeyPolicy.SUBSET, KeyPolicy.UNRESTRICTED]:
+                        new_type_map[key] = type_map[key]
+                else:
+                    new_type_map[key] = new_type
 
-        if policy == DictPolicy.EXACT:
-            if len(py_obj.keys()) != len(type_map.keys()):
-                return None
-        elif policy == DictPolicy.SUBSET:
-            for key in py_obj:
-                if key not in new_type_map:
+        for key in py_obj:
+            if key not in new_type_map:
+                if policy in [KeyPolicy.EXACT, KeyPolicy.SUBSET]:
                     return None
-        elif policy == DictPolicy.NARROW:
-            for key in py_obj:
-                if key not in new_type_map:
-                    new_type_map[key] = TypeRegistry.type_of(
-                        py_obj[key], none_is_optional_unknown=True
-                    )
+                elif policy in [KeyPolicy.UNRESTRICTED]:
+                    if py_obj[key].__class__ == dict:
+                        new_type_map[key] = DictType(py_obj[key], policy)
+                    else:
+                        new_type_map[key] = TypeRegistry.type_of(
+                            py_obj[key], none_is_optional_unknown=True
+                        )
 
         return DictType(new_type_map, policy)
 
@@ -458,13 +468,14 @@ class ConstType(_ParameterizedType):
         return ConstType.types_py_obj(params.get("val"))
 
     def assign(self, py_obj=None):
+        if not self.types_py_obj(py_obj):
+            return None
+
         valid = self.params.get("val") == py_obj
         return self if valid else None
 
 
 class TypeRegistry:
-    """Singleton-like Registry"""
-
     _types = None
 
     @staticmethod
@@ -536,7 +547,7 @@ __all__ = [
     "BooleanType",
     "ListType",
     "DictType",
-    "DictPolicy",
+    "KeyPolicy",
     "UnionType",
     "ObjectType",
     "ConstType",
