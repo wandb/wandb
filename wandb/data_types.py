@@ -920,6 +920,9 @@ class Object3D(BatchableMedia):
             "objects": jsons,
         }
 
+    def __eq__(self, other):
+        return self._sha256 == other._sha256 and self._size == other._size
+
 
 class Molecule(BatchableMedia):
     """

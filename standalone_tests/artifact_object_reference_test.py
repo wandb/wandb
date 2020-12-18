@@ -111,19 +111,6 @@ def _make_wandb_image(suffix=""):
         },
     )
 
-
-def _make_wandb_table():
-    return wandb.Table(
-        columns=columns,
-        data=[
-            ["string", True, 1, 1.4, _make_wandb_image()],
-            ["string", True, 1, 1.4, _make_wandb_image()],
-            ["string2", False, -0, -1.4, _make_wandb_image("2")],
-            ["string2", False, -0, -1.4, _make_wandb_image("2")],
-        ],
-    )
-
-
 def _make_point_cloud():
     # Generate a symetric pattern
     POINT_COUNT = 20000
@@ -150,6 +137,22 @@ def _make_point_cloud():
 
     return wandb.Object3D(wave_pattern(0))
 
+# static assets for comparisons
+pc1 = _make_point_cloud()
+pc2 = _make_point_cloud()
+pc3 = _make_point_cloud()
+pc4 = _make_point_cloud()
+
+def _make_wandb_table():
+    return wandb.Table(
+        columns=columns,
+        data=[
+            ["string", True, 1, 1.4, _make_wandb_image(), pc1],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc2],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
+        ],
+    )
 
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
