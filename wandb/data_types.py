@@ -456,6 +456,7 @@ class BatchableMedia(Media):
     def seq_to_json(self, seq, run, key, step):
         raise NotImplementedError
 
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -516,7 +517,9 @@ class Table(Media):
         assert type(data) is list, "data argument expects a `list` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes.DictType.init_from_params(
+            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        )
         self.data = data
 
     def _init_from_ndarray(self, ndarray, columns):
@@ -525,7 +528,9 @@ class Table(Media):
         ), "ndarray argument expects a `numpy.ndarray` object"
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes.DictType.init_from_params(
+            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        )
         self.data = ndarray.tolist()
 
     def _init_from_dataframe(self, dataframe, columns):
@@ -533,7 +538,9 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.columns = list(dataframe.columns)
-        self._column_types = dtypes._WBType.from_obj({col_key: None for col_key in columns})
+        self._column_types = dtypes.DictType.init_from_params(
+            {"value_types": {col_key: dtypes.UnknownType for col_key in columns}}
+        )
         self.data = []
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
@@ -1306,9 +1313,6 @@ class Classes(Media):
         json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
         return json_obj
-
-    def id_type(self):
-        return dtypes._WBClassesIdType(self)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -2766,3 +2770,159 @@ def data_frame_to_json(df, run, key, step):
         "run": run.id,
         "path": path,
     }
+
+
+## Custom dtypes for typing system
+
+
+class _ClassesMemberType(dtypes._ParameterizedType):
+    name = "wandb.Classes_member"
+
+    # this is bit of a hack since the "type" of a classes object
+    # is a class definition, not a member of the class
+    @staticmethod
+    def types_py_obj(py_obj):
+        return py_obj.__class__ == Classes
+
+    @classmethod
+    def init_from_py_obj(cls, py_obj):
+        res = super(dtypes._ParameterizedType, _ClassesMemberType).init_from_py_obj(
+            py_obj
+        )
+        res.params["allowed_values"] = [
+            dtypes.ConstType.init_from_py_obj(class_obj["id"])
+            for class_obj in wb_classes._class_set
+        ]
+        res.classes_obj_ref = py_obj
+        return res
+
+    @staticmethod
+    def _validate_params(params):
+        value_types = params.get("allowed_values", [])
+
+        return all(
+            [isinstance(value_types[key], dtypes.ConstType) for key in value_types]
+        )
+
+    def assign(self, py_obj):
+        value_types = params.get("allowed_values", [])
+        if any([value_types[key].assign(py_obj) != None for key in value_types]):
+            return self
+        else:
+            return None
+
+    def to_dict(self, artifact=None):
+        cl_dict = super(_ClassesMemberType, self).to_dict(artifact)
+        # TODO (tss): Refactor this block with the similar one in wandb.Image.
+        # This is a bit of a smell that the classes object does not follow
+        # the same file-pattern as other media types.
+        if artifact is not None:
+            class_name = os.path.join("media", "cls")
+            classes_entry = artifact.add(self.classes_obj_ref, class_name)
+            cl_dict["schema"]["classes"] = {
+                "type": "classes-file",
+                "path": classes_entry.path,
+                "digest": classes_entry.digest,  # is this needed really?
+            }
+        else:
+            cl_dict["schema"]["classes"] = self.classes_obj_ref.to_json(artifact)
+        return cl_dict
+
+    @classmethod
+    def init_from_dict(cls, json_dict, artifact=None):
+        new_type = super(_ParameterizedType, _ClassesMemberType).init_from_dict(
+            {"allowed_values": json_dict.get("allowed_values")}, artifact=artifact
+        )
+        assert new_type.__class__ == _ClassesMemberType
+        if json_dict.get("schema", {}).get("classes", {}).get("type") == "classes-file":
+            new_type.classes_obj_ref = artifact.get(
+                json_dict.get("schema", {}).get("classes", {}).get("path")
+            )
+        else:
+            new_type.classes_obj_ref = Classes.from_json(
+                json_dict["schema"]["classes"], artifact
+            )
+
+        return new_type
+
+
+class _ImageType(dtypes._ParameterizedType):
+    name = "wandb.Image"
+
+    @staticmethod
+    def types_py_obj(py_obj):
+        return py_obj.__class__ == Image
+
+    @classmethod
+    def init_from_py_obj(cls, py_obj):
+        res = super(dtypes._ParameterizedType, _ImageType).init_from_py_obj(py_obj)
+        # It would be nice to use the dict type here, but this is a paramsial case
+        # where we only care about the first-level keys of a few fields.
+        res.params.update(
+            {
+                "box_keys": set(list(py_obj._boxes.keys()) if py_obj._boxes else []),
+                "mask_keys": set(list(py_obj._masks.keys()) if py_obj._masks else []),
+            }
+        )
+
+        return res
+
+    @staticmethod
+    def _validate_params(params):
+        box_keys = params.get("box_keys", [])
+        mask_keys = params.get("mask_keys", [])
+
+        return all(
+            [key.__class__ == str for key in params.get("box_keys", [])]
+        ) and all([key.__class__ == str for key in params.get("mask_keys", [])])
+
+    def assign(self, py_obj):
+        if self.params["box_keys"] == list(py_obj._boxes.keys()) and self.params[
+            "mask_keys"
+        ] == list(py_obj._masks.keys()):
+            return self
+        else:
+            return None
+
+
+class _TableType(dtypes._ParameterizedType):
+    name = "wandb.Table"
+
+    @staticmethod
+    def types_py_obj(py_obj):
+        return py_obj.__class__ == Table
+
+    @classmethod
+    def init_from_py_obj(cls, py_obj):
+        res = super(dtypes._ParameterizedType, _TableType).init_from_py_obj(py_obj)
+        # It would be nice to use the dict type here, but this is a paramsial case
+        # where we only care about the first-level keys of a few fields.
+        res.params.update(
+            {
+                "column_types": py_obj._column_types
+                if py_obj and py_obj._column_types
+                else dtypes.DictType({}),
+            }
+        )
+
+        return res
+
+    @staticmethod
+    def _validate_params(params):
+        return isinstance(params.get("column_types"), dtypes.DictType)
+
+    def assign(self, py_obj):
+        if (
+            self.params.get("column_types").assign(
+                _TableType.init_from_py_obj(py_obj).params.get("column_types")
+            )
+            is not None
+        ):
+            return self
+        else:
+            return None
+
+
+dtypes.TypeRegistry.add(_ClassesMemberType)
+dtypes.TypeRegistry.add(_ImageType)
+dtypes.TypeRegistry.add(_TableType)
