@@ -4,29 +4,13 @@ import numpy as np
 import pytest
 from wandb.dtypes import *
 
-# TODO: Test Images
-# TODO: Test Classes
-# TODO: Test Tables
-# - Inference
-# starting with Nones
-# starting with Real Values
-# - OO Column API
-# Construction
-# Retroactive
-# - Fully Defined Types vs underdefined Types
-# consider -- lists, dicts, const, image, table should all be shells
-# TODO: Code Organization
-# TODO: Typing?
-# TODO: Documentation
-# TODO: Adapt Regressions Tests
-
 
 def test_none_type():
     wb_type = TypeRegistry.type_of(None)
     assert wb_type == NoneType
     wb_type_2 = wb_type.assign(None)
     assert wb_type == wb_type_2
-    assert wb_type.assign(1) is None
+    assert wb_type.assign(1) == NeverType
 
 
 def test_text_type():
@@ -34,8 +18,8 @@ def test_text_type():
     assert wb_type == TextType
     wb_type_2 = wb_type.assign("world")
     assert wb_type == wb_type_2
-    assert wb_type.assign(1) is None
-    assert wb_type.assign(None) is None
+    assert wb_type.assign(1) == NeverType
+    assert wb_type.assign(None) == NeverType
 
 
 def test_number_type():
@@ -43,8 +27,8 @@ def test_number_type():
     assert wb_type == NumberType
     wb_type_2 = wb_type.assign(-2)
     assert wb_type == wb_type_2
-    assert wb_type.assign("a") is None
-    assert wb_type.assign(None) is None
+    assert wb_type.assign("a") == NeverType
+    assert wb_type.assign(None) == NeverType
 
 
 def test_boolean_type():
@@ -52,14 +36,27 @@ def test_boolean_type():
     assert wb_type == BooleanType
     wb_type_2 = wb_type.assign(False)
     assert wb_type == wb_type_2
-    assert wb_type.assign(1) is None
-    assert wb_type.assign(None) is None
+    assert wb_type.assign(1) == NeverType
+    assert wb_type.assign(None) == NeverType
 
 
 def test_any_type():
     wb_type = AnyType
     assert wb_type == wb_type.assign(1)
-    assert wb_type.assign(None) is None
+    assert wb_type.assign(None) == NeverType
+
+def test_never_type():
+    wb_type = NeverType
+    assert wb_type == wb_type.assign(1)
+    assert wb_type == wb_type.assign("a")
+    assert wb_type == wb_type.assign(True)
+    assert wb_type == wb_type.assign(None)
+
+    wb_type = OptionalType(NeverType)
+    assert NeverType == wb_type.assign(1)
+    assert NeverType == wb_type.assign("a")
+    assert NeverType == wb_type.assign(True)
+    assert wb_type == wb_type.assign(None)
 
 
 def test_unknown_type():
@@ -77,7 +74,7 @@ def test_union_type():
     wb_type = UnionType([NumberType, TextType])
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("s") == wb_type
-    assert wb_type.assign(True) is None
+    assert wb_type.assign(True) == NeverType
 
     wb_type = UnionType([NumberType, AnyType])
     assert wb_type.assign(1) == wb_type
@@ -103,20 +100,20 @@ def test_union_type():
 def test_const_type():
     wb_type = ConstType(1)
     assert wb_type.assign(1) == wb_type
-    assert wb_type.assign("a") is None
-    assert wb_type.assign(2) is None
+    assert wb_type.assign("a") == NeverType
+    assert wb_type.assign(2) == NeverType
 
 
 def test_object_type():
     wb_type = TypeRegistry.type_of(np.random.rand(30))
     assert wb_type.assign(np.random.rand(30)) == wb_type
-    assert wb_type.assign(4) is None
+    assert wb_type.assign(4) == NeverType
 
 
 def test_list_type():
     assert ListType(NumberType).assign([]) == ListType(NumberType)
     assert ListType(NumberType).assign([1, 2, 3]) == ListType(NumberType)
-    assert ListType(NumberType).assign([1, "a", 3]) is None
+    assert ListType(NumberType).assign([1, "a", 3]) == NeverType
 
 
 def test_dict_type():
@@ -127,13 +124,13 @@ def test_dict_type():
 
     wb_type = TypeRegistry.type_of(exact)
     assert wb_type.assign(exact) == wb_type
-    assert wb_type.assign(subset) is None
-    assert wb_type.assign(narrow) is None
+    assert wb_type.assign(subset) == NeverType
+    assert wb_type.assign(narrow) == NeverType
 
     wb_type = DictType(spec, policy=KeyPolicy.SUBSET)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
-    assert wb_type.assign(narrow) is None
+    assert wb_type.assign(narrow) == NeverType
 
     wb_type = DictType(spec, policy=KeyPolicy.UNRESTRICTED)
     combined = {
@@ -153,7 +150,7 @@ def test_dict_type():
     wb_type = DictType(spec, policy=KeyPolicy.EXACT)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
-    assert wb_type.assign({"optional_number": "1"}) is None
+    assert wb_type.assign({"optional_number": "1"}) == NeverType
     assert wb_type.assign({"optional_unknown": "hi"}) == DictType(
         {
             "optional_number": OptionalType(NumberType),

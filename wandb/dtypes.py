@@ -7,7 +7,7 @@ class _Type(object):
     # must override
     def assign(self, py_obj=None):
         raise NotImplementedError()
-        # return None | _Type subclass
+        # return _Type subclass
 
     # Safe to override
     def to_dict(self, artifact=None):
@@ -28,12 +28,20 @@ class _Type(object):
             and self.to_dict() == other.to_dict()
         )
 
+class _NeverType(_Type):
+    name = "never"
+
+    def assign(self, py_obj=None):
+        return NeverType
+
+
+NeverType = _NeverType()
 
 class _AnyType(_Type):
     name = "any"
 
     def assign(self, py_obj=None):
-        return self if py_obj is not None else None
+        return self if py_obj is not None else NeverType
 
 
 AnyType = _AnyType()
@@ -52,7 +60,7 @@ UnknownType = _UnknownType()
 class _ConcreteType(_Type):
     def assign(self, py_obj=None):
         valid = self.types_py_obj(py_obj)
-        return self if valid else None
+        return self if valid else NeverType
 
     # must override
     @staticmethod
@@ -234,7 +242,7 @@ class UnionType(_ParameterizedType):
                     unknown_count += 1
                 else:
                     assigned_type = allowed_type.assign(py_obj)
-                    if assigned_type is None:
+                    if assigned_type == NeverType:
                         resolved_types.append(allowed_type)
                     else:
                         resolved_types.append(assigned_type)
@@ -242,7 +250,7 @@ class UnionType(_ParameterizedType):
 
         if not valid:
             if unknown_count == 0:
-                return None
+                return NeverType
             else:
                 unknown_count -= 1
                 resolved_types.append(UnknownType.assign(py_obj))
@@ -294,7 +302,7 @@ class ObjectType(_ParameterizedType):
         if py_obj.__class__.__name__ == self.params["class_name"]:
             return self
         else:
-            return None
+            return NeverType
 
     @classmethod
     def init_from_py_obj(cls, py_obj=None):
@@ -346,14 +354,14 @@ class ListType(_ParameterizedType):
 
     def assign(self, py_obj=None):
         if not self.types_py_obj(py_obj):
-            return None
+            return NeverType
 
         new_element_type = self.params["element_type"]
         for obj in py_obj:
             for obj in py_obj:
                 new_element_type = new_element_type.assign(obj)
-                if new_element_type is None:
-                    return None
+                if new_element_type == NeverType:
+                    return NeverType
         return ListType(new_element_type)
 
 
@@ -404,7 +412,7 @@ class DictType(_ParameterizedType):
 
     def assign(self, py_obj=None):
         if not self.types_py_obj(py_obj):
-            return None
+            return NeverType
 
         new_type_map = {}
         type_map = self.params.get("type_map", {})
@@ -413,16 +421,16 @@ class DictType(_ParameterizedType):
         for key in type_map:
             if key in py_obj:
                 new_type = type_map[key].assign(py_obj[key])
-                if new_type is None:
-                    return None
+                if new_type == NeverType:
+                    return NeverType
                 else:
                     new_type_map[key] = new_type
             else:
                 # Treat a missing key as if it is a None value.
                 new_type = type_map[key].assign(None)
-                if new_type is None:
+                if new_type == NeverType:
                     if policy in [KeyPolicy.EXACT]:
-                        return None
+                        return NeverType
                     elif policy in [KeyPolicy.SUBSET, KeyPolicy.UNRESTRICTED]:
                         new_type_map[key] = type_map[key]
                 else:
@@ -431,7 +439,7 @@ class DictType(_ParameterizedType):
         for key in py_obj:
             if key not in new_type_map:
                 if policy in [KeyPolicy.EXACT, KeyPolicy.SUBSET]:
-                    return None
+                    return NeverType
                 elif policy in [KeyPolicy.UNRESTRICTED]:
                     if py_obj[key].__class__ == dict:
                         new_type_map[key] = DictType(py_obj[key], policy)
@@ -469,10 +477,10 @@ class ConstType(_ParameterizedType):
 
     def assign(self, py_obj=None):
         if not self.types_py_obj(py_obj):
-            return None
+            return NeverType
 
         valid = self.params.get("val") == py_obj
-        return self if valid else None
+        return self if valid else NeverType
 
 
 class TypeRegistry:
@@ -519,8 +527,9 @@ class TypeRegistry:
 
 
 # Generic Types
-TypeRegistry.add(_UnknownType)
+TypeRegistry.add(_NeverType)
 TypeRegistry.add(_AnyType)
+TypeRegistry.add(_UnknownType)
 
 # Concrete Types
 TypeRegistry.add(_NoneType)
@@ -537,8 +546,12 @@ TypeRegistry.add(ConstType)
 
 # TypeRegistry.add(OptionalType) # don't register as it is a function
 
+# Export ParameterizedType for others to use
+ParameterizedType = _ParameterizedType
+
 __all__ = [
     "TypeRegistry",
+    "NeverType",
     "UnknownType",
     "AnyType",
     "NoneType",
@@ -552,4 +565,5 @@ __all__ = [
     "ObjectType",
     "ConstType",
     "OptionalType",
+    "ParameterizedType"
 ]

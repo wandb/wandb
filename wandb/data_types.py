@@ -2827,7 +2827,7 @@ class _ClassesMemberType(dtypes.UnionType):
         return new_type
 
 
-class _ImageType(dtypes._ParameterizedType):
+class _ImageType(dtypes.ParameterizedType):
     name = "wandb.Image"
 
     @staticmethod
@@ -2866,7 +2866,7 @@ class _ImageType(dtypes._ParameterizedType):
             return None
 
 
-class _TableType(dtypes._ParameterizedType):
+class _TableType(dtypes.ParameterizedType):
     name = "wandb.Table"
 
     @staticmethod
