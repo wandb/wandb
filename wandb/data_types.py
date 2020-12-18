@@ -14,7 +14,6 @@ import json
 import pprint
 import shutil
 from six.moves import queue
-from urllib.parse import quote_plus
 import warnings
 
 import numbers
@@ -35,12 +34,18 @@ from wandb import util
 from wandb.util import has_num
 from wandb.compat import tempfile
 
+_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+
+if _PY3:
+    from urllib.parse import quote_plus
+else:
+    from urllib import quote_plus
+
 
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
 
-    PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-    if PY3:
+    if _PY3:
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
     else:
