@@ -343,8 +343,10 @@ class FileStreamApi(object):
                         "offset": f1["offset"],
                         "content": f1["content"],
                     }
-                    current_size += _file_size(f1)
                     files_stack.append(f2)
+                    yield current_volume
+                    current_size = 0
+                    continue
                 else:
                     files_stack.append(f)
                     yield current_volume
