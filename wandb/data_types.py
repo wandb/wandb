@@ -14,6 +14,7 @@ import json
 import pprint
 import shutil
 from six.moves import queue
+from urllib.parse import quote_plus
 import warnings
 
 import numbers
@@ -355,7 +356,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(key, step, id_, extension)
+        file_path = wb_filename(quote_plus(key), step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
