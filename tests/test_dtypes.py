@@ -45,6 +45,7 @@ def test_any_type():
     assert wb_type == wb_type.assign(1)
     assert wb_type.assign(None) == NeverType
 
+
 def test_never_type():
     wb_type = NeverType
     assert wb_type == wb_type.assign(1)

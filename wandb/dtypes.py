@@ -28,6 +28,7 @@ class _Type(object):
             and self.to_dict() == other.to_dict()
         )
 
+
 class _NeverType(_Type):
     name = "never"
 
@@ -36,6 +37,7 @@ class _NeverType(_Type):
 
 
 NeverType = _NeverType()
+
 
 class _AnyType(_Type):
     name = "any"
@@ -565,5 +567,5 @@ __all__ = [
     "ObjectType",
     "ConstType",
     "OptionalType",
-    "ParameterizedType"
+    "ParameterizedType",
 ]
