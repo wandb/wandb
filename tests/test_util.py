@@ -50,7 +50,9 @@ def json_friendly_test(orig_data, obj):
 
 def test_json_friendly_np32():
     # test single numbers
-    n = 0.123456789
+
+    # This is set to precision which 32 can handle
+    n = 0.12345678
     obj, converted = util.json_friendly(n)
     assert not converted
 
@@ -77,6 +79,7 @@ def test_json_friendly_np32():
 
     # test dataframes
     df = pd.DataFrame({'col1': np.array([n, n]).astype(np.float32)})
+    import pdb; pdb.set_trace()
     obj, converted = util.json_friendly(df)
     assert obj["col1"].to_list() == [n, n]
 

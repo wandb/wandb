@@ -390,6 +390,11 @@ def matplotlib_contains_images(obj):
     obj = ensure_matplotlib_figure(obj)
     return any(len(ax.images) > 0 for ax in obj.axes)
 
+def _safe_np32_convert(np_val):
+    if np and isinstance(np_val, np.float32):
+        return float(str(np_val))
+    else:
+        return np_val
 
 def json_friendly(obj):
     """Convert an object into something that's more becoming of JSON"""
@@ -422,11 +427,29 @@ def json_friendly(obj):
 
     if is_numpy_array(obj):
         if obj.size == 1:
-            obj = obj.flatten()[0]
+            obj = _safe_np32_convert(obj.flatten()[0])
         elif obj.size <= 32:
-            obj = obj.tolist()
+            if obj.dtype == np.float32:
+                obj = [
+                    _safe_np32_convert(item) for item in obj
+                ]
+            else:
+                obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = obj.item()
+        if isinstance(obj, np.float32):
+            obj = _safe_np32_convert(obj)
+        else:
+            obj = obj.item()
+    elif is_pandas_data_frame(obj):
+        copied = False
+        for ndx, dtype in enumerate(obj.dtypes.tolist()):
+            if dtype == np.float32:
+                # don't mutate existing data
+                if not copied:
+                    obj = obj.copy()
+                    copied = True
+                
+                obj[obj.columns[ndx]] = obj[obj.columns[ndx]].map(lambda val: float(str(val)))
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
