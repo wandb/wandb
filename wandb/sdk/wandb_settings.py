@@ -38,6 +38,7 @@ import time
 
 import six
 import wandb
+from wandb import util
 
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
@@ -77,6 +78,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     problem=None,
     console=None,
     config_paths=None,
+    sweep_param_path=None,
     run_id=None,
     notebook_name=None,
     host=None,
@@ -104,13 +106,6 @@ def _build_inverse_map(prefix: str, d: Dict[str, str]) -> Dict[str, str]:
         v = v or prefix + k.upper()
         inv_map[v] = k
     return inv_map
-
-
-def _is_kaggle() -> bool:
-    return (
-        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
-    )
 
 
 def _error_choices(value: str, choices: Set[str]) -> str:
@@ -276,6 +271,7 @@ class Settings(object):
         system_samples=15,
         heartbeat_seconds=30,
         config_paths=None,
+        sweep_param_path=None,
         _config_dict=None,
         # directories and files
         root_dir=None,
@@ -407,7 +403,7 @@ class Settings(object):
 
     @property
     def _kaggle(self) -> bool:
-        return _is_kaggle()
+        return util._is_kaggle()
 
     @property
     def _windows(self) -> bool:
