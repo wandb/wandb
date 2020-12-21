@@ -93,22 +93,12 @@ class TerminalEmulator(object):
     ANSI_OSC_RE = re.compile('\001?\033\\]([^\a]*)(\a)\002?')             # Operating System Command
 
     def __init__(self):
+        self._history = []
         self.reset()
 
     def reset(self):
         self.text = ''
         self.cursor = [0, 0]
-
-    def _remove_back_space(self, text):
-        ret = ''
-        for c in text:
-            if c == '\x08':  # backspace
-                ret = ret[:-1]
-            elif c == '\x07': # bell
-                pass
-            else:
-                ret += c
-        return ret
 
     def _get_1d_cursor(self):
         lines = self.text.split('\n')
@@ -129,18 +119,23 @@ class TerminalEmulator(object):
             self.cursor[0] += len(text)
 
     def write(self, text):
+        self._history.append("write: " + text)
         for match in self.ANSI_OSC_RE.finditer(text): 
             start, end = match.span()
             text = text[:start] + text[end:]
         prev_end = 0
         for match in self.ANSI_CSI_RE.finditer(text):
+            self._history.append("Found match:")
             start, end = match.span()
+            self._history.append("Writing plain text: " + text[prev_end: start])
             self._write_plain_text(text[prev_end: start])
+            self._history.append("ansi: " + str(match.groups()))
             self._process_ansi(*match.groups())
             prev_end = end
         self._write_plain_text(text[prev_end:])
 
     def _process_ansi(self, paramstring, command):
+        self._history.append((paramstring, command))
         # https://en.wikipedia.org/wiki/ANSI_escape_code
         if command in 'Hf':
             params = tuple(int(p) if len(p) != 0 else 1 for p in paramstring.split(';'))
@@ -186,6 +181,7 @@ class TerminalEmulator(object):
                 self.text = '\n'.join(lines[:cy] + [' ' * len(curr_line)] + lines[cy:])
         elif command in 'Hf':
             n, m = params
+            # values are 1 based
             n -= 1
             m -= 1
             n = max(0, n)
@@ -272,12 +268,6 @@ class Redirect(BaseRedirect):
             signal.signal(signal.SIGWINCH, self._old_handler)
         os.dup2(self._orig_src_fd, self.src_fd)
 
-    def _process_ansi(self, data):
-        text = data.decode('utf-8')
-        self._emulator.reset()
-        self._emulator.write(text)
-        return self._emulator.text.encode('utf-8')
-
     def _pipe_relay(self):
         while self._installed:
             try:
@@ -288,9 +278,12 @@ class Redirect(BaseRedirect):
             if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                 while i < len(data):
                     i += self._orig_src.write(data[i:])
-            
-            for cb in self.cbs:
-                try:
-                    cb(self._process_ansi(data))
-                except Exception as e:
-                    print(e)
+            self._emulator.write(data.decode('utf-8'))
+            if '\n' in self._emulator.text:
+                data = self._emulator.text.encode('utf-8')
+                self._emulator.reset()
+                for cb in self.cbs:
+                    try:
+                        cb(data)
+                    except Exception as e:
+                        print(e)
