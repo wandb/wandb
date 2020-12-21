@@ -478,30 +478,32 @@ class Table(Media):
         data=None,
         rows=None,
         dataframe=None,
+        optional=True,
+        dtype=dtypes.UnknownType,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api
         """
         super(Table, self).__init__()
         # Explicit dataframe option
         if dataframe is not None:
-            self._init_from_dataframe(dataframe, columns)
+            self._init_from_dataframe(dataframe, columns, optional, dtype)
         else:
             # Expected pattern
             if data is not None:
                 if util.is_numpy_array(data):
-                    self._init_from_ndarray(data, columns)
+                    self._init_from_ndarray(data, columns, optional, dtype)
                 elif util.is_pandas_data_frame(data):
-                    self._init_from_dataframe(data, columns)
+                    self._init_from_dataframe(data, columns, optional, dtype)
                 else:
-                    self._init_from_list(data, columns)
+                    self._init_from_list(data, columns, optional, dtype)
 
             # legacy
             elif rows is not None:
-                self._init_from_list(rows, columns)
+                self._init_from_list(rows, columns, optional, dtype)
 
             # Default empty case
             else:
-                self._init_from_list([], columns)
+                self._init_from_list([], columns, optional, dtype)
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -513,37 +515,90 @@ class Table(Media):
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
-    def _init_from_list(self, data, columns):
+    def _init_from_list(self, data, columns, optional=True, dtype=dtypes.UnknownType):
         assert type(data) is list, "data argument expects a `list` object"
+        self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes.DictType(
-            {col_key: dtypes.UnknownType for col_key in columns}
-        )
-        self.data = data
+        self._make_column_types(optional, dtype)
+        # self._column_types = dtypes.DictType(
+        #     {col_key: dtypes.UnknownType for col_key in columns}
+        # )
+        for row in data:
+            self.add_data(*row)
 
-    def _init_from_ndarray(self, ndarray, columns):
+    def _init_from_ndarray(
+        self, ndarray, columns, optional=True, dtype=dtypes.UnknownType
+    ):
         assert util.is_numpy_array(
             ndarray
         ), "ndarray argument expects a `numpy.ndarray` object"
+        self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._column_types = dtypes.DictType(
-            {col_key: dtypes.UnknownType for col_key in columns}
-        )
-        self.data = ndarray.tolist()
+        self._make_column_types(optional, dtype)
+        # self._column_types = dtypes.DictType(
+        #     {col_key: dtypes.UnknownType for col_key in columns}
+        # )
+        for row in ndarray.tolist():
+            self.add_data(*row)
 
-    def _init_from_dataframe(self, dataframe, columns):
+    def _init_from_dataframe(
+        self, dataframe, columns, optional=True, dtype=dtypes.UnknownType
+    ):
         assert util.is_pandas_data_frame(
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
-        self.columns = list(dataframe.columns)
-        self._column_types = dtypes.DictType(
-            {col_key: dtypes.UnknownType for col_key in columns}
-        )
         self.data = []
+        self.columns = list(dataframe.columns)
+        self._make_column_types(optional, dtype)
+        # self._column_types = dtypes.DictType(
+        #     {col_key: dtypes.UnknownType for col_key in columns}
+        # )
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+
+    def _make_column_types(self, optional=True, dtype=dtypes.UnknownType):
+        assert optional.__class__ == bool or (
+            len(optional) == len(self.columns)
+            and all([opt.__class__ == bool for opt in optional])
+        )
+        assert isinstance(dtype, dtypes._Type) or (
+            len(dtype) == len(self.columns)
+            and all([isinstance(dt, dtypes._Type) for dt in dtype])
+        )
+
+        if optional.__class__ != list:
+            optional = [optional for _ in range(len(self.columns))]
+
+        if dtype.__class__ != list:
+            dtype = [dtype for _ in range(len(self.columns))]
+
+        self._column_types = dtypes.DictType({})
+        for col_name, opt, dt in zip(self.columns, optional, dtype):
+            if opt:
+                _dt = dtypes.OptionalType(dt)
+            else:
+                _dt = dt
+            self.cast(col_name, _dt)
+
+    def cast(self, col_name, dtype):
+        if not isinstance(dtype, dtypes._Type):
+            dtype = dtypes.TypeRegistry.type_of(dtype)
+        col_ndx = self.columns.index(col_name)
+        for row in self.data:
+            result_type = dtype.assign(row[col_ndx])
+            if result_type == dtypes.NeverType:
+                raise TypeError(
+                    "Existing data {}, of type {} cannot be cast to {}".format(
+                        row[col_ndx],
+                        self._column_types.params["type_map"][col_name],
+                        dtype,
+                    )
+                )
+            dtype = result_type
+        self._column_types.params["type_map"][col_name] = dtype
+        return dtype
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -579,34 +634,14 @@ class Table(Media):
             col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
         }
         current_type = self._column_types
-        result_type = current_type.type_by_assignment(incoming_data_dict)
-        if result_type is None:
+        result_type = current_type.assign(incoming_data_dict)
+        if result_type is dtypes.NeverType:
             raise TypeError(
                 "Data column contained incompatible types. Expected type {}, found data {}".format(
                     current_type, incoming_data_dict
                 )
             )
         self._column_types = result_type
-
-    # TODO: In the future, it would be great to have a "column" class similar to
-    # pandas "Series" class. However, this requires reorienting the table into
-    # a columnar layout,
-    def convert_column(self, col_name, new_type):
-        assert isinstance(new_type, dtypes._WBType)
-        col_ndx = self.columns.index(col_name)
-        for row in self.data:
-            result_type = new_type.type_by_assignment(row[col_ndx])
-            if result_type is None:
-                raise TypeError(
-                    "Existing data {}, of type {} cannot be coerced into {}".format(
-                        row[col_ndx],
-                        self._column_types.schema["key_types"][col_name],
-                        new_type,
-                    )
-                )
-            new_type = result_type
-        self._column_types.schema["key_types"][col_name] = new_type
-        return new_type
 
     def _to_table_json(self, max_rows=None):
         # seperate method for testing
@@ -2775,8 +2810,33 @@ def data_frame_to_json(df, run, key, step):
 ## Custom dtypes for typing system
 
 
-class _ClassesMemberType(dtypes.UnionType):
+class _ClassesMemberType(dtypes.ParameterizedType):
     name = "wandb.Classes_member"
+
+    def __init__(self, wb_classes=None, _params=None):
+        if _params is None:
+            if wb_classes is None:
+                raise TypeError("wb_classes and _params cannot both be None")
+                # _params = {
+                #     "class_ids": dtypes.UnknownType,
+                # }
+            else:
+                _params = {
+                    "valid_class_ids": self._union_from_classes(wb_classes),
+                }
+        super(_ClassesMemberType, self).__init__(wb_classes, _params)
+        self.wb_classes_obj_ref = wb_classes
+
+    def assign(self, py_obj=None):
+        print(self.params)
+        if self.params["valid_class_ids"].assign(py_obj) == dtypes.NeverType:
+            return dtypes.NeverType
+        else:
+            return self
+
+    @classmethod
+    def _validate_params(cls, params):
+        return isinstance(params["valid_class_ids"], dtypes.UnionType)
 
     # this is bit of a hack since the "type" of a classes object
     # is a class definition, not a member of the class
@@ -2784,124 +2844,135 @@ class _ClassesMemberType(dtypes.UnionType):
     def types_py_obj(py_obj=None):
         return py_obj.__class__ == Classes
 
-    @classmethod
-    def init_from_py_obj(cls, py_obj=None):
-        res = super(UnionType, cls).__init__(
-            [dtypes.ConstType(class_obj["id"]) for class_obj in wb_classes._class_set]
-        )
-        res.classes_obj_ref = py_obj
-        return res
-
     def to_dict(self, artifact=None):
         cl_dict = super(_ClassesMemberType, self).to_dict(artifact)
+        print(cl_dict)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
         # the same file-pattern as other media types.
         if artifact is not None:
             class_name = os.path.join("media", "cls")
-            classes_entry = artifact.add(self.classes_obj_ref, class_name)
-            cl_dict["schema"]["classes"] = {
+            classes_entry = artifact.add(self.wb_classes_obj_ref, class_name)
+            cl_dict["params"]["classes_obj"] = {
                 "type": "classes-file",
                 "path": classes_entry.path,
                 "digest": classes_entry.digest,  # is this needed really?
             }
         else:
-            cl_dict["schema"]["classes"] = self.classes_obj_ref.to_json(artifact)
+            cl_dict["params"]["classes_obj"] = self.wb_classes_obj_ref.to_json(artifact)
         return cl_dict
 
     @classmethod
     def init_from_dict(cls, json_dict, artifact=None):
-        new_type = super(_ClassesMemberType, cls).init_from_dict(
-            {"allowed_values": json_dict.get("allowed_values")}, artifact=artifact
-        )
-        assert new_type.__class__ == _ClassesMemberType
-        if json_dict.get("schema", {}).get("classes", {}).get("type") == "classes-file":
-            new_type.classes_obj_ref = artifact.get(
-                json_dict.get("schema", {}).get("classes", {}).get("path")
+        classes_obj = None
+        if (
+            json_dict.get("params", {}).get("classes_obj", {}).get("type")
+            == "classes-file"
+        ):
+            classes_obj = artifact.get(
+                json_dict.get("params", {}).get("classes_obj", {}).get("path")
             )
         else:
-            new_type.classes_obj_ref = Classes.from_json(
-                json_dict["schema"]["classes"], artifact
+            classes_obj = Classes.from_json(
+                json_dict["params"]["classes_obj"], artifact
             )
 
-        return new_type
+        return cls(classes_obj)
+
+    @staticmethod
+    def _union_from_classes(wb_classes):
+        return dtypes.UnionType(
+            [dtypes.ConstType(class_obj["id"]) for class_obj in wb_classes._class_set]
+        )
 
 
 class _ImageType(dtypes.ParameterizedType):
     name = "wandb.Image"
+
+    def __init__(self, wb_image=None, _params=None):
+        if _params is None:
+            if wb_image is None:
+                _params = {
+                    "box_keys": dtypes.UnknownType,
+                    "mask_keys": dtypes.UnknownType,
+                }
+            else:
+                box_keyset, mask_keyset = self._image_to_keysets(wb_image)
+                _params = {
+                    "box_keys": dtypes.SetConstType(box_keyset),
+                    "mask_keys": dtypes.SetConstType(mask_keyset),
+                }
+
+        super(_ImageType, self).__init__(wb_image, _params)
 
     @staticmethod
     def types_py_obj(py_obj=None):
         return py_obj.__class__ == Image
 
     @classmethod
-    def init_from_py_obj(cls, py_obj=None):
-        res = super(_ImageType, cls).init_from_py_obj(py_obj)
-        # It would be nice to use the dict type here, but this is a paramsial case
-        # where we only care about the first-level keys of a few fields.
-        res.params.update(
-            {
-                "box_keys": set(list(py_obj._boxes.keys()) if py_obj._boxes else []),
-                "mask_keys": set(list(py_obj._masks.keys()) if py_obj._masks else []),
-            }
+    def _validate_params(cls, params):
+        box_keys = params.get("box_keys", dtypes.UnknownType)
+        mask_keys = params.get("mask_keys", dtypes.UnknownType)
+        return (
+            box_keys == dtypes.UnknownType or isinstance(box_keys, dtypes.SetConstType)
+        ) and (
+            mask_keys == dtypes.UnknownType
+            or isinstance(mask_keys, dtypes.SetConstType)
         )
 
-        return res
+    def assign(self, py_obj=None):
+        box_keyset, mask_keyset = self._image_to_keysets(py_obj)
+        if self.params["box_keys"] is dtypes.UnknownType:
+            box_result = dtypes.SetConstType(box_keyset)
+        else:
+            box_result = self.params["box_keys"].assign(box_keyset)
+
+        if self.params["mask_keys"] is dtypes.UnknownType:
+            mask_result = dtypes.SetConstType(mask_keyset)
+        else:
+            mask_result = self.params["mask_keys"].assign(mask_keyset)
+
+        if box_result == dtypes.NeverType or mask_result == dtypes.NeverType:
+            return dtypes.NeverType
+        else:
+            return self.__class__(
+                _params={"box_keys": box_result, "mask_keys": mask_result,}
+            )
 
     @staticmethod
-    def _validate_params(params):
-        box_keys = params.get("box_keys", [])
-        mask_keys = params.get("mask_keys", [])
-
-        return all(
-            [key.__class__ == str for key in params.get("box_keys", [])]
-        ) and all([key.__class__ == str for key in params.get("mask_keys", [])])
-
-    def assign(self, py_obj=None):
-        if self.params["box_keys"] == list(py_obj._boxes.keys()) and self.params[
-            "mask_keys"
-        ] == list(py_obj._masks.keys()):
-            return self
-        else:
-            return None
+    def _image_to_keysets(image_obj):
+        return (
+            set(list(image_obj._boxes.keys()) if image_obj._boxes else []),
+            set(list(image_obj._masks.keys()) if image_obj._masks else []),
+        )
 
 
 class _TableType(dtypes.ParameterizedType):
     name = "wandb.Table"
+
+    def __init__(self, py_obj=None, _params=None):
+        if _params is None:
+            _params = {
+                "column_types": py_obj._column_types
+                if py_obj and py_obj._column_types
+                else dtypes.DictType({}),
+            }
+        super(_TableType, self).__init__(py_obj, _params)
 
     @staticmethod
     def types_py_obj(py_obj=None):
         return py_obj.__class__ == Table
 
     @classmethod
-    def init_from_py_obj(cls, py_obj=None):
-        res = super(_TableType, cls).init_from_py_obj(py_obj)
-        # It would be nice to use the dict type here, but this is a paramsial case
-        # where we only care about the first-level keys of a few fields.
-        res.params.update(
-            {
-                "column_types": py_obj._column_types
-                if py_obj and py_obj._column_types
-                else dtypes.DictType({}),
-            }
-        )
-
-        return res
-
-    @staticmethod
-    def _validate_params(params):
+    def _validate_params(cls, params):
         return isinstance(params.get("column_types"), dtypes.DictType)
 
     def assign(self, py_obj=None):
-        if (
-            self.params.get("column_types").assign(
-                _TableType.init_from_py_obj(py_obj).params.get("column_types")
-            )
-            is not None
-        ):
-            return self
+        new_col_types = self.params.get("column_types").assign_type(py_obj.column_types)
+        if new_col_types == dtypes.NeverType:
+            return dtypes.NeverType
         else:
-            return None
+            return self.__class__(_params={"column_types": new_col_types})
 
 
 dtypes.TypeRegistry.add(_ClassesMemberType)

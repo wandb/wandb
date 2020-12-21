@@ -3,6 +3,12 @@ from wandb import data_types
 import numpy as np
 import pytest
 from wandb.dtypes import *
+import wandb.data_types
+import os
+
+class_labels = {1: "tree", 2: "car", 3: "road"}
+test_folder = os.path.dirname(os.path.realpath(__file__))
+im_path = os.path.join(test_folder, "..", "assets", "test.png")
 
 
 def test_none_type():
@@ -360,223 +366,160 @@ def test_nested_dict():
     assert wb_type.assign({"l1": {"l2": [{"a": "a",}]}}) == NeverType
 
 
-# def test_table_column_types():
-#     primitive_table = wandb.Table(columns=["text", "number", "boolean"])
-#     primitive_table.add_data(*[None, None, None])
-#     primitive_table.add_data(*["a", 1, True])
-#     primitive_table.add_data(*[None, None, None])
-#     primitive_table.add_data(*["b", 2, False])
-#     primitive_table.add_data(*[None, None, None])
-#     with pytest.raises(TypeError):
-#         primitive_table.add_data(*[1, 1, True])  # should fail
-#     with pytest.raises(TypeError):
-#         primitive_table.add_data(*["a", "a", True])  # should fail
-#     with pytest.raises(TypeError):
-#         primitive_table.add_data(*["a", 1, "a"])  # should fail
+def test_image_type():
+    wb_type = data_types._ImageType()
+    image_simple = data_types.Image(np.random.rand(10, 10))
+    wb_type_simple = data_types._ImageType(image_simple)
+    image_annotated = data_types.Image(
+        np.random.rand(10, 10),
+        boxes={
+            "box_predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "box_ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+        masks={
+            "mask_predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
+        },
+    )
+    wb_type_annotated = data_types._ImageType(image_annotated)
 
-#     listlike_table = wandb.Table(columns=["list_number", "list_list", "list_dict"])
-#     listlike_table.add_data(*[None, None, None])
-#     listlike_table.add_data(
-#         *[[None, 1, None, 2], [[None, 1, None, 2]], [None, {}, None, {"a": 1}]]
-#     )
-#     listlike_table.add_data(*[None, None, None])
-#     listlike_table.add_data(
-#         *[[None, 3, None, 4], [[None, 5, None, 6]], [None, {"b": 3}, None, {"c": 1}]]
-#     )
-#     listlike_table.add_data(*[None, None, None])
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[1, None, None])  # should fail
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[None, 1, None])  # should fail
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[None, None, {}])  # should fail
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[[None, "a", None, 2], None, None])  # should fail
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[None, [[None, "a", None, 6]], None])  # should fail
-#     with pytest.raises(TypeError):
-#         listlike_table.add_data(*[None, None, [None, "a"]])  # should fail
+    image_annotated_differently = data_types.Image(
+        np.random.rand(10, 10),
+        boxes={
+            "box_predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        },
+        masks={
+            "mask_predictions": {
+                "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                "class_labels": class_labels,
+            },
+            "mask_ground_truth_2": {"path": im_path, "class_labels": class_labels},
+        },
+    )
 
-#     obj_table = wandb.Table(columns=["dict"])
-#     obj_table.add_data(*[None])
-#     obj_table.add_data(*[{}])
-#     obj_table.add_data(*[None])
-#     obj_table.add_data(*[{"a": 1}])
-#     obj_table.add_data(*[None])
-#     obj_table.add_data(*[{1: 1}])
-#     with pytest.raises(TypeError):
-#         obj_table.add_data(*[1])  # should fail
-#     with pytest.raises(TypeError):
-#         obj_table.add_data(*[""])  # should fail
-#     with pytest.raises(TypeError):
-#         obj_table.add_data(*[[{}]])  # should fail
+    assert wb_type.assign(image_simple) == wb_type_simple
+    assert wb_type.assign(image_annotated) == wb_type_annotated
+    assert wb_type_annotated.assign(image_simple) == NeverType
+    assert wb_type_annotated.assign(image_annotated_differently) == NeverType
 
-#     class_labels = {1: "tree", 2: "car", 3: "road"}
-#     test_folder = os.path.dirname(os.path.realpath(__file__))
-#     im_path = os.path.join(test_folder, "..", "assets", "test.png")
-#     simple_image = wandb.Image(im_path,)
-#     boxes_image = wandb.Image(
-#         im_path,
-#         boxes={
-#             "predictions": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#         },
-#     )
-#     mask_image = wandb.Image(
-#         im_path,
-#         masks={
-#             "predictions": {
-#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth": {"path": im_path, "class_labels": class_labels},
-#         },
-#     )
-#     rich_image = wandb.Image(
-#         im_path,
-#         boxes={
-#             "predictions": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#         },
-#         masks={
-#             "predictions": {
-#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth": {"path": im_path, "class_labels": class_labels},
-#         },
-#     )
-#     rich_image_2 = wandb.Image(
-#         im_path,
-#         boxes={
-#             "predictions_2": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth_2": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#         },
-#         masks={
-#             "predictions": {
-#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-#                 "class_labels": class_labels,
-#             },
-#             "ground_truth": {"path": im_path, "class_labels": class_labels},
-#         },
-#     )
 
-#     image_table = wandb.Table(
-#         columns=["simple", "with_masks", "with_boxes", "with_both"]
-#     )
-#     image_table.add_data(None, None, None, None)
-#     image_table.add_data(simple_image, mask_image, boxes_image, rich_image)
-#     image_table.add_data(None, None, None, None)
-#     image_table.add_data(simple_image, mask_image, boxes_image, rich_image)
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, simple_image, None, None)  # should fail
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, None, simple_image, None)  # should fail
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, None, None, simple_image)  # should fail
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, None, None, rich_image_2)  # should fail
+def test_classes_type():
+    wb_classes = data_types.Classes(
+        [
+            {"id": 1, "name": "cat"},
+            {"id": 2, "name": "dog"},
+            {"id": 3, "name": "horse"},
+        ]
+    )
 
-#     mega_table = wandb.Table(columns=["primitive", "list", "obj", "image"])
-#     mega_table.add_data(None, None, None, None)
-#     mega_table.add_data(primitive_table, listlike_table, obj_table, image_table)
-#     mega_table.add_data(None, None, None, None)
-#     mega_table.add_data(primitive_table, listlike_table, obj_table, image_table)
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, primitive_table, None, None)  # should fail
+    wb_class_type = data_types._ClassesMemberType(wb_classes)
 
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, None, primitive_table, None)  # should fail
+    assert wb_class_type.assign(1) == wb_class_type
+    assert wb_class_type.assign(0) == NeverType
 
-#     with pytest.raises(TypeError):
-#         image_table.add_data(None, None, None, primitive_table)  # should fail
+
+def test_table_type():
+    table_1 = wandb.Table(columns=["col"], data=[[1]])
+    t1 = data_types._TableType(table_1)
+    table_2 = wandb.Table(columns=["col"], data=[[1.3]])
+    table_3 = wandb.Table(columns=["col"], data=[["a"]])
+    assert t1.assign(table_2) == t1
+    assert t1.assign(table_3) == NeverType
+
+
+def test_table_implicit_types():
+    table = wandb.Table(columns=["col"])
+    table.add_data(None)
+    table.add_data(1)
+    with pytest.raises(TypeError):
+        table.add_data("a")
+
+    table = wandb.Table(columns=["col"], optional=False)
+    with pytest.raises(TypeError):
+        table.add_data(None)
+    table.add_data(1)
+    with pytest.raises(TypeError):
+        table.add_data("a")
+
+
+def test_table_explicit_types():
+    table = wandb.Table(columns=["col"], dtype=NumberType)
+    table.add_data(None)
+    table.add_data(1)
+    with pytest.raises(TypeError):
+        table.add_data("a")
+
+    table = wandb.Table(columns=["col"], optional=False, dtype=NumberType)
+    with pytest.raises(TypeError):
+        table.add_data(None)
+    table.add_data(1)
+    with pytest.raises(TypeError):
+        table.add_data("a")
+
+
+def test_table_type_cast():
+
+    table = wandb.Table(columns=["type_col"])
+    table.add_data(1)
+
+    wb_classes = data_types.Classes(
+        [
+            {"id": 1, "name": "cat"},
+            {"id": 2, "name": "dog"},
+            {"id": 3, "name": "horse"},
+        ]
+    )
+
+    table.cast("type_col", wb_classes)
+    table.add_data(2)
+
+    with pytest.raises(TypeError):
+        table.add_data(4)

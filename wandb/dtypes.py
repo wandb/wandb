@@ -61,6 +61,9 @@ UnknownType = _UnknownType()
 
 
 class _ConcreteType(_Type):
+    def __init__(self, py_obj=None):
+        pass
+
     def assign(self, py_obj=None):
         valid = self.types_py_obj(py_obj)
         return self if valid else NeverType
@@ -74,7 +77,7 @@ class _ConcreteType(_Type):
     @classmethod
     def init_from_py_obj(cls, py_obj=None):
         if cls.types_py_obj(py_obj):
-            return cls()
+            return cls(py_obj)
         else:
             raise TypeError("Cannot type python object")
 
@@ -133,7 +136,7 @@ class _ParameterizedType(_ConcreteType):
     _params = None
 
     # safe to override
-    def __init__(self, _params=None):
+    def __init__(self, py_obj=None, _params=None):
         if _params is not None:
             self._assert_valid_params(_params)
             self._params = _params
@@ -154,8 +157,6 @@ class _ParameterizedType(_ConcreteType):
                 ),
             }
         )
-        if res["params"] == {}:
-            del res["params"]
         return res
 
     # Safe to override
@@ -299,9 +300,9 @@ class ObjectType(_ParameterizedType):
     name = "object"
 
     # Free to define custom initializer for best UX
-    def __init__(self, clss=None, _params=None):
+    def __init__(self, py_obj=None, _params=None):
         if _params is None:
-            _params = {"class_name": clss.__name__}
+            _params = {"class_name": py_obj.__class__.__name__}
         self._assert_valid_params(_params)
         self._params = _params
 
@@ -310,10 +311,6 @@ class ObjectType(_ParameterizedType):
             return self
         else:
             return NeverType
-
-    @classmethod
-    def init_from_py_obj(cls, py_obj=None):
-        return cls(py_obj.__class__)
 
     @staticmethod
     def types_py_obj(py_obj=None):
@@ -500,21 +497,15 @@ class ConstType(_ParameterizedType):
     name = "const"
 
     # Free to define custom initializer for best UX
-    def __init__(self, val, _params=None):
+    def __init__(self, py_obj=None, _params=None):
         if _params is None:
-            _params = {"val": val}
+            _params = {"val": py_obj}
         self._assert_valid_params(_params)
         self._params = _params
 
     @staticmethod
     def types_py_obj(py_obj=None):
         return py_obj.__class__ in [str, bool, int, float]
-
-    @classmethod
-    def init_from_py_obj(cls, py_obj=None):
-        res = super(ConstType, cls).init_from_py_obj(py_obj)
-        res.params["val"] = py_obj
-        return res
 
     @classmethod
     def _validate_params(cls, params):
@@ -530,6 +521,11 @@ class ConstType(_ParameterizedType):
 
 class SetConstType(ConstType):
     name = "set_const"
+
+    def __init__(self, val=None, _params=None):
+        if val is None:
+            val = set()
+        super(SetConstType, self).__init__(val, _params)
 
     @staticmethod
     def types_py_obj(py_obj=None):
@@ -598,7 +594,7 @@ TypeRegistry.add(_TextType)
 TypeRegistry.add(_NumberType)
 TypeRegistry.add(_BooleanType)
 
-# Parametrized Types
+# Parameterized Types
 TypeRegistry.add(ListType)
 TypeRegistry.add(DictType)
 TypeRegistry.add(UnionType)
