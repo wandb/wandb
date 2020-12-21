@@ -5,7 +5,7 @@ title: Init
 <a name="wandb.sdk.wandb_init"></a>
 # wandb.sdk.wandb\_init
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_init.py#L4)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_init.py#L4)
 
 <a name="wandb.sdk.wandb_init.init"></a>
 #### init
@@ -14,7 +14,7 @@ title: Init
 init(job_type: Optional[str] = None, dir=None, config: Union[Dict, str, None] = None, project: Optional[str] = None, entity: Optional[str] = None, reinit: bool = None, tags: Optional[Sequence] = None, group: Optional[str] = None, name: Optional[str] = None, notes: Optional[str] = None, magic: Union[dict, str, bool] = None, config_exclude_keys=None, config_include_keys=None, anonymous: Optional[str] = None, mode: Optional[str] = None, allow_val_change: Optional[bool] = None, resume: Optional[Union[bool, str]] = None, force: Optional[bool] = None, tensorboard=None, sync_tensorboard=None, monitor_gym=None, save_code=None, id=None, settings: Union[Settings, Dict[str, Any], None] = None) -> Union[Run, Dummy]
 ```
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_init.py#L35)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_init.py#L35)
 
 Start a new tracked run with wandb.init(). In an ML training pipeline,
 you could add wandb.init() to the beginning of your training script as well as
@@ -23,6 +23,9 @@ your evaluation script, and each piece would be tracked as a run in W&B.
 wandb.init() spawns a new background process to log data to a run, and it
 also syncs data to wandb.ai by default so you can see live visualizations.
 Call wandb.init() to start a run before logging data with wandb.log().
+
+wandb.init() returns a run object, and you can also access the run object
+with wandb.run.
 
 **Arguments**:
 
@@ -179,7 +182,7 @@ A `Run` object.
 class _WandbInit(object)
 ```
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_init.py#L271)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_init.py#L274)
 
 <a name="wandb.sdk.wandb_init._WandbInit.setup"></a>
 #### setup
@@ -188,7 +191,7 @@ class _WandbInit(object)
  | setup(kwargs)
 ```
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_init.py#L283)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_init.py#L286)
 
 Complete setup for wandb.init(). This includes parsing all arguments,
 applying them with settings and enabling logging.

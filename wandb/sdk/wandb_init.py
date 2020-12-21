@@ -66,6 +66,9 @@ def init(
     wandb.init() spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
     Call wandb.init() to start a run before logging data with wandb.log().
+    
+    wandb.init() returns a run object, and you can also access the run object
+    with wandb.run.
 
     Arguments:
         project (str, optional): The name of the project where you're sending

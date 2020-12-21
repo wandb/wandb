@@ -76,6 +76,7 @@ renderer:
       contents:
         - 'wandb.sdk.wandb_run.Run.log'
     - title: Plot
+      contents:
         - 'wandb.plot.confusion_matrix.*'
     ## TODO Plots
     ## TODO Frameworks

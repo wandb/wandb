@@ -5,7 +5,7 @@ title: Config
 <a name="wandb.sdk.wandb_config"></a>
 # wandb.sdk.wandb\_config
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_config.py#L3)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_config.py#L3)
 
 Config is a dictionary-like object useful for tracking inputs to your script,
 like hyperparameters. We suggest you set this once at the beginning of your job,
@@ -20,7 +20,7 @@ batch_size in config.
 class Config(object)
 ```
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_config.py#L32)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_config.py#L32)
 
 Use the config object to save your run's hyperparameters. When you call
 wandb.init() to start a new tracked run, a run object is saved. We recommend
@@ -90,7 +90,7 @@ wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
  | persist()
 ```
 
-[[source]](https://github.com/wandb/client/blob/30e3ee0d4aee3c4c655c36ce9b12cddea5675540/wandb/sdk/wandb_config.py#L162)
+[[source]](https://github.com/wandb/client/blob/025b586d2951e741c7fbac2df201b9836211b679/wandb/sdk/wandb_config.py#L162)
 
 Calls the callback if it's set
 
