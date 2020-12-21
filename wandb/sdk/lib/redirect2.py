@@ -87,11 +87,138 @@ class Unbuffered(StreamWrapper):
         super(Unbuffered, self).__init__(src=src, cbs=[lambda _: getattr(sys, src).flush()])
 
 
+class TerminalEmulator(object):
+
+    ANSI_CSI_RE = re.compile('\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?')   # Control Sequence Introducer
+    ANSI_OSC_RE = re.compile('\001?\033\\]([^\a]*)(\a)\002?')             # Operating System Command
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.text = ''
+        self.cursor = [0, 0]
+
+    def _remove_back_space(self, text):
+        ret = ''
+        for c in text:
+            if c == '\x08':  # backspace
+                ret = ret[:-1]
+            elif c == '\x07': # bell
+                pass
+            else:
+                ret += c
+        return ret
+
+    def _get_1d_cursor(self):
+        lines = self.text.split('\n')
+        lines_above = lines[:self.cursor[1]]
+        num_chars_above = sum(map(len, lines_above)) + len(lines_above)
+        return num_chars_above + self.cursor[0]
+
+    def _write_plain_text(self, text):
+        cursor = self._get_1d_cursor()
+        text = self._remove_back_space(text)
+        self.text = self.text[:cursor] + text + self.text[cursor:]
+        lines = text.split('\n')
+        n = len(lines) - 1
+        self.cursor[1] += n
+        if n:
+            self.cursor[0] = len(lines[-1])
+        else:
+            self.cursor[0] += len(text)
+
+    def write(self, text):
+        for match in self.ANSI_OSC_RE.finditer(text): 
+            start, end = match.span()
+            text = text[:start] + text[end:]
+        prev_end = 0
+        for match in self.ANSI_CSI_RE.finditer(text):
+            start, end = match.span()
+            self._write_plain_text(text[prev_end: start])
+            self._process_ansi(*match.groups())
+            prev_end = end
+        self._write_plain_text(text[prev_end:])
+
+    def _process_ansi(self, paramstring, command):
+        # https://en.wikipedia.org/wiki/ANSI_escape_code
+        if command in 'Hf':
+            params = tuple(int(p) if len(p) != 0 else 1 for p in paramstring.split(';'))
+            while len(params) < 2:
+                params = params + (1,)
+        else:
+            params = tuple(int(p) for p in paramstring.split(';') if len(p) != 0)
+            if len(params) == 0:
+                if command in 'JKm':
+                    params = (0,)
+                elif command in 'ABCD':
+                    params = (1,)
+
+        if command == 'm':
+            # TODO(frz)
+            pass
+        elif command == 'J':
+            n = params[0]
+            if n == 0:
+                self.text = self.text[:self._get_1d_cursor()]
+            elif n == 1:
+                self.text = self.text[self._get_1d_cursor():]
+                self.cursor = [0, 0]
+            elif n >= 2:
+                self.text = ''
+                self.cursor = [0, 0]
+        elif command == 'K':
+            n = params[0]
+            if n == 0:
+                lines = self.text.split('\n')
+                cx, cy = self.cursor
+                curr_line = lines[cy]
+                self.text = '\n'.join(lines[:cy] + [curr_line[:cx] + ' ' * (len(curr_line) - cx)] + lines[cy:])
+            elif n == 1:
+                lines = self.text.split('\n')
+                cx, cy = self.cursor
+                curr_line = lines[cy]
+                self.text = '\n'.join(lines[:cy] + [' ' * cx + curr_line[cx:]] + lines[cy:])
+            elif n == 2:
+                lines = self.text.split('\n')
+                cy = self.cursor[1]
+                curr_line = lines[cy]
+                self.text = '\n'.join(lines[:cy] + [' ' * len(curr_line)] + lines[cy:])
+        elif command in 'Hf':
+            n, m = params
+            n -= 1
+            m -= 1
+            n = max(0, n)
+            m = max(0, m)
+            cx, cy = self.cursor
+            max_cy = self.text.count('\n')
+            cy = min(n, max_cy)
+            max_cx = len(self.text.split('\n')[cy])
+            cx = min(m, max_cx)
+            self.cursor = [cx, cy]
+        elif command == 'C':
+            n = params[0]
+            max_cx = len(self.text.split('\n')[self.cursor[1]])
+            self.cursor[0] = min(self.cursor[0] + n, max_cx)
+        elif command == 'D':
+            n = params[0]
+            self.cursor[0] = max(0, self.cursor[0] - n)
+        elif command == 'A':
+            n = params[0]
+            max_cy = self.text.count('\n')
+            self.cursor[1] = min(self.cursor[1] + n, max_cy)
+        elif command == 'B':
+            n = params[0]
+            self.cursor[1] = max(0, self.cursor[1] - n)
+            
+            
+
 class Redirect(BaseRedirect):
     def __init__(self, src, cbs=[]):
         super(Redirect, self).__init__(src=src, cbs=cbs)
         self._old_handler = None
         self._installed = False
+        self._emulator = TerminalEmulator()
 
     def _pipe(self):
         if pty:
@@ -145,25 +272,11 @@ class Redirect(BaseRedirect):
             signal.signal(signal.SIGWINCH, self._old_handler)
         os.dup2(self._orig_src_fd, self.src_fd)
 
-    ANSI_CSI_RE = re.compile('\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?')   # Control Sequence Introducer
-    ANSI_OSC_RE = re.compile('\001?\033\\]([^\a]*)(\a)\002?')             # Operating System Command
-
-    def _strip_ansi(self, data):
+    def _process_ansi(self, data):
         text = data.decode('utf-8')
-        # for match in self.ANSI_OSC_RE.finditer(text): 
-        #     start, end = match.span()
-        #     text = text[:start] + text[end:]
-        # for match in self.ANSI_CSI_RE.finditer(text):
-        #     start, end = match.span()
-        #     text = text[:start] + text[end:]
-        ret = ''
-        for c in text:
-            if c == '\x08':  # backspace
-                ret = ret[:-1]
-            else:
-                ret += c
-        ret = ret.encode('utf-8')
-        return ret
+        self._emulator.reset()
+        self._emulator.write(text)
+        return self._emulator.text.encode('utf-8')
 
     def _pipe_relay(self):
         while self._installed:
@@ -178,6 +291,6 @@ class Redirect(BaseRedirect):
             
             for cb in self.cbs:
                 try:
-                    cb(self._strip_ansi(data))
+                    cb(self._process_ansi(data))
                 except Exception as e:
                     print(e)
