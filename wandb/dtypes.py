@@ -53,7 +53,8 @@ class _UnknownType(_Type):
     name = "unknown"
 
     def assign(self, py_obj=None):
-        return TypeRegistry.type_of(py_obj, none_is_optional_unknown=True)
+        return NeverType if py_obj is None else TypeRegistry.type_of(py_obj)
+        # return TypeRegistry.type_of(py_obj, none_is_optional_unknown=True)
 
 
 UnknownType = _UnknownType()
@@ -138,8 +139,8 @@ class _ParameterizedType(_ConcreteType):
             self._params = _params
 
     # must override
-    @staticmethod
-    def _validate_params(params):
+    @classmethod
+    def _validate_params(cls, params):
         raise NotImplementedError()
         # return Bool
 
@@ -254,8 +255,12 @@ class UnionType(_ParameterizedType):
             if unknown_count == 0:
                 return NeverType
             else:
-                unknown_count -= 1
-                resolved_types.append(UnknownType.assign(py_obj))
+                new_type = UnknownType.assign(py_obj)
+                if new_type == NeverType:
+                    return NeverType
+                else:
+                    resolved_types.append(new_type)
+                    unknown_count -= 1
 
         for _ in range(unknown_count):
             resolved_types.append(UnknownType)
@@ -264,8 +269,8 @@ class UnionType(_ParameterizedType):
         resolved_types.sort(key=str)
         return self.__class__(resolved_types)
 
-    @staticmethod
-    def _validate_params(params):
+    @classmethod
+    def _validate_params(cls, params):
         allowed_types = params.get("allowed_types", [])
         return len(allowed_types) > 1 and all(
             [isinstance(allowed_type, _Type) for allowed_type in allowed_types]
@@ -314,8 +319,8 @@ class ObjectType(_ParameterizedType):
     def types_py_obj(py_obj=None):
         return True
 
-    @staticmethod
-    def _validate_params(params):
+    @classmethod
+    def _validate_params(cls, params):
         return len(params.get("class_name")) > 0
 
 
@@ -323,7 +328,7 @@ class ListType(_ParameterizedType):
     name = "list"
 
     # Free to define custom initializer for best UX
-    def __init__(self, dtype=None, _params=None):
+    def __init__(self, dtype=UnknownType, _params=None):
         if _params is None:
             _params = {"element_type": dtype}
         self._assert_valid_params(_params)
@@ -350,8 +355,8 @@ class ListType(_ParameterizedType):
     def types_py_obj(py_obj=None):
         return py_obj.__class__ in [list, tuple, set, frozenset]
 
-    @staticmethod
-    def _validate_params(params):
+    @classmethod
+    def _validate_params(cls, params):
         return isinstance(params["element_type"], _Type)
 
     def assign(self, py_obj=None):
@@ -377,15 +382,51 @@ class DictType(_ParameterizedType):
     name = "dictionary"
 
     # Free to define custom initializer for best UX
-    def __init__(self, type_map, policy=KeyPolicy.EXACT, _params=None):
+    def __init__(self, type_map, key_policy=KeyPolicy.EXACT, _params=None):
         if _params is None:
             new_type_map = {}
             for key in type_map:
+                # Allows for nested dict notation
                 if type_map[key].__class__ == dict:
-                    new_type_map[key] = DictType(type_map[key], policy)
-                else:
+                    new_type_map[key] = DictType(type_map[key], key_policy)
+                # allows for nested list notation
+                elif type_map[key].__class__ == list:
+                    ptr = type_map[key]
+                    depth = 0
+                    while ptr.__class__ == list and len(ptr) > 0:
+                        if len(ptr) > 1:
+                            raise TypeError(
+                                "Lists in DictType's type_map must be of length 0 or 1"
+                            )
+                        else:
+                            depth += 1
+                            ptr = ptr[0]
+
+                    if ptr.__class__ == list:
+                        inner_type = ListType()
+                    elif ptr.__class__ == dict:
+                        inner_type = DictType(ptr, key_policy)
+                    elif isinstance(ptr, _Type):
+                        inner_type = ptr
+                    else:
+                        raise TypeError(
+                            "DictType type_map values must subclass _Type (or be a dict or list). Found {} of class {}".format(
+                                type_map[key], type_map[key].__class__
+                            )
+                        )
+                    for _ in range(depth):
+                        inner_type = ListType(inner_type)
+                    new_type_map[key] = inner_type
+                elif isinstance(type_map[key], _Type):
                     new_type_map[key] = type_map[key]
-            _params = {"type_map": new_type_map, "policy": policy}
+                else:
+                    raise TypeError(
+                        "DictType type_map values must subclass _Type (or be a dict or list). Found {} of class {}".format(
+                            type_map[key], type_map[key].__class__
+                        )
+                    )
+                    # new_type_map[key] = TypeRegistry.type_of(type_map[key])
+            _params = {"type_map": new_type_map, "policy": key_policy}
         self._assert_valid_params(_params)
         self._params = _params
 
@@ -397,14 +438,15 @@ class DictType(_ParameterizedType):
     def init_from_py_obj(cls, py_obj=None):
         return cls(
             {
-                key: TypeRegistry.type_of(py_obj[key], none_is_optional_unknown=True)
+                key: TypeRegistry.type_of(py_obj[key])
+                # key: TypeRegistry.type_of(py_obj[key], none_is_optional_unknown=True)
                 for key in py_obj
             },
             KeyPolicy.EXACT,
         )
 
-    @staticmethod
-    def _validate_params(params):
+    @classmethod
+    def _validate_params(cls, params):
         type_map = params.get("type_map", {})
         policy = params.get("policy")
 
@@ -446,9 +488,10 @@ class DictType(_ParameterizedType):
                     if py_obj[key].__class__ == dict:
                         new_type_map[key] = DictType(py_obj[key], policy)
                     else:
-                        new_type_map[key] = TypeRegistry.type_of(
-                            py_obj[key], none_is_optional_unknown=True
-                        )
+                        new_type_map[key] = TypeRegistry.type_of(py_obj[key])
+                        # new_type_map[key] = TypeRegistry.type_of(
+                        #     py_obj[key], none_is_optional_unknown=True
+                        # )
 
         return DictType(new_type_map, policy)
 
@@ -473,9 +516,9 @@ class ConstType(_ParameterizedType):
         res.params["val"] = py_obj
         return res
 
-    @staticmethod
-    def _validate_params(params):
-        return ConstType.types_py_obj(params.get("val"))
+    @classmethod
+    def _validate_params(cls, params):
+        return cls.types_py_obj(params.get("val"))
 
     def assign(self, py_obj=None):
         if not self.types_py_obj(py_obj):
@@ -483,6 +526,21 @@ class ConstType(_ParameterizedType):
 
         valid = self.params.get("val") == py_obj
         return self if valid else NeverType
+
+
+class SetConstType(ConstType):
+    name = "set_const"
+
+    @staticmethod
+    def types_py_obj(py_obj=None):
+        return py_obj.__class__ == set
+
+    @classmethod
+    def init_from_dict(cls, json_dict, artifact=None):
+        if "params" in json_dict and "val" in json_dict["params"]:
+            json_dict["params"]["val"] = set(json_dict["params"]["val"])
+        res = super(SetConstType, cls).init_from_dict(json_dict, artifact)
+        return res
 
 
 class TypeRegistry:
@@ -500,12 +558,13 @@ class TypeRegistry:
         return TypeRegistry.types().update({wb_type.name: wb_type})
 
     @staticmethod
-    def type_of(py_obj, none_is_optional_unknown=False):
+    # def type_of(py_obj, none_is_optional_unknown=False):
+    def type_of(py_obj):
         types = TypeRegistry.types()
         _type = None
         for key in types:
             if (
-                types[key] != ConstType
+                types[key] not in [ConstType, SetConstType]
                 and types[key] != ObjectType
                 and issubclass(types[key], _ConcreteType)
                 and types[key].types_py_obj(py_obj)
@@ -516,8 +575,8 @@ class TypeRegistry:
         if _type is None:
             _type = ObjectType.init_from_py_obj(py_obj)
 
-        if isinstance(_type, _NoneType) and none_is_optional_unknown:
-            _type = OptionalType(UnknownType)
+        # if isinstance(_type, _NoneType) and none_is_optional_unknown:
+        #     _type = OptionalType(UnknownType)
         return _type
 
     @staticmethod
@@ -545,6 +604,7 @@ TypeRegistry.add(DictType)
 TypeRegistry.add(UnionType)
 TypeRegistry.add(ObjectType)
 TypeRegistry.add(ConstType)
+TypeRegistry.add(SetConstType)
 
 # TypeRegistry.add(OptionalType) # don't register as it is a function
 
@@ -566,6 +626,7 @@ __all__ = [
     "UnionType",
     "ObjectType",
     "ConstType",
+    "SetConstType",
     "OptionalType",
     "ParameterizedType",
 ]

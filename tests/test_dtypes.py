@@ -64,11 +64,15 @@ def test_unknown_type():
     wb_type = UnknownType
     assert wb_type.assign(1) == NumberType
     wb_type_2 = wb_type.assign(None)
-    assert wb_type_2 == OptionalType(UnknownType)
-    assert wb_type_2.assign(None) == wb_type_2
-    exp_type = OptionalType(NumberType)
-    assert wb_type_2.assign(1) == exp_type
-    assert wb_type_2.assign(None) == wb_type_2
+    # assert wb_type_2 == OptionalType(UnknownType)
+    # assert wb_type_2.assign(None) == wb_type_2
+    # exp_type = OptionalType(NumberType)
+    # assert wb_type_2.assign(1) == exp_type
+    # assert wb_type_2.assign(None) == wb_type_2
+    assert wb_type_2 == NeverType
+    wb_type_2 = OptionalType(UnknownType)
+    assert wb_type_2.assign(1) == OptionalType(NumberType)
+    assert wb_type_2.assign(None) == OptionalType(UnknownType)
 
 
 def test_union_type():
@@ -85,6 +89,9 @@ def test_union_type():
     wb_type = UnionType([NumberType, UnknownType])
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("s") == UnionType([NumberType, TextType])
+    assert wb_type.assign(None) == NeverType
+
+    wb_type = UnionType([NumberType, OptionalType(UnknownType)])
     assert wb_type.assign(None).assign(True) == UnionType(
         [NumberType, OptionalType(BooleanType)]
     )
@@ -93,9 +100,10 @@ def test_union_type():
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("s") == wb_type
     assert wb_type.assign(True) == UnionType([NumberType, TextType, BooleanType])
-    assert wb_type.assign(None) == UnionType(
-        [NumberType, TextType, OptionalType(UnknownType)]
-    )
+    # assert wb_type.assign(None) == UnionType(
+    #     [NumberType, TextType, OptionalType(UnknownType)]
+    # )
+    assert wb_type.assign(None) == NeverType
 
 
 def test_const_type():
@@ -103,6 +111,20 @@ def test_const_type():
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("a") == NeverType
     assert wb_type.assign(2) == NeverType
+
+
+def test_set_const_type():
+    wb_type = SetConstType(set())
+    assert wb_type.assign(set()) == wb_type
+    assert wb_type.assign(None) == NeverType
+    assert wb_type.assign(set([1])) == NeverType
+    assert wb_type.assign([]) == NeverType
+
+    wb_type = SetConstType(set([1, 2, 3]))
+    assert wb_type.assign(set()) == NeverType
+    assert wb_type.assign(None) == NeverType
+    assert wb_type.assign(set([1, 2, 3])) == wb_type
+    assert wb_type.assign([1, 2, 3]) == NeverType
 
 
 def test_object_type():
@@ -128,18 +150,18 @@ def test_dict_type():
     assert wb_type.assign(subset) == NeverType
     assert wb_type.assign(narrow) == NeverType
 
-    wb_type = DictType(spec, policy=KeyPolicy.SUBSET)
+    wb_type = DictType(spec, key_policy=KeyPolicy.SUBSET)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) == NeverType
 
-    wb_type = DictType(spec, policy=KeyPolicy.UNRESTRICTED)
+    wb_type = DictType(spec, key_policy=KeyPolicy.UNRESTRICTED)
     combined = {
         "number": NumberType,
         "string": TextType,
         "nested": {"list_str": ListType(TextType),},
     }
-    exp_type = DictType(combined, policy=KeyPolicy.UNRESTRICTED)
+    exp_type = DictType(combined, key_policy=KeyPolicy.UNRESTRICTED)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) == exp_type
@@ -148,7 +170,7 @@ def test_dict_type():
         "optional_number": OptionalType(NumberType),
         "optional_unknown": OptionalType(UnknownType),
     }
-    wb_type = DictType(spec, policy=KeyPolicy.EXACT)
+    wb_type = DictType(spec, key_policy=KeyPolicy.EXACT)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
     assert wb_type.assign({"optional_number": "1"}) == NeverType
@@ -157,26 +179,185 @@ def test_dict_type():
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(TextType),
         },
-        policy=KeyPolicy.EXACT,
+        key_policy=KeyPolicy.EXACT,
     )
     assert wb_type.assign({"optional_unknown": None}) == DictType(
         {
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(UnknownType),
         },
-        policy=KeyPolicy.EXACT,
+        key_policy=KeyPolicy.EXACT,
     )
 
-    wb_type = DictType({"unknown": UnknownType}, policy=KeyPolicy.EXACT)
-    assert wb_type.assign({}) == DictType(
-        {"unknown": OptionalType(UnknownType)}, policy=KeyPolicy.EXACT
-    )
-    assert wb_type.assign({"unknown": None}) == DictType(
-        {"unknown": OptionalType(UnknownType)}, policy=KeyPolicy.EXACT
-    )
+    wb_type = DictType({"unknown": UnknownType}, key_policy=KeyPolicy.EXACT)
+    # assert wb_type.assign({}) == DictType(
+    #     {"unknown": OptionalType(UnknownType)}, key_policy=KeyPolicy.EXACT
+    # )
+    # assert wb_type.assign({"unknown": None}) == DictType(
+    #     {"unknown": OptionalType(UnknownType)}, key_policy=KeyPolicy.EXACT
+    # )
+    assert wb_type.assign({}) == NeverType
+    assert wb_type.assign({"unknown": None}) == NeverType
     assert wb_type.assign({"unknown": 1}) == DictType(
-        {"unknown": NumberType}, policy=KeyPolicy.EXACT
+        {"unknown": NumberType}, key_policy=KeyPolicy.EXACT
     )
+
+
+def test_nested_dict():
+    notation_type = DictType(
+        {
+            "a": NumberType,
+            "b": BooleanType,
+            "c": TextType,
+            "d": UnknownType,
+            "e": {},
+            "f": [],
+            "g": [
+                [
+                    {
+                        "a": NumberType,
+                        "b": BooleanType,
+                        "c": TextType,
+                        "d": UnknownType,
+                        "e": {},
+                        "f": [],
+                        "g": [[]],
+                    }
+                ]
+            ],
+        }
+    )
+    expanded_type = DictType(
+        {
+            "a": NumberType,
+            "b": BooleanType,
+            "c": TextType,
+            "d": UnknownType,
+            "e": DictType({}),
+            "f": ListType(),
+            "g": ListType(
+                ListType(
+                    DictType(
+                        {
+                            "a": NumberType,
+                            "b": BooleanType,
+                            "c": TextType,
+                            "d": UnknownType,
+                            "e": DictType({}),
+                            "f": ListType(),
+                            "g": ListType(ListType()),
+                        }
+                    )
+                )
+            ),
+        }
+    )
+
+    assert notation_type == expanded_type
+
+    notation_type = DictType(
+        {
+            "a": NumberType,
+            "b": BooleanType,
+            "c": TextType,
+            "d": UnknownType,
+            "e": {},
+            "f": [],
+            "g": [
+                [
+                    {
+                        "a": NumberType,
+                        "b": BooleanType,
+                        "c": TextType,
+                        "d": UnknownType,
+                        "e": {},
+                        "f": [],
+                        "g": [[]],
+                    }
+                ]
+            ],
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+
+    expanded_type = DictType(
+        {
+            "a": NumberType,
+            "b": BooleanType,
+            "c": TextType,
+            "d": UnknownType,
+            "e": DictType({}, key_policy=KeyPolicy.SUBSET),
+            "f": ListType(),
+            "g": ListType(
+                ListType(
+                    DictType(
+                        {
+                            "a": NumberType,
+                            "b": BooleanType,
+                            "c": TextType,
+                            "d": UnknownType,
+                            "e": DictType({}, key_policy=KeyPolicy.SUBSET),
+                            "f": ListType(),
+                            "g": ListType(ListType()),
+                        },
+                        key_policy=KeyPolicy.SUBSET,
+                    )
+                )
+            ),
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+
+    # print(notation_type.to_dict())
+    # print(expanded_type.to_dict())
+    assert notation_type == expanded_type
+
+    wb_type = DictType(
+        {
+            "l1": {
+                "l2": [
+                    {"a": NumberType, "b": ListType(UnknownType), "c": UnknownType,}
+                ],
+                "l2a": NumberType,
+            }
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+    assert wb_type.assign({}) == wb_type
+    assert wb_type.assign(
+        {"l1": {"l2": [{"a": 1, "b": [True], "c": "hi"}]}}
+    ) == DictType(
+        {
+            "l1": {
+                "l2": [{"a": NumberType, "b": ListType(BooleanType), "c": TextType,}],
+                "l2a": NumberType,
+            }
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+
+    wb_type = DictType(
+        {
+            "l1": {
+                "l2": [
+                    {"a": NumberType, "b": ListType(UnknownType), "c": UnknownType,}
+                ],
+                "l2a": NumberType,
+            }
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+    assert wb_type.assign({"l1": {"l2": [{"b": []}]}}) == wb_type
+    assert wb_type.assign({"l1": {"l2": [{"b": [1], "c": "hi"}]}}) == DictType(
+        {
+            "l1": {
+                "l2": [{"a": NumberType, "b": ListType(NumberType), "c": TextType,}],
+                "l2a": NumberType,
+            }
+        },
+        key_policy=KeyPolicy.SUBSET,
+    )
+    assert wb_type.assign({"l1": {"l2": [{"a": "a",}]}}) == NeverType
 
 
 # def test_table_column_types():
