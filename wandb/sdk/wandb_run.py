@@ -50,6 +50,8 @@ from .lib import (
     sparkline,
 )
 
+from .lib import redirect2 as redirect
+
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Sequence, Tuple
 
@@ -1107,17 +1109,17 @@ class Run(object):
 
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout", cbs=[lambda data: self._redirect_cb("stdout", data), self._output_writer.write]
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr", cbs=[lambda data: self._redirect_cb("stderr", data), self._output_writer.write]
             )
             if os.name == "nt":
 
