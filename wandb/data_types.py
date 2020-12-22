@@ -2902,16 +2902,20 @@ class _ImageType(dtypes.Type):
         super(_ImageType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
-        box_keyset, mask_keyset = self._image_to_keysets(py_obj)
-        if self.params["box_keys"] is dtypes.UnknownType:
-            box_result = dtypes.ConstType(box_keyset)
+        if isinstance(py_obj, _ImageType):
+            box_result = self.params["box_keys"].assign(_ImageType.params["box_keys"])
+            mask_result = self.params["mask_keys"].assign(_ImageType.params["mask_keys"])
         else:
-            box_result = self.params["box_keys"].assign(box_keyset)
+            box_keyset, mask_keyset = self._image_to_keysets(py_obj)
+            if self.params["box_keys"] is dtypes.UnknownType:
+                box_result = dtypes.ConstType(box_keyset)
+            else:
+                box_result = self.params["box_keys"].assign(box_keyset)
 
-        if self.params["mask_keys"] is dtypes.UnknownType:
-            mask_result = dtypes.ConstType(mask_keyset)
-        else:
-            mask_result = self.params["mask_keys"].assign(mask_keyset)
+            if self.params["mask_keys"] is dtypes.UnknownType:
+                mask_result = dtypes.ConstType(mask_keyset)
+            else:
+                mask_result = self.params["mask_keys"].assign(mask_keyset)
 
         if box_result == dtypes.NeverType or mask_result == dtypes.NeverType:
             return dtypes.NeverType
@@ -2942,7 +2946,11 @@ class _TableType(dtypes.Type):
         super(_TableType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
-        new_col_types = self.params.get("column_types").assign_type(py_obj.column_types)
+        if isinstance(py_obj, _TableType):
+            new_col_types = self.params.get("column_types").assign(_TableType.params.get("column_types"))
+        else:
+            new_col_types = self.params.get("column_types").assign(py_obj._column_types)
+
         if new_col_types == dtypes.NeverType:
             return dtypes.NeverType
         else:

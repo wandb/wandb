@@ -57,6 +57,41 @@ class TypeRegistry:
         return _type.from_json(json_dict, artifact)
 
 
+def _params_obj_to_json_obj(
+    params_obj: t.Any, artifact: t.Optional["ArtifactInCreation"] = None,
+) -> t.Any:
+    """Helper method"""
+    if params_obj.__class__ == dict:
+        return {
+            key: _params_obj_to_json_obj(params_obj[key], artifact)
+            for key in params_obj
+        }
+    elif params_obj.__class__ == list:
+        return [_params_obj_to_json_obj(item, artifact) for item in params_obj]
+    elif isinstance(params_obj, Type):
+        return params_obj.to_json(artifact)
+    else:
+        return params_obj
+
+
+def _json_obj_to_params_obj(
+    json_obj: t.Any, artifact: t.Optional["DownloadedArtifact"] = None
+) -> t.Any:
+    """Helper method"""
+    if json_obj.__class__ == dict:
+        if "wb_type" in json_obj:
+            return TypeRegistry.type_from_dict(json_obj, artifact)
+        else:
+            return {
+                key: _json_obj_to_params_obj(json_obj[key], artifact)
+                for key in json_obj
+            }
+    elif json_obj.__class__ == list:
+        return [_json_obj_to_params_obj(item, artifact) for item in json_obj]
+    else:
+        return json_obj
+
+
 class Type(object):
     """This is the most generic type which all types are subclasses.
     It provides simple serialization and deserialization as well as equality checks.
@@ -90,7 +125,7 @@ class Type(object):
         """
         self.params = dict() if params is None else params
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
         """Assign a python object to the type, returning a new type representing
         the result of the assignment.
 
@@ -121,7 +156,7 @@ class Type(object):
         """
         res = {
             "wb_type": self.name,
-            "params": Type._params_obj_to_json_obj(self.params, artifact),
+            "params": _params_obj_to_json_obj(self.params, artifact),
         }
         if res["params"] is None or res["params"] == {}:
             del res["params"]
@@ -143,44 +178,9 @@ class Type(object):
             _Type: an instance of a subclass of the _Type class.
         """
         return cls(
-            params=Type._json_obj_to_params_obj(json_dict.get("params", {}), artifact)
+            params=_json_obj_to_params_obj(json_dict.get("params", {}), artifact)
         )
         return cls()
-
-    @staticmethod
-    def _params_obj_to_json_obj(
-        params_obj: t.Any, artifact: t.Optional["ArtifactInCreation"] = None,
-    ) -> t.Any:
-        """Helper method"""
-        if params_obj.__class__ == dict:
-            return {
-                key: Type._params_obj_to_json_obj(params_obj[key], artifact)
-                for key in params_obj
-            }
-        elif params_obj.__class__ == list:
-            return [Type._params_obj_to_json_obj(item, artifact) for item in params_obj]
-        elif isinstance(params_obj, Type):
-            return params_obj.to_json(artifact)
-        else:
-            return params_obj
-
-    @staticmethod
-    def _json_obj_to_params_obj(
-        json_obj: t.Any, artifact: t.Optional["DownloadedArtifact"] = None
-    ) -> t.Any:
-        """Helper method"""
-        if json_obj.__class__ == dict:
-            if "wb_type" in json_obj:
-                return TypeRegistry.type_from_dict(json_obj, artifact)
-            else:
-                return {
-                    key: Type._json_obj_to_params_obj(json_obj[key], artifact)
-                    for key in json_obj
-                }
-        elif json_obj.__class__ == list:
-            return [Type._json_obj_to_params_obj(item, artifact) for item in json_obj]
-        else:
-            return json_obj
 
     def __repr__(self):
         return "<WBType:{} | {}>".format(self.name, self.params)
@@ -201,7 +201,7 @@ class _NeverType(Type):
     name = "never"
     types: t.ClassVar[t.List[type]] = []
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "_NeverType":
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "_NeverType":
         return self
 
 
@@ -218,9 +218,16 @@ class _AnyType(Type):
     types: t.ClassVar[t.List[type]] = []
 
     def assign(
-        self, py_obj: t.Optional[t.Any] = None
+        self, py_obj: t.Union["Type", t.Optional[t.Any]] = None
     ) -> t.Union["_AnyType", _NeverType]:
-        return self if py_obj is not None else NeverType
+        if isinstance(py_obj, Type):
+            return (
+                self
+                if not (isinstance(py_obj, _NoneType) or isinstance(py_obj, _NeverType))
+                else NeverType
+            )
+        else:
+            return self if py_obj is not None else NeverType
 
 
 class _UnknownType(Type):
@@ -231,8 +238,11 @@ class _UnknownType(Type):
     name = "unknown"
     types: t.ClassVar[t.List[type]] = []
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        return NeverType if py_obj is None else TypeRegistry.type_of(py_obj)
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
+        if isinstance(py_obj, Type):
+            return py_obj if not isinstance(py_obj, _NoneType) else NeverType
+        else:
+            return NeverType if py_obj is None else TypeRegistry.type_of(py_obj)
 
 
 class _NoneType(Type):
@@ -240,9 +250,12 @@ class _NoneType(Type):
     types: t.ClassVar[t.List[type]] = [None.__class__]
 
     def assign(
-        self, py_obj: t.Optional[t.Any] = None
+        self, py_obj: t.Union["Type", t.Optional[t.Any]] = None
     ) -> t.Union["_NoneType", _NeverType]:
-        return self if py_obj is None else NeverType
+        if isinstance(py_obj, Type):
+            return self if isinstance(py_obj, _NoneType) else NeverType
+        else:
+            return self if py_obj is None else NeverType
 
 
 class _TextType(Type):
@@ -250,9 +263,12 @@ class _TextType(Type):
     types: t.ClassVar[t.List[type]] = [str]
 
     def assign(
-        self, py_obj: t.Optional[t.Any] = None
+        self, py_obj: t.Union["Type", t.Optional[t.Any]] = None
     ) -> t.Union["_TextType", _NeverType]:
-        return self if py_obj.__class__ == str else NeverType
+        if isinstance(py_obj, Type):
+            return self if isinstance(py_obj, _TextType) else NeverType
+        else:
+            return self if py_obj.__class__ == str else NeverType
 
 
 class _NumberType(Type):
@@ -260,9 +276,12 @@ class _NumberType(Type):
     types: t.ClassVar[t.List[type]] = [int, float]
 
     def assign(
-        self, py_obj: t.Optional[t.Any] = None
+        self, py_obj: t.Union["Type", t.Optional[t.Any]] = None
     ) -> t.Union["_NumberType", _NeverType]:
-        return self if py_obj.__class__ in [int, float] else NeverType
+        if isinstance(py_obj, Type):
+            return self if isinstance(py_obj, _NumberType) else NeverType
+        else:
+            return self if py_obj.__class__ in [int, float] else NeverType
 
 
 class _BooleanType(Type):
@@ -270,9 +289,12 @@ class _BooleanType(Type):
     types: t.ClassVar[t.List[type]] = [bool]
 
     def assign(
-        self, py_obj: t.Optional[t.Any] = None
+        self, py_obj: t.Union["Type", t.Optional[t.Any]] = None
     ) -> t.Union["_BooleanType", _NeverType]:
-        return self if py_obj.__class__ == bool else NeverType
+        if isinstance(py_obj, Type):
+            return self if isinstance(py_obj, _BooleanType) else NeverType
+        else:
+            return self if py_obj.__class__ == bool else NeverType
 
 
 # Singleton Helpers
@@ -282,6 +304,58 @@ NoneType = _NoneType()
 TextType = _TextType()
 NumberType = _NumberType()
 BooleanType = _BooleanType()
+
+
+def _flatten_union_types(allowed_types: t.List[Type]) -> t.List[Type]:
+    final_types = []
+    for allowed_type in allowed_types:
+        if isinstance(allowed_type, UnionType):
+            internal_types = _flatten_union_types(allowed_type.params["allowed_types"])
+            for internal_type in internal_types:
+                final_types.append(internal_type)
+        else:
+            final_types.append(allowed_type)
+    return final_types
+
+
+def _union_assigner(
+    allowed_types: t.List[Type], item: t.Union[Type, t.Optional[t.Any]]
+):
+    resolved_types = []
+    valid = False
+    unknown_count = 0
+
+    for allowed_type in allowed_types:
+        if valid:
+            resolved_types.append(allowed_type)
+        else:
+            if isinstance(allowed_type, _UnknownType):
+                unknown_count += 1
+            else:
+                assigned_type = allowed_type.assign(item)
+                if assigned_type == NeverType:
+                    resolved_types.append(allowed_type)
+                else:
+                    resolved_types.append(assigned_type)
+                    valid = True
+
+    if not valid:
+        if unknown_count == 0:
+            return NeverType
+        else:
+            new_type = UnknownType.assign(item)
+            if new_type == NeverType:
+                return NeverType
+            else:
+                resolved_types.append(new_type)
+                unknown_count -= 1
+
+    for _ in range(unknown_count):
+        resolved_types.append(UnknownType)
+
+    resolved_types = _flatten_union_types(resolved_types)
+    resolved_types.sort(key=str)
+    return resolved_types
 
 
 class UnionType(Type):
@@ -312,61 +386,26 @@ class UnionType(Type):
         if params is None:
             params = {"allowed_types": py_obj}
 
-        params["allowed_types"] = UnionType._flatten_types(params["allowed_types"])
+        params["allowed_types"] = _flatten_union_types(params["allowed_types"])
         params["allowed_types"].sort(key=str)
 
         super(UnionType, self).__init__(py_obj, params)
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        resolved_types = []
-        valid = False
-        unknown_count = 0
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
+        if isinstance(py_obj, UnionType):
+            assignees = py_obj.params["allowed_types"]
+        else:
+            assignees = [py_obj]
 
-        for allowed_type in self.params.get("allowed_types", []):
-            if valid:
-                resolved_types.append(allowed_type)
-            else:
-                if isinstance(allowed_type, _UnknownType):
-                    unknown_count += 1
-                else:
-                    assigned_type = allowed_type.assign(py_obj)
-                    if assigned_type == NeverType:
-                        resolved_types.append(allowed_type)
-                    else:
-                        resolved_types.append(assigned_type)
-                        valid = True
-
-        if not valid:
-            if unknown_count == 0:
+        resolved_types = self.params.get("allowed_types", [])
+        for assignee in assignees:
+            resolved_types = _union_assigner(
+                self.params.get("allowed_types", []), assignee
+            )
+            if resolved_types == NeverType:
                 return NeverType
-            else:
-                new_type = UnknownType.assign(py_obj)
-                if new_type == NeverType:
-                    return NeverType
-                else:
-                    resolved_types.append(new_type)
-                    unknown_count -= 1
 
-        for _ in range(unknown_count):
-            resolved_types.append(UnknownType)
-
-        resolved_types = UnionType._flatten_types(resolved_types)
-        resolved_types.sort(key=str)
         return self.__class__(resolved_types)
-
-    @staticmethod
-    def _flatten_types(allowed_types: t.List[Type]) -> t.List[Type]:
-        final_types = []
-        for allowed_type in allowed_types:
-            if isinstance(allowed_type, UnionType):
-                internal_types = UnionType._flatten_types(
-                    allowed_type.params["allowed_types"]
-                )
-                for internal_type in internal_types:
-                    final_types.append(internal_type)
-            else:
-                final_types.append(allowed_type)
-        return final_types
 
 
 def OptionalType(wb_type: Type) -> UnionType:  # noqa: N802
@@ -404,8 +443,11 @@ class ObjectType(Type):
 
         super(ObjectType, self).__init__(py_obj, params)
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        if py_obj.__class__.__name__ == self.params["class_name"]:
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
+        if (
+            isinstance(py_obj, ObjectType)
+            and py_obj.params["class_name"] == self.params["class_name"]
+        ) or (py_obj.__class__.__name__ == self.params["class_name"]):
             return self
         else:
             return NeverType
@@ -470,16 +512,29 @@ class ListType(Type):
 
         super(ListType, self).__init__(py_obj, params)
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        if py_obj is None or py_obj.__class__ not in self.types:
-            return NeverType
-
-        new_element_type = self.params["element_type"]
-        for obj in py_obj:
-            new_element_type = new_element_type.assign(obj)
-            if new_element_type == NeverType:
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
+        if isinstance(py_obj, ListType):
+            assigned_type = self.params["element_type"].assign(
+                py_obj.params["element_type"]
+            )
+            if assigned_type == NeverType:
                 return NeverType
-        return ListType(dtype=new_element_type)
+            else:
+                return ListType(dtype=assigned_type)
+        elif (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
+            isinstance(py_obj, list)
+            or isinstance(py_obj, tuple)
+            or isinstance(py_obj, set)
+            or isinstance(py_obj, frozenset)
+        ):
+            new_element_type = self.params["element_type"]
+            for obj in list(py_obj):
+                new_element_type = new_element_type.assign(obj)
+                if new_element_type == NeverType:
+                    return NeverType
+            return ListType(dtype=new_element_type)
+        else:
+            return NeverType
 
 
 class KeyPolicy:
@@ -579,8 +634,13 @@ class DictType(Type):
         super(DictType, self).__init__(py_obj, params)
 
     def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        if py_obj is None or py_obj.__class__ not in self.types:
-            return NeverType
+        if isinstance(py_obj, DictType):
+            if py_obj.params["policy"] != self.params["policy"]:
+                return NeverType
+            py_obj = py_obj.params["type_map"]
+        else:
+            if py_obj is None or py_obj.__class__ not in self.types:
+                return NeverType
 
         new_type_map = {}
         type_map = self.params.get("type_map", {})
@@ -609,7 +669,9 @@ class DictType(Type):
                 if policy in [KeyPolicy.EXACT, KeyPolicy.SUBSET]:
                     return NeverType
                 elif policy in [KeyPolicy.UNRESTRICTED]:
-                    if py_obj[key].__class__ == dict:
+                    if isinstance(py_obj[key], Type):
+                        new_type_map[key] = py_obj[key]
+                    elif py_obj[key].__class__ == dict:
                         new_type_map[key] = DictType(py_obj[key], policy)
                     else:
                         new_type_map[key] = TypeRegistry.type_of(py_obj[key])
@@ -645,8 +707,11 @@ class ConstType(Type):
 
         super(ConstType, self).__init__(py_obj, params)
 
-    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
-        valid = self.params.get("val") == py_obj
+    def assign(self, py_obj: t.Union["Type", t.Optional[t.Any]] = None) -> "Type":
+        if isinstance(py_obj, ConstType):
+            valid = self.params.get("val") == py_obj.params.get("val")
+        else:
+            valid = self.params.get("val") == py_obj
         return self if valid else NeverType
 
 
