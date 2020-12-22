@@ -188,15 +188,18 @@ class _ParameterizedType(_ConcreteType):
 
     @staticmethod
     def _params_dict_to_json_dict(data, artifact=None):
-        if type(data) == dict:
+        if data.__class__ == dict:
             return {
                 key: _ParameterizedType._params_dict_to_json_dict(data[key], artifact)
                 for key in data
             }
         elif isinstance(data, _Type):
             return data.to_dict(artifact)
-        elif type(data) in [set, frozenset, tuple]:
-            return list(data)
+        elif data.__class__ in [list, set, frozenset, tuple]:
+            return [
+                _ParameterizedType._params_dict_to_json_dict(item, artifact)
+                for item in list(data)
+            ]
         else:
             return data
 

@@ -679,7 +679,7 @@ class Table(Media):
 
         new_obj = cls(json_obj["columns"], data=data,)
 
-        new_obj._column_types = dtypes._WBType.parse_dict(
+        new_obj._column_types = dtypes.TypeRegistry.type_from_dict(
             json_obj["column_types"], source_artifact
         )
 
