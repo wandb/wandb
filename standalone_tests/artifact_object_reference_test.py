@@ -5,6 +5,7 @@ import os
 import binascii
 import base64
 import time
+from math import sin, cos, pi
 import numpy as np
 import sys
 
@@ -31,8 +32,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-
-columns = ["class_id", "id", "bool", "int", "float", "Image"]
+columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -110,6 +110,37 @@ def _make_wandb_image(suffix=""):
         },
     )
 
+def _make_point_cloud():
+    # Generate a symetric pattern
+    POINT_COUNT = 20000
+
+    # Choose a random sample
+    theta_chi = pi * np.random.rand(POINT_COUNT, 2)
+
+    def gen_point(theta, chi, i):
+        p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + \
+            cos(chi) * 7 * sin((2 * i - 4) / 2 * (i + 2))
+
+        x = p * sin(chi) * cos(theta)
+        y = p * sin(chi) * sin(theta)
+        z = p * cos(chi)
+
+        r = sin(theta) * 120 + 120
+        g = sin(x) * 120 + 120
+        b = cos(y) * 120 + 120
+
+        return [x, y, z, r, g, b]
+
+    def wave_pattern(i):
+        return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
+
+    return wandb.Object3D(wave_pattern(0))
+
+# static assets for comparisons
+pc1 = _make_point_cloud()
+pc2 = _make_point_cloud()
+pc3 = _make_point_cloud()
+pc4 = _make_point_cloud()
 
 def _make_wandb_table():
     classes = wandb.Classes([
@@ -120,10 +151,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, "string", True, 1, 1.4, _make_wandb_image()],
-            [2, "string", True, 1, 1.4, _make_wandb_image()],
-            [1, "string2", False, -0, -1.4, _make_wandb_image("2")],
-            [3, "string2", False, -0, -1.4, _make_wandb_image("2")],
+            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1],
+            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2],
+            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3],
+            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
         ],
     )
     table.convert_column("class_id", classes.id_type())
@@ -508,6 +539,10 @@ def test_image_refs():
     assert_media_obj_referential_equality(_make_wandb_image())
 
 
+def test_point_cloud_refs():
+    assert_media_obj_referential_equality(_make_point_cloud())
+
+
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
@@ -634,6 +669,7 @@ if __name__ == "__main__":
         test_nested_reference_artifact,
         test_table_slice_reference_artifact,
         test_image_refs,
+        test_point_cloud_refs,
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,
