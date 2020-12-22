@@ -694,7 +694,9 @@ class ConstType(Type):
         if py_obj is None and params is None:
             raise TypeError("Both py_obj and params cannot be none")
         assert py_obj is None or py_obj.__class__ in [str, int, float, bool, set, list]
-        assert params is None or (params.__class__ == dict and params.get("val"))
+        assert params is None or (
+            params.__class__ == dict and params.get("val") is not None
+        )
 
         if params is None:
             params = {"val": py_obj}
