@@ -545,3 +545,89 @@ def test_table_type_cast():
 
     with pytest.raises(TypeError):
         table.add_data(4)
+
+
+# def test_print():
+#     image_annotated = data_types.Image(
+#         np.random.rand(10, 10),
+#         boxes={
+#             "box_predictions": {
+#                 "box_data": [
+#                     {
+#                         "position": {
+#                             "minX": 0.1,
+#                             "maxX": 0.2,
+#                             "minY": 0.3,
+#                             "maxY": 0.4,
+#                         },
+#                         "class_id": 1,
+#                         "box_caption": "minMax(pixel)",
+#                         "scores": {"acc": 0.1, "loss": 1.2},
+#                     },
+#                 ],
+#                 "class_labels": class_labels,
+#             },
+#             "box_ground_truth": {
+#                 "box_data": [
+#                     {
+#                         "position": {
+#                             "minX": 0.1,
+#                             "maxX": 0.2,
+#                             "minY": 0.3,
+#                             "maxY": 0.4,
+#                         },
+#                         "class_id": 1,
+#                         "box_caption": "minMax(pixel)",
+#                         "scores": {"acc": 0.1, "loss": 1.2},
+#                     },
+#                 ],
+#                 "class_labels": class_labels,
+#             },
+#         },
+#         masks={
+#             "mask_predictions": {
+#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
+#                 "class_labels": class_labels,
+#             },
+#             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
+#         },
+#     )
+
+#     wb_type = DictType(
+#         dtype={
+#             "NeverType": NeverType,
+#             "UnknownType": UnknownType,
+#             "AnyType": AnyType,
+#             "NoneType": NoneType,
+#             "TextType": TextType,
+#             "NumberType": NumberType,
+#             "BooleanType": BooleanType,
+#             "Simple_ListType": ListType(dtype=NumberType),
+#             "Nested_ListType": ListType(dtype=DictType(dtype={"key": BooleanType})),
+#             "UnionType": UnionType([NumberType, TextType, BooleanType]),
+#             "ObjectType": ObjectType(np.array([])),
+#             "ConstType": ConstType(5),
+#             "ConstType_Se": ConstType(set([1, 2, 3])),
+#             "OptionalType": OptionalType(NumberType),
+#             "ImageType": data_types._ImageType(image_annotated),
+#             "TableType": data_types._TableType(
+#                 wandb.Table(
+#                     columns=["a", "b", "c"],
+#                     optional=True,
+#                     dtype=[NumberType, BooleanType, TextType],
+#                 )
+#             ),
+#             "ClassType": data_types._ClassesMemberType(
+#                 wandb.Classes(
+#                     [
+#                         {"id": 1, "name": "cat"},
+#                         {"id": 2, "name": "dog"},
+#                         {"id": 3, "name": "horse"},
+#                     ]
+#                 )
+#             ),
+#         }
+#     )
+
+#     print(wb_type.to_json())
+#     assert False

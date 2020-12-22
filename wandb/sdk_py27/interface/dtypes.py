@@ -66,8 +66,8 @@ def _params_obj_to_json_obj(
             key: _params_obj_to_json_obj(params_obj[key], artifact)
             for key in params_obj
         }
-    elif params_obj.__class__ == list:
-        return [_params_obj_to_json_obj(item, artifact) for item in params_obj]
+    elif params_obj.__class__ in [list, set, tuple, frozenset]:
+        return [_params_obj_to_json_obj(item, artifact) for item in list(params_obj)]
     elif isinstance(params_obj, Type):
         return params_obj.to_json(artifact)
     else:

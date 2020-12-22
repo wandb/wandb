@@ -2839,7 +2839,6 @@ class _ClassesMemberType(dtypes.Type):
 
     def to_json(self, artifact=None):
         cl_dict = super(_ClassesMemberType, self).to_json(artifact)
-        print(cl_dict)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
         # the same file-pattern as other media types.
