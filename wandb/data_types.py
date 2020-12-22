@@ -2893,7 +2893,7 @@ class _ClassesMemberType(dtypes.Type):
         )
 
 
-class _ImageType(dtypes.Type):
+class ImageType(dtypes.Type):
     name = "wandb.Image"
     types = [Image]
 
@@ -2913,14 +2913,12 @@ class _ImageType(dtypes.Type):
                     "mask_keys": dtypes.ConstType(mask_keyset),
                 }
 
-        super(_ImageType, self).__init__(py_obj, params)
+        super(ImageType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
-        if isinstance(py_obj, _ImageType):
-            box_result = self.params["box_keys"].assign(_ImageType.params["box_keys"])
-            mask_result = self.params["mask_keys"].assign(
-                _ImageType.params["mask_keys"]
-            )
+        if isinstance(py_obj, ImageType):
+            box_result = self.params["box_keys"].assign(ImageType.params["box_keys"])
+            mask_result = self.params["mask_keys"].assign(ImageType.params["mask_keys"])
         else:
             box_keyset, mask_keyset = self._image_to_keysets(py_obj)
             if self.params["box_keys"] is dtypes.UnknownType:
@@ -2943,12 +2941,20 @@ class _ImageType(dtypes.Type):
     @staticmethod
     def _image_to_keysets(image_obj):
         return (
-            set(list(image_obj._boxes.keys()) if image_obj._boxes else []),
-            set(list(image_obj._masks.keys()) if image_obj._masks else []),
+            set(
+                list(image_obj._boxes.keys())
+                if hasattr(image_obj, "_boxes") and image_obj._boxes
+                else []
+            ),
+            set(
+                list(image_obj._masks.keys())
+                if hasattr(image_obj, "_masks") and image_obj._masks
+                else []
+            ),
         )
 
 
-class _TableType(dtypes.Type):
+class TableType(dtypes.Type):
     name = "wandb.Table"
     types = [Table]
 
@@ -2957,16 +2963,17 @@ class _TableType(dtypes.Type):
             params = {
                 "column_types": py_obj._column_types
                 if py_obj and py_obj._column_types
-                else dtypes.DictType({}),
+                else dtypes.UnknownType,
             }
-        super(_TableType, self).__init__(py_obj, params)
+        super(TableType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
-        if isinstance(py_obj, _TableType):
+        new_col_types = dtypes.NeverType
+        if isinstance(py_obj, TableType):
             new_col_types = self.params.get("column_types").assign(
-                _TableType.params.get("column_types")
+                py_obj.params.get("column_types")
             )
-        else:
+        elif isinstance(py_obj, Table):
             new_col_types = self.params.get("column_types").assign(py_obj._column_types)
 
         if new_col_types == dtypes.NeverType:
@@ -2976,5 +2983,5 @@ class _TableType(dtypes.Type):
 
 
 dtypes.TypeRegistry.add(_ClassesMemberType)
-dtypes.TypeRegistry.add(_ImageType)
-dtypes.TypeRegistry.add(_TableType)
+dtypes.TypeRegistry.add(ImageType)
+dtypes.TypeRegistry.add(TableType)

@@ -389,9 +389,9 @@ def test_nested_dict():
 
 
 def test_image_type():
-    wb_type = data_types._ImageType()
+    wb_type = data_types.ImageType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    wb_type_simple = data_types._ImageType(image_simple)
+    wb_type_simple = data_types.ImageType(image_simple)
     image_annotated = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -436,7 +436,7 @@ def test_image_type():
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
-    wb_type_annotated = data_types._ImageType(image_annotated)
+    wb_type_annotated = data_types.ImageType(image_annotated)
 
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
@@ -490,7 +490,7 @@ def test_classes_type():
 
 def test_table_type():
     table_1 = wandb.Table(columns=["col"], data=[[1]])
-    t1 = data_types._TableType(table_1)
+    t1 = data_types.TableType(table_1)
     table_2 = wandb.Table(columns=["col"], data=[[1.3]])
     table_3 = wandb.Table(columns=["col"], data=[["a"]])
     assert t1.assign(table_2) == t1
@@ -545,6 +545,89 @@ def test_table_type_cast():
 
     with pytest.raises(TypeError):
         table.add_data(4)
+
+
+box_annotation = {
+    "box_predictions": {
+        "box_data": [
+            {
+                "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4,},
+                "class_id": 1,
+                "box_caption": "minMax(pixel)",
+                "scores": {"acc": 0.1, "loss": 1.2},
+            },
+        ],
+        "class_labels": class_labels,
+    },
+    "box_ground_truth": {
+        "box_data": [
+            {
+                "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4,},
+                "class_id": 1,
+                "box_caption": "minMax(pixel)",
+                "scores": {"acc": 0.1, "loss": 1.2},
+            },
+        ],
+        "class_labels": class_labels,
+    },
+}
+mask_annotation = {
+    "mask_predictions": {
+        "mask_data": np.random.randint(0, 4, size=(30, 30)),
+        "class_labels": class_labels,
+    },
+    "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
+}
+
+
+def test_table_specials():
+    table = wandb.Table(
+        columns=["image", "table"],
+        optional=False,
+        dtype=[data_types.ImageType(), data_types.TableType()],
+    )
+    with pytest.raises(TypeError):
+        table.add_data(None, None)
+
+    # Infers specific types from first valid row
+    table.add_data(
+        data_types.Image(
+            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+        ),
+        data_types.Table(data=[[1, True, None]]),
+    )
+
+    # Denies conflict
+    with pytest.raises(TypeError):
+        table.add_data(
+            data_types.Image(np.random.rand(10, 10),),
+            data_types.Table(data=[[1, True, None]]),
+        )
+
+    # Denies conflict
+    with pytest.raises(TypeError):
+        table.add_data(
+            data_types.Image(
+                np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+            ),
+            data_types.Table(data=[[1, "True", None]]),
+        )
+
+    # allows further refinement
+    table.add_data(
+        data_types.Image(
+            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+        ),
+        data_types.Table(data=[[1, True, 1]]),
+    )
+
+    # allows addition
+    table.add_data(
+        data_types.Image(
+            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+        ),
+        data_types.Table(data=[[1, True, 1]]),
+    )
 
 
 # def test_print():
@@ -609,8 +692,8 @@ def test_table_type_cast():
 #             "ConstType": ConstType(5),
 #             "ConstType_Se": ConstType(set([1, 2, 3])),
 #             "OptionalType": OptionalType(NumberType),
-#             "ImageType": data_types._ImageType(image_annotated),
-#             "TableType": data_types._TableType(
+#             "ImageType": data_types.ImageType(image_annotated),
+#             "TableType": data_types.TableType(
 #                 wandb.Table(
 #                     columns=["a", "b", "c"],
 #                     optional=True,
