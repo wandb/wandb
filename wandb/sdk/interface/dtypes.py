@@ -685,7 +685,6 @@ class ConstType(Type):
 
     name = "const"
     types: t.ClassVar[t.List[type]] = []
-    _const_supported_types = [str, int, float, bool, set]
 
     def __init__(
         self,
@@ -694,7 +693,7 @@ class ConstType(Type):
     ):
         if py_obj is None and params is None:
             raise TypeError("Both py_obj and params cannot be none")
-        assert py_obj.__class__ in self._const_supported_types
+        assert py_obj is None or py_obj.__class__ in [str, int, float, bool, set, list]
         assert params is None or (params.__class__ == dict and params.get("val"))
 
         if params is None:
