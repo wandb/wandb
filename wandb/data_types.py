@@ -2904,7 +2904,9 @@ class _ImageType(dtypes.Type):
     def assign(self, py_obj=None):
         if isinstance(py_obj, _ImageType):
             box_result = self.params["box_keys"].assign(_ImageType.params["box_keys"])
-            mask_result = self.params["mask_keys"].assign(_ImageType.params["mask_keys"])
+            mask_result = self.params["mask_keys"].assign(
+                _ImageType.params["mask_keys"]
+            )
         else:
             box_keyset, mask_keyset = self._image_to_keysets(py_obj)
             if self.params["box_keys"] is dtypes.UnknownType:
@@ -2947,7 +2949,9 @@ class _TableType(dtypes.Type):
 
     def assign(self, py_obj=None):
         if isinstance(py_obj, _TableType):
-            new_col_types = self.params.get("column_types").assign(_TableType.params.get("column_types"))
+            new_col_types = self.params.get("column_types").assign(
+                _TableType.params.get("column_types")
+            )
         else:
             new_col_types = self.params.get("column_types").assign(py_obj._column_types)
 
