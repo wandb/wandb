@@ -2,9 +2,14 @@ import wandb
 from wandb import data_types
 import numpy as np
 import pytest
-from wandb.dtypes import *
-import wandb.data_types
 import os
+import sys
+
+_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if _PY3:
+    from wandb.sdk.interface.dtypes import *
+else:
+    from wandb.sdk_py27.interface.dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))
@@ -120,13 +125,13 @@ def test_const_type():
 
 
 def test_set_const_type():
-    wb_type = SetConstType(set())
+    wb_type = ConstType(set())
     assert wb_type.assign(set()) == wb_type
     assert wb_type.assign(None) == NeverType
     assert wb_type.assign(set([1])) == NeverType
     assert wb_type.assign([]) == NeverType
 
-    wb_type = SetConstType(set([1, 2, 3]))
+    wb_type = ConstType(set([1, 2, 3]))
     assert wb_type.assign(set()) == NeverType
     assert wb_type.assign(None) == NeverType
     assert wb_type.assign(set([1, 2, 3])) == wb_type
@@ -140,13 +145,13 @@ def test_object_type():
 
 
 def test_list_type():
-    assert ListType(NumberType).assign([]) == ListType(NumberType)
-    assert ListType(NumberType).assign([1, 2, 3]) == ListType(NumberType)
-    assert ListType(NumberType).assign([1, "a", 3]) == NeverType
+    assert ListType(dtype=NumberType).assign([]) == ListType(dtype=NumberType)
+    assert ListType(dtype=NumberType).assign([1, 2, 3]) == ListType(dtype=NumberType)
+    assert ListType(dtype=NumberType).assign([1, "a", 3]) == NeverType
 
 
 def test_dict_type():
-    spec = {"number": NumberType, "nested": {"list_str": ListType(TextType),}}
+    spec = {"number": NumberType, "nested": {"list_str": ListType(dtype=TextType),}}
     exact = {"number": 1, "nested": {"list_str": ["hello", "world"],}}
     subset = {"nested": {"list_str": ["hi"]}}
     narrow = {"number": 1, "string": "hi"}
@@ -156,18 +161,19 @@ def test_dict_type():
     assert wb_type.assign(subset) == NeverType
     assert wb_type.assign(narrow) == NeverType
 
-    wb_type = DictType(spec, key_policy=KeyPolicy.SUBSET)
+    wb_type = DictType(dtype=spec, key_policy=KeyPolicy.SUBSET)
+    # import pdb; pdb.set_trace()
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) == NeverType
 
-    wb_type = DictType(spec, key_policy=KeyPolicy.UNRESTRICTED)
+    wb_type = DictType(dtype=spec, key_policy=KeyPolicy.UNRESTRICTED)
     combined = {
         "number": NumberType,
         "string": TextType,
-        "nested": {"list_str": ListType(TextType),},
+        "nested": {"list_str": ListType(dtype=TextType),},
     }
-    exp_type = DictType(combined, key_policy=KeyPolicy.UNRESTRICTED)
+    exp_type = DictType(dtype=combined, key_policy=KeyPolicy.UNRESTRICTED)
     assert wb_type.assign(exact) == wb_type
     assert wb_type.assign(subset) == wb_type
     assert wb_type.assign(narrow) == exp_type
@@ -176,42 +182,36 @@ def test_dict_type():
         "optional_number": OptionalType(NumberType),
         "optional_unknown": OptionalType(UnknownType),
     }
-    wb_type = DictType(spec, key_policy=KeyPolicy.EXACT)
+    wb_type = DictType(dtype=spec, key_policy=KeyPolicy.EXACT)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
     assert wb_type.assign({"optional_number": "1"}) == NeverType
     assert wb_type.assign({"optional_unknown": "hi"}) == DictType(
-        {
+        dtype={
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(TextType),
         },
         key_policy=KeyPolicy.EXACT,
     )
     assert wb_type.assign({"optional_unknown": None}) == DictType(
-        {
+        dtype={
             "optional_number": OptionalType(NumberType),
             "optional_unknown": OptionalType(UnknownType),
         },
         key_policy=KeyPolicy.EXACT,
     )
 
-    wb_type = DictType({"unknown": UnknownType}, key_policy=KeyPolicy.EXACT)
-    # assert wb_type.assign({}) == DictType(
-    #     {"unknown": OptionalType(UnknownType)}, key_policy=KeyPolicy.EXACT
-    # )
-    # assert wb_type.assign({"unknown": None}) == DictType(
-    #     {"unknown": OptionalType(UnknownType)}, key_policy=KeyPolicy.EXACT
-    # )
+    wb_type = DictType(dtype={"unknown": UnknownType}, key_policy=KeyPolicy.EXACT)
     assert wb_type.assign({}) == NeverType
     assert wb_type.assign({"unknown": None}) == NeverType
     assert wb_type.assign({"unknown": 1}) == DictType(
-        {"unknown": NumberType}, key_policy=KeyPolicy.EXACT
+        dtype={"unknown": NumberType}, key_policy=KeyPolicy.EXACT
     )
 
 
 def test_nested_dict():
     notation_type = DictType(
-        {
+        dtype={
             "a": NumberType,
             "b": BooleanType,
             "c": TextType,
@@ -234,7 +234,7 @@ def test_nested_dict():
         }
     )
     expanded_type = DictType(
-        {
+        dtype={
             "a": NumberType,
             "b": BooleanType,
             "c": TextType,
@@ -242,16 +242,16 @@ def test_nested_dict():
             "e": DictType({}),
             "f": ListType(),
             "g": ListType(
-                ListType(
-                    DictType(
-                        {
+                dtype=ListType(
+                    dtype=DictType(
+                        dtype={
                             "a": NumberType,
                             "b": BooleanType,
                             "c": TextType,
                             "d": UnknownType,
                             "e": DictType({}),
                             "f": ListType(),
-                            "g": ListType(ListType()),
+                            "g": ListType(dtype=ListType()),
                         }
                     )
                 )
@@ -259,10 +259,34 @@ def test_nested_dict():
         }
     )
 
+    example = {
+        "a": 1,
+        "b": True,
+        "c": "TextType",
+        "d": "hi",
+        "e": {},
+        "f": [1],
+        "g": [
+            [
+                {
+                    "a": 2,
+                    "b": False,
+                    "c": "TextType",
+                    "d": 3,
+                    "e": {},
+                    "f": [],
+                    "g": [[5]],
+                }
+            ]
+        ],
+    }
+    real_type = DictType(example)
+
     assert notation_type == expanded_type
+    assert notation_type.assign(example) == real_type
 
     notation_type = DictType(
-        {
+        dtype={
             "a": NumberType,
             "b": BooleanType,
             "c": TextType,
@@ -287,7 +311,7 @@ def test_nested_dict():
     )
 
     expanded_type = DictType(
-        {
+        dtype={
             "a": NumberType,
             "b": BooleanType,
             "c": TextType,
@@ -295,16 +319,16 @@ def test_nested_dict():
             "e": DictType({}, key_policy=KeyPolicy.SUBSET),
             "f": ListType(),
             "g": ListType(
-                ListType(
-                    DictType(
-                        {
+                dtype=ListType(
+                    dtype=DictType(
+                        dtype={
                             "a": NumberType,
                             "b": BooleanType,
                             "c": TextType,
                             "d": UnknownType,
                             "e": DictType({}, key_policy=KeyPolicy.SUBSET),
                             "f": ListType(),
-                            "g": ListType(ListType()),
+                            "g": ListType(dtype=ListType()),
                         },
                         key_policy=KeyPolicy.SUBSET,
                     )
@@ -314,16 +338,12 @@ def test_nested_dict():
         key_policy=KeyPolicy.SUBSET,
     )
 
-    # print(notation_type.to_dict())
-    # print(expanded_type.to_dict())
     assert notation_type == expanded_type
 
     wb_type = DictType(
-        {
+        dtype={
             "l1": {
-                "l2": [
-                    {"a": NumberType, "b": ListType(UnknownType), "c": UnknownType,}
-                ],
+                "l2": [{"a": NumberType, "b": ListType(), "c": UnknownType,}],
                 "l2a": NumberType,
             }
         },
@@ -333,9 +353,11 @@ def test_nested_dict():
     assert wb_type.assign(
         {"l1": {"l2": [{"a": 1, "b": [True], "c": "hi"}]}}
     ) == DictType(
-        {
+        dtype={
             "l1": {
-                "l2": [{"a": NumberType, "b": ListType(BooleanType), "c": TextType,}],
+                "l2": [
+                    {"a": NumberType, "b": ListType(dtype=BooleanType), "c": TextType,}
+                ],
                 "l2a": NumberType,
             }
         },
@@ -343,11 +365,9 @@ def test_nested_dict():
     )
 
     wb_type = DictType(
-        {
+        dtype={
             "l1": {
-                "l2": [
-                    {"a": NumberType, "b": ListType(UnknownType), "c": UnknownType,}
-                ],
+                "l2": [{"a": NumberType, "b": ListType(), "c": UnknownType,}],
                 "l2a": NumberType,
             }
         },
@@ -355,9 +375,11 @@ def test_nested_dict():
     )
     assert wb_type.assign({"l1": {"l2": [{"b": []}]}}) == wb_type
     assert wb_type.assign({"l1": {"l2": [{"b": [1], "c": "hi"}]}}) == DictType(
-        {
+        dtype={
             "l1": {
-                "l2": [{"a": NumberType, "b": ListType(NumberType), "c": TextType,}],
+                "l2": [
+                    {"a": NumberType, "b": ListType(dtype=NumberType), "c": TextType,}
+                ],
                 "l2a": NumberType,
             }
         },

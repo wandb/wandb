@@ -31,16 +31,19 @@ import sys
 import base64
 import binascii
 from wandb import util
-from wandb import dtypes
 from wandb.util import has_num
 from wandb.compat import tempfile
+
+_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if _PY3:
+    from wandb.sdk.interface import dtypes
+else:
+    from wandb.sdk_py27.interface import dtypes
 
 
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
-
-    PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-    if PY3:
+    if _PY3:
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
     else:
@@ -563,9 +566,9 @@ class Table(Media):
             len(optional) == len(self.columns)
             and all([opt.__class__ == bool for opt in optional])
         )
-        assert isinstance(dtype, dtypes._Type) or (
+        assert isinstance(dtype, dtypes.Type) or (
             len(dtype) == len(self.columns)
-            and all([isinstance(dt, dtypes._Type) for dt in dtype])
+            and all([isinstance(dt, dtypes.Type) for dt in dtype])
         )
 
         if optional.__class__ != list:
@@ -583,7 +586,7 @@ class Table(Media):
             self.cast(col_name, _dt)
 
     def cast(self, col_name, dtype):
-        if not isinstance(dtype, dtypes._Type):
+        if not isinstance(dtype, dtypes.Type):
             dtype = dtypes.TypeRegistry.type_of(dtype)
         col_ndx = self.columns.index(col_name)
         for row in self.data:
@@ -733,7 +736,7 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
-                    "column_types": self._column_types.to_dict(artifact),
+                    "column_types": self._column_types.to_json(artifact),
                 }
             )
         else:
@@ -2561,7 +2564,7 @@ class Node(WBValue):
         node.name = layer.name
         node.class_name = layer.__class__.__name__
         node.output_shape = output_shape
-        node.num_parameters = layer.count_params()
+        node.num_parameters = layer.count()
 
         return node
 
@@ -2810,42 +2813,32 @@ def data_frame_to_json(df, run, key, step):
 ## Custom dtypes for typing system
 
 
-class _ClassesMemberType(dtypes.ParameterizedType):
+class _ClassesMemberType(dtypes.Type):
     name = "wandb.Classes_member"
+    types = [Classes]
 
-    def __init__(self, wb_classes=None, _params=None):
-        if _params is None:
-            if wb_classes is None:
-                raise TypeError("wb_classes and _params cannot both be None")
-                # _params = {
-                #     "class_ids": dtypes.UnknownType,
-                # }
+    def __init__(
+        self, py_obj=None, params=None,
+    ):
+        if params is None:
+            if py_obj is None:
+                raise TypeError("py_obj and  cannot both be None")
             else:
-                _params = {
-                    "valid_class_ids": self._union_from_classes(wb_classes),
+                params = {
+                    "valid_class_ids": self._union_from_classes(py_obj),
                 }
-        super(_ClassesMemberType, self).__init__(wb_classes, _params)
-        self.wb_classes_obj_ref = wb_classes
+
+        super(_ClassesMemberType, self).__init__(py_obj, params)
+        self.wb_classes_obj_ref = py_obj
 
     def assign(self, py_obj=None):
-        print(self.params)
         if self.params["valid_class_ids"].assign(py_obj) == dtypes.NeverType:
             return dtypes.NeverType
         else:
             return self
 
-    @classmethod
-    def _validate_params(cls, params):
-        return isinstance(params["valid_class_ids"], dtypes.UnionType)
-
-    # this is bit of a hack since the "type" of a classes object
-    # is a class definition, not a member of the class
-    @staticmethod
-    def types_py_obj(py_obj=None):
-        return py_obj.__class__ == Classes
-
-    def to_dict(self, artifact=None):
-        cl_dict = super(_ClassesMemberType, self).to_dict(artifact)
+    def to_json(self, artifact=None):
+        cl_dict = super(_ClassesMemberType, self).to_json(artifact)
         print(cl_dict)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
@@ -2863,7 +2856,7 @@ class _ClassesMemberType(dtypes.ParameterizedType):
         return cl_dict
 
     @classmethod
-    def init_from_dict(cls, json_dict, artifact=None):
+    def from_json(cls, json_dict, artifact=None):
         classes_obj = None
         if (
             json_dict.get("params", {}).get("classes_obj", {}).get("type")
@@ -2886,49 +2879,37 @@ class _ClassesMemberType(dtypes.ParameterizedType):
         )
 
 
-class _ImageType(dtypes.ParameterizedType):
+class _ImageType(dtypes.Type):
     name = "wandb.Image"
+    types = [Image]
 
-    def __init__(self, wb_image=None, _params=None):
-        if _params is None:
-            if wb_image is None:
-                _params = {
+    def __init__(
+        self, py_obj=None, params=None,
+    ):
+        if params is None:
+            if py_obj is None:
+                params = {
                     "box_keys": dtypes.UnknownType,
                     "mask_keys": dtypes.UnknownType,
                 }
             else:
-                box_keyset, mask_keyset = self._image_to_keysets(wb_image)
-                _params = {
-                    "box_keys": dtypes.SetConstType(box_keyset),
-                    "mask_keys": dtypes.SetConstType(mask_keyset),
+                box_keyset, mask_keyset = self._image_to_keysets(py_obj)
+                params = {
+                    "box_keys": dtypes.ConstType(box_keyset),
+                    "mask_keys": dtypes.ConstType(mask_keyset),
                 }
 
-        super(_ImageType, self).__init__(wb_image, _params)
-
-    @staticmethod
-    def types_py_obj(py_obj=None):
-        return py_obj.__class__ == Image
-
-    @classmethod
-    def _validate_params(cls, params):
-        box_keys = params.get("box_keys", dtypes.UnknownType)
-        mask_keys = params.get("mask_keys", dtypes.UnknownType)
-        return (
-            box_keys == dtypes.UnknownType or isinstance(box_keys, dtypes.SetConstType)
-        ) and (
-            mask_keys == dtypes.UnknownType
-            or isinstance(mask_keys, dtypes.SetConstType)
-        )
+        super(_ImageType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
         box_keyset, mask_keyset = self._image_to_keysets(py_obj)
         if self.params["box_keys"] is dtypes.UnknownType:
-            box_result = dtypes.SetConstType(box_keyset)
+            box_result = dtypes.ConstType(box_keyset)
         else:
             box_result = self.params["box_keys"].assign(box_keyset)
 
         if self.params["mask_keys"] is dtypes.UnknownType:
-            mask_result = dtypes.SetConstType(mask_keyset)
+            mask_result = dtypes.ConstType(mask_keyset)
         else:
             mask_result = self.params["mask_keys"].assign(mask_keyset)
 
@@ -2936,7 +2917,7 @@ class _ImageType(dtypes.ParameterizedType):
             return dtypes.NeverType
         else:
             return self.__class__(
-                _params={"box_keys": box_result, "mask_keys": mask_result,}
+                params={"box_keys": box_result, "mask_keys": mask_result,}
             )
 
     @staticmethod
@@ -2947,32 +2928,25 @@ class _ImageType(dtypes.ParameterizedType):
         )
 
 
-class _TableType(dtypes.ParameterizedType):
+class _TableType(dtypes.Type):
     name = "wandb.Table"
+    types = [Table]
 
-    def __init__(self, py_obj=None, _params=None):
-        if _params is None:
-            _params = {
+    def __init__(self, py_obj=None, params=None):
+        if params is None:
+            params = {
                 "column_types": py_obj._column_types
                 if py_obj and py_obj._column_types
                 else dtypes.DictType({}),
             }
-        super(_TableType, self).__init__(py_obj, _params)
-
-    @staticmethod
-    def types_py_obj(py_obj=None):
-        return py_obj.__class__ == Table
-
-    @classmethod
-    def _validate_params(cls, params):
-        return isinstance(params.get("column_types"), dtypes.DictType)
+        super(_TableType, self).__init__(py_obj, params)
 
     def assign(self, py_obj=None):
         new_col_types = self.params.get("column_types").assign_type(py_obj.column_types)
         if new_col_types == dtypes.NeverType:
             return dtypes.NeverType
         else:
-            return self.__class__(_params={"column_types": new_col_types})
+            return self.__class__(params={"column_types": new_col_types})
 
 
 dtypes.TypeRegistry.add(_ClassesMemberType)
