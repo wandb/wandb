@@ -744,9 +744,6 @@ class Table(Media):
 
         return json_dict
 
-    def _get_wbtype(self):
-        return dtypes._WBTableType(self)
-
 
 class Audio(BatchableMedia):
     """
@@ -1680,9 +1677,6 @@ class Image(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join("media", "images")
 
-    def _get_wbtype(self):
-        return dtypes._WBImageType(self)
-
     def bind_to_run(self, *args, **kwargs):
         super(Image, self).bind_to_run(*args, **kwargs)
         id_ = kwargs.get("id_")
@@ -2585,7 +2579,7 @@ class Node(WBValue):
         node.name = layer.name
         node.class_name = layer.__class__.__name__
         node.output_shape = output_shape
-        node.num_parameters = layer.count()
+        node.num_parameters = layer.count_params()
 
         return node
 
