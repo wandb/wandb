@@ -171,7 +171,7 @@ def test_add_named_dir(runner):
         assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"][os.path.join("subdir", "file1.txt")] == {
+        assert manifest["contents"]["subdir/file1.txt"] == {
             "digest": "XUFAKrxLKna5cZ2REBfFkg==",
             "size": 5,
         }
@@ -226,12 +226,12 @@ def test_add_reference_local_dir(runner):
         }
         assert manifest["contents"]["nest/file2.txt"] == {
             "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-            "ref": "file://" + os.path.join(os.getcwd(), "nest/file2.txt"),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
             "size": 2,
         }
         assert manifest["contents"]["nest/nest/file3.txt"] == {
             "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-            "ref": "file://" + os.path.join(os.getcwd(), "nest/nest/file3.txt"),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
             "size": 4,
         }
 
