@@ -724,7 +724,6 @@ class LocalFileHandler(StorageHandler):
                 ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
             ]
 
-        print(local_path)
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
