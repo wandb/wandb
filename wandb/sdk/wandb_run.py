@@ -509,7 +509,7 @@ class Run(object):
             runs in the training the same group.
         If you are doing crossvalidation you should give all the crossvalidation
             folds the same group.
-        
+
         Returns:
             (str): name of W&B group associated with run.
         """
@@ -553,7 +553,7 @@ class Run(object):
 
     def get_sweep_url(self):
         """
-        Returns: 
+        Returns:
             (str, optional): url for the sweep associated with the run
                 or None if there is no associated sweep or the run is offline.
         """
