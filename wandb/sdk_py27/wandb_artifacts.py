@@ -109,7 +109,7 @@ class Artifact(object):
         self._added_new = True
         return open(path, mode)
 
-    def add_file(self, local_path, name=None, is_tmp=False):
+    def add_file(self, local_path, name=None):
         """Adds a local file to the artifact
 
         Args:
@@ -126,12 +126,6 @@ class Artifact(object):
 
         name = name or os.path.basename(local_path)
         digest = md5_file_b64(local_path)
-
-        if is_tmp:
-            file_path, file_name = os.path.split(name)
-            file_name_parts = file_name.split(".")
-            file_name_parts[0] = b64_string_to_hex(digest)[:8]
-            name = os.path.join(file_path, ".".join(file_name_parts))
 
         entry = ArtifactManifestEntry(
             name,
