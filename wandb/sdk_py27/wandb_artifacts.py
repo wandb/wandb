@@ -410,7 +410,7 @@ class ArtifactManifestEntry(object):
             raise AssertionError(
                 "programming error, size required when local_path specified"
             )
-        self.path = path
+        self.path = util.to_forward_slash_path(path)
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.birth_artifact_id = birth_artifact_id
