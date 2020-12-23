@@ -728,7 +728,7 @@ class LocalFileHandler(StorageHandler):
             i = 0
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i files in "%s"...'
+                'Generating checksum for up to %i files in "%s"...\n'
                 % (max_objects, local_path),
                 newline=False,
             )
@@ -740,11 +740,13 @@ class LocalFileHandler(StorageHandler):
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
                         )
+                    physical_path = os.path.join(root, sub_path)
+                    logical_path = os.path.relpath(physical_path, start=local_path)
                     entry = ArtifactManifestEntry(
-                        os.path.basename(sub_path),
-                        os.path.join(path, sub_path),
-                        size=os.path.getsize(sub_path),
-                        digest=md5_file_b64(sub_path),
+                        logical_path,
+                        os.path.join(path, logical_path),
+                        size=os.path.getsize(physical_path),
+                        digest=md5_file_b64(physical_path),
                     )
                     entries.append(entry)
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)

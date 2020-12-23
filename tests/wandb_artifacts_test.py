@@ -214,22 +214,50 @@ def test_add_reference_local_file_no_checksum(runner):
 def test_add_reference_local_dir(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
-        open("file2.txt", "w").write("dude")
+        os.mkdir("nest")
+        open("nest/file2.txt", "w").write("my")
+        os.mkdir("nest/nest")
+        open("nest/nest/file3.txt", "w").write("dude")
+
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://" + os.getcwd())
 
-        assert artifact.digest == "5e8e98ebd59cc93b58d0cb26432d4720"
-        manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"]["file1.txt"] == {
-            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
-            "size": 5,
-        }
-        assert manifest["contents"]["file2.txt"] == {
-            "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-            "ref": "file://" + os.path.join(os.getcwd(), "file2.txt"),
-            "size": 4,
-        }
+        if os.name == "nt":
+            assert artifact.digest == "ddca6260ec5bfab4ba6f0158d34e54c0"
+            manifest = artifact.manifest.to_manifest_json()
+            assert manifest["contents"]["file1.txt"] == {
+                "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+                "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+                "size": 5,
+            }
+            assert manifest["contents"]["nest\\file2.txt"] == {
+                "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+                "ref": "file://" + os.path.join(os.getcwd(), "nest\\file2.txt"),
+                "size": 2,
+            }
+            assert manifest["contents"]["nest\\nest\\file3.txt"] == {
+                "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+                "ref": "file://" + os.path.join(os.getcwd(), "nest\\nest\\file3.txt"),
+                "size": 4,
+            }
+        else:
+            assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
+            manifest = artifact.manifest.to_manifest_json()
+            assert manifest["contents"]["file1.txt"] == {
+                "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+                "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+                "size": 5,
+            }
+            assert manifest["contents"]["nest/file2.txt"] == {
+                "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+                "ref": "file://" + os.path.join(os.getcwd(), "nest/file2.txt"),
+                "size": 2,
+            }
+            assert manifest["contents"]["nest/nest/file3.txt"] == {
+                "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+                "ref": "file://" + os.path.join(os.getcwd(), "nest/nest/file3.txt"),
+                "size": 4,
+            }
 
 
 def test_add_s3_reference_object(runner, mocker):
