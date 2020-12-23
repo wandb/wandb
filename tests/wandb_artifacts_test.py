@@ -168,12 +168,7 @@ def test_add_named_dir(runner):
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_dir(".", name="subdir")
 
-        if platform.system() == "Windows":
-            digest = "84eb4e81b4fe7ef81bd13971c6f80cdc"
-        else:
-            digest = "a757208d042e8627b2970d72a71bed5b"
-
-        assert artifact.digest == digest
+        assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"][os.path.join("subdir", "file1.txt")] == {
