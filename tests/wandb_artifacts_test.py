@@ -467,29 +467,29 @@ def test_add_obj_wbimage(runner):
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
-                "media\\images\\2x2.png": {
+                "media\\images\\641e917f\\2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
                     "digest": "omcGTjTrCSnwAfucXfPRsg==",
-                    "size": 209,
+                    "size": 215,
                 },
             }
         else:
-            assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
+            assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
             assert manifest["contents"] == {
                 "media/cls.classes.json": {
                     "digest": "eG00DqdCcCBqphilriLNfw==",
                     "size": 64,
                 },
-                "media/images/2x2.png": {
+                "media/images/641e917f/2x2.png": {
                     "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                     "size": 71,
                 },
                 "my-image.image-file.json": {
-                    "digest": "09JETFEpiuqBeICi09cY4A==",
-                    "size": 206,
+                    "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                    "size": 215,
                 },
             }
 
@@ -720,5 +720,64 @@ def test_add_obj_wbtable_images(runner):
                 "my-table.table.json": {
                     "digest": "5l6DxiO38nB1II2dTW/HNA==",
                     "size": 497,
+                },
+            }
+
+
+def test_add_obj_wbtable_images_duplicate_name(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    img_1 = os.path.join(test_folder, "..", "assets", "2x2.png")
+    img_2 = os.path.join(test_folder, "..", "assets", "test.png")
+    with runner.isolated_filesystem():
+        os.mkdir('dir1')
+        shutil.copy(img_1, 'dir1/img.png')
+        os.mkdir('dir2')
+        shutil.copy(img_2, 'dir2/img.png')
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image_1 = wandb.Image(os.path.join('dir1', 'img.png'), classes=[{"id": 0, "name": "person"}])
+        wb_image_2 = wandb.Image(os.path.join('dir2', 'img.png'), classes=[{"id": 0, "name": "person"}])
+        wb_table = wandb.Table(["examples"])
+        wb_table.add_data(wb_image_1)
+        wb_table.add_data(wb_image_2)
+        artifact.add(wb_table, "my-table")
+
+        manifest = artifact.manifest.to_manifest_json()
+        if os.name == "nt":  # windows
+            assert manifest["contents"] == {
+                "media\\cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
+                "media\\images\\641e917f\\img.png": {
+                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                    "size": 71,
+                },
+                "media\\images\\cf37c38f\\img.png": {
+                    "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
+                    "size": 8837,
+                },
+                "my-table.table.json": {
+                    "digest": "JqcCBGg7pwvx7twxtu7brA==",
+                    "size": 519,
+                },
+            }
+        else:
+            assert manifest["contents"] == {
+                "media/cls.classes.json": {
+                    "digest": "eG00DqdCcCBqphilriLNfw==",
+                    "size": 64,
+                },
+                "media/images/641e917f/img.png": {
+                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                    "size": 71,
+                },
+                "media/images/cf37c38f/img.png": {
+                    "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
+                    "size": 8837,
+                },
+                "my-table.table.json": {
+                    "digest": "JqcCBGg7pwvx7twxtu7brA==",
+                    "size": 519,
                 },
             }

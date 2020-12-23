@@ -412,8 +412,10 @@ class Media(WBValue):
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
+                    # Include the first 8 characters of the file's SHA256 to avoid name
+                    # collisions.
                     name = os.path.join(
-                        self.get_media_subdir(), os.path.basename(self._path)
+                        self.get_media_subdir(), self._sha256[:8], os.path.basename(self._path)
                     )
 
                     # if not, check to see if there is a source artifact for this object
@@ -432,7 +434,7 @@ class Media(WBValue):
                         artifact.add_reference(path.ref_url(), name=name)
                     else:
                         entry = artifact.add_file(
-                            self._path, name=name, is_tmp=self._is_tmp
+                            self._path, name=name,
                         )
                         name = entry.path
 
