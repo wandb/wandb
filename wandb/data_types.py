@@ -482,8 +482,8 @@ class Table(Media):
         data=None,
         rows=None,
         dataframe=None,
-        optional=True,
         dtype=None,
+        optional=True,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
@@ -523,7 +523,7 @@ class Table(Media):
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._make_column_types(optional, dtype)
+        self._make_column_types(dtype, optional)
         for row in data:
             self.add_data(*row)
 
@@ -534,7 +534,7 @@ class Table(Media):
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self._make_column_types(optional, dtype)
+        self._make_column_types(dtype, optional)
         for row in ndarray.tolist():
             self.add_data(*row)
 
@@ -544,26 +544,13 @@ class Table(Media):
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.data = []
         self.columns = list(dataframe.columns)
-        self._make_column_types(optional, dtype)
+        self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
-    def _make_column_types(self, optional=True, dtype=None):
+    def _make_column_types(self, dtype=None, optional=True):
         if dtype is None:
             dtype = dtypes.UnknownType()
-        elif isinstance(dtype, list):
-            dtype = [dtypes.TypeRegistry.type_from_dtype(dt) for dt in dtype]
-        else:
-            dtype = dtypes.TypeRegistry.type_from_dtype(dtype)
-
-        assert optional.__class__ == bool or (
-            len(optional) == len(self.columns)
-            and all([opt.__class__ == bool for opt in optional])
-        )
-        assert isinstance(dtype, dtypes.Type) or (
-            len(dtype) == len(self.columns)
-            and all([isinstance(dt, dtypes.Type) for dt in dtype])
-        )
 
         if optional.__class__ != list:
             optional = [optional for _ in range(len(self.columns))]
@@ -573,11 +560,7 @@ class Table(Media):
 
         self._column_types = dtypes.DictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
-            if opt:
-                _dt = dtypes.OptionalType(dt)
-            else:
-                _dt = dt
-            self.cast(col_name, _dt)
+            self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
         wbtype = dtypes.TypeRegistry.type_from_dtype(dtype)
@@ -2834,9 +2817,9 @@ class _ClassesIdType(dtypes.Type):
         self, classes_obj=None, valid_ids=None,
     ):
         if valid_ids is None:
-            valid_ids = dtype.UnionType()
+            valid_ids = dtypes.UnionType()
         elif isinstance(valid_ids, list):
-            valid_ids = dtype.UnionType([dtypes.ConstType(item) for item in valid_ids])
+            valid_ids = dtypes.UnionType([dtypes.ConstType(item) for item in valid_ids])
         elif isinstance(valid_ids, dtypes.UnionType):
             valid_ids = valid_ids
         else:
@@ -2916,23 +2899,19 @@ class _ImageType(dtypes.Type):
     def __init__(self, box_keys=None, mask_keys=None):
         if box_keys == None:
             box_keys = dtypes.UnknownType()
-        elif isinstance(box_keys, dtypes.UnionType):
+        elif isinstance(box_keys, dtypes.ConstType):
             box_keys = box_keys
-        elif not isinstance(box_keys, list) and all(
-            [isinstance(key, str) for key in box_keys]
-        ):
-            raise TypeError("box_keys must be a list of strings")
+        elif not isinstance(box_keys, list):
+            raise TypeError("box_keys must be a list")
         else:
             box_keys = dtypes.ConstType(set(box_keys))
 
         if mask_keys == None:
             mask_keys = dtypes.UnknownType()
-        elif isinstance(mask_keys, dtypes.UnionType):
+        elif isinstance(mask_keys, dtypes.ConstType):
             mask_keys = mask_keys
-        elif not isinstance(mask_keys, list) and all(
-            [isinstance(key, str) for key in mask_keys]
-        ):
-            raise TypeError("mask_keys must be a list of strings")
+        elif not isinstance(mask_keys, list):
+            raise TypeError("mask_keys must be a list")
         else:
             mask_keys = dtypes.ConstType(set(mask_keys))
 
@@ -2952,20 +2931,20 @@ class _ImageType(dtypes.Type):
             ):
                 return _ImageType(box_keys, mask_keys)
 
-        return NeverType
+        return dtypes.NeverType()
 
     @classmethod
     def from_obj(cls, py_obj):
         if not isinstance(py_obj, Image):
             raise TypeError("py_obj must be a wandb.Image")
         else:
-            if hasattr(image_obj, "_boxes") and image_obj._boxes:
-                box_keys = list(image_obj._boxes.keys())
+            if hasattr(py_obj, "_boxes") and py_obj._boxes:
+                box_keys = list(py_obj._boxes.keys())
             else:
                 box_keys = []
 
-            if hasattr(image_obj, "masks") and image_obj.masks:
-                mask_keys = list(image_obj.masks.keys())
+            if hasattr(py_obj, "masks") and py_obj.masks:
+                mask_keys = list(py_obj.masks.keys())
             else:
                 mask_keys = []
 
@@ -2978,10 +2957,13 @@ class _TableType(dtypes.Type):
 
     def __init__(self, column_types=None):
         if column_types == None:
-            columns_types = {}
-        if not isinstance(column_types, dict):
-            raise TypeError("column_types must be a dict")
-        self.params.update({"column_types": dtypes.DictType(column_types)})
+            column_types = dict()
+        if isinstance(column_types, dict):
+            column_types = dtypes.DictType(column_types)
+        elif not isinstance(column_types, dtypes.DictType):
+            raise TypeError("column_types must be a dict or DictType")
+
+        self.params.update({"column_types": column_types})
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _TableType):
@@ -2991,7 +2973,7 @@ class _TableType(dtypes.Type):
             if not isinstance(column_types, dtypes.NeverType):
                 return _TableType(column_types)
 
-        return NeverType
+        return dtypes.NeverType()
 
     @classmethod
     def from_obj(cls, py_obj):

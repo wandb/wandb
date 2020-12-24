@@ -68,7 +68,7 @@ class TypeRegistry:
             wbtype: Type = dtype
 
         # The dtype is a subclass of Type
-        elif issubclass(dtype, Type):
+        elif isinstance(dtype, type) and issubclass(dtype, Type):
             wbtype = dtype()
 
         # The dtype is a subclass of generic python type
@@ -168,7 +168,7 @@ class Type(object):
     def params(self):
         if not hasattr(self, "_params") or self._params is None:
             self._params = {}
-        return {}
+        return self._params
 
     def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
         """Assign a python object to the type, returning a new type representing
@@ -341,6 +341,9 @@ class ConstType(Type):
 
         self.params.update({"val": val, "is_set": is_set})
 
+    def assign(self, py_obj: t.Optional[t.Any] = None) -> "Type":
+        return self.assign_type(ConstType(py_obj))
+
     @classmethod
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ConstType":
         return cls(py_obj)
@@ -424,6 +427,8 @@ class UnionType(Type):
         else:
             wb_types = [TypeRegistry.type_from_dtype(dt) for dt in allowed_types]
 
+        wb_types = _flatten_union_types(wb_types)
+        wb_types.sort(key=str)
         self.params.update({"allowed_types": wb_types})
 
     def assign(
@@ -461,7 +466,7 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
     Returns:
         Type: Optional version of the type.
     """
-    return UnionType([TypeRegistry.type_from_dtype(ConvertableToType), NoneType()])
+    return UnionType([TypeRegistry.type_from_dtype(dtype), NoneType()])
 
 
 class ListType(Type):
