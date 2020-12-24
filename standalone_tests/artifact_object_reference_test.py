@@ -157,7 +157,7 @@ def _make_wandb_table():
             [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
         ],
     )
-    table.cast("class_id", classes)
+    table.cast("class_id", classes.get_type())
     return table
 
 def _make_wandb_joinedtable():

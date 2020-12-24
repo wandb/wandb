@@ -7,9 +7,9 @@ import sys
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if _PY3:
-    from wandb.sdk.interface.dtypes import *
+    from wandb.sdk.interface._dtypes import *
 else:
-    from wandb.sdk_py27.interface.dtypes import *
+    from wandb.sdk_py27.interface._dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))

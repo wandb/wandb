@@ -37,9 +37,9 @@ from wandb.errors.error import UsageError
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if _PY3:
-    from wandb.sdk.interface import dtypes
+    from wandb.sdk.interface import _dtypes
 else:
-    from wandb.sdk_py27.interface import dtypes
+    from wandb.sdk_py27.interface import _dtypes
 
 
 def _safe_sdk_import():
@@ -550,7 +550,7 @@ class Table(Media):
 
     def _make_column_types(self, dtype=None, optional=True):
         if dtype is None:
-            dtype = dtypes.UnknownType()
+            dtype = _dtypes.UnknownType()
 
         if optional.__class__ != list:
             optional = [optional for _ in range(len(self.columns))]
@@ -558,18 +558,18 @@ class Table(Media):
         if dtype.__class__ != list:
             dtype = [dtype for _ in range(len(self.columns))]
 
-        self._column_types = dtypes.DictType({})
+        self._column_types = _dtypes.DictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        wbtype = dtypes.TypeRegistry.type_from_dtype(dtype)
+        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
         if optional:
-            wbtype = dtypes.OptionalType(wbtype)
+            wbtype = _dtypes.OptionalType(wbtype)
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = wbtype.assign(row[col_ndx])
-            if isinstance(result_type, dtypes.InvalidType):
+            if isinstance(result_type, _dtypes.InvalidType):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
@@ -620,7 +620,7 @@ class Table(Media):
         }
         current_type = self._column_types
         result_type = current_type.assign(incoming_data_dict)
-        if isinstance(result_type, dtypes.InvalidType):
+        if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
                 "Data column contained incompatible types. Expected type {}, found data {}".format(
                     current_type, incoming_data_dict
@@ -664,7 +664,7 @@ class Table(Media):
 
         new_obj = cls(json_obj["columns"], data=data,)
 
-        new_obj._column_types = dtypes.TypeRegistry.type_from_dict(
+        new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
             json_obj["column_types"], source_artifact
         )
 
@@ -2813,7 +2813,7 @@ def data_frame_to_json(df, run, key, step):
 ## Custom dtypes for typing system
 
 
-class _ClassesIdType(dtypes.Type):
+class _ClassesIdType(_dtypes.Type):
     name = "wandb.Classes_id"
     types = [Classes]
 
@@ -2821,10 +2821,12 @@ class _ClassesIdType(dtypes.Type):
         self, classes_obj=None, valid_ids=None,
     ):
         if valid_ids is None:
-            valid_ids = dtypes.UnionType()
+            valid_ids = _dtypes.UnionType()
         elif isinstance(valid_ids, list):
-            valid_ids = dtypes.UnionType([dtypes.ConstType(item) for item in valid_ids])
-        elif isinstance(valid_ids, dtypes.UnionType):
+            valid_ids = _dtypes.UnionType(
+                [_dtypes.ConstType(item) for item in valid_ids]
+            )
+        elif isinstance(valid_ids, _dtypes.UnionType):
             valid_ids = valid_ids
         else:
             raise TypeError("valid_ids must be None, list, or UnionType")
@@ -2839,9 +2841,9 @@ class _ClassesIdType(dtypes.Type):
         elif not isinstance(classes_obj, Classes):
             raise TypeError("valid_ids must be None, or instance of Classes")
         else:
-            valid_ids = dtypes.UnionType(
+            valid_ids = _dtypes.UnionType(
                 [
-                    dtypes.ConstType(class_obj["id"])
+                    _dtypes.ConstType(class_obj["id"])
                     for class_obj in classes_obj._class_set
                 ]
             )
@@ -2850,14 +2852,14 @@ class _ClassesIdType(dtypes.Type):
         self.params.update({"valid_ids": valid_ids})
 
     def assign(self, py_obj=None):
-        return self.assign_type(dtypes.ConstType(py_obj))
+        return self.assign_type(_dtypes.ConstType(py_obj))
 
     def assign_type(self, wb_type=None):
         valid_ids = self.params["valid_ids"].assign_type(wb_type)
-        if not isinstance(valid_ids, dtypes.InvalidType):
+        if not isinstance(valid_ids, _dtypes.InvalidType):
             return self
 
-        return dtypes.InvalidType()
+        return _dtypes.InvalidType()
 
     @classmethod
     def from_obj(cls, py_obj=None):
@@ -2898,28 +2900,28 @@ class _ClassesIdType(dtypes.Type):
         return cls(classes_obj)
 
 
-class _ImageType(dtypes.Type):
+class _ImageType(_dtypes.Type):
     name = "wandb.Image"
     types = [Image]
 
     def __init__(self, box_keys=None, mask_keys=None):
         if box_keys == None:
-            box_keys = dtypes.UnknownType()
-        elif isinstance(box_keys, dtypes.ConstType):
+            box_keys = _dtypes.UnknownType()
+        elif isinstance(box_keys, _dtypes.ConstType):
             box_keys = box_keys
         elif not isinstance(box_keys, list):
             raise TypeError("box_keys must be a list")
         else:
-            box_keys = dtypes.ConstType(set(box_keys))
+            box_keys = _dtypes.ConstType(set(box_keys))
 
         if mask_keys == None:
-            mask_keys = dtypes.UnknownType()
-        elif isinstance(mask_keys, dtypes.ConstType):
+            mask_keys = _dtypes.UnknownType()
+        elif isinstance(mask_keys, _dtypes.ConstType):
             mask_keys = mask_keys
         elif not isinstance(mask_keys, list):
             raise TypeError("mask_keys must be a list")
         else:
-            mask_keys = dtypes.ConstType(set(mask_keys))
+            mask_keys = _dtypes.ConstType(set(mask_keys))
 
         self.params.update(
             {"box_keys": box_keys, "mask_keys": mask_keys,}
@@ -2932,12 +2934,12 @@ class _ImageType(dtypes.Type):
                 wb_type.params["mask_keys"]
             )
             if not (
-                isinstance(box_keys, dtypes.InvalidType)
-                or isinstance(mask_keys, dtypes.InvalidType)
+                isinstance(box_keys, _dtypes.InvalidType)
+                or isinstance(mask_keys, _dtypes.InvalidType)
             ):
                 return _ImageType(box_keys, mask_keys)
 
-        return dtypes.InvalidType()
+        return _dtypes.InvalidType()
 
     @classmethod
     def from_obj(cls, py_obj):
@@ -2957,18 +2959,18 @@ class _ImageType(dtypes.Type):
             return cls(box_keys, mask_keys)
 
 
-class _TableType(dtypes.Type):
+class _TableType(_dtypes.Type):
     name = "wandb.Table"
     types = [Table]
 
     def __init__(self, column_types=None):
         if column_types == None:
-            column_types = dtypes.UnknownType()
+            column_types = _dtypes.UnknownType()
         if isinstance(column_types, dict):
-            column_types = dtypes.DictType(column_types)
+            column_types = _dtypes.DictType(column_types)
         elif not (
-            isinstance(column_types, dtypes.DictType)
-            or isinstance(column_types, dtypes.UnknownType)
+            isinstance(column_types, _dtypes.DictType)
+            or isinstance(column_types, _dtypes.UnknownType)
         ):
             raise TypeError("column_types must be a dict or DictType")
 
@@ -2979,10 +2981,10 @@ class _TableType(dtypes.Type):
             column_types = self.params["column_types"].assign_type(
                 wb_type.params["column_types"]
             )
-            if not isinstance(column_types, dtypes.InvalidType):
+            if not isinstance(column_types, _dtypes.InvalidType):
                 return _TableType(column_types)
 
-        return dtypes.InvalidType()
+        return _dtypes.InvalidType()
 
     @classmethod
     def from_obj(cls, py_obj):
@@ -2992,6 +2994,6 @@ class _TableType(dtypes.Type):
             return cls(py_obj._column_types)
 
 
-dtypes.TypeRegistry.add(_ClassesIdType)
-dtypes.TypeRegistry.add(_ImageType)
-dtypes.TypeRegistry.add(_TableType)
+_dtypes.TypeRegistry.add(_ClassesIdType)
+_dtypes.TypeRegistry.add(_ImageType)
+_dtypes.TypeRegistry.add(_TableType)
