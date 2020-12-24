@@ -569,7 +569,7 @@ class Table(Media):
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = wbtype.assign(row[col_ndx])
-            if isinstance(result_type, dtypes.NeverType):
+            if isinstance(result_type, dtypes.InvalidType):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
@@ -585,7 +585,11 @@ class Table(Media):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        if len(self.data) != len(other.data) or self.columns != other.columns:
+        if (
+            not isinstance(other, Table)
+            or len(self.data) != len(other.data)
+            or self.columns != other.columns
+        ):
             return False
 
         for row_ndx in range(len(self.data)):
@@ -616,7 +620,7 @@ class Table(Media):
         }
         current_type = self._column_types
         result_type = current_type.assign(incoming_data_dict)
-        if isinstance(result_type, dtypes.NeverType):
+        if isinstance(result_type, dtypes.InvalidType):
             raise TypeError(
                 "Data column contained incompatible types. Expected type {}, found data {}".format(
                     current_type, incoming_data_dict
@@ -2828,7 +2832,7 @@ class _ClassesIdType(dtypes.Type):
         if classes_obj is None:
             classes_obj = Classes(
                 [
-                    {"id": _id.params["val"], "name": str(_id).params["val"]}
+                    {"id": _id.params["val"], "name": str(_id.params["val"])}
                     for _id in valid_ids.params["allowed_types"]
                 ]
             )
@@ -2843,17 +2847,19 @@ class _ClassesIdType(dtypes.Type):
             )
 
         self.wb_classes_obj_ref = classes_obj
-        self.params.update({valid_ids: valid_ids})
+        self.params.update({"valid_ids": valid_ids})
+
+    def assign(self, py_obj=None):
+        return self.assign_type(dtypes.ConstType(py_obj))
 
     def assign_type(self, wb_type=None):
-        if isinstance(wb_type, _ClassesIdType):
-            valid_ids = self.params["valid_ids"].assign_type(wb_type)
-            if not isinstance(valid_ids, dtypes.NeverType):
-                return _ClassesIdType(valid_ids)
+        valid_ids = self.params["valid_ids"].assign_type(wb_type)
+        if not isinstance(valid_ids, dtypes.InvalidType):
+            return self
 
-        return dtypes.NeverType()
+        return dtypes.InvalidType()
 
-    @staticmethod
+    @classmethod
     def from_obj(cls, py_obj=None):
         return cls(py_obj)
 
@@ -2926,12 +2932,12 @@ class _ImageType(dtypes.Type):
                 wb_type.params["mask_keys"]
             )
             if not (
-                isinstance(box_keys, dtypes.NeverType)
-                or isinstance(mask_keys, dtypes.NeverType)
+                isinstance(box_keys, dtypes.InvalidType)
+                or isinstance(mask_keys, dtypes.InvalidType)
             ):
                 return _ImageType(box_keys, mask_keys)
 
-        return dtypes.NeverType()
+        return dtypes.InvalidType()
 
     @classmethod
     def from_obj(cls, py_obj):
@@ -2957,10 +2963,13 @@ class _TableType(dtypes.Type):
 
     def __init__(self, column_types=None):
         if column_types == None:
-            column_types = dict()
+            column_types = dtypes.UnknownType()
         if isinstance(column_types, dict):
             column_types = dtypes.DictType(column_types)
-        elif not isinstance(column_types, dtypes.DictType):
+        elif not (
+            isinstance(column_types, dtypes.DictType)
+            or isinstance(column_types, dtypes.UnknownType)
+        ):
             raise TypeError("column_types must be a dict or DictType")
 
         self.params.update({"column_types": column_types})
@@ -2970,10 +2979,10 @@ class _TableType(dtypes.Type):
             column_types = self.params["column_types"].assign_type(
                 wb_type.params["column_types"]
             )
-            if not isinstance(column_types, dtypes.NeverType):
+            if not isinstance(column_types, dtypes.InvalidType):
                 return _TableType(column_types)
 
-        return dtypes.NeverType()
+        return dtypes.InvalidType()
 
     @classmethod
     def from_obj(cls, py_obj):

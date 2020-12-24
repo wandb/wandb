@@ -19,21 +19,21 @@ im_path = os.path.join(test_folder, "..", "assets", "test.png")
 def test_none_type():
     assert TypeRegistry.type_of(None) == NoneType()
     assert TypeRegistry.type_of(None).assign(None) == NoneType()
-    assert TypeRegistry.type_of(None).assign(1) == NeverType()
+    assert TypeRegistry.type_of(None).assign(1) == InvalidType()
 
 
 def test_string_type():
     assert TypeRegistry.type_of("Hello") == StringType()
     assert TypeRegistry.type_of("Hello").assign("World") == StringType()
-    assert TypeRegistry.type_of("Hello").assign(None) == NeverType()
-    assert TypeRegistry.type_of("Hello").assign(1) == NeverType()
+    assert TypeRegistry.type_of("Hello").assign(None) == InvalidType()
+    assert TypeRegistry.type_of("Hello").assign(1) == InvalidType()
 
 
 def test_number_type():
     assert TypeRegistry.type_of(1.2) == NumberType()
     assert TypeRegistry.type_of(1.2).assign(1) == NumberType()
-    assert TypeRegistry.type_of(1.2).assign(None) == NeverType()
-    assert TypeRegistry.type_of(1.2).assign("hi") == NeverType()
+    assert TypeRegistry.type_of(1.2).assign(None) == InvalidType()
+    assert TypeRegistry.type_of(1.2).assign("hi") == InvalidType()
 
 
 def test_boolean_type():
@@ -41,27 +41,27 @@ def test_boolean_type():
     assert wb_type == BooleanType()
     wb_type_2 = wb_type.assign(False)
     assert wb_type == wb_type_2
-    assert wb_type.assign(1) == NeverType()
-    assert wb_type.assign(None) == NeverType()
+    assert wb_type.assign(1) == InvalidType()
+    assert wb_type.assign(None) == InvalidType()
 
 
 def test_any_type():
     wb_type = AnyType()
     assert wb_type == wb_type.assign(1)
-    assert wb_type.assign(None) == NeverType()
+    assert wb_type.assign(None) == InvalidType()
 
 
 def test_never_type():
-    wb_type = NeverType()
+    wb_type = InvalidType()
     assert wb_type == wb_type.assign(1)
     assert wb_type == wb_type.assign("a")
     assert wb_type == wb_type.assign(True)
     assert wb_type == wb_type.assign(None)
 
-    wb_type = OptionalType(NeverType())
-    assert NeverType() == wb_type.assign(1)
-    assert NeverType() == wb_type.assign("a")
-    assert NeverType() == wb_type.assign(True)
+    wb_type = OptionalType(InvalidType())
+    assert InvalidType() == wb_type.assign(1)
+    assert InvalidType() == wb_type.assign("a")
+    assert InvalidType() == wb_type.assign(True)
     assert wb_type == wb_type.assign(None)
 
 
@@ -69,7 +69,7 @@ def test_unknown_type():
     wb_type = UnknownType()
     assert wb_type.assign(1) == NumberType()
     wb_type_2 = wb_type.assign(None)
-    assert wb_type_2 == NeverType()
+    assert wb_type_2 == InvalidType()
     wb_type_2 = OptionalType(UnknownType())
     assert wb_type_2.assign(1) == OptionalType(NumberType())
     assert wb_type_2.assign(None) == OptionalType(UnknownType())
@@ -79,7 +79,7 @@ def test_union_type():
     wb_type = UnionType([NumberType(), StringType()])
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("s") == wb_type
-    assert wb_type.assign(True) == NeverType()
+    assert wb_type.assign(True) == InvalidType()
 
     wb_type = UnionType([NumberType(), AnyType()])
     assert wb_type.assign(1) == wb_type
@@ -89,7 +89,7 @@ def test_union_type():
     wb_type = UnionType([NumberType(), UnknownType()])
     assert wb_type.assign(1) == wb_type
     assert wb_type.assign("s") == UnionType([NumberType(), StringType()])
-    assert wb_type.assign(None) == NeverType()
+    assert wb_type.assign(None) == InvalidType()
 
     wb_type = UnionType([NumberType(), OptionalType(UnknownType())])
     assert wb_type.assign(None).assign(True) == UnionType(
@@ -105,14 +105,14 @@ def test_union_type():
     # assert wb_type.assign(None) == UnionType(
     #     [NumberType(), StringType(), OptionalType(UnknownType())]
     # )
-    assert wb_type.assign(None) == NeverType()
+    assert wb_type.assign(None) == InvalidType()
 
 
 def test_const_type():
     wb_type = ConstType(1)
     assert wb_type.assign(1) == wb_type
-    assert wb_type.assign("a") == NeverType()
-    assert wb_type.assign(2) == NeverType()
+    assert wb_type.assign("a") == InvalidType()
+    assert wb_type.assign(2) == InvalidType()
 
 
 def test_set_const_type():
@@ -120,27 +120,27 @@ def test_set_const_type():
     print(wb_type)
     print(TypeRegistry.type_of(set()))
     assert wb_type.assign(set()) == wb_type
-    assert wb_type.assign(None) == NeverType()
-    assert wb_type.assign(set([1])) == NeverType()
-    assert wb_type.assign([]) == NeverType()
+    assert wb_type.assign(None) == InvalidType()
+    assert wb_type.assign(set([1])) == InvalidType()
+    assert wb_type.assign([]) == InvalidType()
 
     wb_type = ConstType(set([1, 2, 3]))
-    assert wb_type.assign(set()) == NeverType()
-    assert wb_type.assign(None) == NeverType()
+    assert wb_type.assign(set()) == InvalidType()
+    assert wb_type.assign(None) == InvalidType()
     assert wb_type.assign(set([1, 2, 3])) == wb_type
-    assert wb_type.assign([1, 2, 3]) == NeverType()
+    assert wb_type.assign([1, 2, 3]) == InvalidType()
 
 
 def test_object_type():
     wb_type = TypeRegistry.type_of(np.random.rand(30))
     assert wb_type.assign(np.random.rand(30)) == wb_type
-    assert wb_type.assign(4) == NeverType()
+    assert wb_type.assign(4) == InvalidType()
 
 
 def test_list_type():
     assert ListType(int).assign([]) == ListType(int)
     assert ListType(int).assign([1, 2, 3]) == ListType(int)
-    assert ListType(int).assign([1, "a", 3]) == NeverType()
+    assert ListType(int).assign([1, "a", 3]) == InvalidType()
 
 
 def test_dict_type():
@@ -151,57 +151,35 @@ def test_dict_type():
 
     wb_type = TypeRegistry.type_of(exact)
     assert wb_type.assign(exact) == wb_type
-    assert wb_type.assign(subset) == NeverType()
-    assert wb_type.assign(narrow) == NeverType()
-
-    with pytest.raises(TypeError):
-        wb_type = DictType(spec, key_policy=KeyPolicy.SUBSET)
-    # assert wb_type.assign(exact) == wb_type
-    # assert wb_type.assign(subset) == wb_type
-    # assert wb_type.assign(narrow) == NeverType()
-
-    with pytest.raises(TypeError):
-        wb_type = DictType(spec, key_policy=KeyPolicy.UNRESTRICTED)
-    # combined = {
-    #     "number": NumberType(),
-    #     "string": StringType(),
-    #     "nested": {"list_str": ListType(str),},
-    # }
-    # exp_type = DictType(combined, key_policy=KeyPolicy.UNRESTRICTED)
-    # assert wb_type.assign(exact) == wb_type
-    # assert wb_type.assign(subset) == wb_type
-    # assert wb_type.assign(narrow) == exp_type
+    assert wb_type.assign(subset) == InvalidType()
+    assert wb_type.assign(narrow) == InvalidType()
 
     spec = {
         "optional_number": OptionalType(NumberType()),
         "optional_unknown": OptionalType(UnknownType()),
     }
 
-    wb_type = DictType(spec, key_policy=KeyPolicy.EXACT)
+    wb_type = DictType(spec)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
-    assert wb_type.assign({"optional_number": "1"}) == NeverType()
+    assert wb_type.assign({"optional_number": "1"}) == InvalidType()
     assert wb_type.assign({"optional_unknown": "hi"}) == DictType(
         {
             "optional_number": OptionalType(NumberType()),
             "optional_unknown": OptionalType(StringType()),
-        },
-        key_policy=KeyPolicy.EXACT,
+        }
     )
     assert wb_type.assign({"optional_unknown": None}) == DictType(
         {
             "optional_number": OptionalType(NumberType()),
             "optional_unknown": OptionalType(UnknownType()),
-        },
-        key_policy=KeyPolicy.EXACT,
+        }
     )
 
-    wb_type = DictType({"unknown": UnknownType()}, key_policy=KeyPolicy.EXACT)
-    assert wb_type.assign({}) == NeverType()
-    assert wb_type.assign({"unknown": None}) == NeverType()
-    assert wb_type.assign({"unknown": 1}) == DictType(
-        {"unknown": NumberType()}, key_policy=KeyPolicy.EXACT
-    )
+    wb_type = DictType({"unknown": UnknownType()})
+    assert wb_type.assign({}) == InvalidType()
+    assert wb_type.assign({"unknown": None}) == InvalidType()
+    assert wb_type.assign({"unknown": 1}) == DictType({"unknown": NumberType()},)
 
 
 def test_nested_dict():
@@ -275,7 +253,7 @@ def test_nested_dict():
             ]
         ],
     }
-    real_type = DictType(example)
+    real_type = DictType.from_obj(example)
 
     assert notation_type == expanded_type
     assert notation_type.assign(example) == real_type
@@ -380,13 +358,13 @@ def test_nested_dict():
     #     },
     #     key_policy=KeyPolicy.SUBSET,
     # )
-    # assert wb_type.assign({"l1": {"l2": [{"a": "a",}]}}) == NeverType()
+    # assert wb_type.assign({"l1": {"l2": [{"a": "a",}]}}) == InvalidType()
 
 
 def test_image_type():
-    wb_type = data_types.Image
+    wb_type = data_types._ImageType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    wb_type_simple = data_types._ImageType(image_simple)
+    wb_type_simple = data_types._ImageType.from_obj(image_simple)
     image_annotated = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -431,7 +409,7 @@ def test_image_type():
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
-    wb_type_annotated = data_types._ImageType(image_annotated)
+    wb_type_annotated = data_types._ImageType.from_obj(image_annotated)
 
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
@@ -464,8 +442,8 @@ def test_image_type():
 
     assert wb_type.assign(image_simple) == wb_type_simple
     assert wb_type.assign(image_annotated) == wb_type_annotated
-    assert wb_type_annotated.assign(image_simple) == NeverType()
-    assert wb_type_annotated.assign(image_annotated_differently) == NeverType()
+    assert wb_type_annotated.assign(image_simple) == InvalidType()
+    assert wb_type_annotated.assign(image_annotated_differently) == InvalidType()
 
 
 def test_classes_type():
@@ -477,19 +455,18 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = data_types._ClassesIdType(wb_classes)
-
+    wb_class_type = data_types._ClassesIdType.from_obj(wb_classes)
     assert wb_class_type.assign(1) == wb_class_type
-    assert wb_class_type.assign(0) == NeverType()
+    assert wb_class_type.assign(0) == InvalidType()
 
 
 def test_table_type():
     table_1 = wandb.Table(columns=["col"], data=[[1]])
-    t1 = data_types._TableType(table_1)
+    t1 = data_types._TableType.from_obj(table_1)
     table_2 = wandb.Table(columns=["col"], data=[[1.3]])
     table_3 = wandb.Table(columns=["col"], data=[["a"]])
     assert t1.assign(table_2) == t1
-    assert t1.assign(table_3) == NeverType()
+    assert t1.assign(table_3) == InvalidType()
 
 
 def test_table_implicit_types():
@@ -535,7 +512,7 @@ def test_table_type_cast():
         ]
     )
 
-    table.cast("type_col", wb_classes)
+    table.cast("type_col", wb_classes.get_type())
     table.add_data(2)
 
     with pytest.raises(TypeError):
@@ -673,7 +650,7 @@ def test_table_specials():
 
 #     wb_type = DictType(
 #         {
-#             "NeverType": NeverType,
+#             "InvalidType": InvalidType,
 #             "UnknownType()": UnknownType(),
 #             "AnyType()": AnyType(),
 #             "NoneType": NoneType,

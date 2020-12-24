@@ -190,7 +190,7 @@ class Type(object):
         if isinstance(wb_type, self.__class__) and self.params == wb_type.params:
             return self
         else:
-            return NeverType()
+            return InvalidType()
 
     def to_json(
         self, artifact: t.Optional["ArtifactInCreation"] = None
@@ -246,44 +246,44 @@ class Type(object):
         )
 
 
-class NeverType(Type):
-    """all assignments to a NeverType result in a Never Type.
-    NeverType is basically the invalid case
+class InvalidType(Type):
+    """all assignments to a InvalidType result in a Never Type.
+    InvalidType is basically the invalid case
     """
 
-    name = "never"
+    name = "invalid"
     types: t.ClassVar[t.List[type]] = []
 
-    def assign_type(self, wb_type: "Type") -> "NeverType":
+    def assign_type(self, wb_type: "Type") -> "InvalidType":
         return self
 
 
 class AnyType(Type):
     """all assignments to an AnyType result in the
-    AnyType except None which will be NeverType
+    AnyType except None which will be InvalidType
     """
 
     name = "any"
     types: t.ClassVar[t.List[type]] = []
 
-    def assign_type(self, wb_type: "Type") -> t.Union["AnyType", NeverType]:
+    def assign_type(self, wb_type: "Type") -> t.Union["AnyType", InvalidType]:
         return (
             self
-            if not (isinstance(wb_type, NoneType) or isinstance(wb_type, NeverType))
-            else NeverType()
+            if not (isinstance(wb_type, NoneType) or isinstance(wb_type, InvalidType))
+            else InvalidType()
         )
 
 
 class UnknownType(Type):
     """all assignments to an UnknownType result in the type of the assigned object
-    except none which will result in a NeverType
+    except none which will result in a InvalidType
     """
 
     name = "unknown"
     types: t.ClassVar[t.List[type]] = []
 
     def assign_type(self, wb_type: "Type") -> "Type":
-        return wb_type if not isinstance(wb_type, NoneType) else NeverType()
+        return wb_type if not isinstance(wb_type, NoneType) else InvalidType()
 
 
 class NoneType(Type):
@@ -292,7 +292,7 @@ class NoneType(Type):
 
 
 class StringType(Type):
-    name = "text"
+    name = "string"
     types: t.ClassVar[t.List[type]] = [str]
 
 
@@ -365,7 +365,7 @@ def _union_assigner(
     allowed_types: t.List[Type],
     obj_or_type: t.Union[Type, t.Optional[t.Any]],
     type_mode=False,
-) -> t.Union[t.List[Type], NeverType]:
+) -> t.Union[t.List[Type], InvalidType]:
     resolved_types = []
     valid = False
     unknown_count = 0
@@ -382,7 +382,7 @@ def _union_assigner(
                     assigned_type = allowed_type.assign_type(obj_or_type)
                 else:
                     assigned_type = allowed_type.assign(obj_or_type)
-                if isinstance(assigned_type, NeverType):
+                if isinstance(assigned_type, InvalidType):
                     resolved_types.append(allowed_type)
                 else:
                     resolved_types.append(assigned_type)
@@ -390,15 +390,15 @@ def _union_assigner(
 
     if not valid:
         if unknown_count == 0:
-            return NeverType()
+            return InvalidType()
         else:
             if type_mode:
                 assert isinstance(obj_or_type, Type)
                 new_type = obj_or_type
             else:
                 new_type = UnknownType().assign(obj_or_type)
-            if isinstance(new_type, NeverType):
-                return NeverType()
+            if isinstance(new_type, InvalidType):
+                return InvalidType()
             else:
                 resolved_types.append(new_type)
                 unknown_count -= 1
@@ -433,15 +433,15 @@ class UnionType(Type):
 
     def assign(
         self, py_obj: t.Optional[t.Any] = None
-    ) -> t.Union["UnionType", NeverType]:
+    ) -> t.Union["UnionType", InvalidType]:
         resolved_types = _union_assigner(
             self.params["allowed_types"], py_obj, type_mode=False
         )
-        if isinstance(resolved_types, NeverType):
-            return NeverType()
+        if isinstance(resolved_types, InvalidType):
+            return InvalidType()
         return self.__class__(resolved_types)
 
-    def assign_type(self, wb_type: "Type") -> t.Union["UnionType", NeverType]:
+    def assign_type(self, wb_type: "Type") -> t.Union["UnionType", InvalidType]:
         if isinstance(wb_type, UnionType):
             assignees = wb_type.params["allowed_types"]
         else:
@@ -450,8 +450,8 @@ class UnionType(Type):
         resolved_types = self.params["allowed_types"]
         for assignee in assignees:
             resolved_types = _union_assigner(resolved_types, assignee, type_mode=True)
-            if isinstance(resolved_types, NeverType):
-                return NeverType()
+            if isinstance(resolved_types, InvalidType):
+                return InvalidType()
 
         return self.__class__(resolved_types)
 
@@ -503,7 +503,7 @@ class ListType(Type):
             )
             for item in py_list:
                 _elm_type = elm_type.assign(item)
-                if isinstance(_elm_type, NeverType):
+                if isinstance(_elm_type, InvalidType):
                     raise TypeError(
                         "List contained incompatible types. Expected type {} found item {}".format(
                             elm_type, item
@@ -514,19 +514,19 @@ class ListType(Type):
 
             return cls(elm_type)
 
-    def assign_type(self, wb_type: "Type") -> t.Union["ListType", NeverType]:
+    def assign_type(self, wb_type: "Type") -> t.Union["ListType", InvalidType]:
         if isinstance(wb_type, ListType):
             assigned_type = self.params["element_type"].assign_type(
                 wb_type.params["element_type"]
             )
-            if not isinstance(assigned_type, NeverType):
+            if not isinstance(assigned_type, InvalidType):
                 return ListType(assigned_type)
 
-        return NeverType()
+        return InvalidType()
 
     def assign(
         self, py_obj: t.Optional[t.Any] = None
-    ) -> t.Union["ListType", NeverType]:
+    ) -> t.Union["ListType", InvalidType]:
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
             isinstance(py_obj, list)
             or isinstance(py_obj, tuple)
@@ -536,11 +536,11 @@ class ListType(Type):
             new_element_type = self.params["element_type"]
             for obj in list(py_obj):
                 new_element_type = new_element_type.assign(obj)
-                if isinstance(new_element_type, NeverType):
-                    return NeverType()
+                if isinstance(new_element_type, InvalidType):
+                    return InvalidType()
             return ListType(new_element_type)
 
-        return NeverType()
+        return InvalidType()
 
 
 # class KeyPolicy:
@@ -577,38 +577,47 @@ class DictType(Type):
         assert isinstance(py_obj, dict)  # helps mypy type checker
         return cls({key: TypeRegistry.type_of(py_obj[key]) for key in py_obj})
 
-    def assign_type(self, wb_type: "Type") -> t.Union["DictType", NeverType]:
+    def assign_type(self, wb_type: "Type") -> t.Union["DictType", InvalidType]:
         if (
             isinstance(wb_type, DictType)
-            and self.params["type_map"].keys() == wb_type.params["type_map"].keys()
+            and len(
+                set(wb_type.params["type_map"].keys())
+                - set(self.params["type_map"].keys())
+            )
+            == 0
         ):
             type_map = {}
             for key in self.params["type_map"]:
                 type_map[key] = self.params["type_map"][key].assign_type(
-                    wb_type.params["type_map"][key]
+                    wb_type.params["type_map"].get(key, UnknownType())
                 )
-                if isinstance(type_map[key], NeverType):
-                    return NeverType()
+                if isinstance(type_map[key], InvalidType):
+                    return InvalidType()
             return DictType(type_map)
 
-        return NeverType()
+        return InvalidType()
 
     def assign(
         self, py_obj: t.Optional[t.Any] = None
-    ) -> t.Union["DictType", NeverType]:
-        if isinstance(py_obj, dict) and self.params["type_map"].keys() == py_obj.keys():
+    ) -> t.Union["DictType", InvalidType]:
+        if (
+            isinstance(py_obj, dict)
+            and len(set(py_obj.keys()) - set(self.params["type_map"].keys())) == 0
+        ):
             type_map = {}
             for key in self.params["type_map"]:
-                type_map[key] = self.params["type_map"][key].assign(py_obj[key])
-                if isinstance(type_map[key], NeverType):
-                    return NeverType()
+                type_map[key] = self.params["type_map"][key].assign(
+                    py_obj.get(key, None)
+                )
+                if isinstance(type_map[key], InvalidType):
+                    return InvalidType()
             return DictType(type_map)
 
-        return NeverType()
+        return InvalidType()
 
 
 # Special Types
-TypeRegistry.add(NeverType)
+TypeRegistry.add(InvalidType)
 TypeRegistry.add(AnyType)
 TypeRegistry.add(UnknownType)
 
@@ -627,7 +636,7 @@ TypeRegistry.add(ConstType)
 
 __all__ = [
     "TypeRegistry",
-    "NeverType",
+    "InvalidType",
     "UnknownType",
     "AnyType",
     "NoneType",
