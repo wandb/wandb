@@ -511,8 +511,6 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        for name, entry in artifact.manifest.entries.items():
-            print("%s: %s" % (name, entry.digest))
         assert len(artifact.manifest.entries) == 3
 
 
