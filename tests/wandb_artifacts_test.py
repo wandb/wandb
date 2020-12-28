@@ -493,8 +493,6 @@ def test_deduplicate_wbimage_from_array(runner):
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
         artifact.add(wb_image_3, "my-image_3")
-        for entry in artifact.manifest.entries:
-            print(entry)
         assert len(artifact.manifest.entries) == 5
 
 
@@ -516,6 +514,8 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
+        for name, entry in artifact.manifest.entries.items():
+            print('%s: %s' % (name, entry.digest))
         assert len(artifact.manifest.entries) == 3
 
 
@@ -534,10 +534,10 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
             "my-image.image-file.json": {
-                "digest": "09JETFEpiuqBeICi09cY4A==",
-                "size": 206,
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
             },
         }
 
@@ -558,10 +558,10 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
             "my-image.image-file.json": {
-                "digest": "jhtqSTpnbQyr2sL775eEkQ==",
-                "size": 207,
+                "digest": "ksQ+BJCt+KZSsyC03K2+Uw==",
+                "size": 216,
             },
         }
 
@@ -606,8 +606,8 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
-            "my-table.table.json": {"digest": "5l6DxiO38nB1II2dTW/HNA==", "size": 497,},
+            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "my-table.table.json": {"digest": "Cyxf/j6+UO9owMPRQ8Wtsg==", "size": 515,},
         }
 
 
