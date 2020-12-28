@@ -23,7 +23,7 @@ import platform
 import re
 import six
 from six.moves import queue, shlex_quote
-
+import pyte
 
 
 _redirects = {}
@@ -88,6 +88,55 @@ class Unbuffered(StreamWrapper):
 
 
 class TerminalEmulator(object):
+    def __init__(self):
+        self._screen = pyte.Screen(1000, 100)
+        self._stream = pyte.Stream(self._screen)
+        self.reset()
+
+    def write(self, text):
+        self._stream.feed(text)
+
+    def reset(self):
+        self._screen.reset()
+        self._last_line_id = None
+        self._last_line = None
+
+    def pop_diff(self):
+        lines = self._screen.display
+        if self._last_line is None:
+            if not self._screen.dirty:
+                return ''
+            self._last_line_id = max(self._screen.dirty)
+            self._last_line = lines[self._last_line_id]
+            self._screen.dirty.clear()
+            return os.linesep.join(lines[:self._last_line_id])
+        if self._screen.dirty:
+            if self._last_line_id in self._screen.dirty:
+                ret = '\r' + os.linesep.join(lines[self._last_line_id - 1: max(self._screen.dirty) + 1])
+            else:
+                ret = os.linesep.join(lines[self._last_line_id: max(self._screen.dirty) + 1])
+            self._last_line_id = max(self._screen.dirty)
+            self._last_line = lines[self._last_line_id]
+            self._screen.dirty.clear()
+        else:
+            ret = ''
+
+        return ret
+        if len(lines) >= self._num_lines:
+            curr_last_line = lines[self._num_lines - 1]
+            if curr_last_line != self._last_line:
+                ret = '\r' + os.linesep.join(lines[self._num_lines - 1:])
+            else:
+                ret = os.linesep.join(lines[self._num_lines:])
+        else:
+            # TODO(frz): how to diff in this state?
+            ret = ''
+        self._num_lines = len(lines)
+        self._last_line = lines[-1]
+        return ret
+        
+
+class _TerminalEmulator(object):
 
     ANSI_CSI_RE = re.compile('\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?')   # Control Sequence Introducer
     ANSI_OSC_RE = re.compile('\001?\033\\]([^\a]*)(\a)\002?')             # Operating System Command
