@@ -108,7 +108,6 @@ class TerminalEmulator(object):
 
     def _write_plain_text(self, text):
         cursor = self._get_1d_cursor()
-        text = self._remove_back_space(text)
         self.text = self.text[:cursor] + text + self.text[cursor:]
         lines = text.split('\n')
         n = len(lines) - 1
