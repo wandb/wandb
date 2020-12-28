@@ -490,7 +490,7 @@ def test_deduplicate_wbimage_from_array(runner):
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
         artifact.add(wb_image_3, "my-image_3")
-        assert len(artifact.manifest.entries) == 5
+        assert len(artifact.manifest.entries) == 6
 
 
 def test_deduplicate_wbimagemask_from_array(runner):
@@ -511,7 +511,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        assert len(artifact.manifest.entries) == 3
+        assert len(artifact.manifest.entries) == 4
 
 
 def test_add_obj_wbimage_classes_obj(runner):
