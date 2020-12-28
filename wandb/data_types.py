@@ -1497,8 +1497,7 @@ class Image(BatchableMedia):
                         self.to_uint8(data), mode=mode or self.guess_mode(data)
                     )
 
-                id = hashlib.md5(self._image.tobytes()).hexdigest()[:8]
-                tmp_path = os.path.join(MEDIA_TMP.name, id + ".png")
+                tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
                 self.format = "png"
                 self._image.save(tmp_path, transparency=None)
                 self._set_file(tmp_path, is_tmp=True)
@@ -2020,15 +2019,15 @@ class ImageMask(Media):
             self._val = val
             self._key = key
 
+            ext = "." + self.type_name() + ".png"
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+
             PILImage = util.get_module(
                 "PIL.Image",
                 required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
             )
             image = PILImage.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
-            ext = "." + self.type_name() + ".png"
-            id = hashlib.md5(image.tobytes()).hexdigest()[:8]
-            tmp_path = os.path.join(MEDIA_TMP.name, id + ext)
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
