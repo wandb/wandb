@@ -92,33 +92,69 @@ class TerminalEmulator(object):
     ANSI_CSI_RE = re.compile('\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?')   # Control Sequence Introducer
     ANSI_OSC_RE = re.compile('\001?\033\\]([^\a]*)(\a)\002?')             # Operating System Command
 
-    def __init__(self):
+    def __init__(self, mem=50):
         self._history = []
+        self._mem = mem
         self.reset()
 
     def reset(self):
         self.text = ''
         self.cursor = [0, 0]
 
+        # cache
+        self._changed = False
+        self._lines = []
+
+        # to compute diff
+        self._num_lines = None
+        # TODO(frz): last n lines?
+        self._last_line = None
+
+
+    @property
+    def lines(self):
+        if self._changed:
+            self._changed = False
+            self._lines = re.split('\n|\r\n', self.text)
+        return self._lines
+
+    def pop_diff(self):
+        lines = self.lines
+        if self._num_lines is None:
+            self._num_lines = len(lines)
+            self._last_line = lines[-1]
+            return self.text
+        curr_last_line = lines[self._num_lines]
+        if curr_last_line != self._last_line:
+            ret = '\r' + self.text
+        self._last_line = lines[-1]
+        self._num_lines = len(lines)
+        if self._num_lines > self._mem:
+            self._lines = lines[-self._mem:]
+            self.text = os.linesep.join(self._lines)
+        return ret
+
     def _get_1d_cursor(self):
-        lines = self.text.split('\n')
-        lines_above = lines[:self.cursor[1]]
+        lines_above = self.lines[:self.cursor[1]]
         num_chars_above = sum(map(len, lines_above)) + len(lines_above)
         return num_chars_above + self.cursor[0]
 
     def _write_plain_text(self, text):
         cursor = self._get_1d_cursor()
-        self.text = self.text[:cursor] + text + self.text[cursor:]
-        lines = text.split('\n')
+        self.text = self.text[:cursor] + text + self.text[cursor + len(text):]
+        lines = re.split('\n|\r\n', text)
         n = len(lines) - 1
-        self.cursor[1] += n
+        self.cursor[0] += n
         if n:
-            self.cursor[0] = len(lines[-1])
+            self.cursor[1] = len(lines[-1])
         else:
-            self.cursor[0] += len(text)
+            self.cursor[1] += len(text)
+        self._changed = True
 
     def write(self, text):
         self._history.append("write: " + text)
+        text = text.replace('\x08', '\033[D')
+        text = text.replace('\x07', '')
         for match in self.ANSI_OSC_RE.finditer(text): 
             start, end = match.span()
             text = text[:start] + text[end:]
@@ -147,7 +183,7 @@ class TerminalEmulator(object):
                     params = (0,)
                 elif command in 'ABCD':
                     params = (1,)
-
+        lines = self.lines
         if command == 'm':
             # TODO(frz)
             pass
@@ -164,20 +200,17 @@ class TerminalEmulator(object):
         elif command == 'K':
             n = params[0]
             if n == 0:
-                lines = self.text.split('\n')
                 cx, cy = self.cursor
                 curr_line = lines[cy]
-                self.text = '\n'.join(lines[:cy] + [curr_line[:cx] + ' ' * (len(curr_line) - cx)] + lines[cy:])
+                self.text = os.linesep.join(lines[:cy] + [curr_line[:cx] + ' ' * (len(curr_line) - cx)] + lines[cy:])
             elif n == 1:
-                lines = self.text.split('\n')
                 cx, cy = self.cursor
                 curr_line = lines[cy]
-                self.text = '\n'.join(lines[:cy] + [' ' * cx + curr_line[cx:]] + lines[cy:])
+                self.text = os.linesep.join(lines[:cy] + [' ' * cx + curr_line[cx:]] + lines[cy:])
             elif n == 2:
-                lines = self.text.split('\n')
                 cy = self.cursor[1]
                 curr_line = lines[cy]
-                self.text = '\n'.join(lines[:cy] + [' ' * len(curr_line)] + lines[cy:])
+                self.text = os.linesep.join(lines[:cy] + [' ' * len(curr_line)] + lines[cy:])
         elif command in 'Hf':
             n, m = params
             # values are 1 based
@@ -186,25 +219,25 @@ class TerminalEmulator(object):
             n = max(0, n)
             m = max(0, m)
             cx, cy = self.cursor
-            max_cy = self.text.count('\n')
+            max_cy = max(0, len(lines) - 1)
             cy = min(n, max_cy)
-            max_cx = len(self.text.split('\n')[cy])
+            max_cx = len(lines[cy])
             cx = min(m, max_cx)
             self.cursor = [cx, cy]
         elif command == 'C':
             n = params[0]
-            max_cx = len(self.text.split('\n')[self.cursor[1]])
-            self.cursor[0] = min(self.cursor[0] + n, max_cx)
+            max_cx = len(lines[self.cursor[0]])
+            self.cursor[1] = min(self.cursor[1] + n, max_cx)
         elif command == 'D':
             n = params[0]
-            self.cursor[0] = max(0, self.cursor[0] - n)
+            self.cursor[1] = max(0, self.cursor[1] - n)
         elif command == 'A':
             n = params[0]
-            max_cy = self.text.count('\n')
-            self.cursor[1] = min(self.cursor[1] + n, max_cy)
+            max_cy = max(0, len(lines) - 1)
+            self.cursor[0] = min(self.cursor[0] + n, max_cy)
         elif command == 'B':
             n = params[0]
-            self.cursor[1] = max(0, self.cursor[1] - n)
+            self.cursor[0] = max(0, self.cursor[0] - n)
             
             
 
@@ -278,11 +311,9 @@ class Redirect(BaseRedirect):
                 while i < len(data):
                     i += self._orig_src.write(data[i:])
             self._emulator.write(data.decode('utf-8'))
-            if '\n' in self._emulator.text:
-                data = self._emulator.text.encode('utf-8')
-                self._emulator.reset()
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception as e:
-                        print(e)
+            data = self._emulator.pop_diff().encode('utf-8')
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception as e:
+                    print(e)

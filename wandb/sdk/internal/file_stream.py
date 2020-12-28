@@ -74,9 +74,13 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     while preserving the output's appearance in the web app.
     """
 
+    def __init__(self, start_chunk_id=0):
+        super(CRDedupeFilePolicy, self).__init__(start_chunk_id=start_chunk_id)
+        self._prev_chunk = None
+
     def process_chunks(self, chunks):
+        chunk_id = self._chunk_id
         ret = []
-        flag = False  # whether the cursor can be moved up
         for c in chunks:
             # Line has two possible formats:
             # 1) "2020-08-25T20:38:36.895321 this is my line of text"
@@ -90,18 +94,16 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
             lines = rest.split(os.linesep)
             for line in lines:
+                if line.startswith('\r'):
+                    if ret:
+                        ret.pop()
+                    elif chunk_id:
+                        chunk_id -= 1
                 line = line.split("\r")[-1]
                 if line:
-                    # check for cursor up control character
-                    if line.endswith("\x1b\x5b\x41"):
-                        if flag:
-                            ret.pop()
-                            flag = False
-                    else:
-                        ret.append(prefix + line + os.linesep)
-                        flag = True
-        chunk_id = self._chunk_id
-        self._chunk_id += len(ret)
+                    ret.append(prefix + line + os.linesep)
+        
+        self._chunk_id = chunk_id + len(ret)
         return {"offset": chunk_id, "content": ret}
 
 
