@@ -103,7 +103,7 @@ class TerminalEmulator(object):
 
         # cache
         self._changed = False
-        self._lines = []
+        self._lines = ['']
 
         # to compute diff
         self._num_lines = None
@@ -113,6 +113,7 @@ class TerminalEmulator(object):
 
     @property
     def lines(self):
+        return re.split('\n|\r\n', self.text)
         if self._changed:
             self._changed = False
             self._lines = re.split('\n|\r\n', self.text)
@@ -124,14 +125,18 @@ class TerminalEmulator(object):
             self._num_lines = len(lines)
             self._last_line = lines[-1]
             return self.text
-        curr_last_line = lines[self._num_lines]
+        curr_last_line = lines[self._num_lines - 1]
         if curr_last_line != self._last_line:
-            ret = '\r' + self.text
+            ret = '\r' + os.linesep.join(lines[self._num_lines - 1:])
+        else:
+            ret = os.linesep.join(lines[self._num_lines:])
         self._last_line = lines[-1]
         self._num_lines = len(lines)
-        if self._num_lines > self._mem:
-            self._lines = lines[-self._mem:]
-            self.text = os.linesep.join(self._lines)
+        # if self._num_lines > self._mem and self.cursor[0] == self._num_lines - 1:
+        #     self._lines = lines[-self._mem:]
+        #     self.text = os.linesep.join(self._lines)
+        #     self._num_lines = self._mem
+        #     self.cursor[0] = self._num_lines - 1
         return ret
 
     def _get_1d_cursor(self):
@@ -200,7 +205,7 @@ class TerminalEmulator(object):
         elif command == 'K':
             n = params[0]
             if n == 0:
-                cx, cy = self.cursor
+                cy, cx = self.cursor
                 curr_line = lines[cy]
                 self.text = os.linesep.join(lines[:cy] + [curr_line[:cx] + ' ' * (len(curr_line) - cx)] + lines[cy:])
             elif n == 1:

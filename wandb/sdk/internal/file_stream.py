@@ -80,6 +80,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
+        flag = bool(chunk_id)
         ret = []
         for c in chunks:
             # Line has two possible formats:
@@ -97,8 +98,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                 if line.startswith('\r'):
                     if ret:
                         ret.pop()
-                    elif chunk_id:
+                    elif flag:
                         chunk_id -= 1
+                        flag = False
                 line = line.split("\r")[-1]
                 if line:
                     ret.append(prefix + line + os.linesep)
