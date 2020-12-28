@@ -437,10 +437,7 @@ def test_add_obj_wbimage(runner):
         manifest = artifact.manifest.to_manifest_json()
     assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
     assert manifest["contents"] == {
-        "media/cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
+        "media/cls.classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64,},
         "media/images/641e917f/2x2.png": {
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
@@ -515,7 +512,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
         for name, entry in artifact.manifest.entries.items():
-            print('%s: %s' % (name, entry.digest))
+            print("%s: %s" % (name, entry.digest))
         assert len(artifact.manifest.entries) == 3
 
 
@@ -534,7 +531,10 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-image.image-file.json": {
                 "digest": "caWKIWtOV96QLSx8Y3uwnw==",
                 "size": 215,
@@ -558,7 +558,10 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-image.image-file.json": {
                 "digest": "ksQ+BJCt+KZSsyC03K2+Uw==",
                 "size": 216,
@@ -606,7 +609,10 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-table.table.json": {"digest": "Cyxf/j6+UO9owMPRQ8Wtsg==", "size": 515,},
         }
 
@@ -647,8 +653,5 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {
-                "digest": "JqcCBGg7pwvx7twxtu7brA==",
-                "size": 519,
-            },
+            "my-table.table.json": {"digest": "JqcCBGg7pwvx7twxtu7brA==", "size": 519,},
         }
