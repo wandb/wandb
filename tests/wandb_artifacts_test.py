@@ -168,15 +168,10 @@ def test_add_named_dir(runner):
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_dir(".", name="subdir")
 
-        if platform.system() == "Windows":
-            digest = "84eb4e81b4fe7ef81bd13971c6f80cdc"
-        else:
-            digest = "a757208d042e8627b2970d72a71bed5b"
-
-        assert artifact.digest == digest
+        assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"][os.path.join("subdir", "file1.txt")] == {
+        assert manifest["contents"]["subdir/file1.txt"] == {
             "digest": "XUFAKrxLKna5cZ2REBfFkg==",
             "size": 5,
         }
@@ -222,42 +217,23 @@ def test_add_reference_local_dir(runner):
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://" + os.getcwd())
 
-        if os.name == "nt":
-            assert artifact.digest == "ddca6260ec5bfab4ba6f0158d34e54c0"
-            manifest = artifact.manifest.to_manifest_json()
-            assert manifest["contents"]["file1.txt"] == {
-                "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-                "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
-                "size": 5,
-            }
-            assert manifest["contents"]["nest\\file2.txt"] == {
-                "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-                "ref": "file://" + os.path.join(os.getcwd(), "nest\\file2.txt"),
-                "size": 2,
-            }
-            assert manifest["contents"]["nest\\nest\\file3.txt"] == {
-                "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-                "ref": "file://" + os.path.join(os.getcwd(), "nest\\nest\\file3.txt"),
-                "size": 4,
-            }
-        else:
-            assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
-            manifest = artifact.manifest.to_manifest_json()
-            assert manifest["contents"]["file1.txt"] == {
-                "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-                "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
-                "size": 5,
-            }
-            assert manifest["contents"]["nest/file2.txt"] == {
-                "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-                "ref": "file://" + os.path.join(os.getcwd(), "nest/file2.txt"),
-                "size": 2,
-            }
-            assert manifest["contents"]["nest/nest/file3.txt"] == {
-                "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-                "ref": "file://" + os.path.join(os.getcwd(), "nest/nest/file3.txt"),
-                "size": 4,
-            }
+        assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["file1.txt"] == {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+            "size": 5,
+        }
+        assert manifest["contents"]["nest/file2.txt"] == {
+            "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
+            "size": 2,
+        }
+        assert manifest["contents"]["nest/nest/file3.txt"] == {
+            "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "size": 4,
+        }
 
 
 def test_add_s3_reference_object(runner, mocker):
@@ -460,38 +436,18 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        if os.name == "nt":  # windows
-            assert artifact.digest == "19dbf4719a3e725f89f98c2d1bb77691"
-            assert manifest["contents"] == {
-                "media\\cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media\\images\\2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
-                    "size": 209,
-                },
-            }
-        else:
-            assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
-            assert manifest["contents"] == {
-                "media/cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media/images/2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "09JETFEpiuqBeICi09cY4A==",
-                    "size": 206,
-                },
-            }
+        assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "my-image.image-file.json": {
+                "digest": "09JETFEpiuqBeICi09cY4A==",
+                "size": 206,
+            },
+        }
 
 
 def test_deduplicate_wbimage_from_file(runner):
@@ -569,36 +525,17 @@ def test_add_obj_wbimage_classes_obj(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        if os.name == "nt":  # windows
-            assert manifest["contents"] == {
-                "media\\cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media\\images\\2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "omcGTjTrCSnwAfucXfPRsg==",
-                    "size": 209,
-                },
-            }
-        else:
-            assert manifest["contents"] == {
-                "media/cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media/images/2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "09JETFEpiuqBeICi09cY4A==",
-                    "size": 206,
-                },
-            }
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "my-image.image-file.json": {
+                "digest": "09JETFEpiuqBeICi09cY4A==",
+                "size": 206,
+            },
+        }
 
 
 def test_add_obj_wbimage_classes_obj_already_added(runner):
@@ -612,36 +549,17 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        if os.name == "nt":  # windows
-            assert manifest["contents"] == {
-                "my-classes.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media\\images\\2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "9pCnyQxcBiuNIEzlB0nEYw==",
-                    "size": 209,
-                },
-            }
-        else:
-            assert manifest["contents"] == {
-                "my-classes.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media/images/2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-image.image-file.json": {
-                    "digest": "jhtqSTpnbQyr2sL775eEkQ==",
-                    "size": 207,
-                },
-            }
+        assert manifest["contents"] == {
+            "my-classes.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "my-image.image-file.json": {
+                "digest": "jhtqSTpnbQyr2sL775eEkQ==",
+                "size": 207,
+            },
+        }
 
 
 def test_add_obj_wbimage_image_already_added(runner):
@@ -654,30 +572,17 @@ def test_add_obj_wbimage_image_already_added(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        if os.name == "nt":  # windows
-            assert manifest["contents"] == {
-                "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-                "media\\cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "my-image.image-file.json": {
-                    "digest": "3K1MxC/oqFbvBcUniFGDCA==",
-                    "size": 194,
-                },
-            }
-        else:
-            assert manifest["contents"] == {
-                "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-                "media/cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "my-image.image-file.json": {
-                    "digest": "ZeHjOyjSSVRwrmibiprSQw==",
-                    "size": 193,
-                },
-            }
+        assert manifest["contents"] == {
+            "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "my-image.image-file.json": {
+                "digest": "ZeHjOyjSSVRwrmibiprSQw==",
+                "size": 193,
+            },
+        }
 
 
 def test_add_obj_wbtable_images(runner):
@@ -692,33 +597,11 @@ def test_add_obj_wbtable_images(runner):
         artifact.add(wb_table, "my-table")
 
         manifest = artifact.manifest.to_manifest_json()
-        if os.name == "nt":  # windows
-            assert manifest["contents"] == {
-                "media\\cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media\\images\\2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-table.table.json": {
-                    "digest": "pI7BRFOjiq5eyNXnSXH4kA==",
-                    "size": 503,
-                },
-            }
-        else:
-            assert manifest["contents"] == {
-                "media/cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media/images/2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-table.table.json": {
-                    "digest": "5l6DxiO38nB1II2dTW/HNA==",
-                    "size": 497,
-                },
-            }
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "my-table.table.json": {"digest": "5l6DxiO38nB1II2dTW/HNA==", "size": 497,},
+        }
