@@ -625,7 +625,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
         os.mkdir("dir2")
         shutil.copy(img_2, "dir2/img.png")
 
-        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact = wandb.Artifact(type="dataset", name="my-arty-dupe")
         wb_image_1 = wandb.Image(
             os.path.join("dir1", "img.png"), classes=[{"id": 0, "name": "person"}]
         )
