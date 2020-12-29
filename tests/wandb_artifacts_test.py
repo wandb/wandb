@@ -437,7 +437,10 @@ def test_add_obj_wbimage(runner):
         manifest = artifact.manifest.to_manifest_json()
         assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
         assert manifest["contents"] == {
-            "media/cls.classes.json": {"digest": "eG00DqdCcCBqphilriLNfw==", "size": 64,},
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
             "media/images/641e917f/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
@@ -625,13 +628,9 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
         os.mkdir("dir2")
         shutil.copy(img_2, "dir2/img.png")
 
-        artifact = wandb.Artifact(type="dataset", name="my-arty-dupe")
-        wb_image_1 = wandb.Image(
-            os.path.join("dir1", "img.png"), classes=[{"id": 0, "name": "person"}]
-        )
-        wb_image_2 = wandb.Image(
-            os.path.join("dir2", "img.png"), classes=[{"id": 0, "name": "person"}]
-        )
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image_1 = wandb.Image(os.path.join("dir1", "img.png"))
+        wb_image_2 = wandb.Image(os.path.join("dir2", "img.png"))
         wb_table = wandb.Table(["examples"])
         wb_table.add_data(wb_image_1)
         wb_table.add_data(wb_image_2)
@@ -639,10 +638,6 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
-                "digest": "eG00DqdCcCBqphilriLNfw==",
-                "size": 64,
-            },
             "media/images/641e917f/img.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
@@ -651,5 +646,5 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "JqcCBGg7pwvx7twxtu7brA==", "size": 519,},
+            "my-table.table.json": {"digest": "HQzyzeztRFqCZM8IfkXMVw==", "size": 301,},
         }
