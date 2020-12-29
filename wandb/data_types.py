@@ -1036,7 +1036,6 @@ class Html(BatchableMedia):
     """
 
     artifact_type = "html-file"
-    html_prefix = '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />'
 
     def __init__(self, data, inject=True):
         super(Html, self).__init__()
