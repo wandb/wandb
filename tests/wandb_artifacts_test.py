@@ -3,7 +3,6 @@ import sys
 import pytest
 from wandb import util
 import wandb
-import platform
 import shutil
 import wandb.data_types as data_types
 import numpy as np
@@ -436,21 +435,24 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "82241ce537164ca6f40abc3fff475983"
+        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-image.image-file.json": {
-                "digest": "09JETFEpiuqBeICi09cY4A==",
-                "size": 206,
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
             },
         }
 
 
-def test_deduplicate_wbimage_from_file(runner):
+def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
     im_path_2 = os.path.join(test_folder, "..", "assets", "test2.png")
@@ -471,7 +473,7 @@ def test_deduplicate_wbimage_from_file(runner):
         assert len(artifact.manifest.entries) == 3
 
 
-def test_deduplicate_wbimage_from_array(runner):
+def test_duplicate_wbimage_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.rand(300, 300, 3)
     im_data_2 = np.random.rand(300, 300, 3)
@@ -491,10 +493,10 @@ def test_deduplicate_wbimage_from_array(runner):
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
         artifact.add(wb_image_3, "my-image_3")
-        assert len(artifact.manifest.entries) == 5
+        assert len(artifact.manifest.entries) == 6
 
 
-def test_deduplicate_wbimagemask_from_array(runner):
+def test_duplicate_wbimagemask_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.randint(0, 10, (300, 300))
     im_data_2 = np.random.randint(0, 10, (300, 300))
@@ -512,7 +514,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        assert len(artifact.manifest.entries) == 3
+        assert len(artifact.manifest.entries) == 4
 
 
 def test_add_obj_wbimage_classes_obj(runner):
@@ -530,10 +532,13 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-image.image-file.json": {
-                "digest": "09JETFEpiuqBeICi09cY4A==",
-                "size": 206,
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
             },
         }
 
@@ -554,10 +559,13 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
             "my-image.image-file.json": {
-                "digest": "jhtqSTpnbQyr2sL775eEkQ==",
-                "size": 207,
+                "digest": "ksQ+BJCt+KZSsyC03K2+Uw==",
+                "size": 216,
             },
         }
 
@@ -602,6 +610,41 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71,},
-            "my-table.table.json": {"digest": "5l6DxiO38nB1II2dTW/HNA==", "size": 497,},
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-table.table.json": {"digest": "Cyxf/j6+UO9owMPRQ8Wtsg==", "size": 515,},
+        }
+
+
+def test_add_obj_wbtable_images_duplicate_name(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    img_1 = os.path.join(test_folder, "..", "assets", "2x2.png")
+    img_2 = os.path.join(test_folder, "..", "assets", "test.png")
+    with runner.isolated_filesystem():
+        os.mkdir("dir1")
+        shutil.copy(img_1, "dir1/img.png")
+        os.mkdir("dir2")
+        shutil.copy(img_2, "dir2/img.png")
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image_1 = wandb.Image(os.path.join("dir1", "img.png"))
+        wb_image_2 = wandb.Image(os.path.join("dir2", "img.png"))
+        wb_table = wandb.Table(["examples"])
+        wb_table.add_data(wb_image_1)
+        wb_table.add_data(wb_image_2)
+        artifact.add(wb_table, "my-table")
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"] == {
+            "media/images/641e917f/img.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "media/images/cf37c38f/img.png": {
+                "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
+                "size": 8837,
+            },
+            "my-table.table.json": {"digest": "HQzyzeztRFqCZM8IfkXMVw==", "size": 301,},
         }
