@@ -452,7 +452,7 @@ def test_add_obj_wbimage(runner):
         }
 
 
-def test_deduplicate_wbimage_from_file(runner):
+def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
     im_path_2 = os.path.join(test_folder, "..", "assets", "test2.png")
@@ -473,7 +473,7 @@ def test_deduplicate_wbimage_from_file(runner):
         assert len(artifact.manifest.entries) == 3
 
 
-def test_deduplicate_wbimage_from_array(runner):
+def test_duplicate_wbimage_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.rand(300, 300, 3)
     im_data_2 = np.random.rand(300, 300, 3)
@@ -496,7 +496,7 @@ def test_deduplicate_wbimage_from_array(runner):
         assert len(artifact.manifest.entries) == 6
 
 
-def test_deduplicate_wbimagemask_from_array(runner):
+def test_duplicate_wbimagemask_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.randint(0, 10, (300, 300))
     im_data_2 = np.random.randint(0, 10, (300, 300))
