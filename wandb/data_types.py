@@ -452,7 +452,6 @@ class Media(WBValue):
             and hasattr(self, "_sha256")
             and hasattr(other, "_sha256")
             and self._sha256 == other._sha256
-            and self._size == other._size
         )
 
 
@@ -1039,28 +1038,30 @@ class Html(BatchableMedia):
 
     def __init__(self, data, inject=True):
         super(Html, self).__init__()
-
-        if isinstance(data, str) and os.path.exists(data):
-            self._set_file(data, is_tmp=False)
+        data_is_path = isinstance(data, str) and os.path.exists(data)
+        if data_is_path:
             with open(data, "r") as file:
                 self.html = file.read()
+        elif isinstance(data, str):
+            self.html = data
+        elif hasattr(data, "read"):
+            if hasattr(data, "seek"):
+                data.seek(0)
+            self.html = data.read()
         else:
-            if isinstance(data, str):
-                self.html = data
-            elif hasattr(data, "read"):
-                if hasattr(data, "seek"):
-                    data.seek(0)
-                self.html = data.read()
-            else:
-                raise ValueError("data must be a string or an io object")
-            if inject:
-                self.inject_head()
+            raise ValueError("data must be a string or an io object")
 
+        if inject:
+            self.inject_head()
+
+        if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
             with open(tmp_path, "w") as out:
                 print(self.html, file=out)
 
             self._set_file(tmp_path, is_tmp=True)
+        else:
+            self._set_file(data, is_tmp=False)
 
     def inject_head(self):
         join = ""
@@ -1087,6 +1088,10 @@ class Html(BatchableMedia):
         json_dict = super(Html, self).to_json(run)
         json_dict["_type"] = "html-file"
         return json_dict
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(cls, html_list, run, key, step):
