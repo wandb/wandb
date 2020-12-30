@@ -34,7 +34,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 import wandb
 
 
-columns = ["id", "bool", "int", "float", "Image", "Clouds"]
+columns = ["id", "bool", "int", "float", "Image", "Clouds", "Bokeh"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
