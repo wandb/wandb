@@ -144,7 +144,7 @@ pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
 def _make_html():
-    return wandb.Html("<h1>Embedded</h1><iframe src='https://wandb.com'></iframe>")
+    return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
 
 def _make_video():
     return wandb.Video(np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)) # 1 second video of 10x10 pixels
