@@ -672,9 +672,9 @@ def test_image_reference_with_preferred_path():
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
-        # test_artifact_add_reference_via_url,
-        # test_add_reference_via_artifact_entry,
-        # test_adding_artifact_by_object,
+        test_artifact_add_reference_via_url,
+        test_add_reference_via_artifact_entry,
+        test_adding_artifact_by_object,
         test_get_artifact_obj_by_name,
         test_image_reference_artifact,
         test_nested_reference_artifact,
