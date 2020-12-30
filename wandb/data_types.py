@@ -2164,7 +2164,7 @@ class Bokeh(Media):
 
     def __init__(self, val):
         super(Bokeh, self).__init__()
-        bokeh = util.get_module("bokeh")
+        bokeh = util.get_module("bokeh", required=True)
         if isinstance(val, bokeh.model.Model):
             _val = bokeh.document.Document()
             _val.add_root(val)
@@ -2193,7 +2193,7 @@ class Bokeh(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        bokeh = util.get_module("bokeh")
+        bokeh = util.get_module("bokeh", required=True)
         with open(source_artifact.get_path(json_obj["path"]).download(), "r") as file:
             b_json = json.load(file)
         val = bokeh.document.Document.from_json(b_json)

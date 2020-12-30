@@ -152,14 +152,19 @@ def _make_bokeh():
 
     return wandb.Bokeh(p)
 
+b1 = _make_bokeh()
+b2 = _make_bokeh()
+b3 = _make_bokeh()
+b4 = _make_bokeh()
+
 def _make_wandb_table():
     return wandb.Table(
         columns=columns,
         data=[
-            ["string", True, 1, 1.4, _make_wandb_image(), pc1, _make_bokeh()],
-            ["string", True, 1, 1.4, _make_wandb_image(), pc2, _make_bokeh()],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_bokeh()],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_bokeh()],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc1, b1],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc2, b2],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, b3],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, b4],
         ],
     )
 
@@ -667,9 +672,9 @@ def test_image_reference_with_preferred_path():
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
-        test_artifact_add_reference_via_url,
-        test_add_reference_via_artifact_entry,
-        test_adding_artifact_by_object,
+        # test_artifact_add_reference_via_url,
+        # test_add_reference_via_artifact_entry,
+        # test_adding_artifact_by_object,
         test_get_artifact_obj_by_name,
         test_image_reference_artifact,
         test_nested_reference_artifact,
