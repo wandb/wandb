@@ -8,6 +8,7 @@ import time
 from math import sin, cos, pi
 import numpy as np
 import sys
+from bokeh.plotting import figure
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
@@ -143,14 +144,22 @@ pc2 = _make_point_cloud()
 pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
+def _make_bokeh():
+    x = [1, 2, 3, 4, 5]
+    y = [6, 7, 2, 4, 5]
+    p = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
+    p.line(x, y, legend_label="Temp.", line_width=2)
+
+    return wandb.Bokeh(p)
+
 def _make_wandb_table():
     return wandb.Table(
         columns=columns,
         data=[
-            ["string", True, 1, 1.4, _make_wandb_image(), pc1],
-            ["string", True, 1, 1.4, _make_wandb_image(), pc2],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc1, _make_bokeh()],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc2, _make_bokeh()],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_bokeh()],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_bokeh()],
         ],
     )
 
@@ -536,6 +545,9 @@ def test_image_refs():
 def test_point_cloud_refs():
     assert_media_obj_referential_equality(_make_point_cloud())
 
+def test_bokeh_refs():
+    assert_media_obj_referential_equality(_make_bokeh())
+
 
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
@@ -664,6 +676,7 @@ if __name__ == "__main__":
         test_table_slice_reference_artifact,
         test_image_refs,
         test_point_cloud_refs,
+        test_bokeh_refs,
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,

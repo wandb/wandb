@@ -442,6 +442,15 @@ class Media(WBValue):
             json_obj["_type"] = self.artifact_type
         return json_obj
 
+    def __eq__(self, other):
+        """Likely will need to override for any more complicated media objects"""
+        return (
+            self.__class__ == other.__class__
+            and hasattr(self, "_sha256")
+            and hasattr(other, "_sha256")
+            and self._sha256 == other._sha256
+        )
+
 
 class BatchableMedia(Media):
     """Parent class for Media we treat specially in batches, like images and
@@ -2141,6 +2150,54 @@ class Plotly(Media):
         json_dict = super(Plotly, self).to_json(run)
         json_dict["_type"] = "plotly-file"
         return json_dict
+
+
+class Bokeh(Media):
+    """
+    Wandb class for Bokeh plots.
+
+    Arguments:
+        val: Bokeh plot
+    """
+
+    artifact_type = "bokeh-file"
+
+    def __init__(self, val):
+        super(Bokeh, self).__init__()
+        bokeh = util.get_module("bokeh")
+        if isinstance(val, bokeh.model.Model):
+            _val = bokeh.document.Document()
+            _val.add_root(val)
+            val = _val
+        elif not isinstance(val, bokeh.document.Document):
+            raise TypeError("Bokeh constructor accepts Bokeh document or model")
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
+        # serialize/deserialize pairing followed by sorting attributes ensures
+        # that the file's shas are equivalent in subsequent calls
+        b_json = bokeh.document.Document.from_json(val.to_json()).to_json()
+        if "references" in b_json["roots"]:
+            b_json["roots"]["references"].sort(key=lambda x: x["id"])
+        util.json_dump_safer(b_json, codecs.open(tmp_path, "w", encoding="utf-8"))
+        self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
+
+    def get_media_subdir(self):
+        return os.path.join("media", "bokeh")
+
+    def to_json(self, run):
+        # TODO: (tss) this is getting redundant for all the media objects. We can probably
+        # pull this into Media#to_json and remove this type override for all the media types.
+        # There are only a few cases where the type is different between artifacts and runs.
+        json_dict = super(Bokeh, self).to_json(run)
+        json_dict["_type"] = self.artifact_type
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        bokeh = util.get_module("bokeh")
+        with open(source_artifact.get_path(json_obj["path"]).download(), "r") as file:
+            b_json = json.load(file)
+        val = bokeh.document.Document.from_json(b_json)
+        return cls(val)
 
 
 class Graph(Media):

@@ -69,6 +69,7 @@ from wandb import util
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
+from wandb.data_types import Bokeh
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
@@ -185,6 +186,7 @@ __all__ = [
     "Graph",
     "Image",
     "Plotly",
+    "Bokeh",
     "Video",
     "Audio",
     "Table",
