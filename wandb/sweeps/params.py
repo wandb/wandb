@@ -23,6 +23,10 @@ class HyperParameter():
     Q_NORMAL = 8
     LOG_NORMAL = 9
     Q_LOG_NORMAL = 10
+    LOG10_UNIFORM = 11
+    Q_LOG10_UNIFORM = 12
+    LOG10_NORMAL = 13  # TODO implement https://github.com/wandb/client/issues/507
+    Q_LOG10_NORMAL = 14  # TODO implement https://github.com/wandb/client/issues/507
 
     def _load_parameter(self, param_config, param_name):
         if param_name in param_config:
@@ -101,6 +105,15 @@ class HyperParameter():
                 self._load_optional_parameter(self.config, 'sigma', 1.0)
                 self._load_optional_parameter(self.config, 'q', 1.0)
                 # need or set mean and stdev
+            elif self.distribution == 'log10_uniform':
+                self.type = HyperParameter.LOG10_UNIFORM
+                self._load_parameter(self.config, 'min')
+                self._load_parameter(self.config, 'max')
+            elif self.distribution == 'q_log10_uniform':
+                self.type = HyperParameter.Q_LOG10_UNIFORM
+                self._load_parameter(self.config, 'min')
+                self._load_parameter(self.config, 'max')
+                self._load_optional_parameter(self.config, 'q', 1.0)
             else:
                 raise ValueError(
                     "Unsupported distribution: {}".format(self.distribution))
@@ -153,6 +166,9 @@ class HyperParameter():
         elif (self.type == HyperParameter.LOG_NORMAL or
                 self.type == HyperParameter.Q_LOG_NORMAL):
             return stats.lognorm.cdf(x, s=self.sigma, scale=np.exp(self.mu))
+        elif (self.type == HyperParameter.LOG10_UNIFORM or
+                self.type == HyperParameter.Q_LOG10_UNIFORM):
+            return stats.uniform.cdf(np.log10(x), self.min, self.max - self.min)
         else:
             raise ValueError("Unsupported hyperparameter distribution type")
 
@@ -202,6 +218,16 @@ class HyperParameter():
             return stats.lognorm.ppf(x, s=self.sigma, scale=np.exp(self.mu))
         elif self.type == HyperParameter.Q_LOG_NORMAL:
             r = stats.lognorm.ppf(x, s=self.sigma, scale=np.exp(self.mu))
+            ret_val = np.round(r / self.q) * self.q
+
+            if type(self.q) == int:
+                return int(ret_val)
+            else:
+                return ret_val
+        elif self.type == HyperParameter.LOG10_UNIFORM:
+            return np.power(10, stats.uniform.ppf(x, self.min, self.max - self.min))
+        elif self.type == HyperParameter.Q_LOG10_UNIFORM:
+            r = np.power(10, stats.uniform.ppf(x, self.min, self.max - self.min))
             ret_val = np.round(r / self.q) * self.q
 
             if type(self.q) == int:
