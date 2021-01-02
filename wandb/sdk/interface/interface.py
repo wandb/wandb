@@ -1,3 +1,4 @@
+#
 # -*- coding: utf-8 -*-
 """Backend Sender - Send to internal process
 
@@ -23,6 +24,10 @@ from wandb.util import (
     maybe_compress_summary,
     WandBJSONEncoderOld,
 )
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    import typing as t
+    from . import summary_record as sr
 
 logger = logging.getLogger("wandb")
 
@@ -150,10 +155,11 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(self, log_dir, save):
+    def publish_tbdata(self, log_dir, save, root_logdir):
         tbrecord = wandb_internal_pb2.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
+        tbrecord.root_dir = root_logdir or ""
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
@@ -243,11 +249,11 @@ class BackendSender(object):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _summary_encode(self, value, path_from_root):
+    def _summary_encode(self, value: t.Any, path_from_root: str):
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
-        path_from_root: `tuple` of key strings from the top-level summary to the
+        path_from_root: `str` dot separated string from the top-level summary to the
             current `value`.
 
         Returns:
@@ -266,9 +272,10 @@ class BackendSender(object):
                 )
             return json_value
         else:
-            path = ".".join(path_from_root)
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(self._run, path, value, namespace="summary")
+                data_types.val_to_json(
+                    self._run, path_from_root, value, namespace="summary"
+                )
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -288,7 +295,7 @@ class BackendSender(object):
             update.value_json = json.dumps(v)
         return summary
 
-    def _make_summary(self, summary_record):
+    def _make_summary(self, summary_record: sr.SummaryRecord):
         pb_summary_record = wandb_internal_pb2.SummaryRecord()
 
         for item in summary_record.update:
@@ -503,8 +510,7 @@ class BackendSender(object):
         rec = self._make_record(config=cfg)
         self._publish(rec)
 
-    # def send_summary(self, summary_record: summary_record.SummaryRecord):
-    def publish_summary(self, summary_record):
+    def publish_summary(self, summary_record: sr.SummaryRecord):
         pb_summary_record = self._make_summary(summary_record)
         self._publish_summary(pb_summary_record)
 
@@ -515,7 +521,7 @@ class BackendSender(object):
     def _communicate_run(self, run, timeout=None):
         """Send synchronous run object waiting for a response.
 
-        Args:
+        Arguments:
             run: RunRecord object
             timeout: number of seconds to wait
 

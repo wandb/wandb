@@ -1,3 +1,4 @@
+#
 # -*- coding: utf-8 -*-
 """Internal process.
 
@@ -43,7 +44,7 @@ def wandb_internal(settings, record_q, result_q):
 
     Read from record queue and dispatch work to various threads.
 
-    Args:
+    Arguments:
         settings: dictionary of configuration parameters.
         record_q: records to be handled
         result_q: for sending results back

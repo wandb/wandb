@@ -31,7 +31,8 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
-from wandb.old.core import wandb_dir
+
+# from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
@@ -41,10 +42,16 @@ import yaml
 whaaaaat = util.vendor_import("whaaaaat")
 
 
-logging.basicConfig(
-    filename=os.path.join(wandb_dir(env.get_dir()), "debug-cli.log"),
-    level=logging.DEBUG,
-)
+# TODO: turn this on in a cleaner way
+# right now we will litter the filesystem with wandb dirs
+#
+# _wandb_dir = wandb_dir(env.get_dir())
+# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
+# logging.basicConfig(
+#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
+#     level=logging.DEBUG,
+# )
+# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
@@ -264,25 +271,33 @@ def superagent(project=None, entity=None, agent_spec=None):
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
 @click.option("--reset", is_flag=True, help="Reset settings")
+@click.option(
+    "--mode",
+    "-m",
+    help=' Can be "online", "offline" or "disabled". Defaults to online.',
+)
 @click.pass_context
 @display_error
-def init(ctx, project, entity, reset):
+def init(ctx, project, entity, reset, mode):
     from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
 
     if __stage_dir__ is None:
         _set_stage_dir("wandb")
 
     # non interactive init
-    if reset or project or entity:
+    if reset or project or entity or mode:
         api = InternalApi()
         if reset:
             api.clear_setting("entity", persist=True)
             api.clear_setting("project", persist=True)
+            api.clear_setting("mode", persist=True)
             # TODO(jhr): clear more settings?
         if entity:
             api.set_setting("entity", entity, persist=True)
         if project:
             api.set_setting("project", project, persist=True)
+        if mode:
+            api.set_setting("mode", mode, persist=True)
         return
 
     if os.path.isdir(wandb_dir()) and os.path.exists(
@@ -1467,27 +1482,29 @@ wandb_magic_install()
     magic_run(code, globs, None)
 
 
-@cli.command("on", help="Ensure W&B is enabled in this directory")
+@cli.command("online", help="Enable W&B sync")
 @display_error
-def on():
+def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
-        "W&B enabled, running your script from this directory will now sync to the cloud."
+        "W&B online, running your script from this directory will now sync to the cloud."
     )
 
 
-@cli.command("off", help="Disable W&B in this directory, useful for testing")
+@cli.command("offline", help="Disable W&B sync")
 @display_error
-def off():
+def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B disabled, running your script from this directory will only write metadata locally."
+            "W&B offline, running your script from this directory will only write metadata locally."
         )
     except configparser.Error:
         click.echo(
@@ -1495,18 +1512,18 @@ def off():
         )
 
 
-@cli.command("online", hidden=True)
+@cli.command("on", hidden=True)
 @click.pass_context
 @display_error
-def online(ctx):
-    ctx.invoke(on)
+def on(ctx):
+    ctx.invoke(online)
 
 
-@cli.command("offline", hidden=True)
+@cli.command("off", hidden=True)
 @click.pass_context
 @display_error
-def offline(ctx):
-    ctx.invoke(off)
+def off(ctx):
+    ctx.invoke(offline)
 
 
 @cli.command("status", help="Show configuration settings")
@@ -1521,3 +1538,35 @@ def status(settings):
         click.echo(
             json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
+
+
+@cli.command("disabled", help="Disable W&B.")
+def disabled():
+    api = InternalApi()
+    try:
+        api.set_setting("mode", "disabled", persist=True)
+        click.echo("W&B disabled.")
+    except configparser.Error:
+        click.echo(
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
+        )
+
+
+@cli.command("enabled", help="Enable W&B.")
+def enabled():
+    api = InternalApi()
+    try:
+        api.set_setting("mode", "online", persist=True)
+        click.echo("W&B enabled.")
+    except configparser.Error:
+        click.echo(
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
+        )
+
+
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )

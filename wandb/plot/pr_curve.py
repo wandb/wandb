@@ -9,35 +9,42 @@ chart_limit = wandb.Table.MAX_ROWS
 def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
     """
     Computes the tradeoff between precision and recall for different thresholds.
-        A high area under the curve represents both high recall and high precision,
-        where high precision relates to a low false positive rate, and high recall
-        relates to a low false negative rate. High scores for both show that the
-        classifier is returning accurate results (high precision), as well as
-        returning a majority of all positive results (high recall).
-        PR curve is useful when the classes are very imbalanced.
+    A high area under the curve represents both high recall and high precision,
+    where high precision relates to a low false positive rate, and high recall
+    relates to a low false negative rate. High scores for both show that the
+    classifier is returning accurate results (high precision), as well as
+    returning a majority of all positive results (high recall).
+    PR curve is useful when the classes are very imbalanced.
 
     Arguments:
-    y_true (arr): Test set labels.
-    y_probas (arr): Test set predicted probabilities.
-    labels (list): Named labels for target varible (y). Makes plots easier to
-      read by replacing target values with corresponding index.
-      For example labels= ['dog', 'cat', 'owl'] all 0s are
-      replaced by 'dog', 1s by 'cat'.
+        y_true (arr): Test set labels.
+        y_probas (arr): Test set predicted probabilities.
+        labels (list): Named labels for target varible (y). Makes plots easier to
+            read by replacing target values with corresponding index.
+            For example labels= ['dog', 'cat', 'owl'] all 0s are
+            replaced by 'dog', 1s by 'cat'.
 
     Returns:
-    Nothing. To see plots, go to your W&B run page then expand the 'media' tab
-    under 'auto visualizations'.
+        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        under 'auto visualizations'.
 
     Example:
-    wandb.log({'pr-curve': wandb.plot.pr_curve(y_true, y_probas, labels)})
+        ```
+        wandb.log({'pr-curve': wandb.plot.pr_curve(y_true, y_probas, labels)})
+        ```
     """
     np = util.get_module(
         "numpy",
         required="roc requires the numpy library, install with `pip install numpy`",
     )
-    scikit = util.get_module(
-        "sklearn",
-        "roc requires the scikit library, install with `pip install scikit-learn`",
+    preprocessing = util.get_module(
+        "sklearn.preprocessing",
+        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
+    )
+
+    metrics = util.get_module(
+        "sklearn.metrics",
+        "roc requires the scikit metrics submodule, install with `pip install scikit-learn`",
     )
 
     y_true = np.array(y_true)
@@ -52,7 +59,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         if classes_to_plot is None:
             classes_to_plot = classes
 
-        binarized_y_true = scikit.preprocessing.label_binarize(y_true, classes=classes)
+        binarized_y_true = preprocessing.label_binarize(y_true, classes=classes)
         if len(classes) == 2:
             binarized_y_true = np.hstack((1 - binarized_y_true, binarized_y_true))
 
@@ -60,7 +67,7 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
         indices_to_plot = np.in1d(classes, classes_to_plot)
         for i, to_plot in enumerate(indices_to_plot):
             if to_plot:
-                precision, recall, _ = scikit.metrics.precision_recall_curve(
+                precision, recall, _ = metrics.precision_recall_curve(
                     y_true, probas[:, i], pos_label=classes[i]
                 )
 

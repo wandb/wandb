@@ -12,7 +12,7 @@ class InternalServiceStub(object):
   def __init__(self, channel):
     """Constructor.
 
-    Args:
+    Arguments:
       channel: A grpc.Channel.
     """
     self.RunUpdate = channel.unary_unary(

@@ -294,6 +294,10 @@ def _magic_fit(
     *args,
     **kwargs
 ):
+    if hasattr(self, "_wandb_internal_model"):
+        return self._fit(
+            x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs
+        )
     return _fit_wrapper(
         self, self._fit, x=x, y=y, batch_size=batch_size, epochs=epochs, *args, **kwargs
     )
@@ -474,6 +478,8 @@ def _magic_init(**kwargs):
 
 
 def magic_install(init_args=None):
+    if wandb.setup().settings._noop:
+        return
     global _run_once
     if _run_once:
         return

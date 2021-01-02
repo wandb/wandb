@@ -1,3 +1,74 @@
+## 0.10.12 (December 3, 2020)
+
+#### :nail_care: Enhancement
+
+- Add Artifact.used_by and Artifact.logged_by
+- Validate type consistency when logging Artifacts
+- Enhance JoinedTable to not require downloaded assets
+- Add ability to recursively download dependent artifacts
+- Enable gradient logging with keras and tf2+
+- Validate pytorch models are passed to wandb.watch()
+- Improved docstrings for public methods / objects
+- Warn when image sequences are logged with different sizes
+
+#### :bug: Bug Fix
+
+- Fix incorrectly generated filenames in summary
+- Fix anonymous mode to include the api key in URLs
+- Fix pickle issue with disabled mode
+- Fix artifact from_id query
+- Fix handling of Tables with different image paths
+
+## 0.10.11 (November 18, 2020)
+
+#### :nail_care: Enhancement
+
+- Disable wandb logging with `wandb disabled` or `wandb.init(mode="disabled")`
+- Support cloning an artifact when logging wandb.Image() 
+
+#### :bug: Bug Fix
+
+- Multiple media artifact improvements and internal refactor
+- Improve handling of artifact errors
+- Fix issue where notebook name was ignored
+- Extend silent mode for jupyter logging
+- Fix issue where vendored libraries interfered with python path
+- Fix various exceptions (divide by zero, int conversion, TypeError)
+
+## 0.10.10 (November 9, 2020)
+
+#### :nail_care: Enhancement
+
+- Added confusion matrix plot
+- Better jupyter messages with wandb.init()/reinit/finish
+
+#### :bug: Bug Fix
+
+- Fix for fastai 2.1.5 (removed log_args)
+- Fixed media logging when directories are changed
+
+## 0.10.9 (November 4, 2020)
+
+#### :nail_care: Enhancement
+
+- Added artifact media logging (alpha)
+- Add scriptable alerts
+- Add url attribute for sweep public api
+- Update docstrings for wandb sdk functions
+
+#### :bug: Bug Fix
+
+- Fix cases where offline mode was making network connections
+- Fix issues with python sweeps and run stopping
+- Fix logging issue where we could accidently display an api key
+- Fix wandb login issues with malformed hosts
+- Allow wandb.restore() to be called without wandb.init()
+- Fix resuming (reusing run_id) with empty summary
+- Fix artitifact download issue
+- Add missing wandb.unwatch() function
+- Avoid creating spurious wandb directories
+- Fix collections import issue when using an old version of six
+
 ## 0.10.8 (October 22, 2020)
 
 #### :nail_care: Enhancement
