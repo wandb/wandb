@@ -99,14 +99,17 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                     if ret:
                         ret.pop()
                     elif flag:
-                        chunk_id -= 1
                         flag = False
+                        chunk_id = self._prev_chunk["offset"]
+                        ret = self._prev_chunk["content"][:-1]
                 line = line.split("\r")[-1]
                 if line:
                     ret.append(prefix + line + os.linesep)
         
         self._chunk_id = chunk_id + len(ret)
-        return {"offset": chunk_id, "content": ret}
+        ret = {"offset": chunk_id, "content": ret}
+        self._prev_chunk = ret
+        return ret
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
