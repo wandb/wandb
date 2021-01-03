@@ -11,6 +11,7 @@ import logging
 import numbers
 import os
 import platform
+import re
 import sys
 import threading
 import time
@@ -50,7 +51,6 @@ from .lib import (
     sparkline,
 )
 
-from .lib import redirect2 as redirect
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Sequence, Tuple
@@ -1859,6 +1859,35 @@ class WriteSerializingFile(object):
         finally:
             self.lock.release()
 
+
+class CRDedupedFile(WriteSerializingFile):
+    def __init__(self, f):
+        super(CRDedupedFile, self).__init__(f=f)
+        self._buff = b''
+
+    def write(self, data):
+        lines = re.split(b'\r\n|\n', data)
+        ret = []
+        for line in lines:
+            if line[:1] == b'\r':
+                if ret:
+                    ret.pop()
+                elif self._buff:
+                    self._buff = b''
+            line = line.split(b'\r')[-1]
+            if line:
+                ret.append(line)
+        if self._buff:
+            ret.insert(0, self._buff)
+        if ret:
+            self._buff = ret.pop()
+        sep = os.linesep.encode('ascii')
+        super(CRDedupedFile, self).write(sep.join(ret) + sep)
+
+    def close(self):
+        if self._buff:
+            super(CRDedupedFile, self).write(self._buff)
+        super(CRDedupedFile, self).close()
 
 def finish(exit_code=None):
     if wandb.run:

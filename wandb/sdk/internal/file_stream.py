@@ -79,9 +79,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         self._prev_chunk = None
 
     def process_chunks(self, chunks):
-        chunk_id = self._chunk_id
-        flag = bool(chunk_id)
         ret = []
+        flag = bool(self._prev_chunk)
+        chunk_id = self._chunk_id
         for c in chunks:
             # Line has two possible formats:
             # 1) "2020-08-25T20:38:36.895321 this is my line of text"
@@ -100,13 +100,12 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                         ret.pop()
                     elif flag:
                         flag = False
-                        chunk_id = self._prev_chunk["offset"]
-                        ret = self._prev_chunk["content"][:-1]
-                line = line.split("\r")[-1]
+                        chunk_id = self._prev_chunk['offset']
+                        ret = self._prev_chunk['content'][:-1]
+                line = line.split('\r')[-1]
                 if line:
-                    ret.append(prefix + line + os.linesep)
-        
-        self._chunk_id = chunk_id + len(ret)
+                    ret.append(prefix + line + '\n')
+        self._chunk_id += len(ret)
         ret = {"offset": chunk_id, "content": ret}
         self._prev_chunk = ret
         return ret
