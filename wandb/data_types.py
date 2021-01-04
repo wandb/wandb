@@ -452,6 +452,20 @@ class Media(WBValue):
             json_obj["_type"] = self.artifact_type
         return json_obj
 
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        """Likely will need to override for any more complicated media objects"""
+        return cls(source_artifact.get_path(json_obj["path"]).download())
+
+    def __eq__(self, other):
+        """Likely will need to override for any more complicated media objects"""
+        return (
+            self.__class__ == other.__class__
+            and hasattr(self, "_sha256")
+            and hasattr(other, "_sha256")
+            and self._sha256 == other._sha256
+        )
+
 
 class BatchableMedia(Media):
     """Parent class for Media we treat specially in batches, like images and
@@ -889,10 +903,6 @@ class Object3D(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join("media", "object3D")
 
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(source_artifact.get_path(json_obj["path"]).download())
-
     def to_json(self, run_or_artifact):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D.artifact_type
@@ -931,9 +941,6 @@ class Object3D(BatchableMedia):
             "count": len(jsons),
             "objects": jsons,
         }
-
-    def __eq__(self, other):
-        return self._sha256 == other._sha256 and self._size == other._size
 
 
 class Molecule(BatchableMedia):
@@ -1039,10 +1046,15 @@ class Html(BatchableMedia):
             to False the HTML will pass through unchanged.
     """
 
+    artifact_type = "html-file"
+
     def __init__(self, data, inject=True):
         super(Html, self).__init__()
-
-        if isinstance(data, str):
+        data_is_path = isinstance(data, str) and os.path.exists(data)
+        if data_is_path:
+            with open(data, "r") as file:
+                self.html = file.read()
+        elif isinstance(data, str):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
@@ -1050,14 +1062,18 @@ class Html(BatchableMedia):
             self.html = data.read()
         else:
             raise ValueError("data must be a string or an io object")
+
         if inject:
             self.inject_head()
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
-        with open(tmp_path, "w") as out:
-            print(self.html, file=out)
+        if inject or not data_is_path:
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
+            with open(tmp_path, "w") as out:
+                print(self.html, file=out)
 
-        self._set_file(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
+        else:
+            self._set_file(data, is_tmp=False)
 
     def inject_head(self):
         join = ""
@@ -1084,6 +1100,10 @@ class Html(BatchableMedia):
         json_dict = super(Html, self).to_json(run)
         json_dict["_type"] = "html-file"
         return json_dict
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(cls, html_list, run, key, step):
@@ -1117,6 +1137,7 @@ class Video(BatchableMedia):
         format (string): format of video, necessary if initializing with path or io object.
     """
 
+    artifact_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
