@@ -105,7 +105,7 @@ jobs:
                   shell: bash.exe
                   command: |
                       tox -vv -e py37
-                  no_output_timeout: 15m
+                  no_output_timeout: 10m
             - save-tox-cache
 
     mac:
