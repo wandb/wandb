@@ -4,7 +4,7 @@ try:
     import tty
     import termios
 except ImportError:  # windows
-    pty = tty = termios = fcntl = None
+    pty = tty = termios = fcntl = None  # type: ignore
 
 import itertools
 import logging
@@ -15,9 +15,9 @@ import sys
 import threading
 import time
 
-import pyte
-from pyte.control import CSI
-from pyte.escape import SGR
+import pyte  # type: ignore
+from pyte.control import CSI  # type: ignore
+from pyte.escape import SGR  # type: ignore
 
 
 logger = logging.getLogger("wandb")
