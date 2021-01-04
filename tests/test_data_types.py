@@ -341,7 +341,6 @@ def test_create_bokeh_plot(mocked_run):
     bp = dummy_data.bokeh_plot()
     bp = wandb.Bokeh(bp)
     bp.bind_to_run(mocked_run, "bokeh", 0)
-    raise TypeError()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
