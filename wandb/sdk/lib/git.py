@@ -68,10 +68,16 @@ class GitRepo(object):
             return None
         if not self.repo.head or not self.repo.head.is_valid():
             return None
-        if len(self.repo.refs) > 0:
-            return self.repo.head.commit.hexsha
-        else:
-            return self.repo.git.show_ref("--head").split(" ")[0]
+        # TODO: Saw a user getting a Unicode decode error when parsing refs,
+        # more details on implementing a real fix in [WB-4064]
+        try:
+            if len(self.repo.refs) > 0:
+                return self.repo.head.commit.hexsha
+            else:
+                return self.repo.git.show_ref("--head").split(" ")[0]
+        except Exception:
+            logger.exception("Unable to find most recent commit in git")
+            return None
 
     @property
     def branch(self):

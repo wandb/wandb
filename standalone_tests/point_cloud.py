@@ -52,14 +52,23 @@ def wave_pattern(i):
     return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
 
 
-wandb.init()
+run = wandb.init()
 
 # Tests 3d OBJ
 
 #wandb.log({"gltf": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/Duck.gltf"))),
 #           "obj": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/cube.obj")))})
 
+artifact = wandb.Artifact("pointcloud_test_2", "dataset")
+table = wandb.Table(
+    ["ID", "Model"],
+)
+
 # Tests numpy clouds
 for i in range(0, 20, 10):
+    table.add_data("Cloud " + str(i), wandb.Object3D(wave_pattern(i)))
     wandb.log({"Clouds": [wandb.Object3D(point_cloud_1), wandb.Object3D(point_cloud_2)],
                "Colored_Cloud": wandb.Object3D(wave_pattern(i))})
+
+artifact.add(table, "table")
+run.log_artifact(artifact)

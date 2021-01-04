@@ -174,8 +174,8 @@ patch_tf_keras()
 class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+        self._resource_apply_dense = tf.function(self._resource_apply_dense)
 
-    @tf.function
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
 
