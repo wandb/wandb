@@ -10,7 +10,7 @@ import tqdm
 
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
-if os.name != 'nt':
+if os.name != "nt":
     impls.append(wandb.wandb_sdk.lib.redirect.Redirect)
 
 
@@ -22,6 +22,7 @@ def test_basic(cls):
     print("Test")
     redir.uninstall()
     assert out == [b"Test"]
+
 
 @pytest.mark.parametrize("cls", impls)
 def test_reinstall(cls):
@@ -37,17 +38,34 @@ def test_reinstall(cls):
     r2.install()
     print("5678")
     r2.uninstall()
-    sep = os.linesep.encode()
-    assert o1 == [b"ABCD" + sep + b"1234"]
-    assert o2 == [b"WXYZ" + sep + b"5678"]
+    assert o1 == [b"ABCD", b"1234\n"]
+    assert o2 == [b"WXYZ", b"5678\n"]
+
 
 @pytest.mark.parametrize("cls", impls)
-def test_progressbar(cls):
+def test_tqdm_progbar(cls):
     o = []
-    r = cls("stdout", cbs=[o.append])
+    r = cls("stderr", cbs=[o.append])
     r.install()
     for i in tqdm.tqdm(range(10)):
         time.sleep(0.1)
     r.uninstall()
-    print(o)
+    assert len(o) == 1
 
+
+@pytest.mark.parametrize("cls", impls)
+def test_formatting(cls):
+    o = []
+    r = cls("stdout", cbs=[o.append])
+    r.install()
+    print("\x1b[31mHello\x1b[39m")  # [red]Hello[default]
+    r.uninstall()
+    assert o == [b"\x1b[91mHello"]
+
+
+@pytest.mark.parametrize("cls", impls)
+def test_interactive(cls):
+    r = cls("stdout", [lambda _: None])
+    r.install()
+    # TODO
+    r.uninstall()

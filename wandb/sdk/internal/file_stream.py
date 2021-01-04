@@ -95,16 +95,16 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
             lines = rest.split(os.linesep)
             for line in lines:
-                if line.startswith('\r'):
+                if line.startswith("\r"):
                     if ret:
                         ret.pop()
                     elif flag:
                         flag = False
-                        chunk_id = self._prev_chunk['offset']
-                        ret = self._prev_chunk['content'][:-1]
-                line = line.split('\r')[-1]
+                        chunk_id = self._prev_chunk["offset"]
+                        ret = self._prev_chunk["content"][:-1]
+                line = line.split("\r")[-1]
                 if line:
-                    ret.append(prefix + line + '\n')
+                    ret.append(prefix + line + "\n")
         self._chunk_id += len(ret)
         ret = {"offset": chunk_id, "content": ret}
         self._prev_chunk = ret
