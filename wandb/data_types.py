@@ -479,7 +479,7 @@ class Table(Media):
     """
 
     MAX_ROWS = 10000
-    MAX_ARTIFACT_ROWS = 50000
+    MAX_ARTIFACT_ROWS = 200000
     artifact_type = "table"
 
     def __init__(
