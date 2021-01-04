@@ -412,13 +412,14 @@ class Media(WBValue):
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
-                    # Include the first 8 characters of the file's SHA256 to avoid name
-                    # collisions.
                     if self._is_tmp:
                         name = os.path.join(
                             self.get_media_subdir(), os.path.basename(self._path)
                         )
                     else:
+                        # If the files is not temporary, include the first 8 characters of the file's SHA256 to
+                        # avoid name collisions. This way, if there are two images `dir1/img.png` and `dir2/img.png`
+                        # we end up with a unique path for each.
                         name = os.path.join(
                             self.get_media_subdir(),
                             self._sha256[:8],
