@@ -104,7 +104,9 @@ class Artifact(object):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
-            raise ValueError('File with name "%s" already exists' % name)
+            raise ValueError(
+                'File with name "%s" already exists at "%s"' % (name, path)
+            )
         util.mkdir_exists_ok(os.path.dirname(path))
         self._added_new = True
         return open(path, mode)
@@ -410,7 +412,7 @@ class ArtifactManifestEntry(object):
             raise AssertionError(
                 "programming error, size required when local_path specified"
             )
-        self.path = path
+        self.path = util.to_forward_slash_path(path)
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.birth_artifact_id = birth_artifact_id
@@ -728,7 +730,7 @@ class LocalFileHandler(StorageHandler):
             i = 0
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i files in "%s"...'
+                'Generating checksum for up to %i files in "%s"...\n'
                 % (max_objects, local_path),
                 newline=False,
             )
@@ -740,11 +742,13 @@ class LocalFileHandler(StorageHandler):
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
                         )
+                    physical_path = os.path.join(root, sub_path)
+                    logical_path = os.path.relpath(physical_path, start=local_path)
                     entry = ArtifactManifestEntry(
-                        os.path.basename(sub_path),
-                        os.path.join(path, sub_path),
-                        size=os.path.getsize(sub_path),
-                        digest=md5_file_b64(sub_path),
+                        logical_path,
+                        os.path.join(path, logical_path),
+                        size=os.path.getsize(physical_path),
+                        digest=md5_file_b64(physical_path),
                     )
                     entries.append(entry)
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
