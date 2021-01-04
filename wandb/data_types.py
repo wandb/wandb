@@ -17,6 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
+from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import os
 import io
@@ -35,11 +36,6 @@ from wandb.util import has_num
 from wandb.compat import tempfile
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-
-if _PY3:
-    from urllib.parse import quote_plus
-else:
-    from urllib import quote_plus
 
 
 def _safe_sdk_import():
@@ -361,7 +357,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(quote_plus(key), step, id_, extension)
+        file_path = wb_filename(urllib.parse.quote_plus(key), step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
