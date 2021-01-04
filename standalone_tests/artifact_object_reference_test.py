@@ -33,8 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-
-columns = ["id", "bool", "int", "float", "Image", "Clouds", "Bokeh"]
+columns = ["id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -43,8 +42,8 @@ def _make_wandb_image(suffix=""):
     return wandb.Image(
         im_path,
         classes=wandb.Classes([
-        {"id": 0, "name": "tree"},
-        {"id": 1, "name": "car"},
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
         {"id": 3, "name": "road"},
     ]),
         boxes={
@@ -157,14 +156,25 @@ b2 = _make_bokeh()
 b3 = _make_bokeh()
 b4 = _make_bokeh()
 
+def _make_html():
+    return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
+
+def _make_video():
+    return wandb.Video(np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)) # 1 second video of 10x10 pixels
+
+vid1 = _make_video()
+vid2 = _make_video()
+vid3 = _make_video()
+vid4 = _make_video()
+
 def _make_wandb_table():
     return wandb.Table(
         columns=columns,
         data=[
-            ["string", True, 1, 1.4, _make_wandb_image(), pc1, b1],
-            ["string", True, 1, 1.4, _make_wandb_image(), pc2, b2],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, b3],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, b4],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1, b1],
+            ["string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2, b2],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3, b3],
+            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4],
         ],
     )
 
@@ -553,6 +563,12 @@ def test_point_cloud_refs():
 def test_bokeh_refs():
     assert_media_obj_referential_equality(_make_bokeh())
 
+def test_html_refs():
+    assert_media_obj_referential_equality(_make_html())
+
+def test_video_refs():
+    assert_media_obj_referential_equality(_make_video())
+
 
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
@@ -682,6 +698,8 @@ if __name__ == "__main__":
         test_image_refs,
         test_point_cloud_refs,
         test_bokeh_refs,
+        test_html_refs,
+        test_video_refs,
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,

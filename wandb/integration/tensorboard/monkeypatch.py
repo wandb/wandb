@@ -10,6 +10,7 @@ import wandb
 
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
+TENSORBOARD_X_MODULE = "tensorboardX.writer"
 TENSORFLOW_PY_MODULE = "tensorflow.python.summary.writer.writer"
 TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
@@ -28,6 +29,7 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
     py_writer = wandb.util.get_module(TENSORFLOW_PY_MODULE)
     tb_writer = wandb.util.get_module(TENSORBOARD_WRITER_MODULE)
     pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
+    tbx_writer = wandb.util.get_module(TENSORBOARD_X_MODULE)
 
     if not pytorch and not tensorboardX and c_writer:
         _patch_tensorflow2(
@@ -55,6 +57,13 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
         _patch_file_writer(
             writer=pt_writer,
             module=TENSORBOARD_PYTORCH_MODULE,
+            save=save,
+            root_logdir=root_logdir,
+        )
+    if tbx_writer:
+        _patch_file_writer(
+            writer=tbx_writer,
+            module=TENSORBOARD_X_MODULE,
             save=save,
             root_logdir=root_logdir,
         )
