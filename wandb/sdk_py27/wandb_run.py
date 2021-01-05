@@ -413,7 +413,7 @@ class Run(object):
     @property
     def id(self):
         """
-        Reutrns:
+        Returns:
             (str): the run_id associated with the run
         """
         return self._run_id
