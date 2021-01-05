@@ -198,6 +198,42 @@ def projects(entity, display=True):
     return projects
 
 
+@cli.command(context_settings=CONTEXT, help="Start a secure W&B tunnel", hidden=True)
+@click.option(
+    "--verbose", "-v", is_flag=True, default=False, help="Verbose", hidden=True
+)
+@click.pass_context
+@display_error
+def launch(ctx, verbose):
+    api = _get_cling_api()
+    if api.api_key is None:
+        ctx.invoke(login)
+    if not find_executable("inlets"):
+        click.confirm(
+            click.style(
+                "wandb launch requires https//inlets.dev to be installed.  Shall we install it now?",
+                bold=True,
+            ),
+            abort=True,
+        )
+        try:
+            curl = subprocess.Popen(
+                ["curl", "-sLS", "https://get.inlets.dev"], stdout=subprocess.PIPE
+            )
+            installed = subprocess.check_output(["sh"], stdin=curl.stdout)
+            curl.wait()
+            if "inlets installed to " in installed:
+                path = installed.split("inlets installed to ")[1].split("\n")[0].strip()
+                wandb.termlog("Inlets installed to: {}".format(path))
+                # TODO: verify this is in the users path
+        except subprocess.CalledProcessError:
+            wandb.termwarn(
+                "Unable to install inlets, try running: curl -sLS https://get.inlets.dev | sh"
+            )
+            return
+    wandb.tunnel(foreground=True, verbose=verbose)
+
+
 @cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")

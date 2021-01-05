@@ -50,6 +50,7 @@ watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
 join = finish
+tunnel = wandb_sdk.tunnel
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 Artifact = wandb_sdk.Artifact
