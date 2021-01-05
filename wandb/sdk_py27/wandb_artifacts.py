@@ -104,7 +104,9 @@ class Artifact(object):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
-            raise ValueError('File with name "%s" already exists' % name)
+            raise ValueError(
+                'File with name "%s" already exists at "%s"' % (name, path)
+            )
         util.mkdir_exists_ok(os.path.dirname(path))
         self._added_new = True
         return open(path, mode)
@@ -410,7 +412,7 @@ class ArtifactManifestEntry(object):
             raise AssertionError(
                 "programming error, size required when local_path specified"
             )
-        self.path = path
+        self.path = util.to_forward_slash_path(path)
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.birth_artifact_id = birth_artifact_id
