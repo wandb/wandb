@@ -38,6 +38,11 @@ from wandb.errors.error import UsageError
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 
+if _PY3:
+    from wandb.sdk.interface import _dtypes
+else:
+    from wandb.sdk_py27.interface import _dtypes
+
 
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
@@ -504,29 +509,31 @@ class Table(Media):
         data=None,
         rows=None,
         dataframe=None,
+        dtype=None,
+        optional=True,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
         # Explicit dataframe option
         if dataframe is not None:
-            self._init_from_dataframe(dataframe, columns)
+            self._init_from_dataframe(dataframe, columns, optional, dtype)
         else:
             # Expected pattern
             if data is not None:
                 if util.is_numpy_array(data):
-                    self._init_from_ndarray(data, columns)
+                    self._init_from_ndarray(data, columns, optional, dtype)
                 elif util.is_pandas_data_frame(data):
-                    self._init_from_dataframe(data, columns)
+                    self._init_from_dataframe(data, columns, optional, dtype)
                 else:
-                    self._init_from_list(data, columns)
+                    self._init_from_list(data, columns, optional, dtype)
 
             # legacy
             elif rows is not None:
-                self._init_from_list(rows, columns)
+                self._init_from_list(rows, columns, optional, dtype)
 
             # Default empty case
             else:
-                self._init_from_list([], columns)
+                self._init_from_list([], columns, optional, dtype)
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -538,34 +545,78 @@ class Table(Media):
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
-    def _init_from_list(self, data, columns):
+    def _init_from_list(self, data, columns, optional=True, dtype=None):
         assert type(data) is list, "data argument expects a `list` object"
+        self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self.data = data
+        self._make_column_types(dtype, optional)
+        for row in data:
+            self.add_data(*row)
 
-    def _init_from_ndarray(self, ndarray, columns):
+    def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
         assert util.is_numpy_array(
             ndarray
         ), "ndarray argument expects a `numpy.ndarray` object"
+        self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
-        self.data = ndarray.tolist()
+        self._make_column_types(dtype, optional)
+        for row in ndarray.tolist():
+            self.add_data(*row)
 
-    def _init_from_dataframe(self, dataframe, columns):
+    def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
         assert util.is_pandas_data_frame(
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
-        self.columns = list(dataframe.columns)
         self.data = []
+        self.columns = list(dataframe.columns)
+        self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+
+    def _make_column_types(self, dtype=None, optional=True):
+        if dtype is None:
+            dtype = _dtypes.UnknownType()
+
+        if optional.__class__ != list:
+            optional = [optional for _ in range(len(self.columns))]
+
+        if dtype.__class__ != list:
+            dtype = [dtype for _ in range(len(self.columns))]
+
+        self._column_types = _dtypes.DictType({})
+        for col_name, opt, dt in zip(self.columns, optional, dtype):
+            self.cast(col_name, dt, opt)
+
+    def cast(self, col_name, dtype, optional=False):
+        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        if optional:
+            wbtype = _dtypes.OptionalType(wbtype)
+        col_ndx = self.columns.index(col_name)
+        for row in self.data:
+            result_type = wbtype.assign(row[col_ndx])
+            if isinstance(result_type, _dtypes.InvalidType):
+                raise TypeError(
+                    "Existing data {}, of type {} cannot be cast to {}".format(
+                        row[col_ndx],
+                        self._column_types.params["type_map"][col_name],
+                        wbtype,
+                    )
+                )
+            wbtype = result_type
+        self._column_types.params["type_map"][col_name] = wbtype
+        return wbtype
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        if len(self.data) != len(other.data) or self.columns != other.columns:
+        if (
+            not isinstance(other, Table)
+            or len(self.data) != len(other.data)
+            or self.columns != other.columns
+        ):
             return False
 
         for row_ndx in range(len(self.data)):
@@ -573,7 +624,7 @@ class Table(Media):
                 if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
                     return False
 
-        return True
+        return self._column_types == other._column_types
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -587,7 +638,22 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
+        self._validate_data(data)
         self.data.append(list(data))
+
+    def _validate_data(self, data):
+        incoming_data_dict = {
+            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+        }
+        current_type = self._column_types
+        result_type = current_type.assign(incoming_data_dict)
+        if isinstance(result_type, _dtypes.InvalidType):
+            raise TypeError(
+                "Data column contained incompatible types. Expected type {}, found data {}".format(
+                    current_type, incoming_data_dict
+                )
+            )
+        self._column_types = result_type
 
     def _to_table_json(self, max_rows=None):
         # seperate method for testing
@@ -623,7 +689,13 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        return cls(json_obj["columns"], data=data,)
+        new_obj = cls(json_obj["columns"], data=data,)
+
+        new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
+            json_obj["column_types"], source_artifact
+        )
+
+        return new_obj
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
@@ -649,13 +721,22 @@ class Table(Media):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
+
+            def json_helper(val):
+                if isinstance(val, WBValue):
+                    return val.to_json(artifact)
+                elif val.__class__ == dict:
+                    res = {}
+                    for key in val:
+                        res[key] = json_helper(val[key])
+                    return res
+                else:
+                    return val
+
             for row in data:
                 mapped_row = []
                 for v in row:
-                    if isinstance(v, WBValue):
-                        mapped_row.append(v.to_json(artifact))
-                    else:
-                        mapped_row.append(v)
+                    mapped_row.append(json_helper(v))
                 mapped_data.append(mapped_row)
             json_dict.update(
                 {
@@ -664,6 +745,7 @@ class Table(Media):
                     "data": mapped_data,
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
+                    "column_types": self._column_types.to_json(artifact),
                 }
             )
         else:
@@ -1285,18 +1367,27 @@ class Classes(Media):
             class_set (list): list of dicts in the form of {"id":int|str, "name":str}
         """
         super(Classes, self).__init__()
+        for class_obj in class_set:
+            assert "id" in class_obj and "name" in class_obj
         self._class_set = class_set
-        # TODO: validate
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(json_obj.get("class_set"))
 
-    def to_json(self, artifact):
-        json_obj = super(Classes, self).to_json(artifact)
+    def to_json(self, artifact=None):
+        json_obj = {}
+        # This is a bit of a hack to allow _ClassesIdType to
+        # be able to operate fully without an artifact in play.
+        # In all other cases, artifact should be a true artifact.
+        if artifact is not None:
+            json_obj = super(Classes, self).to_json(artifact)
         json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
         return json_obj
+
+    def get_type(self):
+        return _ClassesIdType(self)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -2751,3 +2842,192 @@ def data_frame_to_json(df, run, key, step):
         "run": run.id,
         "path": path,
     }
+
+
+## Custom dtypes for typing system
+
+
+class _ClassesIdType(_dtypes.Type):
+    name = "wandb.Classes_id"
+    types = [Classes]
+
+    def __init__(
+        self, classes_obj=None, valid_ids=None,
+    ):
+        if valid_ids is None:
+            valid_ids = _dtypes.UnionType()
+        elif isinstance(valid_ids, list):
+            valid_ids = _dtypes.UnionType(
+                [_dtypes.ConstType(item) for item in valid_ids]
+            )
+        elif isinstance(valid_ids, _dtypes.UnionType):
+            valid_ids = valid_ids
+        else:
+            raise TypeError("valid_ids must be None, list, or UnionType")
+
+        if classes_obj is None:
+            classes_obj = Classes(
+                [
+                    {"id": _id.params["val"], "name": str(_id.params["val"])}
+                    for _id in valid_ids.params["allowed_types"]
+                ]
+            )
+        elif not isinstance(classes_obj, Classes):
+            raise TypeError("valid_ids must be None, or instance of Classes")
+        else:
+            valid_ids = _dtypes.UnionType(
+                [
+                    _dtypes.ConstType(class_obj["id"])
+                    for class_obj in classes_obj._class_set
+                ]
+            )
+
+        self.wb_classes_obj_ref = classes_obj
+        self.params.update({"valid_ids": valid_ids})
+
+    def assign(self, py_obj=None):
+        return self.assign_type(_dtypes.ConstType(py_obj))
+
+    def assign_type(self, wb_type=None):
+        valid_ids = self.params["valid_ids"].assign_type(wb_type)
+        if not isinstance(valid_ids, _dtypes.InvalidType):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj=None):
+        return cls(py_obj)
+
+    def to_json(self, artifact=None):
+        cl_dict = super(_ClassesIdType, self).to_json(artifact)
+        # TODO (tss): Refactor this block with the similar one in wandb.Image.
+        # This is a bit of a smell that the classes object does not follow
+        # the same file-pattern as other media types.
+        if artifact is not None:
+            class_name = os.path.join("media", "cls")
+            classes_entry = artifact.add(self.wb_classes_obj_ref, class_name)
+            cl_dict["params"]["classes_obj"] = {
+                "type": "classes-file",
+                "path": classes_entry.path,
+                "digest": classes_entry.digest,  # is this needed really?
+            }
+        else:
+            cl_dict["params"]["classes_obj"] = self.wb_classes_obj_ref.to_json(artifact)
+        return cl_dict
+
+    @classmethod
+    def from_json(cls, json_dict, artifact=None):
+        classes_obj = None
+        if (
+            json_dict.get("params", {}).get("classes_obj", {}).get("type")
+            == "classes-file"
+        ):
+            classes_obj = artifact.get(
+                json_dict.get("params", {}).get("classes_obj", {}).get("path")
+            )
+        else:
+            classes_obj = Classes.from_json(
+                json_dict["params"]["classes_obj"], artifact
+            )
+
+        return cls(classes_obj)
+
+
+class _ImageType(_dtypes.Type):
+    name = "wandb.Image"
+    types = [Image]
+
+    def __init__(self, box_keys=None, mask_keys=None):
+        if box_keys == None:
+            box_keys = _dtypes.UnknownType()
+        elif isinstance(box_keys, _dtypes.ConstType):
+            box_keys = box_keys
+        elif not isinstance(box_keys, list):
+            raise TypeError("box_keys must be a list")
+        else:
+            box_keys = _dtypes.ConstType(set(box_keys))
+
+        if mask_keys == None:
+            mask_keys = _dtypes.UnknownType()
+        elif isinstance(mask_keys, _dtypes.ConstType):
+            mask_keys = mask_keys
+        elif not isinstance(mask_keys, list):
+            raise TypeError("mask_keys must be a list")
+        else:
+            mask_keys = _dtypes.ConstType(set(mask_keys))
+
+        self.params.update(
+            {"box_keys": box_keys, "mask_keys": mask_keys,}
+        )
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _ImageType):
+            box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
+            mask_keys = self.params["mask_keys"].assign_type(
+                wb_type.params["mask_keys"]
+            )
+            if not (
+                isinstance(box_keys, _dtypes.InvalidType)
+                or isinstance(mask_keys, _dtypes.InvalidType)
+            ):
+                return _ImageType(box_keys, mask_keys)
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, Image):
+            raise TypeError("py_obj must be a wandb.Image")
+        else:
+            if hasattr(py_obj, "_boxes") and py_obj._boxes:
+                box_keys = list(py_obj._boxes.keys())
+            else:
+                box_keys = []
+
+            if hasattr(py_obj, "masks") and py_obj.masks:
+                mask_keys = list(py_obj.masks.keys())
+            else:
+                mask_keys = []
+
+            return cls(box_keys, mask_keys)
+
+
+class _TableType(_dtypes.Type):
+    name = "wandb.Table"
+    types = [Table]
+
+    def __init__(self, column_types=None):
+        if column_types == None:
+            column_types = _dtypes.UnknownType()
+        if isinstance(column_types, dict):
+            column_types = _dtypes.DictType(column_types)
+        elif not (
+            isinstance(column_types, _dtypes.DictType)
+            or isinstance(column_types, _dtypes.UnknownType)
+        ):
+            raise TypeError("column_types must be a dict or DictType")
+
+        self.params.update({"column_types": column_types})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _TableType):
+            column_types = self.params["column_types"].assign_type(
+                wb_type.params["column_types"]
+            )
+            if not isinstance(column_types, _dtypes.InvalidType):
+                return _TableType(column_types)
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, Table):
+            raise TypeError("py_obj must be a wandb.Table")
+        else:
+            return cls(py_obj._column_types)
+
+
+_dtypes.TypeRegistry.add(_ClassesIdType)
+_dtypes.TypeRegistry.add(_ImageType)
+_dtypes.TypeRegistry.add(_TableType)

@@ -605,16 +605,17 @@ def test_add_obj_wbtable_images(runner):
         artifact.add(wb_table, "my-table")
 
         manifest = artifact.manifest.to_manifest_json()
+
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
             "media/images/641e917f/2x2.png": {
-                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "Cyxf/j6+UO9owMPRQ8Wtsg==", "size": 515,},
+            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
         }
 
 
@@ -646,5 +647,5 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "HQzyzeztRFqCZM8IfkXMVw==", "size": 301,},
+            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }

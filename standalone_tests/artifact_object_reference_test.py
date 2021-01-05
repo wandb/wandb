@@ -32,8 +32,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-
-columns = ["id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video"]
+columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -155,15 +154,22 @@ vid3 = _make_video()
 vid4 = _make_video()
 
 def _make_wandb_table():
-    return wandb.Table(
+    classes = wandb.Classes([
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
+        {"id": 3, "name": "road"},
+    ])
+    table = wandb.Table(
         columns=columns,
         data=[
-            ["string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1],
-            ["string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4],
+            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1],
+            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2],
+            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3],
+            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4],
         ],
     )
+    table.cast("class_id", classes.get_type())
+    return table
 
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
@@ -342,8 +348,8 @@ def test_get_artifact_obj_by_name():
 
         actual_table = artifact.get("T1")
         assert actual_table.columns == columns
-        assert actual_table.data[0][4] == image
-        assert actual_table.data[1][4] == _make_wandb_image("2")
+        assert actual_table.data[0][5] == image
+        assert actual_table.data[1][5] == _make_wandb_image("2")
         assert actual_table == _make_wandb_table()
 
 
