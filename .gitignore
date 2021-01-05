@@ -16,3 +16,4 @@ tests/logs/*
 !tests/logs/cleanup.sh
 pip-wheel-metadata
 .vscode/.ropeproject
+xcuserdata/

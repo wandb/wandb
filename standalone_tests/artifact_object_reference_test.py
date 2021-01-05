@@ -32,7 +32,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds"]
+columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -142,6 +142,17 @@ pc2 = _make_point_cloud()
 pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
+def _make_html():
+    return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
+
+def _make_video():
+    return wandb.Video(np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)) # 1 second video of 10x10 pixels
+
+vid1 = _make_video()
+vid2 = _make_video()
+vid3 = _make_video()
+vid4 = _make_video()
+
 def _make_wandb_table():
     classes = wandb.Classes([
         {"id": 1, "name": "tree"},
@@ -151,10 +162,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1],
-            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2],
-            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3],
-            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
+            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1],
+            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2],
+            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3],
+            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -542,6 +553,12 @@ def test_image_refs():
 def test_point_cloud_refs():
     assert_media_obj_referential_equality(_make_point_cloud())
 
+def test_html_refs():
+    assert_media_obj_referential_equality(_make_html())
+
+def test_video_refs():
+    assert_media_obj_referential_equality(_make_video())
+
 
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
@@ -670,6 +687,8 @@ if __name__ == "__main__":
         test_table_slice_reference_artifact,
         test_image_refs,
         test_point_cloud_refs,
+        test_html_refs,
+        test_video_refs,
         test_table_refs,
         test_joined_table_refs,
         test_joined_table_referential,

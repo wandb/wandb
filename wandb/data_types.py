@@ -17,6 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
+from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import os
 import io
@@ -36,6 +37,7 @@ from wandb.compat import tempfile
 from wandb.errors.error import UsageError
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+
 if _PY3:
     from wandb.sdk.interface import _dtypes
 else:
@@ -44,6 +46,7 @@ else:
 
 def _safe_sdk_import():
     """Safely imports sdks respecting python version"""
+
     if _PY3:
         from wandb.sdk import wandb_run
         from wandb.sdk import wandb_artifacts
@@ -360,7 +363,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(key, step, id_, extension)
+        file_path = wb_filename(urllib.parse.quote_plus(key), step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
@@ -416,9 +419,19 @@ class Media(WBValue):
                 # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
-                    name = os.path.join(
-                        self.get_media_subdir(), os.path.basename(self._path)
-                    )
+                    if self._is_tmp:
+                        name = os.path.join(
+                            self.get_media_subdir(), os.path.basename(self._path)
+                        )
+                    else:
+                        # If the files is not temporary, include the first 8 characters of the file's SHA256 to
+                        # avoid name collisions. This way, if there are two images `dir1/img.png` and `dir2/img.png`
+                        # we end up with a unique path for each.
+                        name = os.path.join(
+                            self.get_media_subdir(),
+                            self._sha256[:8],
+                            os.path.basename(self._path),
+                        )
 
                     # if not, check to see if there is a source artifact for this object
                     if (
@@ -443,6 +456,20 @@ class Media(WBValue):
                 json_obj["path"] = name
             json_obj["_type"] = self.artifact_type
         return json_obj
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        """Likely will need to override for any more complicated media objects"""
+        return cls(source_artifact.get_path(json_obj["path"]).download())
+
+    def __eq__(self, other):
+        """Likely will need to override for any more complicated media objects"""
+        return (
+            self.__class__ == other.__class__
+            and hasattr(self, "_sha256")
+            and hasattr(other, "_sha256")
+            and self._sha256 == other._sha256
+        )
 
 
 class BatchableMedia(Media):
@@ -473,7 +500,7 @@ class Table(Media):
     """
 
     MAX_ROWS = 10000
-    MAX_ARTIFACT_ROWS = 50000
+    MAX_ARTIFACT_ROWS = 200000
     artifact_type = "table"
 
     def __init__(
@@ -958,10 +985,6 @@ class Object3D(BatchableMedia):
     def get_media_subdir(self):
         return os.path.join("media", "object3D")
 
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(source_artifact.get_path(json_obj["path"]).download())
-
     def to_json(self, run_or_artifact):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D.artifact_type
@@ -1000,9 +1023,6 @@ class Object3D(BatchableMedia):
             "count": len(jsons),
             "objects": jsons,
         }
-
-    def __eq__(self, other):
-        return self._sha256 == other._sha256 and self._size == other._size
 
 
 class Molecule(BatchableMedia):
@@ -1108,10 +1128,15 @@ class Html(BatchableMedia):
             to False the HTML will pass through unchanged.
     """
 
+    artifact_type = "html-file"
+
     def __init__(self, data, inject=True):
         super(Html, self).__init__()
-
-        if isinstance(data, str):
+        data_is_path = isinstance(data, str) and os.path.exists(data)
+        if data_is_path:
+            with open(data, "r") as file:
+                self.html = file.read()
+        elif isinstance(data, str):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
@@ -1119,14 +1144,18 @@ class Html(BatchableMedia):
             self.html = data.read()
         else:
             raise ValueError("data must be a string or an io object")
+
         if inject:
             self.inject_head()
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
-        with open(tmp_path, "w") as out:
-            print(self.html, file=out)
+        if inject or not data_is_path:
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
+            with open(tmp_path, "w") as out:
+                print(self.html, file=out)
 
-        self._set_file(tmp_path, is_tmp=True)
+            self._set_file(tmp_path, is_tmp=True)
+        else:
+            self._set_file(data, is_tmp=False)
 
     def inject_head(self):
         join = ""
@@ -1153,6 +1182,10 @@ class Html(BatchableMedia):
         json_dict = super(Html, self).to_json(run)
         json_dict["_type"] = "html-file"
         return json_dict
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(cls, html_list, run, key, step):
@@ -1186,6 +1219,7 @@ class Video(BatchableMedia):
         format (string): format of video, necessary if initializing with path or io object.
     """
 
+    artifact_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
 
     def __init__(self, data_or_path, caption=None, fps=4, format=None):
