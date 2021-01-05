@@ -606,36 +606,17 @@ def test_add_obj_wbtable_images(runner):
 
         manifest = artifact.manifest.to_manifest_json()
 
-        if os.name == "nt":  # windows
-            assert manifest["contents"] == {
-                "media\\cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media\\images\\2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-table.table.json": {
-                    "digest": "GtZ6f24cT5xq46lcI3mC5A==",
-                    "size": 845,
-                },
-            }
-        else:
-            assert manifest["contents"] == {
-                "media/cls.classes.json": {
-                    "digest": "eG00DqdCcCBqphilriLNfw==",
-                    "size": 64,
-                },
-                "media/images/2x2.png": {
-                    "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-                    "size": 71,
-                },
-                "my-table.table.json": {
-                    "digest": "EEefgp+H8KYC8wYkAZhZXg==",
-                    "size": 839,
-                },
-            }
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f/2x2.png": {
+                "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
+        }
 
 
 def test_add_obj_wbtable_images_duplicate_name(runner):
@@ -666,5 +647,5 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "HQzyzeztRFqCZM8IfkXMVw==", "size": 301,},
+            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }
