@@ -32,7 +32,7 @@ from wandb.errors import Error
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING: bool = False
+TYPE_CHECKING = False  # type: bool
 if PY3:
     TYPE_CHECKING = True
     from wandb import sdk as wandb_sdk
