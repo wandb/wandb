@@ -20,8 +20,10 @@ from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
+from packaging import version
 import six
 from six.moves import configparser
+import requests
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -1575,13 +1577,13 @@ def gc(args):
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 def verify(host):
+    os.environ["WANDB_SILENT"] = "true"
     api = InternalApi()
-    if api.api_key is None:
-        print('NOT LOGGED IN')
-    print(os.getcwd())
-    
+    #if api.api_key is None:
+    print('\033[91m\033[1mNOT LOGGED IN\033[0m\033[0m')
+
     ##### create a run
-    run = wandb.init(project='verify')
+    run = wandb.init(project='verify', )
     filepath = "./test with_special-characters.txt"
     f = open(filepath, "w")
     f.write("test")
@@ -1595,6 +1597,13 @@ def verify(host):
     contents = read_file.read()
     assert contents == "test"
 
+    # check large file size
 
 
-    
+    # version check
+    response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
+    print(response.json()["name"])
+    print(wandb.__version__)
+    if version.parse(response.json()["name"]) > version.parse(wandb.__version__):
+        print("wandb version out of date, please run pip install --update wandb")
+
