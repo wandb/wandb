@@ -48,6 +48,7 @@ setup = wandb_sdk.setup
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
+monitor = wandb_sdk.monitor
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
