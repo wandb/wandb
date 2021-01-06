@@ -205,7 +205,7 @@ class Monitor(object):
 
     @property
     def estimated_buffer_bytes(self):
-        return self._call_size_bytes() * self.max_samples
+        return self._call_size_bytes() * self._max_samples
 
     def _data_type(self, obj, source=None, key=None):
         # TODO: handle sequences / tensors
