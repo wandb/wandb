@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+/*
+ * Telemetry
+ */
+message TelemetryRecord {
+  Imports imports_init = 1;
+  Imports imports_finish = 2;
+  Feature feature = 3;
+  string  python_version = 4;
+  string  cli_version = 5;
+  string  huggingface_version = 6;
+  string  framework = 7;
+  Env     env = 8;
+}
+
+message Imports {
+  bool pytorch = 1;
+  bool keras = 2;
+}
+
+message Feature {
+  bool watch = 1;
+}
+
+message Env {
+  bool jupyter = 1;
+  bool kaggle = 2;
+}

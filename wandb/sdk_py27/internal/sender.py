@@ -33,6 +33,12 @@ from ..lib.git import GitRepo
 
 logger = logging.getLogger(__name__)
 
+if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+    from typing import NewType, Optional, Dict, Any
+
+    DictWithValues = NewType("DictWithValues", Dict[Any, Any])
+    DictWithoutValues = NewType("DictWithoutValues", Dict[Any, Any])
+
 
 class SendManager(object):
     def __init__(
@@ -54,6 +60,9 @@ class SendManager(object):
         # State updated by wandb.init
         self._run = None
         self._project = None
+
+        # keep track of config from key/val updates
+        self._consolidated_config = dict()
 
         # State updated by resuming
         self._resume_state = {
@@ -272,7 +281,7 @@ class SendManager(object):
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
         if not self._settings.resume:
-            return
+            return None
 
         # TODO: This causes a race, we need to make the upsert atomically
         # only create or update depending on the resume config
@@ -291,7 +300,7 @@ class SendManager(object):
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
                 error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
                 return error
-            return
+            return None
 
         #
         # handle cases where we have resume_status
@@ -338,7 +347,25 @@ class SendManager(object):
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
         logger.info("configured resuming with: %s" % self._resume_state)
-        return
+        return None
+
+    def _config_format(
+        self, config_data
+    ):
+        """Format dict into valuee dict with telemetry info."""
+        wandb_key = "_wandb"
+        if config_data:
+            config_dict = config_data.copy()
+        else:
+            config_dict = dict()
+        config_dict.setdefault(wandb_key, dict())
+        config_dict[wandb_key].setdefault("junk", 2)
+        config_value_dict = config_util.dict_add_value_dict(config_dict)
+        return config_value_dict
+
+    def _config_save(self, config_value_dict):
+        config_path = os.path.join(self._settings.files_dir, "config.yaml")
+        config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def send_run(self, data):
         run = data.run
@@ -346,11 +373,11 @@ class SendManager(object):
         is_wandb_init = self._run is None
 
         # build config dict
-        config_dict = None
-        config_path = os.path.join(self._settings.files_dir, filenames.CONFIG_FNAME)
+        config_value_dict = None
         if run.config:
-            config_dict = config_util.dict_from_proto_list(run.config.update)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            config_util.update_from_proto(self._consolidated_config, run.config)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
@@ -372,12 +399,22 @@ class SendManager(object):
         # Save the resumed config
         if self._resume_state["config"] is not None:
             # TODO: should we merge this with resumed config?
-            config_override = config_dict or {}
+            config_override = self._consolidated_config
             config_dict = self._resume_state["config"]
+            config_dict = config_util.dict_strip_value_dict(config_dict)
             config_dict.update(config_override)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            self._consolidated_config.update(config_dict)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
-        self._init_run(run, config_dict)
+        # handle empty config
+        # TODO(jhr): consolidate the 4 ways config is built:
+        #            (passed config, empty config, resume config, send_config)
+        if not config_value_dict:
+            config_value_dict = self._config_format(None)
+            self._config_save(config_value_dict)
+
+        self._init_run(run, config_value_dict)
 
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)
@@ -557,12 +594,12 @@ class SendManager(object):
 
     def send_config(self, data):
         cfg = data.config
-        config_dict = config_util.dict_from_proto_list(cfg.update)
+        config_util.update_from_proto(self._consolidated_config, cfg)
+        config_value_dict = self._config_format(self._consolidated_config)
         self._api.upsert_run(
-            name=self._run.run_id, config=config_dict, **self._api_settings
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
         )
-        config_path = os.path.join(self._settings.files_dir, "config.yaml")
-        config_util.save_config_file_from_dict(config_path, config_dict)
+        self._config_save(config_value_dict)
         # TODO(jhr): check result of upsert_run?
 
     def _save_file(self, fname, policy="end"):

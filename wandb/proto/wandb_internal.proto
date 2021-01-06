@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
@@ -107,6 +108,7 @@ message RunRecord {
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
   bool                      resumed = 18;
+  TelemetryRecord           telemetry = 19;
 }
 
 message RunUpdateResult {
@@ -334,6 +336,7 @@ message Request {
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
     ShutdownRequest       shutdown = 64;
+    TestInjectRequest     test_inject = 1000;
   }
 }
 
@@ -350,6 +353,7 @@ message Response {
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
     ShutdownResponse       shutdown_response = 64;
+    TestInjectResponse     test_inject_response = 1000;
   }
 }
 
@@ -448,6 +452,29 @@ message ShutdownRequest {
 }
 
 message ShutdownResponse {
+}
+
+/*
+ * TestInjectRequest:
+ */
+message TestInjectRequest {
+  bool handler_exc = 1;
+  bool handler_exit = 2;
+  bool handler_abort = 3;
+  bool sender_exc = 4;
+  bool sender_exit = 5;
+  bool sender_abort = 6;
+  bool req_exc = 7;
+  bool req_exit = 8;
+  bool req_abort = 9;
+  bool resp_exc = 10;
+  bool resp_exit = 11;
+  bool resp_abort = 12;
+  bool msg_drop = 13;
+  bool msg_hang = 14;
+}
+
+message TestInjectResponse {
 }
 
 /*

@@ -183,7 +183,7 @@ class BackendSender(object):
         proto_run.host = run._settings.host
         if run._config is not None:
             config_dict = run._config._as_dict()
-            self._make_config(config_dict, obj=proto_run.config)
+            self._make_config(data=config_dict, obj=proto_run.config)
         return proto_run
 
     def _make_artifact(self, artifact):
@@ -230,13 +230,20 @@ class BackendSender(object):
         exit.exit_code = exit_code
         return exit
 
-    def _make_config(self, config_dict, obj=None):
+    def _make_config(self, data=None, key=None, val=None, obj=None):
         config = obj or wandb_internal_pb2.ConfigRecord()
-        for k, v in six.iteritems(config_dict):
+        if data:
+            for k, v in six.iteritems(data):
+                update = config.update.add()
+                update.key = k
+                update.value_json = json_dumps_safer(json_friendly(v)[0])
+        if key:
             update = config.update.add()
-            update.key = k
-            update.value_json = json_dumps_safer(json_friendly(v)[0])
-
+            if isinstance(key, tuple):
+                update.nested_key = key
+            else:
+                update.key = key
+            update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
     def _make_stats(self, stats_dict):
@@ -444,7 +451,8 @@ class BackendSender(object):
     def _communicate(self, rec, timeout=5, local=None):
         assert self._router
         future = self._router.send_and_receive(rec, local=local)
-        return future.get(timeout)
+        f = future.get(timeout)
+        return f
 
     def communicate_login(self, api_key=None, anonymous=None, timeout=15):
         login = self._make_login(api_key, anonymous)
@@ -502,8 +510,8 @@ class BackendSender(object):
         run = self._make_run(run_obj)
         self._publish_run(run)
 
-    def publish_config(self, config_dict):
-        cfg = self._make_config(config_dict)
+    def publish_config(self, data=None, key=None, val=None):
+        cfg = self._make_config(data=data, key=key, val=val)
         self._publish_config(cfg)
 
     def _publish_config(self, cfg):
@@ -630,7 +638,7 @@ class BackendSender(object):
 
     def communicate_summary(self):
         record = self._make_request(get_summary=wandb_internal_pb2.GetSummaryRequest())
-        result = self._communicate(record)
+        result = self._communicate(record, timeout=10)
         get_summary_response = result.response.get_summary_response
         assert get_summary_response
         return get_summary_response

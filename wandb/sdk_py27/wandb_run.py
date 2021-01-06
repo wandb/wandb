@@ -48,10 +48,12 @@ from .lib import (
     proto_util,
     redirect,
     sparkline,
+    telemetry,
 )
+from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Sequence, Tuple
+    from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -152,7 +154,16 @@ class Run(object):
             final value.
     """
 
-    def __init__(self, config=None, settings=None, sweep_config=None):
+    # _telemetry_obj: telemetry.TelemetryRecord
+    # _teardown_hooks: List[Any]
+    # _tags: Optional[Tuple[Any, ...]]
+
+    def __init__(
+        self,
+        settings,
+        config = None,
+        sweep_config = None,
+    ):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
@@ -169,7 +180,6 @@ class Run(object):
         self._settings = settings
         self._wl = None
         self._reporter = None
-        self._data = dict()
 
         self._entity = None
         self._project = None
@@ -227,23 +237,26 @@ class Run(object):
 
         self._poll_exit_response = None
 
+        # Populate initial telemetry
+        self._telemetry_obj = telemetry.TelemetryRecord()
+        with telemetry.context(run=self) as tel:
+            tel.cli_version = wandb.__version__
+            tel.python_version = platform.python_version()
+            framework = self._telemetry_get_framework()
+            if framework:
+                tel.framework = framework
+            hf_version = huggingface_version()
+            if hf_version:
+                tel.huggingface_version = hf_version
+            if settings._jupyter:
+                tel.env.jupyter = True
+            if settings._kaggle:
+                tel.env.kaggle = True
+
+        # Populate config
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-
-        wandb_data = dict()
-        wandb_data["cli_version"] = wandb.__version__
-        wandb_data["python_version"] = platform.python_version()
-        wandb_data["is_jupyter_run"] = settings._jupyter or False
-        wandb_data["is_kaggle_kernel"] = settings._kaggle or False
-        hf_version = huggingface_version()
-        if hf_version:
-            wandb_data["huggingface_version"] = hf_version
-        framework = self._telemetry_get_framework()
-        if framework:
-            wandb_data["framework"] = framework
-        config[wandb_key].update(wandb_data)
-
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -251,9 +264,13 @@ class Run(object):
         if sweep_config:
             self._config.update_locked(sweep_config, user="sweep")
         self._config._update(config, ignore_locked=True)
+
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+
+    def _telemetry_callback(self, telem_obj):
+        self._telemetry_obj.MergeFrom(telem_obj)
 
     def _freeze(self):
         self._frozen = True
@@ -377,7 +394,7 @@ class Run(object):
 
     @property
     def notes(self):
-        """
+        r"""
         Returns:
             (str): notes associated with the run. Notes can be a multiline string
                 and can also use markdown and latex equations inside $$ like $\\{x}"""
@@ -402,7 +419,9 @@ class Run(object):
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.tags
+        if run_obj:
+            return run_obj.tags
+        return None
 
     @tags.setter
     def tags(self, tags):
@@ -412,8 +431,9 @@ class Run(object):
 
     @property
     def id(self):
-        """
-        Reutrns:
+        """id property.
+
+        Returns:
             (str): the run_id associated with the run
         """
         return self._run_id
@@ -600,10 +620,13 @@ class Run(object):
 
     def _config_callback(self, key=None, val=None, data=None):
         logger.info("config_cb %s %s %s", key, val, data)
-        self._backend.interface.publish_config(data)
+        if not self._backend or not self._backend.interface:
+            return
+        self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _summary_update_callback(self, summary_record):
-        self._backend.interface.publish_summary(summary_record)
+        if self._backend:
+            self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self):
         ret = self._backend.interface.communicate_summary()
@@ -946,7 +969,8 @@ class Run(object):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        self._backend.interface.publish_files(files_dict)
+        if self._backend:
+            self._backend.interface.publish_files(files_dict)
         return files
 
     def restore(
@@ -1002,7 +1026,9 @@ class Run(object):
     def _set_yanked_version_message(self, msg):
         self._yanked_version_message = msg
 
-    def _add_panel(self, visualize_key, panel_type, panel_config):
+    def _add_panel(
+        self, visualize_key, panel_type, panel_config
+    ):
         if "visualize" not in self._config["_wandb"]:
             self._config["_wandb"]["visualize"] = dict()
         self._config["_wandb"]["visualize"][visualize_key] = {

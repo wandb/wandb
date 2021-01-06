@@ -212,6 +212,9 @@ class Settings(object):
     show_info = True
     show_warnings = True
     show_errors = True
+    email = None
+    save_code = None
+    program_relpath = None
 
     # Private attributes
     # __start_time: Optional[float]
