@@ -731,7 +731,7 @@ class Table(Media):
                         res[key] = json_helper(val[key])
                     return res
                 else:
-                    return util.json_friendly(val)
+                    return util.json_friendly(val)[0]
 
             for row in data:
                 mapped_row = []
