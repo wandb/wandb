@@ -421,7 +421,7 @@ def test_add_table_from_dataframe(runner, test_settings):
     wb_table_bool = wandb.Table(dataframe=df_bool)
 
     with runner.isolated_filesystem():
-        run = wandb.init(test_settings)
+        run = wandb.init(settings=test_settings)
         artifact = wandb.Artifact("table-example", "tables")
         artifact.add(wb_table_float, "wb_table_float")
         artifact.add(wb_table_float32_recast, "wb_table_float32_recast")

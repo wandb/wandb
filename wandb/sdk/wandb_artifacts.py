@@ -248,6 +248,7 @@ class Artifact(object):
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
+        val = obj.to_json(self)
         name = obj.with_suffix(name)
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
@@ -256,7 +257,7 @@ class Artifact(object):
             import json
 
             # TODO: Do we need to open with utf-8 codec?
-            f.write(json.dumps(obj.to_json(self), sort_keys=True))
+            f.write(json.dumps(val, sort_keys=True))
 
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
