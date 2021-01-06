@@ -410,7 +410,7 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
-def test_add_table_from_dataframe(runner):
+def test_add_table_from_dataframe(runner, test_settings):
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
@@ -421,7 +421,7 @@ def test_add_table_from_dataframe(runner):
     wb_table_bool = wandb.Table(dataframe=df_bool)
 
     with runner.isolated_filesystem():
-        run = wandb.init()
+        run = wandb.init(test_settings)
         artifact = wandb.Artifact("table-example", "tables")
         artifact.add(wb_table_float, "wb_table_float")
         artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
