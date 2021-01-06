@@ -420,15 +420,14 @@ def test_add_table_from_dataframe(runner, test_settings):
     wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
     wb_table_bool = wandb.Table(dataframe=df_bool)
 
-    with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
-        artifact = wandb.Artifact("table-example", "tables")
-        artifact.add(wb_table_float, "wb_table_float")
-        artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
-        artifact.add(wb_table_float32, "wb_table_float32")
-        artifact.add(wb_table_bool, "wb_table_bool")
-        run.log_artifact(artifact)
-        run.finish()
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "tables")
+    artifact.add(wb_table_float, "wb_table_float")
+    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+    artifact.add(wb_table_float32, "wb_table_float32")
+    artifact.add(wb_table_bool, "wb_table_bool")
+    run.log_artifact(artifact)
+    run.finish()
 
 
 def test_add_obj_wbimage_no_classes(runner):
