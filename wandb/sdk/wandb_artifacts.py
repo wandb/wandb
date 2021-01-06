@@ -248,7 +248,6 @@ class Artifact(object):
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
-        val = obj.to_json(self)
         name = obj.with_suffix(name)
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
