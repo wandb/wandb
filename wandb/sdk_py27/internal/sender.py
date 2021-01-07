@@ -27,7 +27,7 @@ from . import internal_api
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
-from ..lib import config_util, filenames, proto_util
+from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib.git import GitRepo
 
 
@@ -41,6 +41,9 @@ if wandb.TYPE_CHECKING:  # TYPE_CHECKING
 
 
 class SendManager(object):
+
+    # _telemetry_obj: telemetry.TelemetryRecord
+
     def __init__(
         self, settings, record_q, result_q, interface,
     ):
@@ -63,6 +66,7 @@ class SendManager(object):
 
         # keep track of config from key/val updates
         self._consolidated_config = dict()
+        self._telemetry_obj = telemetry.TelemetryRecord()
 
         # State updated by resuming
         self._resume_state = {
@@ -352,14 +356,16 @@ class SendManager(object):
     def _config_format(
         self, config_data
     ):
-        """Format dict into valuee dict with telemetry info."""
+        """Format dict into value dict with telemetry info."""
         wandb_key = "_wandb"
-        if config_data:
-            config_dict = config_data.copy()
-        else:
-            config_dict = dict()
+        config_dict = config_data.copy() if config_data else dict()
         config_dict.setdefault(wandb_key, dict())
-        config_dict[wandb_key].setdefault("junk", 2)
+        if self._telemetry_obj.python_version:
+            config_dict[wandb_key][
+                "python_version"
+            ] = self._telemetry_obj.python_version
+        if self._telemetry_obj.cli_version:
+            config_dict[wandb_key]["cli_version"] = self._telemetry_obj.cli_version
         config_value_dict = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
@@ -413,6 +419,9 @@ class SendManager(object):
         if not config_value_dict:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
+
+        if run.telemetry:
+            self._telemetry_obj.MergeFrom(run.telemetry)
 
         self._init_run(run, config_value_dict)
 
@@ -675,6 +684,9 @@ class SendManager(object):
                 logger.error(
                     'send_alert: failed for alert "{}": {}'.format(alert.title, e)
                 )
+
+    def send_telemetry(self, data):
+        pass
 
     def finish(self):
         logger.info("shutting down sender")

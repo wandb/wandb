@@ -184,6 +184,8 @@ class BackendSender(object):
         if run._config is not None:
             config_dict = run._config._as_dict()
             self._make_config(data=config_dict, obj=proto_run.config)
+        if run._telemetry_obj:
+            proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
     def _make_artifact(self, artifact):
