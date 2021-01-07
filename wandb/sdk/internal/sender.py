@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import NewType, Optional, Dict, Any
 
-    DictWithValues = NewType("DictWithValues", Dict[Any, Any])
-    DictWithoutValues = NewType("DictWithoutValues", Dict[Any, Any])
+    DictWithValues = NewType("DictWithValues", Dict[str, Any])
+    DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 
 class SendManager(object):
@@ -65,7 +65,7 @@ class SendManager(object):
         self._project = None
 
         # keep track of config from key/val updates
-        self._consolidated_config: DictWithoutValues = dict()
+        self._consolidated_config: DictNoValues = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
 
         # State updated by resuming
@@ -353,20 +353,34 @@ class SendManager(object):
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
-    def _config_format(
-        self, config_data: Optional[DictWithoutValues]
-    ) -> DictWithValues:
-        """Format dict into value dict with telemetry info."""
+    def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
+        """Add legacy telemetry to config object."""
         wandb_key = "_wandb"
-        config_dict = config_data.copy() if config_data else dict()
         config_dict.setdefault(wandb_key, dict())
-        if self._telemetry_obj.python_version:
-            config_dict[wandb_key][
-                "python_version"
-            ] = self._telemetry_obj.python_version
-        if self._telemetry_obj.cli_version:
-            config_dict[wandb_key]["cli_version"] = self._telemetry_obj.cli_version
-        config_value_dict = config_util.dict_add_value_dict(config_dict)
+        s: str
+        b: bool
+        s = self._telemetry_obj.python_version
+        if s:
+            config_dict[wandb_key]["python_version"] = s
+        s = self._telemetry_obj.cli_version
+        if s:
+            config_dict[wandb_key]["cli_version"] = s
+        s = self._telemetry_obj.framework
+        if s:
+            config_dict[wandb_key]["framework"] = s
+        s = self._telemetry_obj.huggingface_version
+        if s:
+            config_dict[wandb_key]["huggingface_version"] = s
+        b = self._telemetry_obj.env.jupyter
+        config_dict[wandb_key]["is_jupyter_run"] = b
+        b = self._telemetry_obj.env.kaggle
+        config_dict[wandb_key]["is_kaggle_kernel"] = b
+
+    def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
+        """Format dict into value dict with telemetry info."""
+        config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
+        self._config_telemetry_update(config_dict)
+        config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
     def _config_save(self, config_value_dict: DictWithValues) -> None:
