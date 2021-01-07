@@ -410,7 +410,7 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
-def test_add_table_from_dataframe((live_mock_server, test_settings):
+def test_add_table_from_dataframe(live_mock_server, test_settings):
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
