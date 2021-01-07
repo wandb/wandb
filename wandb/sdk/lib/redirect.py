@@ -298,42 +298,58 @@ class Unbuffered(StreamWrapper):
         )
 
 
+class _WindowSizeChangeHandler(object):
+    def __init__(self):
+        self._fds = set()
+
+    def _register():
+        old_handler = signal.signal(signal.SIGWINCH, lambda *_: None)
+        def handler(signum, frame):
+            if callable(old_handler):
+                old_handler(signum, frame)
+            self.handle_window_size_change()
+        signal.signal(signal.SIGWINCH, handler)
+        self._old_handler = old_handler
+
+    def _unregister():
+        signal.signal(signal.SIGWINCH, self._old_handler)
+
+    def add_fd(self, fd):
+        if not self._fds:
+            self._register()
+        self._fds.add(fd)
+
+    def remove_fd(self, fd):
+        if fd in self._fds:
+            self._fds.remove(fd)
+            if not self._fds:
+                self._unregister()
+
+    def handle_window_size_change(self):
+        try:
+            win_size = fcntl.ioctl(0, termios.TIOCGWINSZ, "\0" * 8)
+            rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
+        except OSError:  # eg. in MPI we can't do this
+            rows, cols, xpix, ypix = 25, 80, 0, 0
+        if cols == 0:
+            cols = 80
+        win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
+        for fd in self._fds:
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
+
+
+_WSCH = _WindowSizeChangeHandler()
+
+
 class Redirect(BaseRedirect):
     def __init__(self, src, cbs=()):
         super(Redirect, self).__init__(src=src, cbs=cbs)
-        self._old_handler = None
         self._installed = False
         self._emulator = TerminalEmulator()
 
     def _pipe(self):
         if pty:
-            m, s = pty.openpty()
-            try:
-                tty.setraw(m)
-            except termios.error:
-                pass
-
-            def handle_window_size_change():
-                try:
-                    win_size = fcntl.ioctl(self.src_fd, termios.TIOCGWINSZ, "\0" * 8)
-                    rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
-                except OSError:  # eg. in MPI we can't do this
-                    rows, cols, xpix, ypix = 25, 80, 0, 0
-                if cols == 0:
-                    cols = 80
-                win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
-                fcntl.ioctl(m, termios.TIOCSWINSZ, win_size)
-
-            old_handler = signal.signal(signal.SIGWINCH, lambda *_: None)
-
-            def handler(signum, frame):
-                if callable(old_handler):
-                    old_handler(signum, frame)
-                handle_window_size_change()
-
-            self._old_handler = old_handler
-            signal.signal(signal.SIGWINCH, handler)
-            r, w = m, s
+            r, w = pty.openpty()
         else:
             r, w = os.pipe()
         return r, w
@@ -343,6 +359,8 @@ class Redirect(BaseRedirect):
         if self._installed:
             return
         self._pipe_read_fd, self._pipe_write_fd = self._pipe()
+        if os.isatty(self._pipe_read_fd):
+            _WSCH.add_fd(self._pipe_read_fd)
         self._orig_src_fd = os.dup(self.src_fd)
         self._orig_src = os.fdopen(self._orig_src_fd, "wb", 0)
         os.dup2(self._pipe_write_fd, self.src_fd)
@@ -362,8 +380,7 @@ class Redirect(BaseRedirect):
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
         self.flush()
-        if self._old_handler:
-            signal.signal(signal.SIGWINCH, self._old_handler)
+        _WSCH.remove_fd(self._pipe_read_fd)
         os.dup2(self._orig_src_fd, self.src_fd)
         super(Redirect, self).uninstall()
 
