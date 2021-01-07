@@ -8,33 +8,26 @@ and upload them to the W&B server.
 
 from __future__ import print_function
 
-import hashlib
-import itertools
-import json
-import pprint
-import shutil
-from six.moves import queue
-import warnings
-
-import numbers
-from six.moves import urllib
-from six.moves.collections_abc import Sequence
-import os
-import io
-import logging
-import six
-import wandb
-import uuid
-import json
-import codecs
-import tempfile
-import sys
 import base64
 import binascii
+import codecs
+import hashlib
+import json
+import logging
+import numbers
+import os
+import pprint
+import shutil
+import sys
+import warnings
+
+import six
+from six.moves import urllib
+from six.moves.collections_abc import Sequence
+import wandb
 from wandb import util
-from wandb.util import has_num
 from wandb.compat import tempfile
-from wandb.errors.error import UsageError
+from wandb.util import has_num
 
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 
@@ -328,7 +321,7 @@ class Media(WBValue):
 
     @classmethod
     def captions(cls, media_items):
-        if media_items[0]._caption != None:
+        if media_items[0]._caption is not None:
             return [m._caption for m in media_items]
         else:
             return False
@@ -355,10 +348,9 @@ class Media(WBValue):
         base_path = os.path.join(self._run.dir, self.get_media_subdir())
 
         if self._extension is None:
-            rootname, extension = os.path.splitext(os.path.basename(self._path))
+            _, extension = os.path.splitext(os.path.basename(self._path))
         else:
             extension = self._extension
-            rootname = os.path.basename(self._path)[: -len(extension)]
 
         if id_ is None:
             id_ = self._sha256[:8]
@@ -484,7 +476,7 @@ class BatchableMedia(Media):
         super(BatchableMedia, self).__init__()
 
     @classmethod
-    def seq_to_json(self, seq, run, key, step):
+    def seq_to_json(cls, seq, run, key, step):
         raise NotImplementedError
 
 
@@ -505,7 +497,7 @@ class Table(Media):
 
     def __init__(
         self,
-        columns=["Input", "Output", "Expected"],
+        columns=None,
         data=None,
         rows=None,
         dataframe=None,
@@ -514,6 +506,11 @@ class Table(Media):
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+
+        # This is kept for legacy reasons (tss: personally, I think we should remove this)
+        if columns is None:
+            columns = ["Input", "Output", "Expected"]
+
         # Explicit dataframe option
         if dataframe is not None:
             self._init_from_dataframe(dataframe, columns, optional, dtype)
@@ -539,7 +536,7 @@ class Table(Media):
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
         if sys.version_info.major < 3:
-            valid_col_types.append(unicode)
+            valid_col_types.append(unicode)  # noqa: F821 (unicode is in py2)
         assert type(columns) is list, "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
@@ -776,7 +773,7 @@ class Audio(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             self._set_file(data_or_path, is_tmp=False)
         else:
-            if sample_rate == None:
+            if sample_rate is None:
                 raise ValueError(
                     'Argument "sample_rate" is required when instantiating wandb.Audio with raw data.'
                 )
@@ -811,7 +808,7 @@ class Audio(BatchableMedia):
     def seq_to_json(cls, seq, run, key, step):
         audio_list = list(seq)
 
-        sf = util.get_module(
+        util.get_module(
             "soundfile",
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
@@ -848,7 +845,7 @@ class Audio(BatchableMedia):
         if all(c is None for c in captions):
             return False
         else:
-            return ["" if c == None else c for c in captions]
+            return ["" if c is None else c for c in captions]
 
 
 def is_numpy_array(data):
@@ -891,10 +888,10 @@ class Object3D(BatchableMedia):
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
                 data_or_path.seek(0)
-            object3D = data_or_path.read()
+            object_3d = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
-            if extension == None:
+            if extension is None:
                 raise ValueError(
                     "Must pass file type keyword argument when using io objects."
                 )
@@ -908,7 +905,7 @@ class Object3D(BatchableMedia):
                 MEDIA_TMP.name, util.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
-                f.write(object3D)
+                f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
@@ -982,7 +979,7 @@ class Object3D(BatchableMedia):
             raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
-    def get_media_subdir(self):
+    def get_media_subdir(cls):
         return os.path.join("media", "object3D")
 
     def to_json(self, run_or_artifact):
@@ -992,7 +989,6 @@ class Object3D(BatchableMedia):
         _, wandb_artifacts = _safe_sdk_import()
 
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact = run_or_artifact
             if not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
@@ -1001,10 +997,10 @@ class Object3D(BatchableMedia):
         return json_dict
 
     @classmethod
-    def seq_to_json(cls, threeD_list, run, key, step):
-        threeD_list = list(threeD_list)
+    def seq_to_json(cls, three_d_list, run, key, step):
+        three_d_list = list(three_d_list)
 
-        jsons = [obj.to_json(run) for obj in threeD_list]
+        jsons = [obj.to_json(run) for obj in three_d_list]
 
         for obj in jsons:
             expected = util.to_forward_slash_path(cls.get_media_subdir())
@@ -1051,7 +1047,7 @@ class Molecule(BatchableMedia):
             molecule = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
-            if extension == None:
+            if extension is None:
                 raise ValueError(
                     "Must pass file type keyword argument when using io objects."
                 )
@@ -1069,11 +1065,7 @@ class Molecule(BatchableMedia):
 
             self._set_file(tmp_path, is_tmp=True)
         elif isinstance(data_or_path, six.string_types):
-            path = data_or_path
-            try:
-                extension = os.path.splitext(data_or_path)[1][1:]
-            except:
-                raise ValueError("File type must have an extension")
+            extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
                     "Molecule only supports files of the type: "
@@ -1085,7 +1077,7 @@ class Molecule(BatchableMedia):
             raise ValueError("Data must be file name or a file object")
 
     @classmethod
-    def get_media_subdir(self):
+    def get_media_subdir(cls):
         return os.path.join("media", "molecule")
 
     def to_json(self, run):
@@ -1175,7 +1167,7 @@ class Html(BatchableMedia):
         self.html = join.join(parts).strip()
 
     @classmethod
-    def get_media_subdir(self):
+    def get_media_subdir(cls):
         return os.path.join("media", "html")
 
     def to_json(self, run):
@@ -1302,39 +1294,41 @@ class Video(BatchableMedia):
 
         return json_dict
 
-    def _prepare_video(self, V):
+    def _prepare_video(self, video):
         """This logic was mostly taken from tensorboardX"""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',
         )
-        if V.ndim < 4:
+        if video.ndim < 4:
             raise ValueError(
                 "Video must be atleast 4 dimensions: time, channels, height, width"
             )
-        if V.ndim == 4:
-            V = V.reshape(1, *V.shape)
-        b, t, c, h, w = V.shape
+        if video.ndim == 4:
+            video = video.reshape(1, *video.shape)
+        b, t, c, h, w = video.shape
 
-        if V.dtype != np.uint8:
+        if video.dtype != np.uint8:
             logging.warning("Converting video data to uint8")
-            V = V.astype(np.uint8)
+            video = video.astype(np.uint8)
 
         def is_power2(num):
             return num != 0 and ((num & (num - 1)) == 0)
 
         # pad to nearest power of 2, all at once
-        if not is_power2(V.shape[0]):
-            len_addition = int(2 ** V.shape[0].bit_length() - V.shape[0])
-            V = np.concatenate((V, np.zeros(shape=(len_addition, t, c, h, w))), axis=0)
+        if not is_power2(video.shape[0]):
+            len_addition = int(2 ** video.shape[0].bit_length() - video.shape[0])
+            video = np.concatenate(
+                (video, np.zeros(shape=(len_addition, t, c, h, w))), axis=0
+            )
 
         n_rows = 2 ** ((b.bit_length() - 1) // 2)
-        n_cols = V.shape[0] // n_rows
+        n_cols = video.shape[0] // n_rows
 
-        V = np.reshape(V, newshape=(n_rows, n_cols, t, c, h, w))
-        V = np.transpose(V, axes=(2, 0, 4, 1, 5, 3))
-        V = np.reshape(V, newshape=(t, n_rows * h, n_cols * w, c))
-        return V
+        video = np.reshape(video, newshape=(n_rows, n_cols, t, c, h, w))
+        video = np.transpose(video, axes=(2, 0, 4, 1, 5, 3))
+        video = np.reshape(video, newshape=(t, n_rows * h, n_cols * w, c))
+        return video
 
     @classmethod
     def seq_to_json(cls, videos, run, key, step):
@@ -1351,7 +1345,7 @@ class Video(BatchableMedia):
 
     @classmethod
     def captions(cls, videos):
-        if videos[0]._caption != None:
+        if videos[0]._caption is not None:
             return [v._caption for v in videos]
         else:
             return False
@@ -1556,74 +1550,17 @@ class Image(BatchableMedia):
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
-            self._grouping = data_or_path._grouping
-            self._caption = data_or_path._caption
-            self._width = data_or_path._width
-            self._height = data_or_path._height
-            self._image = data_or_path._image
-            self._classes = data_or_path._classes
-            self._path = data_or_path._path
-            self._is_tmp = data_or_path._is_tmp
-            self._extension = data_or_path._extension
-            self._sha256 = data_or_path._sha256
-            self._size = data_or_path._size
-            self.format = data_or_path.format
-            self.artifact_source = data_or_path.artifact_source
-
-            # We do not want to implicitly copy boxes or masks, just the image-related data.
-            # self._boxes = data_or_path._boxes
-            # self._masks = data_or_path._masks
+            self._initialize_from_wbimage(data_or_path)
+        elif isinstance(data_or_path, six.string_types):
+            self._initialize_from_path(data_or_path)
         else:
-            PILImage = util.get_module(
-                "PIL.Image",
-                required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-            )
-            if isinstance(data_or_path, six.string_types):
-                self._set_file(data_or_path, is_tmp=False)
-                self._image = PILImage.open(data_or_path)
-                self._image.load()
-                ext = os.path.splitext(data_or_path)[1][1:]
-                self.format = ext
-            else:
-                data = data_or_path
+            self._initialize_from_data(data_or_path, mode)
 
-                if util.is_matplotlib_typename(util.get_full_typename(data)):
-                    buf = six.BytesIO()
-                    util.ensure_matplotlib_figure(data).savefig(buf)
-                    self._image = PILImage.open(buf)
-                elif isinstance(data, PILImage.Image):
-                    self._image = data
-                elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-                    vis_util = util.get_module(
-                        "torchvision.utils", "torchvision is required to render images"
-                    )
-                    if hasattr(data, "requires_grad") and data.requires_grad:
-                        data = data.detach()
-                    data = vis_util.make_grid(data, normalize=True)
-                    self._image = PILImage.fromarray(
-                        data.mul(255)
-                        .clamp(0, 255)
-                        .byte()
-                        .permute(1, 2, 0)
-                        .cpu()
-                        .numpy()
-                    )
-                else:
-                    if hasattr(data, "numpy"):  # TF data eager tensors
-                        data = data.numpy()
-                    if data.ndim > 2:
-                        data = (
-                            data.squeeze()
-                        )  # get rid of trivial dimensions as a convenience
-                    self._image = PILImage.fromarray(
-                        self.to_uint8(data), mode=mode or self.guess_mode(data)
-                    )
+        self._set_initialization_meta(grouping, caption, classes, boxes, masks)
 
-                tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
-                self.format = "png"
-                self._image.save(tmp_path, transparency=None)
-                self._set_file(tmp_path, is_tmp=True)
-
+    def _set_initialization_meta(
+        self, grouping=None, caption=None, classes=None, boxes=None, masks=None
+    ):
         if grouping is not None:
             self._grouping = grouping
 
@@ -1659,6 +1596,71 @@ class Image(BatchableMedia):
             self._masks = masks_final
 
         self._width, self._height = self._image.size
+
+    def _initialize_from_wbimage(self, wbimage):
+        self._grouping = wbimage._grouping
+        self._caption = wbimage._caption
+        self._width = wbimage._width
+        self._height = wbimage._height
+        self._image = wbimage._image
+        self._classes = wbimage._classes
+        self._path = wbimage._path
+        self._is_tmp = wbimage._is_tmp
+        self._extension = wbimage._extension
+        self._sha256 = wbimage._sha256
+        self._size = wbimage._size
+        self.format = wbimage.format
+        self.artifact_source = wbimage.artifact_source
+
+        # We do not want to implicitly copy boxes or masks, just the image-related data.
+        # self._boxes = wbimage._boxes
+        # self._masks = wbimage._masks
+
+    def _initialize_from_path(self, path):
+        pil_image = util.get_module(
+            "PIL.Image",
+            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+        )
+        self._set_file(path, is_tmp=False)
+        self._image = pil_image.open(path)
+        self._image.load()
+        ext = os.path.splitext(path)[1][1:]
+        self.format = ext
+
+    def _initialize_from_data(self, data, mode=None):
+        pil_image = util.get_module(
+            "PIL.Image",
+            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+        )
+        if util.is_matplotlib_typename(util.get_full_typename(data)):
+            buf = six.BytesIO()
+            util.ensure_matplotlib_figure(data).savefig(buf)
+            self._image = pil_image.open(buf)
+        elif isinstance(data, pil_image.Image):
+            self._image = data
+        elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            vis_util = util.get_module(
+                "torchvision.utils", "torchvision is required to render images"
+            )
+            if hasattr(data, "requires_grad") and data.requires_grad:
+                data = data.detach()
+            data = vis_util.make_grid(data, normalize=True)
+            self._image = pil_image.fromarray(
+                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+            )
+        else:
+            if hasattr(data, "numpy"):  # TF data eager tensors
+                data = data.numpy()
+            if data.ndim > 2:
+                data = data.squeeze()  # get rid of trivial dimensions as a convenience
+            self._image = pil_image.fromarray(
+                self.to_uint8(data), mode=mode or self.guess_mode(data)
+            )
+
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
+        self.format = "png"
+        self._image.save(tmp_path, transparency=None)
+        self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
@@ -1727,7 +1729,9 @@ class Image(BatchableMedia):
 
         if isinstance(run_or_artifact, wandb_artifacts.Artifact):
             artifact = run_or_artifact
-            if (self._masks != None or self._boxes != None) and self._classes is None:
+            if (
+                self._masks is not None or self._boxes is not None
+            ) and self._classes is None:
                 raise ValueError(
                     "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
                 )
@@ -1782,7 +1786,7 @@ class Image(BatchableMedia):
             )
 
     @classmethod
-    def to_uint8(self, data):
+    def to_uint8(cls, data):
         """
         Converts floating point image on the range [0,1] and integer images
         on the range [0,255] to uint8, clipping if necessary.
@@ -1899,7 +1903,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_captions(cls, images):
-        if images[0]._caption != None:
+        if images[0]._caption is not None:
             return [i._caption for i in images]
         else:
             return False
@@ -1994,7 +1998,7 @@ class BoundingBoxes2D(JSONMetadata):
         self._val = val["box_data"]
         self._key = key
         # Add default class mapping
-        if not "class_labels" in val:
+        if "class_labels" not in val:
             np = util.get_module(
                 "numpy", required="Semantic Segmentation mask support requires numpy"
             )
@@ -2040,7 +2044,7 @@ class BoundingBoxes2D(JSONMetadata):
             # Required arguments
             error_str = "Each box must contain a position with: middle, width, and height or \
                     \nminX, maxX, minY, maxY."
-            if not "position" in box:
+            if "position" not in box:
                 raise TypeError(error_str)
             else:
                 valid = False
@@ -2132,7 +2136,7 @@ class ImageMask(Media):
                 "numpy", required="Semantic Segmentation mask support requires numpy"
             )
             # Add default class mapping
-            if not "class_labels" in val:
+            if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
                 class_labels = dict((c, "class_" + str(c)) for c in classes)
                 val["class_labels"] = class_labels
@@ -2144,11 +2148,11 @@ class ImageMask(Media):
             ext = "." + self.type_name() + ".png"
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
 
-            PILImage = util.get_module(
+            pil_image = util.get_module(
                 "PIL.Image",
                 required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
             )
-            image = PILImage.fromarray(val["mask_data"].astype(np.int8), mode="L")
+            image = pil_image.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
@@ -2193,7 +2197,7 @@ class ImageMask(Media):
             "numpy", required="Semantic Segmentation mask support requires numpy"
         )
         # 2D Make this work with all tensor(like) types
-        if not "mask_data" in mask:
+        if "mask_data" not in mask:
             raise TypeError(
                 'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
             )
@@ -2358,16 +2362,43 @@ class Graph(Media):
     @classmethod
     def from_keras(cls, model):
         graph = cls()
-        # Shamelessly copied from keras/keras/utils/layer_utils.py
+        # Shamelessly copied (then modified) from keras/keras/utils/layer_utils.py
+        sequential_like = cls._is_sequential(model)
 
-        if model.__class__.__name__ == "Sequential":
-            sequential_like = True
-        elif not hasattr(model, "_is_graph_network") or not model._is_graph_network:
-            # We treat subclassed models as a simple sequence of layers,
-            # for logging purposes.
-            sequential_like = True
-        else:
-            sequential_like = True
+        relevant_nodes = None
+        if not sequential_like:
+            relevant_nodes = []
+            for v in model._nodes_by_depth.values():
+                relevant_nodes += v
+
+        layers = model.layers
+        for i in range(len(layers)):
+            node = Node.from_keras(layers[i])
+            if hasattr(layers[i], "_inbound_nodes"):
+                for in_node in layers[i]._inbound_nodes:
+                    if relevant_nodes and in_node not in relevant_nodes:
+                        # node is not part of the current network
+                        continue
+                    for in_layer in nest(in_node.inbound_layers):
+                        inbound_keras_node = Node.from_keras(in_layer)
+
+                        if inbound_keras_node.id not in graph.nodes_by_id:
+                            graph.add_node(inbound_keras_node)
+                        inbound_node = graph.nodes_by_id[inbound_keras_node.id]
+
+                        graph.add_edge(inbound_node, node)
+            graph.add_node(node)
+        return graph
+
+    @classmethod
+    def _is_sequential(cls, model):
+        sequential_like = True
+
+        if (
+            model.__class__.__name__ != "Sequential"
+            and hasattr(model, "_is_graph_network")
+            and model._is_graph_network
+        ):
             nodes_by_depth = model._nodes_by_depth.values()
             nodes = []
             for v in nodes_by_depth:
@@ -2396,34 +2427,7 @@ class Graph(Media):
                                     flag = True
                     if not sequential_like:
                         break
-
-        relevant_nodes = None
-        if sequential_like:
-            # header names for the different log elements
-            to_display = ["Layer (type)", "Output Shape", "Param #"]
-        else:
-            relevant_nodes = []
-            for v in model._nodes_by_depth.values():
-                relevant_nodes += v
-
-        layers = model.layers
-        for i in range(len(layers)):
-            node = Node.from_keras(layers[i])
-            if hasattr(layers[i], "_inbound_nodes"):
-                for in_node in layers[i]._inbound_nodes:
-                    if relevant_nodes and in_node not in relevant_nodes:
-                        # node is not part of the current network
-                        continue
-                    for in_layer in nest(in_node.inbound_layers):
-                        inbound_keras_node = Node.from_keras(in_layer)
-
-                        if inbound_keras_node.id not in graph.nodes_by_id:
-                            graph.add_node(inbound_keras_node)
-                        inbound_node = graph.nodes_by_id[inbound_keras_node.id]
-
-                        graph.add_edge(inbound_node, node)
-            graph.add_node(node)
-        return graph
+        return sequential_like
 
 
 class Node(WBValue):
@@ -2711,7 +2715,7 @@ def prune_max_seq(seq):
 
 def val_to_json(run, key, val, namespace=None):
     # Converts a wandb datatype to its JSON representation.
-    if namespace == None:
+    if namespace is None:
         raise ValueError(
             "val_to_json must be called with a namespace(a step number, or 'summary') argument"
         )
@@ -2812,7 +2816,7 @@ def data_frame_to_json(df, run, key, step):
 
     df = df.copy()  # we don't want to modify the user's DataFrame instance.
 
-    for col_name, series in df.items():
+    for _, series in df.items():
         for i, val in enumerate(series):
             if isinstance(val, WBValue):
                 series.iat[i] = six.text_type(
@@ -2844,7 +2848,7 @@ def data_frame_to_json(df, run, key, step):
     }
 
 
-## Custom dtypes for typing system
+# Custom dtypes for typing system
 
 
 class _ClassesIdType(_dtypes.Type):
@@ -2939,7 +2943,7 @@ class _ImageType(_dtypes.Type):
     types = [Image]
 
     def __init__(self, box_keys=None, mask_keys=None):
-        if box_keys == None:
+        if box_keys is None:
             box_keys = _dtypes.UnknownType()
         elif isinstance(box_keys, _dtypes.ConstType):
             box_keys = box_keys
@@ -2948,7 +2952,7 @@ class _ImageType(_dtypes.Type):
         else:
             box_keys = _dtypes.ConstType(set(box_keys))
 
-        if mask_keys == None:
+        if mask_keys is None:
             mask_keys = _dtypes.UnknownType()
         elif isinstance(mask_keys, _dtypes.ConstType):
             mask_keys = mask_keys
@@ -2998,7 +3002,7 @@ class _TableType(_dtypes.Type):
     types = [Table]
 
     def __init__(self, column_types=None):
-        if column_types == None:
+        if column_types is None:
             column_types = _dtypes.UnknownType()
         if isinstance(column_types, dict):
             column_types = _dtypes.DictType(column_types)
