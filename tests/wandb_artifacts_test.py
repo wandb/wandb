@@ -421,7 +421,7 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     wb_table_bool = wandb.Table(dataframe=df_bool)
 
     run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact("table-example", "tables")
+    artifact = wandb.Artifact("table-example", "dataset")
     artifact.add(wb_table_float, "wb_table_float")
     artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
     artifact.add(wb_table_float32, "wb_table_float32")
