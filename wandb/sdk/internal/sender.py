@@ -12,14 +12,13 @@ import logging
 import os
 import time
 
+from google.protobuf import json_format
 from pkg_resources import parse_version
+import six
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2  # type: ignore
-
-
-# from wandb.stuff import io_wrap
 
 from . import artifacts
 from . import file_stream
@@ -353,6 +352,15 @@ class SendManager(object):
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
+    def _telemetry_format(self) -> Dict[int, Any]:
+        pb_ids = {d.name: d.number for d in self._telemetry_obj.DESCRIPTOR.fields}
+        json_str = json_format.MessageToJson(
+            self._telemetry_obj, preserving_proto_field_name=True
+        )
+        data: Dict[str, Any] = json.loads(json_str)
+        ret = {int(pb_ids.get(k)): v for k, v in six.iteritems(data) if pb_ids.get(k)}  # type: ignore
+        return ret
+
     def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
         """Add legacy telemetry to config object."""
         wandb_key = "_wandb"
@@ -376,6 +384,10 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
+        t: Dict[int, Any] = self._telemetry_format()
+        # TODO(jhr): change key when done
+        config_dict[wandb_key]["junk"] = t
+
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
         """Format dict into value dict with telemetry info."""
         config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
@@ -391,6 +403,10 @@ class SendManager(object):
         run = data.run
         error = None
         is_wandb_init = self._run is None
+
+        # update telemetry
+        if run.telemetry:
+            self._telemetry_obj.MergeFrom(run.telemetry)
 
         # build config dict
         config_value_dict: Optional[DictWithValues] = None
@@ -433,9 +449,6 @@ class SendManager(object):
         if not config_value_dict:
             config_value_dict = self._config_format(None)
             self._config_save(config_value_dict)
-
-        if run.telemetry:
-            self._telemetry_obj.MergeFrom(run.telemetry)
 
         self._init_run(run, config_value_dict)
 
