@@ -17,6 +17,7 @@ from six.moves import queue
 import warnings
 
 import numbers
+import six
 from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import os
@@ -712,7 +713,7 @@ class Table(Media):
 
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
             for column in self.columns:
-                if "." in column:
+                if isinstance(column, six.string_types) and "." in column:
                     raise ValueError(
                         "invalid column name: {} - tables added to artifacts must not contain periods.".format(
                             column
@@ -731,7 +732,7 @@ class Table(Media):
                         res[key] = json_helper(val[key])
                     return res
                 else:
-                    return val
+                    return util.json_friendly(val)[0]
 
             for row in data:
                 mapped_row = []
