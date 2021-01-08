@@ -318,37 +318,37 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def init(self):  # noqa: C901
+    def init(self) -> Union[Run, Dummy, None]:  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         sweep_config = self.sweep_config
         config = self.config
         if s._noop:
-            run = Dummy()
-            run.config = wandb.wandb_sdk.wandb_config.Config()
-            run.config.update(sweep_config)
-            run.config.update(config)
-            run.summary = DummyDict()
-            run.log = lambda data, *_, **__: run.summary.update(data)
-            run.finish = lambda *_, **__: module.unset_globals()
-            run.step = 0
-            run.resumed = False
-            run.disabled = True
-            run.id = shortuuid.uuid()
-            run.name = "dummy-" + run.id
-            run.dir = "/"
+            drun = Dummy()
+            drun.config = wandb.wandb_sdk.wandb_config.Config()
+            drun.config.update(sweep_config)
+            drun.config.update(config)
+            drun.summary = DummyDict()
+            drun.log = lambda data, *_, **__: drun.summary.update(data)
+            drun.finish = lambda *_, **__: module.unset_globals()
+            drun.step = 0
+            drun.resumed = False
+            drun.disabled = True
+            drun.id = shortuuid.uuid()
+            drun.name = "dummy-" + drun.id
+            drun.dir = "/"
             module.set_global(
-                run=run,
-                config=run.config,
-                log=run.log,
-                summary=run.summary,
-                save=run.save,
-                use_artifact=run.use_artifact,
-                log_artifact=run.log_artifact,
-                plot_table=run.plot_table,
-                alert=run.alert,
+                run=drun,
+                config=drun.config,
+                log=drun.log,
+                summary=drun.summary,
+                save=drun.save,
+                use_artifact=drun.use_artifact,
+                log_artifact=drun.log_artifact,
+                plot_table=drun.plot_table,
+                alert=drun.alert,
             )
-            return run
+            return drun
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -411,6 +411,8 @@ class _WandbInit(object):
                 tel.env.jupyter = True
             if s._kaggle:
                 tel.env.kaggle = True
+            if s._windows:
+                tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
         run._set_console(
@@ -514,7 +516,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, Dummy]:
+) -> Union[Run, Dummy, None]:
     """Initialize W&B
     Spawns a new process to start or resume a run locally and communicate with a
     wandb server. Should be called before any calls to wandb.log.

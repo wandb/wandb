@@ -34,9 +34,13 @@ message Feature {
   bool watch = 1;
   bool finish = 2;
   bool save = 3;
+  bool offline = 4;
+  bool resumed = 5;
+  bool grpc = 6;
 }
 
 message Env {
   bool jupyter = 1;
   bool kaggle = 2;
+  bool windows = 3;
 }
