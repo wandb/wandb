@@ -5,6 +5,8 @@ from __future__ import print_function
 import pytest
 import os
 import wandb
+import tensorflow as tf
+import numpy as np
 import time
 import tqdm
 
@@ -50,7 +52,7 @@ def test_tqdm_progbar(cls):
     for i in tqdm.tqdm(range(10)):
         time.sleep(0.1)
     r.uninstall()
-    assert len(o) == 1
+    assert len(o) == 1 and o[0].startswith(b'\r100%|')
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -69,3 +71,18 @@ def test_interactive(cls):
     r.install()
     # TODO
     r.uninstall()
+
+
+@pytest.mark.parametrize("cls", impls)
+def test_keras_progbar(cls):
+    o=[]
+    r = wandb.wandb_sdk.lib.redirect.Redirect("stdout", [o.append])
+    model=tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Dense(10, input_dim=10))
+    model.compile(loss='mse', optimizer='sgd')
+    r.install()
+    epochs = 5
+    model.fit(np.zeros((10000, 10)), np.ones((10000, 10)), epochs=epochs)
+    r.uninstall()
+    assert len(o) == 1
+    assert len(o[0].split(os.linesep.encode())) == epochs * 2 + 1

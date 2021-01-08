@@ -374,7 +374,7 @@ class Redirect(BaseRedirect):
         # self._prev_callback_timestamp = time.time()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay, daemon=True)
         self._pipe_relay_thread.start()
-        if wandb.run._settings.mode == "online":
+        if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback, daemon=True)
             self._callback_thread.start()
 
