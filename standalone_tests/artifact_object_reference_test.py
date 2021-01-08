@@ -149,7 +149,7 @@ def _make_bokeh():
     p = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
     p.line(x, y, legend_label="Temp.", line_width=2)
 
-    return wandb.Bokeh(p)
+    return wandb.data_types.Bokeh(p)
 
 b1 = _make_bokeh()
 b2 = _make_bokeh()
