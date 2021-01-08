@@ -18,7 +18,7 @@ import time
 import pyte  # type: ignore
 from pyte.control import CSI  # type: ignore
 from pyte.escape import SGR  # type: ignore
-
+import wandb
 
 logger = logging.getLogger("wandb")
 
@@ -165,6 +165,8 @@ class InfiniteScreen(pyte.Screen):
         else:
             curr_line = self._get_line(self._prev_num_lines - 1)
             if curr_line == self._prev_last_line:
+                if num_lines == self._prev_num_lines:
+                    return ""
                 ret = (
                     os.linesep.join(
                         map(self._get_line, range(self._prev_num_lines, num_lines))
@@ -302,22 +304,25 @@ class _WindowSizeChangeHandler(object):
     def __init__(self):
         self._fds = set()
 
-    def _register():
+    def _register(self):
         old_handler = signal.signal(signal.SIGWINCH, lambda *_: None)
+
         def handler(signum, frame):
             if callable(old_handler):
                 old_handler(signum, frame)
             self.handle_window_size_change()
+
         signal.signal(signal.SIGWINCH, handler)
         self._old_handler = old_handler
 
-    def _unregister():
+    def _unregister(self):
         signal.signal(signal.SIGWINCH, self._old_handler)
 
     def add_fd(self, fd):
         if not self._fds:
             self._register()
         self._fds.add(fd)
+        self.handle_window_size_change()
 
     def remove_fd(self, fd):
         if fd in self._fds:
@@ -364,11 +369,14 @@ class Redirect(BaseRedirect):
         self._orig_src_fd = os.dup(self.src_fd)
         self._orig_src = os.fdopen(self._orig_src_fd, "wb", 0)
         os.dup2(self._pipe_write_fd, self.src_fd)
-        self._thread = threading.Thread(target=self._pipe_relay, daemon=True)
         self._installed = True
-        self._prev_callback_timestamp = time.time()
         self._stopped = threading.Event()
-        self._thread.start()
+        # self._prev_callback_timestamp = time.time()
+        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay, daemon=True)
+        self._pipe_relay_thread.start()
+        if wandb.run._settings.mode == "online":
+            self._callback_thread = threading.Thread(target=self._callback, daemon=True)
+            self._callback_thread.start()
 
     def uninstall(self):
         if not self._installed:
@@ -393,8 +401,17 @@ class Redirect(BaseRedirect):
                 except Exception:
                     pass  # TODO(frz)
 
+    def _callback(self):
+        while not self._stopped.is_set():
+            # if time.time() - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
+            #     time.sleep(0.1)
+            #     continue
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
+            # self._prev_callback_timestamp = time.time()
+
     def _pipe_relay(self):
-        while True:
+        while not self._stopped.is_set():
             try:
                 data = os.read(self._pipe_read_fd, 4096)
             except OSError:
@@ -407,14 +424,3 @@ class Redirect(BaseRedirect):
             except OSError:
                 return
             self._emulator.write(data.decode("utf-8"))
-            curr_time = time.time()
-            if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-                continue
-            data = self._emulator.read().encode("utf-8")
-            if data:
-                self._prev_callback_timestamp = curr_time
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception:
-                        pass  # TODO(frz)
