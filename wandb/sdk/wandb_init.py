@@ -431,6 +431,8 @@ class _WandbInit(object):
         backend.interface.publish_header()
 
         if s._offline:
+            with telemetry.context(run=run) as tel:
+                tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
@@ -458,6 +460,9 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            if ret.run.resumed:
+                with telemetry.context(run=run) as tel:
+                    tel.feature.resumed = True
             run._set_run_obj(ret.run)
 
         # initiate run (stats and metadata probing)

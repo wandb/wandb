@@ -25,6 +25,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def RunUpdate(self, run_data, context):  # noqa: N802
         if not run_data.run_id:
             run_data.run_id = wandb_sdk.lib.runid.generate_id()
+        # Record telemetry info about grpc server
+        run_data.telemetry.feature.grpc = True
         result = self._backend._interface._communicate_run(run_data)
 
         # initiate run (stats and metadata probing)
