@@ -3,7 +3,7 @@
 import os
 import subprocess
 
-import grpc_tools
+import grpc_tools  # type: ignore
 from grpc_tools import protoc  # type: ignore
 
 
@@ -36,6 +36,7 @@ protoc.main((
     '-I', proto_root,
     '-I', '.',
     '--python_out=.',
+    '--mypy_out=.',
     'wandb/proto/wandb_internal.proto',
     ))
 
@@ -44,6 +45,16 @@ protoc.main((
     '-I', proto_root,
     '-I', '.',
     '--python_out=.',
+    '--mypy_out=.',
+    'wandb/proto/wandb_telemetry.proto',
+    ))
+
+protoc.main((
+    '',
+    '-I', proto_root,
+    '-I', '.',
+    '--python_out=.',
     '--grpc_python_out=.',
+    '--mypy_out=.',
     'wandb/proto/wandb_server.proto',
     ))
