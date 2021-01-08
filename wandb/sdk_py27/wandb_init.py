@@ -11,6 +11,8 @@ from __future__ import print_function
 import datetime
 import logging
 import os
+import platform
+import sys
 import time
 import traceback
 
@@ -26,7 +28,7 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, ipython, module, reporting
+from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
@@ -45,6 +47,14 @@ def _set_logger(log_object):
 
 def online_status(*args, **kwargs):
     pass
+
+
+def _huggingface_version():
+    if "transformers" in sys.modules:
+        trans = wandb.util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
 
 
 class _WandbInit(object):
@@ -389,6 +399,20 @@ class _WandbInit(object):
         # resuming needs access to the server, check server_status()?
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # Populate intial telemetry
+        with telemetry.context(run=run) as tel:
+            tel.cli_version = wandb.__version__
+            tel.python_version = platform.python_version()
+            hf_version = _huggingface_version()
+            if hf_version:
+                tel.huggingface_version = hf_version
+            if s._jupyter:
+                tel.env.jupyter = True
+            if s._kaggle:
+                tel.env.kaggle = True
+            run._telemetry_imports(tel.imports_init)
+
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,

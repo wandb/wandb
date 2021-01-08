@@ -12,17 +12,28 @@ message TelemetryRecord {
   string  python_version = 4;
   string  cli_version = 5;
   string  huggingface_version = 6;
-  string  framework = 7;
+  // string  framework = 7;
   Env     env = 8;
 }
 
 message Imports {
-  bool pytorch = 1;
+  bool torch = 1;
   bool keras = 2;
+  bool tensorflow = 3;
+  bool fastai = 4;
+  bool sklearn = 5;
+  bool xgboost = 6;
+  bool catboost = 7;
+  bool lightgbm = 8;
+  bool pytorch_lightning = 9;
+  bool pytorch_ignite = 10;
+  bool transformers = 11;  // huggingface
 }
 
 message Feature {
   bool watch = 1;
+  bool finish = 2;
+  bool save = 3;
 }
 
 message Env {

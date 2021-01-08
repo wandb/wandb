@@ -1,6 +1,7 @@
 #
 
 import wandb
+from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
 from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
 
 if wandb.TYPE_CHECKING:  # type: ignore
@@ -40,6 +41,7 @@ def context(run: "wandb_run.Run" = None) -> ContextManager[TelemetryRecord]:
 
 
 __all__ = [
+    "TelemetryImports",
     "TelemetryRecord",
     "context",
 ]

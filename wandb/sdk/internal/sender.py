@@ -31,10 +31,26 @@ from ..lib.git import GitRepo
 logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
-    from typing import NewType, Optional, Dict, Any
+    from typing import NewType, Optional, Dict, Any, Tuple, Generator
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
+
+
+def _framework_priority(
+    imp: telemetry.TelemetryImports,
+) -> Generator[Tuple[bool, str], None, None]:
+    yield imp.lightgbm, "lightgbm"
+    yield imp.catboost, "catboost"
+    yield imp.xgboost, "xgboost"
+    yield imp.transformers, "huggingface"
+    yield imp.pytorch_ignite, "ignite"
+    yield imp.pytorch_lightning, "lightning"
+    yield imp.fastai, "fastai"
+    yield imp.torch, "torch"
+    yield imp.keras, "keras"
+    yield imp.tensorflow, "tensorflow"
+    yield imp.sklearn, "sklearn"
 
 
 class SendManager(object):
@@ -364,6 +380,20 @@ class SendManager(object):
                     data[desc.number] = items
         return data
 
+    def _telemetry_get_framework(self) -> str:
+        """Get telemetry data for internal config structure."""
+        # detect framework by checking what is loaded
+        imp: telemetry.TelemetryImports
+        if self._telemetry_obj.HasField("imports_finish"):
+            imp = self._telemetry_obj.imports_finish
+        elif self._telemetry_obj.HasField("imports_init"):
+            imp = self._telemetry_obj.imports_init
+        else:
+            return ""
+        priority = _framework_priority(imp)
+        framework = next((f for b, f in priority if b), "")
+        return framework
+
     def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
         """Add legacy telemetry to config object."""
         wandb_key = "_wandb"
@@ -376,7 +406,7 @@ class SendManager(object):
         s = self._telemetry_obj.cli_version
         if s:
             config_dict[wandb_key]["cli_version"] = s
-        s = self._telemetry_obj.framework
+        s = self._telemetry_get_framework()
         if s:
             config_dict[wandb_key]["framework"] = s
         s = self._telemetry_obj.huggingface_version

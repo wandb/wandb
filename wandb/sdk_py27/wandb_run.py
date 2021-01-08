@@ -237,21 +237,8 @@ class Run(object):
 
         self._poll_exit_response = None
 
-        # Populate initial telemetry
+        # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
-        with telemetry.context(run=self) as tel:
-            tel.cli_version = wandb.__version__
-            tel.python_version = platform.python_version()
-            framework = self._telemetry_get_framework()
-            if framework:
-                tel.framework = framework
-            hf_version = huggingface_version()
-            if hf_version:
-                tel.huggingface_version = hf_version
-            if settings._jupyter:
-                tel.env.jupyter = True
-            if settings._kaggle:
-                tel.env.kaggle = True
 
         # Populate config
         config = config or dict()
@@ -280,31 +267,30 @@ class Run(object):
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
 
-    def _telemetry_get_framework(self):
-        """Get telemetry data for internal config structure."""
-        # detect framework by checking what is loaded
-        loaded = {}
-        loaded["lightgbm"] = sys.modules.get("lightgbm")
-        loaded["catboost"] = sys.modules.get("catboost")
-        loaded["xgboost"] = sys.modules.get("xgboost")
-        loaded["fastai"] = sys.modules.get("fastai")
-        loaded["torch"] = sys.modules.get("torch")
-        loaded["keras"] = sys.modules.get("keras")  # vanilla keras
-        loaded["tensorflow"] = sys.modules.get("tensorflow")
-        loaded["sklearn"] = sys.modules.get("sklearn")
-
-        priority = (
-            "lightgbm",
-            "catboost",
-            "xgboost",
-            "fastai",
-            "torch",
-            "keras",
-            "tensorflow",
-            "sklearn",
-        )
-        framework = next((f for f in priority if loaded.get(f)), None)
-        return framework
+    def _telemetry_imports(self, imp):
+        mods = sys.modules
+        if mods.get("torch"):
+            imp.torch = True
+        if mods.get("keras"):
+            imp.keras = True
+        if mods.get("tensorflow"):
+            imp.tensorflow = True
+        if mods.get("sklearn"):
+            imp.sklearn = True
+        if mods.get("fastai"):
+            imp.fastai = True
+        if mods.get("xgboost"):
+            imp.xgboost = True
+        if mods.get("catboost"):
+            imp.catboost = True
+        if mods.get("lightgbm"):
+            imp.lightgbm = True
+        if mods.get("pytorch-lightning"):
+            imp.pytorch_lightning = True
+        if mods.get("pytorch-ignite"):
+            imp.pytorch_ignite = True
+        if mods.get("transformers"):
+            imp.transformers = True
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -936,6 +922,10 @@ class Run(object):
         wandb_glob_str = os.path.relpath(glob_str, base_path)
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
+
+        with telemetry.context(run=self) as tel:
+            tel.feature.save = True
+
         if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
             wandb.termlog(
                 "%s is a cloud storage url, can't save file to wandb." % glob_str
@@ -987,6 +977,8 @@ class Run(object):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        with telemetry.context(run=self) as tel:
+            tel.feature.finish = True
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
@@ -1413,6 +1405,10 @@ class Run(object):
 
     def _on_finish(self):
         trigger.call("on_finished")
+
+        # populate final import telemetry
+        with telemetry.context(run=self) as tel:
+            self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
@@ -1904,14 +1900,6 @@ try:
 # py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
-
-
-def huggingface_version():
-    if "transformers" in sys.modules:
-        trans = wandb.util.get_module("transformers")
-        if hasattr(trans, "__version__"):
-            return trans.__version__
-    return None
 
 
 class WriteSerializingFile(object):
