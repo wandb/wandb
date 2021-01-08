@@ -1889,8 +1889,7 @@ class CRDedupedFile(WriteSerializingFile):
             ret.insert(0, self._buff)
         if ret:
             self._buff = ret.pop()
-        sep = os.linesep.encode("ascii")
-        super(CRDedupedFile, self).write(sep.join(ret) + sep)
+        super(CRDedupedFile, self).write('\n'.join(ret) + '\n')
 
     def close(self):
         if self._buff:
