@@ -628,15 +628,23 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
-    def send_config(self, data):
-        cfg = data.config
-        config_util.update_from_proto(self._consolidated_config, cfg)
+    def _update_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
         self._api.upsert_run(
             name=self._run.run_id, config=config_value_dict, **self._api_settings
         )
         self._config_save(config_value_dict)
         # TODO(jhr): check result of upsert_run?
+
+    def send_config(self, data):
+        cfg = data.config
+        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._update_config()
+
+    def send_telemetry(self, data):
+        telem = data.telemetry
+        self._telemetry_obj.MergeFrom(telem)
+        self._update_config()
 
     def _save_file(self, fname, policy="end"):
         logger.info("saving file %s with policy %s", fname, policy)
@@ -711,9 +719,6 @@ class SendManager(object):
                 logger.error(
                     'send_alert: failed for alert "{}": {}'.format(alert.title, e)
                 )
-
-    def send_telemetry(self, data):
-        pass
 
     def finish(self):
         logger.info("shutting down sender")

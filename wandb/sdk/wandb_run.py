@@ -1437,6 +1437,9 @@ class Run(object):
                 print("")
                 wandb.termlog(status_str)
 
+        # telemetry could have changed, publish final data
+        self._backend.interface.publish_telemetry(self._telemetry_obj)
+
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
         self._backend.interface.publish_exit(self._exit_code)

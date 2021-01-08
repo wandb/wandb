@@ -177,6 +177,10 @@ class BackendSender(object):
             item.value_json = json_dumps_safer_history(v)
         self._publish_history(history)
 
+    def publish_telemetry(self, telem):
+        rec = self._make_record(telemetry=telem)
+        self._publish(rec)
+
     def _make_run(self, run):
         proto_run = wandb_internal_pb2.RunRecord()
         run._make_proto_run(proto_run)
@@ -409,6 +413,7 @@ class BackendSender(object):
         header=None,
         footer=None,
         request=None,
+        telemetry=None,
     ):
         record = wandb_internal_pb2.Record()
         if run:
@@ -439,6 +444,8 @@ class BackendSender(object):
             record.footer.CopyFrom(footer)
         elif request:
             record.request.CopyFrom(request)
+        elif telemetry:
+            record.telemetry.CopyFrom(telemetry)
         else:
             raise Exception("Invalid record")
         return record

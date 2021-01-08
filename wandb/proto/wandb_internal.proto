@@ -24,23 +24,24 @@ message Record {
   int64            num = 1;
   oneof record_type {
     // Low numbers for more frequent data
-    HistoryRecord  history = 2;
-    SummaryRecord  summary = 3;
-    OutputRecord   output = 4;
-    ConfigRecord   config = 5;
-    FilesRecord    files = 6;
-    StatsRecord    stats = 7;
-    ArtifactRecord artifact = 8;
-    TBRecord       tbrecord = 9;
-    AlertRecord    alert = 10;
+    HistoryRecord   history = 2;
+    SummaryRecord   summary = 3;
+    OutputRecord    output = 4;
+    ConfigRecord    config = 5;
+    FilesRecord     files = 6;
+    StatsRecord     stats = 7;
+    ArtifactRecord  artifact = 8;
+    TBRecord        tbrecord = 9;
+    AlertRecord     alert = 10;
+    TelemetryRecord telemetry = 11;
     // Higher numbers for less frequent data
-    RunRecord      run = 17;
-    RunExitRecord  exit = 18;
-    FinalRecord    final = 20;
-    HeaderRecord   header = 21;
-    FooterRecord   footer = 22;
+    RunRecord       run = 17;
+    RunExitRecord   exit = 18;
+    FinalRecord     final = 20;
+    HeaderRecord    header = 21;
+    FooterRecord    footer = 22;
     // request field does not belong here longterm
-    Request        request = 100;
+    Request         request = 100;
   }
   Control          control = 16;
   string           uuid = 19;
