@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+from gql import gql
 import copy
 import datetime
 from functools import wraps
@@ -1579,25 +1579,129 @@ def gc(args):
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
     api = InternalApi()
-    #if api.api_key is None:
-    print('\033[91m\033[1mNOT LOGGED IN\033[0m\033[0m')
+    print("Checking if logged in...")
+    if api.api_key is None:
+        print('\033[91m\033[1mNOT LOGGED IN\033[0m\033[0m')
+        print("Please log in using wandb login")
+        return
 
-    ##### create a run
-    run = wandb.init(project='verify', )
+    # create a run
+    n_epochs = 4
+    string_test = "A test config"
+    dict_test = {
+        "config_val": 2,
+        "config_string": "config string"
+    }
+    list_test = [0, "one", "2"]
+    config = {
+        "epochs": n_epochs,
+        "stringTest": string_test,
+        "dictTest": dict_test,
+        "listTest": list_test
+    }
+    run = wandb.init(project='verify', config=config)
+    for i in range(1, 11):
+        run.log({"loss": 1.0 / i}, step=i)
+    log_dict = {
+        "val1": 1.0,
+        "val2": 2
+    }
+    print(i)
+    run.log({"dict": log_dict}, step=i+1)
+
+    # save and download a file
+    print("Checking logged metrics. Saving and downloading a file")
     filepath = "./test with_special-characters.txt"
     f = open(filepath, "w")
     f.write("test")
     f.close()
-    wandb.save(filepath)
+    try:
+        wandb.save(filepath)
+    except Exception:
+        print("There was a problem saving the file. Please see...")
     wandb.finish()
 
     public_api = wandb.Api()
-    run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
-    read_file = run.file(filepath).download(replace=True)
-    contents = read_file.read()
-    assert contents == "test"
+    prev_run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
+    for key, value in prev_run.config.items():
+        assert config[key] == value, (config[key], value)
+    try:
+        assert prev_run.history_keys['keys']['loss']['previousValue'] == 0.1, prev_run.history_keys
+        assert prev_run.history_keys['lastStep'] == 11, prev_run.history_keys['lastStep']
+        assert prev_run.history_keys['keys']['dict.val1']['previousValue'] == 1.0, prev_run.history_keys
+        assert prev_run.history_keys['keys']['dict.val2']['previousValue'] == 2, prev_run.history_keys
+    except Exception:
+        print("History is wrong.")
+    assert prev_run.summary["loss"] == 1.0 / 10
 
-    # check large file size
+    read_file = prev_run.file(filepath).download(replace=True)
+    contents = read_file.read()
+    assert contents == "test", "Downloaded file contents do not match saved file. Please see..."
+
+    # check graphql endpoint using an upload
+    gql_fp = "blahblah3.txt"
+    f = open(gql_fp, "w")
+    f.write("test2")
+    f.close()
+
+    run_id, upload_headers, result = api.api.upload_urls(
+            "verify", [gql_fp], run.id, run.entity
+        )
+    extra_headers = {}
+    for upload_header in upload_headers:
+        key, val = upload_header.split(":", 1)
+        extra_headers[key] = val
+
+    for file_name, file_info in result.items():
+        file_url = file_info["url"]
+        # If the upload URL is relative, fill it in with the base URL,
+        # since its a proxied file store like the on-prem VM.
+        if file_url.startswith("/"):
+            file_url = "{}{}".format(api.api.api_url, file_url)
+        
+        response = requests.put(file_url, open(gql_fp, "rb"), headers=extra_headers)
+        print(response)
+        assert response.status_code == 200, "Failed to upload file. This could happen..."
+    time.sleep(5)
+    read_file = prev_run.file(gql_fp).download(replace=True)
+    contents = read_file.read()
+    assert contents == "test2", ""
+    print("contents good")
+
+
+
+    # check large file
+    print("Creating and opening a large file")
+    largepath = 'newfile2.blob'
+    f = open(largepath,"wb")
+    f.seek(int(1e1) - 1)
+    f.write(b"\0")
+    f.close()
+    
+    print(os.stat("newfile").st_size)
+    #largef = open(largepath, "rb")
+    print("performing request on large file")
+    run_id, upload_headers, result = api.api.upload_urls(
+            "verify", [largepath], run.id, run.entity
+        )
+    extra_headers = {}
+    for upload_header in upload_headers:
+        key, val = upload_header.split(":", 1)
+        extra_headers[key] = val
+
+    for file_name, file_info in result.items():
+        file_url = file_info["url"]
+        # If the upload URL is relative, fill it in with the base URL,
+        # since its a proxied file store like the on-prem VM.
+        if file_url.startswith("/"):
+            file_url = "{}{}".format(api.api.api_url, file_url)
+        #assert file_url.startswith("https"), "Request not over https"
+        print(extra_headers)
+        print(file_url)
+        response = requests.post(file_url, open(largepath, "rb"), headers=extra_headers)
+        print(response)
+        assert response.status_code == 200, "Uploading file to signed URL failed."
+
 
 
     # version check
