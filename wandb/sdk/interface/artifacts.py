@@ -83,6 +83,13 @@ class ArtifactManifest(object):
     def get_entry_by_path(self, path):
         return self.entries.get(path)
 
+    def get_entries_in_directory(self, directory):
+        return [
+            self.entries[entry_key]
+            for entry_key in self.entries
+            if entry_key.starts_with(directory + "/") # entries use forward slash even for windows
+        ]
+
 
 class StorageLayout(object):
     V1 = "V1"
