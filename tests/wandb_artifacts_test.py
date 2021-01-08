@@ -6,6 +6,7 @@ import wandb
 import shutil
 import wandb.data_types as data_types
 import numpy as np
+import pandas as pd
 
 
 def mock_boto(artifact, path=False):
@@ -409,6 +410,26 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
+def test_add_table_from_dataframe(live_mock_server, test_settings):
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
+    df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
+    df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
+
+    wb_table_float = wandb.Table(dataframe=df_float)
+    wb_table_float32 = wandb.Table(dataframe=df_float32)
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
+    wb_table_bool = wandb.Table(dataframe=df_bool)
+
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    artifact.add(wb_table_float, "wb_table_float")
+    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+    artifact.add(wb_table_float32, "wb_table_float32")
+    artifact.add(wb_table_bool, "wb_table_bool")
+    run.log_artifact(artifact)
+    run.finish()
+
+
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
@@ -473,7 +494,7 @@ def test_duplicate_wbimage_from_file(runner):
         assert len(artifact.manifest.entries) == 3
 
 
-def test_duplicate_wbimage_from_array(runner):
+def test_deduplicate_wbimage_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.rand(300, 300, 3)
     im_data_2 = np.random.rand(300, 300, 3)
@@ -493,10 +514,10 @@ def test_duplicate_wbimage_from_array(runner):
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
         artifact.add(wb_image_3, "my-image_3")
-        assert len(artifact.manifest.entries) == 6
+        assert len(artifact.manifest.entries) == 5
 
 
-def test_duplicate_wbimagemask_from_array(runner):
+def test_deduplicate_wbimagemask_from_array(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_data_1 = np.random.randint(0, 10, (300, 300))
     im_data_2 = np.random.randint(0, 10, (300, 300))
@@ -514,7 +535,7 @@ def test_duplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        assert len(artifact.manifest.entries) == 4
+        assert len(artifact.manifest.entries) == 3
 
 
 def test_add_obj_wbimage_classes_obj(runner):
@@ -605,16 +626,17 @@ def test_add_obj_wbtable_images(runner):
         artifact.add(wb_table, "my-table")
 
         manifest = artifact.manifest.to_manifest_json()
+
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
             "media/images/641e917f/2x2.png": {
-                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "Cyxf/j6+UO9owMPRQ8Wtsg==", "size": 515,},
+            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
         }
 
 
@@ -646,5 +668,5 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "HQzyzeztRFqCZM8IfkXMVw==", "size": 301,},
+            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }
