@@ -12,9 +12,7 @@ import logging
 import os
 import time
 
-from google.protobuf import json_format
 from pkg_resources import parse_version
-import six
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -353,13 +351,18 @@ class SendManager(object):
         return None
 
     def _telemetry_format(self):
-        pb_ids = {d.name: d.number for d in self._telemetry_obj.DESCRIPTOR.fields}
-        json_str = json_format.MessageToJson(
-            self._telemetry_obj, preserving_proto_field_name=True
-        )
-        data = json.loads(json_str)
-        ret = {int(pb_ids.get(k)): v for k, v in six.iteritems(data) if pb_ids.get(k)}  # type: ignore
-        return ret
+        data = dict()
+        fields = self._telemetry_obj.ListFields()
+        for desc, value in fields:
+            if desc.type == desc.TYPE_STRING:
+                data[desc.number] = value
+            elif desc.type == desc.TYPE_MESSAGE:
+                nested = value.ListFields()
+                bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
+                if bool_msg:
+                    items = [d.number for d, v in nested if v]
+                    data[desc.number] = items
+        return data
 
     def _config_telemetry_update(self, config_dict):
         """Add legacy telemetry to config object."""
