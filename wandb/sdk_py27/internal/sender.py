@@ -388,8 +388,7 @@ class SendManager(object):
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
         t = self._telemetry_format()
-        # TODO(jhr): change key when done
-        config_dict[wandb_key]["junk"] = t
+        config_dict[wandb_key]["t"] = t
 
     def _config_format(self, config_data):
         """Format dict into value dict with telemetry info."""
