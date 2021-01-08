@@ -18,7 +18,7 @@ import time
 import pyte  # type: ignore
 from pyte.control import CSI  # type: ignore
 from pyte.escape import SGR  # type: ignore
-
+import wandb
 
 logger = logging.getLogger("wandb")
 
@@ -165,6 +165,8 @@ class InfiniteScreen(pyte.Screen):
         else:
             curr_line = self._get_line(self._prev_num_lines - 1)
             if curr_line == self._prev_last_line:
+                if num_lines == self._prev_num_lines:
+                    return ""
                 ret = (
                     os.linesep.join(
                         map(self._get_line, range(self._prev_num_lines, num_lines))
@@ -298,42 +300,61 @@ class Unbuffered(StreamWrapper):
         )
 
 
+class _WindowSizeChangeHandler(object):
+    def __init__(self):
+        self._fds = set()
+
+    def _register(self):
+        old_handler = signal.signal(signal.SIGWINCH, lambda *_: None)
+
+        def handler(signum, frame):
+            if callable(old_handler):
+                old_handler(signum, frame)
+            self.handle_window_size_change()
+
+        signal.signal(signal.SIGWINCH, handler)
+        self._old_handler = old_handler
+
+    def _unregister(self):
+        signal.signal(signal.SIGWINCH, self._old_handler)
+
+    def add_fd(self, fd):
+        if not self._fds:
+            self._register()
+        self._fds.add(fd)
+        self.handle_window_size_change()
+
+    def remove_fd(self, fd):
+        if fd in self._fds:
+            self._fds.remove(fd)
+            if not self._fds:
+                self._unregister()
+
+    def handle_window_size_change(self):
+        try:
+            win_size = fcntl.ioctl(0, termios.TIOCGWINSZ, "\0" * 8)
+            rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
+        except OSError:  # eg. in MPI we can't do this
+            rows, cols, xpix, ypix = 25, 80, 0, 0
+        if cols == 0:
+            cols = 80
+        win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
+        for fd in self._fds:
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
+
+
+_WSCH = _WindowSizeChangeHandler()
+
+
 class Redirect(BaseRedirect):
     def __init__(self, src, cbs=()):
         super(Redirect, self).__init__(src=src, cbs=cbs)
-        self._old_handler = None
         self._installed = False
         self._emulator = TerminalEmulator()
 
     def _pipe(self):
         if pty:
-            m, s = pty.openpty()
-            try:
-                tty.setraw(m)
-            except termios.error:
-                pass
-
-            def handle_window_size_change():
-                try:
-                    win_size = fcntl.ioctl(self.src_fd, termios.TIOCGWINSZ, "\0" * 8)
-                    rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
-                except OSError:  # eg. in MPI we can't do this
-                    rows, cols, xpix, ypix = 25, 80, 0, 0
-                if cols == 0:
-                    cols = 80
-                win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
-                fcntl.ioctl(m, termios.TIOCSWINSZ, win_size)
-
-            old_handler = signal.signal(signal.SIGWINCH, lambda *_: None)
-
-            def handler(signum, frame):
-                if callable(old_handler):
-                    old_handler(signum, frame)
-                handle_window_size_change()
-
-            self._old_handler = old_handler
-            signal.signal(signal.SIGWINCH, handler)
-            r, w = m, s
+            r, w = pty.openpty()
         else:
             r, w = os.pipe()
         return r, w
@@ -343,14 +364,19 @@ class Redirect(BaseRedirect):
         if self._installed:
             return
         self._pipe_read_fd, self._pipe_write_fd = self._pipe()
+        if os.isatty(self._pipe_read_fd):
+            _WSCH.add_fd(self._pipe_read_fd)
         self._orig_src_fd = os.dup(self.src_fd)
         self._orig_src = os.fdopen(self._orig_src_fd, "wb", 0)
         os.dup2(self._pipe_write_fd, self.src_fd)
-        self._thread = threading.Thread(target=self._pipe_relay, daemon=True)
         self._installed = True
-        self._prev_callback_timestamp = time.time()
         self._stopped = threading.Event()
-        self._thread.start()
+        # self._prev_callback_timestamp = time.time()
+        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay, daemon=True)
+        self._pipe_relay_thread.start()
+        if wandb.run._settings.mode == "online":
+            self._callback_thread = threading.Thread(target=self._callback, daemon=True)
+            self._callback_thread.start()
 
     def uninstall(self):
         if not self._installed:
@@ -362,8 +388,7 @@ class Redirect(BaseRedirect):
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
         self.flush()
-        if self._old_handler:
-            signal.signal(signal.SIGWINCH, self._old_handler)
+        _WSCH.remove_fd(self._pipe_read_fd)
         os.dup2(self._orig_src_fd, self.src_fd)
         super(Redirect, self).uninstall()
 
@@ -376,8 +401,17 @@ class Redirect(BaseRedirect):
                 except Exception:
                     pass  # TODO(frz)
 
+    def _callback(self):
+        while not self._stopped.is_set():
+            # if time.time() - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
+            #     time.sleep(0.1)
+            #     continue
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
+            # self._prev_callback_timestamp = time.time()
+
     def _pipe_relay(self):
-        while True:
+        while not self._stopped.is_set():
             try:
                 data = os.read(self._pipe_read_fd, 4096)
             except OSError:
@@ -390,14 +424,3 @@ class Redirect(BaseRedirect):
             except OSError:
                 return
             self._emulator.write(data.decode("utf-8"))
-            curr_time = time.time()
-            if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-                continue
-            data = self._emulator.read().encode("utf-8")
-            if data:
-                self._prev_callback_timestamp = curr_time
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception:
-                        pass  # TODO(frz)
