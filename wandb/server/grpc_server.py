@@ -164,13 +164,13 @@ class Backend:
         # No printing allowed from here until redirect restore!!!
 
 
-def serve(backend):
+def serve(backend, port):
     try:
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
-        server.add_insecure_port("[::]:50051")
+        server.add_insecure_port("[::]:{}".format(port))
         server.start()
         server.wait_for_termination()
         # print("server shutting down")
@@ -179,12 +179,12 @@ def serve(backend):
         print("control-c")
 
 
-def main():
+def main(port=None):
     try:
         logging.basicConfig()
         backend = Backend()
         backend.setup()
-        serve(backend)
+        serve(backend, port or 50051)
     except KeyboardInterrupt:
         print("outer control-c")
 
