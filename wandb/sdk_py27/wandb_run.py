@@ -287,7 +287,7 @@ class Run(object):
             imp.lightgbm = True
         if mods.get("pytorch_lightning"):
             imp.pytorch_lightning = True
-        if mods.get("pytorch_ignite"):
+        if mods.get("ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
             imp.transformers = True
