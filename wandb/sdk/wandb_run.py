@@ -285,9 +285,9 @@ class Run(object):
             imp.catboost = True
         if mods.get("lightgbm"):
             imp.lightgbm = True
-        if mods.get("pytorch_lightning"):
+        if mods.get("pytorch-lightning"):
             imp.pytorch_lightning = True
-        if mods.get("pytorch_ignite"):
+        if mods.get("pytorch-ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
             imp.transformers = True
