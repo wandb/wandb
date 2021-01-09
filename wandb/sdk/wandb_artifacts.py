@@ -257,7 +257,7 @@ class Artifact(object):
             import json
 
             # TODO: Do we need to open with utf-8 codec?
-            f.write(json.dumps(obj.to_json(self), sort_keys=True))
+            f.write(json.dumps(val, sort_keys=True))
 
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
