@@ -15,7 +15,6 @@ import pprint
 import shutil
 from six.moves import queue
 import warnings
-from enum import Enum
 
 import numbers
 from six.moves import urllib
@@ -868,7 +867,7 @@ class JoinedTable(Media):
         )
 
 class PartitionedTable(Media):
-    artifact_type = "partitioned-table-file"
+    artifact_type = "partitioned-table"
 
     def __init__(self, parts_path):
         super(PartitionedTable, self).__init__()
