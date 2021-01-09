@@ -242,19 +242,20 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
+@click.option("--port", "-p", default=None, help="The port to use.")
 @display_error
-def grpc_server(project=None, entity=None):
+def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server()
+    grpc_server(port=port)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument("agent_spec", nargs=-1)
 @display_error
