@@ -11,6 +11,7 @@ import hashlib
 import json
 import getpass
 import logging
+import math
 import os
 import re
 import shlex
@@ -135,6 +136,11 @@ def vendor_setup():
             sys.path.insert(1, p)
 
     return reset_import_path
+
+
+def apple_gpu_stats_binary():
+    parent_dir = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
 
 
 def vendor_import(name):
@@ -427,6 +433,8 @@ def json_friendly(obj):
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
+        if isinstance(obj, float) and math.isnan(obj):
+            obj = None
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -855,12 +863,21 @@ def load_yaml(file):
 
 
 def image_id_from_k8s():
-    """Pings the k8s metadata service for the image id"""
+    """Pings the k8s metadata service for the image id.  Specify the
+    KUBERNETES_NAMESPACE environment variable if your pods are not in
+    the default namespace:
+
+    - name: KUBERNETES_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     if os.path.exists(token_path):
-        k8s_server = "https://{}:{}/api/v1/namespaces/default/pods/{}".format(
+        k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
             os.getenv("KUBERNETES_SERVICE_HOST"),
             os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+            os.getenv("KUBERNETES_NAMESPACE", "default"),
             os.getenv("HOSTNAME"),
         )
         try:

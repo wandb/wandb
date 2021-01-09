@@ -78,6 +78,7 @@ env_settings = dict(
     problem=None,
     console=None,
     config_paths=None,
+    sweep_param_path=None,
     run_id=None,
     notebook_name=None,
     host=None,
@@ -211,6 +212,9 @@ class Settings(object):
     show_info = True
     show_warnings = True
     show_errors = True
+    email = None
+    save_code = None
+    program_relpath = None
 
     # Private attributes
     # __start_time: Optional[float]
@@ -270,6 +274,7 @@ class Settings(object):
         system_samples=15,
         heartbeat_seconds=30,
         config_paths=None,
+        sweep_param_path=None,
         _config_dict=None,
         # directories and files
         root_dir=None,

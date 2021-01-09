@@ -5,6 +5,7 @@ exclude = '''
 | wandb/sdk_py27/
 | wandb/sweeps/
 | wandb/old/
+| wandb/bin/
 | wandb/proto/
 | wandb/docker/wandb-entrypoint.sh
 | tests/fixtures/

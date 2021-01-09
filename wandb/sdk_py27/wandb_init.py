@@ -11,6 +11,8 @@ from __future__ import print_function
 import datetime
 import logging
 import os
+import platform
+import sys
 import time
 import traceback
 
@@ -26,7 +28,7 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, ipython, module, reporting
+from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
@@ -47,10 +49,19 @@ def online_status(*args, **kwargs):
     pass
 
 
+def _huggingface_version():
+    if "transformers" in sys.modules:
+        trans = wandb.util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
         self.settings = None
+        self.sweep_config = None
         self.config = None
         self.run = None
         self.backend = None
@@ -110,9 +121,13 @@ class _WandbInit(object):
         )
 
         # merge config with sweep or sm (or config file)
-        self.config = sm_config or self._wl._config or dict()
-        for k, v in init_config.items():
-            self.config.setdefault(k, v)
+        self.sweep_config = self._wl._sweep_config or dict()
+        self.config = dict()
+        for config_data in sm_config, self._wl._config, init_config:
+            if not config_data:
+                continue
+            for k, v in config_data.items():
+                self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -306,32 +321,34 @@ class _WandbInit(object):
     def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
+        sweep_config = self.sweep_config
         config = self.config
         if s._noop:
-            run = Dummy()
-            run.config = wandb.wandb_sdk.wandb_config.Config()
-            run.config.update(config)
-            run.summary = DummyDict()
-            run.log = lambda data, *_, **__: run.summary.update(data)
-            run.finish = lambda *_, **__: module.unset_globals()
-            run.step = 0
-            run.resumed = False
-            run.disabled = True
-            run.id = shortuuid.uuid()
-            run.name = "dummy-" + run.id
-            run.dir = "/"
+            drun = Dummy()
+            drun.config = wandb.wandb_sdk.wandb_config.Config()
+            drun.config.update(sweep_config)
+            drun.config.update(config)
+            drun.summary = DummyDict()
+            drun.log = lambda data, *_, **__: drun.summary.update(data)
+            drun.finish = lambda *_, **__: module.unset_globals()
+            drun.step = 0
+            drun.resumed = False
+            drun.disabled = True
+            drun.id = shortuuid.uuid()
+            drun.name = "dummy-" + drun.id
+            drun.dir = "/"
             module.set_global(
-                run=run,
-                config=run.config,
-                log=run.log,
-                summary=run.summary,
-                save=run.save,
-                use_artifact=run.use_artifact,
-                log_artifact=run.log_artifact,
-                plot_table=run.plot_table,
-                alert=run.alert,
+                run=drun,
+                config=drun.config,
+                log=drun.log,
+                summary=drun.summary,
+                save=drun.save,
+                use_artifact=drun.use_artifact,
+                log_artifact=drun.log_artifact,
+                plot_table=drun.plot_table,
+                alert=drun.alert,
             )
-            return run
+            return drun
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -381,7 +398,23 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config, settings=s)
+        run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # Populate intial telemetry
+        with telemetry.context(run=run) as tel:
+            tel.cli_version = wandb.__version__
+            tel.python_version = platform.python_version()
+            hf_version = _huggingface_version()
+            if hf_version:
+                tel.huggingface_version = hf_version
+            if s._jupyter:
+                tel.env.jupyter = True
+            if s._kaggle:
+                tel.env.kaggle = True
+            if s._windows:
+                tel.env.windows = True
+            run._telemetry_imports(tel.imports_init)
+
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,
@@ -398,6 +431,8 @@ class _WandbInit(object):
         backend.interface.publish_header()
 
         if s._offline:
+            with telemetry.context(run=run) as tel:
+                tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
@@ -425,6 +460,9 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            if ret.run.resumed:
+                with telemetry.context(run=run) as tel:
+                    tel.feature.resumed = True
             run._set_run_obj(ret.run)
 
         # initiate run (stats and metadata probing)

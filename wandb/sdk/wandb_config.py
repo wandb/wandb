@@ -122,15 +122,26 @@ class Config(object):
     def __getitem__(self, key):
         return self._items[key]
 
+    def _check_locked(self, key, ignore_locked=False) -> bool:
+        locked = self._locked.get(key)
+        if locked is not None:
+            locked_user = self._users_inv[locked]
+            if not ignore_locked:
+                wandb.termwarn(
+                    "Config item '%s' was locked by '%s' (ignored update)."
+                    % (key, locked_user)
+                )
+            return True
+        return False
+
     def __setitem__(self, key, val):
-        key, val = self._sanitize(key, val)
-        if key in self._locked:
-            wandb.termwarn("Config item '%s' was locked." % key)
+        if self._check_locked(key):
             return
+        key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
-            self._callback(key=key, val=val, data=self._as_dict())
+            self._callback(key=key, val=val)
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -143,15 +154,19 @@ class Config(object):
     def __contains__(self, key):
         return key in self._items
 
-    def _update(self, d, allow_val_change=None):
+    def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        for key in list(parsed_dict):
+            if self._check_locked(key, ignore_locked=ignore_locked):
+                del parsed_dict[key]
         sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
         self._items.update(sanitized)
+        return sanitized
 
     def update(self, d, allow_val_change=None):
-        self._update(d, allow_val_change)
+        sanitized = self._update(d, allow_val_change)
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=sanitized)
 
     def get(self, *args):
         return self._items.get(*args)
@@ -164,17 +179,16 @@ class Config(object):
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
         d = self._sanitize_dict(d)
-        for k, v in six.iteritems(d):
-            self._items.setdefault(k, v)
+        # strip out keys already configured
+        d = {k: v for k, v in six.iteritems(d) if k not in self._items}
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=d)
 
     def update_locked(self, d, user=None):
         if user not in self._users:
-            # TODO(jhr): use __setattr__ madness
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
-            self._users_cnt += 1
+            object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
 
         num = self._users[user]
 
@@ -182,6 +196,9 @@ class Config(object):
             k, v = self._sanitize(k, v)
             self._locked[k] = num
             self._items[k] = v
+
+        if self._callback:
+            self._callback(data=d)
 
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
@@ -193,7 +210,6 @@ class Config(object):
         for k, v in six.iteritems(config_dict):
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
-
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
