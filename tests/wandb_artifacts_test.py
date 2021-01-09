@@ -6,6 +6,7 @@ import wandb
 import shutil
 import wandb.data_types as data_types
 import numpy as np
+import pandas as pd
 
 
 def mock_boto(artifact, path=False):
@@ -407,6 +408,26 @@ def test_add_reference_unknown_handler(runner):
             "digest": "ref://example.com/somefile.txt",
             "ref": "ref://example.com/somefile.txt",
         }
+
+
+def test_add_table_from_dataframe(live_mock_server, test_settings):
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
+    df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
+    df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
+
+    wb_table_float = wandb.Table(dataframe=df_float)
+    wb_table_float32 = wandb.Table(dataframe=df_float32)
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
+    wb_table_bool = wandb.Table(dataframe=df_bool)
+
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    artifact.add(wb_table_float, "wb_table_float")
+    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+    artifact.add(wb_table_float32, "wb_table_float32")
+    artifact.add(wb_table_bool, "wb_table_bool")
+    run.log_artifact(artifact)
+    run.finish()
 
 
 def test_add_obj_wbimage_no_classes(runner):

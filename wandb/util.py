@@ -11,6 +11,7 @@ import hashlib
 import json
 import getpass
 import logging
+import math
 import os
 import re
 import shlex
@@ -432,6 +433,8 @@ def json_friendly(obj):
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
+        if isinstance(obj, float) and math.isnan(obj):
+            obj = None
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
