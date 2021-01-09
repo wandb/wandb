@@ -170,7 +170,7 @@ def serve(backend, port):
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
-        server.add_insecure_port(f"[::]:{port}")
+        server.add_insecure_port("[::]:{}".format(port))
         server.start()
         server.wait_for_termination()
         # print("server shutting down")
@@ -179,12 +179,12 @@ def serve(backend, port):
         print("control-c")
 
 
-def main(port=50051):
+def main(port=None):
     try:
         logging.basicConfig()
         backend = Backend()
         backend.setup()
-        serve(backend, port if port is not None else 50051)
+        serve(backend, port or 50051)
     except KeyboardInterrupt:
         print("outer control-c")
 

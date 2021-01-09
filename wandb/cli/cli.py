@@ -242,7 +242,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
-@click.option("--port", "-p", default=None, help="The port to use.")
+@click.option("--port", default=None, help="The host port to bind grpc service.")
 @display_error
 def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
