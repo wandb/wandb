@@ -1,49 +1,71 @@
 import atexit
-import collections
 import copy
-from functools import wraps
+import functools
+import inspect
 import sys
 import threading
 from timeit import default_timer as timer
 
 import wandb
 from wandb.data_types import Table
-from wandb.sdk.internal import sample
-from wandb.sdk.wandb_artifacts import Artifact
+
+from .internal import sample
+from .wandb_artifacts import Artifact
+from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, Callable  # noqa: F401
+    from typing import (
+        NamedTuple,
+        Dict,
+        Optional,
+        Union,
+        Callable,
+        Tuple,
+        Any,
+    )  # noqa: F401
 
 np = wandb.util.get_module("numpy")
-ArgType = collections.namedtuple(
-    "Arg", ("key", "source", "data_type", "shape", "bytes")
-)
 
 
-def human_size(bytes, units=None):
-    units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
+def human_size(bytes):
+    units = ["", "KB", "MB", "GB", "TB", "PB", "EB"]
     return str(bytes) + units[0] if bytes < 1024 else human_size(bytes >> 10, units[1:])
 
 
-class Call(object):
+class ArgType(NamedTuple):
+    key: Union[str, int]
+    source: str
+    bytes: int
+    data_type: Optional[str]
+    shape: Optional[Tuple[int]]
+    pass
+
+
+class Prediction(object):
     """
-    A call represents a call to your predict function.  You will be passed a
-    sampled list of `Call` objects to the `to_table` function you definie.
+    A Prediction represents a call to your predict function.  You will be passed a
+    sampled list of `Prediction` objects to the `to_table` function you define.
 
     Attributes:
-        results: The return values of the function call
-        time: The number of milliseconds the call took
-        args: The un-named arguments of the function call
-        kwargs: The named arguments of the function call
+        args (tuple): The un-named arguments of the function call
+        kwargs (dict): The named arguments of the function call
+        results (tuple): The return values of the function call
+        millis (optional): The number of milliseconds the call took
     """
 
-    def __init__(self, results, time, args, kwargs):
-        self.results = results
-        self.time = time
+    def __init__(
+        self,
+        args: Tuple[Any],
+        kwargs: Dict[str, Any],
+        results: Tuple[Any],
+        millis: Optional[int] = None,
+    ):
         self.args = args
         self.kwargs = kwargs
+        self.results = results
+        self.millis = millis
 
-    def to_numpy(self, arg_type):
+    def to_numpy(self, arg_type: ArgType):
         """
         Used internally to find arguments and return values that we can compute
         histograms from.
@@ -61,9 +83,39 @@ class Call(object):
 
 class Monitor(object):
     """
-    Monitor is a function decorator class that keeps track of statistics and
-    periodically flushes these statistics to W&B.  It's generally used via the
-    @wandb.monitor decorator function, see that function for more documentation.
+    Monitor is a helper class that keeps track of statistics and periodically
+    flushes them to W&B.  It's generally used via the @wandb.monitor decorator
+    function, but can also be used directly.
+
+    Attributes:
+        func (func, optional): A function to monitor
+        to_table (func, optional): A function which returns a `wandb.Table` and accepts a
+            sampled list of `Call` objects.
+        name_or_artifact (str, Artifact, optional): The name or Artifact instance to store
+            the data visualization table.
+        max_pred_samples (int, optional): The maximum number of calls to sample an buffer in
+            memory
+        flush_interval (int, optional): The number of seconds to buffer calls before flushing
+            to W&B
+
+    Examples:
+        Basic usage
+        ```python
+        wandb.init(project="monitoring")
+
+        def to_table(preds):
+            table = wandb.Table("Input", "Output")
+            for pred in preds:
+                table.add_data([wandb.Image(pred.args[0]), np.argmax(pred.results[0])])
+            return table
+
+        monitor = wandb.Monitor(to_table=to_table)
+
+        def predict(input, id=None):
+            monitor.input(input[-5:], id)
+            results = model.predict(input)
+            monitor.output(results[-5:])
+        ```
     """
 
     # The estimated memory buffer size to warn
@@ -71,51 +123,44 @@ class Monitor(object):
 
     def __init__(
         self,
-        func,
-        artifact_or_name=None,
-        max_call_samples=32,
-        flush_interval=60,
-        to_table=None,
+        func: Optional[Callable] = lambda: (),
+        to_table: Optional[Callable[[Tuple[Prediction]], Table]] = None,
+        name_or_artifact: Optional[Union[str, Artifact]] = None,
+        max_pred_samples: Optional[int] = 64,
+        flush_interval: Optional[int] = 60 * 5,
     ):
         self._func = func
         self._flush_interval = flush_interval
-        self._max_samples = max_call_samples
+        self._max_samples = max_pred_samples
         # TODO: actually make this max_samples?
-        self._sampled_calls = sample.UniformSampleAccumulator(max_call_samples // 2)
+        self._sampled_preds = sample.UniformSampleAccumulator(max_pred_samples // 2)
         self._counter = 0
         self._flush_count = 0
         self._schema = None
         self._join_event = threading.Event()
         self._to_table = to_table
         self.disabled = False
-        if isinstance(artifact_or_name, wandb.Artifact):
-            self._artifact = artifact_or_name
+        self._last_args = ()
+        self._last_kwargs = {}
+        self._last_input = None
+        if isinstance(name_or_artifact, wandb.Artifact):
+            self._artifact = name_or_artifact
         else:
-            if artifact_or_name is None:
-                artifact_or_name = "monitored"
-            self._artifact = wandb.Artifact(artifact_or_name, "inference")
+            if name_or_artifact is None:
+                name_or_artifact = "monitored"
+            self._artifact = wandb.Artifact(name_or_artifact, "inference")
         # TODO: make sure this atexit is triggered before ours...
         atexit.register(lambda: self._join_event.set())
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
 
-    def disable(self):
-        self.disabled = True
-
-    def enable(self):
-        self.disabled = False
-
     def __call__(self, *args, **kwargs):
         if self.disabled:
             return self._func(*args, **kwargs)
         else:
-            start = timer()
-            result = self._func(*args, **kwargs)
-            end = timer()
-            # TODO: potentially make this async
-            self._process(result, end - start, args, kwargs)
-            return result
+            self.input(*args, **kwargs)
+            return self.output(self._func(*args, **kwargs))
 
     def _thread_body(self):
         join_requested = False
@@ -125,58 +170,77 @@ class Monitor(object):
             if not self.disabled:
                 self.flush()
 
-    def _process(self, result, time, args, kwargs):
-        self._counter += 1
-        if self._schema is None:
-            self._detect_schema(result, args, kwargs)
+    def input(self, *args, **kwargs):
+        """Record an input, should be followed by a call to .output"""
+        self._last_args = args
+        self._last_kwargs = kwargs
+        self._last_input = timer()
 
+    def output(self, result: Tuple[Any]):
+        """Records a Prediction, you must call .input before calling this method"""
+        if self.disabled:
+            return None
+        if self._last_input is None:
+            raise AttributeError("You must call input before calling output")
+        end = timer()
+        self.prediction(
+            result, *self._last_args, millis=end - self._last_input, **self._last_kwargs
+        )
+        self._last_input = None
+        return result
+
+    def prediction(self, result: Tuple[Any], *args, millis: int = None, **kwargs):
+        """
+        Records a prediction
+
+        Attributes:
+            result (tuple): The output of a predict method
+            *args: the arguments passed into the predict method
+            millis (int): The number of milliseconds it took to make the predcition
+            **kwargs: named arguments passed into the predict method
+        """
+        # TODO: potentially make this async, although the overhead should be minimal
+        self._counter += 1
         if isinstance(result, tuple):
             results = result
         else:
             results = (result,)
 
-        self._sampled_calls.add(Call(results, time, args, kwargs))
+        if self._schema is None:
+            self._detect_schema(results, args, kwargs)
 
-    def _maybe_rotate_run(self):
-        # TODO: decide if this is the right metric...
-        if self._flush_count > 100000:
-            config = dict(wandb.run.config)
-            settings = copy.copy(wandb.run._settings)
-            settings.run_id = None
-            wandb.finish()
-            # TODO: verify this is actually enough
-            wandb.init(config=config, settings=settings)
+        self._sampled_preds.add(Prediction(args, kwargs, results, millis))
 
     def flush(self):
         """
         Flush all sampled metrics to W&B
         """
-        calls = self._sampled_calls.get()
-        if len(calls) == 0:
+        preds = self._sampled_preds.get()
+        if len(preds) == 0:
             return
         metrics = {"calls": self._counter}
         self._counter = 0
-        self._sampled_calls = sample.UniformSampleAccumulator(self._max_samples)
+        self._sampled_preds = sample.UniformSampleAccumulator(self._max_samples)
         for arg in self._schema["inputs"]:
             if arg.data_type in ["df", "np"]:
                 metric_name = "input_{}".format(arg.key)
                 # TODO: should we average? np.average(vals, axis=0)
                 # TODO: should we try to set max bins inteligently?
                 metrics[metric_name] = wandb.Histogram(
-                    np.array([c.to_numpy(arg) for c in calls])
+                    np.array([p.to_numpy(arg) for p in preds])
                 )
 
-        call_times = [c.time for c in calls]
-        metrics["average_call_time"] = sum(call_times) / len(call_times)
+        pred_times = [p.millis for p in preds]
+        metrics["average_call_time"] = sum(pred_times) / len(pred_times)
 
         # TODO: multiple outputs?
         if self._schema["outputs"][0].data_type in ["df", "np"]:
             metrics["output"] = wandb.Histogram(
-                [c.to_numpy(self._schema["outputs"][0]) for c in calls]
+                [p.to_numpy(self._schema["outputs"][0]) for p in preds]
             )
 
         if self._to_table:
-            table = self._to_table(calls)
+            table = self._to_table(preds)
             if isinstance(table, wandb.Table):
                 self._artifact.add(table, "examples")
                 wandb.run.log_artifact(self._artifact)
@@ -194,6 +258,37 @@ class Monitor(object):
         self._maybe_rotate_run()
         wandb.log(metrics)
 
+    @property
+    def estimated_buffer_bytes(self):
+        return self._call_size_bytes() * self._max_samples
+
+    def disable(self):
+        self.disabled = True
+
+    def enable(self):
+        self.disabled = False
+
+    def ensure_run(
+        self,
+        config: Union[Dict, str, None] = None,
+        settings: Union[Settings, Dict[str, Any], None] = None,
+    ):
+        if wandb.run is None:
+            if not isinstance(settings, Settings) and settings is not None:
+                settings = wandb.Settings(**settings)
+            wandb.init(config=config, settings=settings)
+
+    def _maybe_rotate_run(self):
+        # TODO: decide if this is the right metric...
+        if self._flush_count > 100000:
+            config = dict(wandb.run.config)
+            settings = copy.copy(wandb.run._settings)
+            settings.run_id = None
+            wandb.finish()
+            self._flush_count = 0
+            # TODO: verify this is actually enough
+            wandb.init(config=config, settings=settings)
+
     # TODO: make byte size factor into our buffer?
     def _call_size_bytes(self):
         total = 0
@@ -203,64 +298,74 @@ class Monitor(object):
                     total += arg.bytes
         return total
 
-    @property
-    def estimated_buffer_bytes(self):
-        return self._call_size_bytes() * self._max_samples
-
-    def _data_type(self, obj, source=None, key=None):
+    def _data_type(self, obj: Any, source: str = None, key: Union[str, int] = None):
         # TODO: handle sequences / tensors
         if wandb.util.is_numpy_array(obj):
-            return ArgType(key, source, "np", obj.shape, obj.nbytes)
+            return ArgType(key, source, obj.nbytes, "np", obj.shape)
         elif wandb.util.is_pandas_data_frame(obj):
-            return ArgType(key, source, "df", obj.shape, obj.to_numpy().nbytes)
+            return ArgType(key, source, obj.to_numpy().nbytes, "df", obj.shape)
         else:
-            return ArgType(key, source, None, None, sys.getsizeof(obj))
+            return ArgType(key, source, sys.getsizeof(obj), None, None)
 
-    def _detect_schema(self, result, args, kwargs):
+    def _detect_schema(
+        self, results: Tuple[Any], args: Tuple[Any], kwargs: Dict[str, Any]
+    ):
         self._schema = {"inputs": []}
         for key, obj in enumerate(args):
             self._schema["inputs"].append(self._data_type(obj, "args", key))
         for key, obj in kwargs.items():
             self._schema["inputs"].append(self._data_type(obj, "kwargs", key))
-        self._schema["outputs"] = [self._data_type(result, "results", 0)]
+        self._schema["outputs"] = []
+        for key, _ in enumerate(results):
+            self._schema["outputs"].append(self._data_type(results, "results", key))
         estimated_bytes = self.estimated_buffer_bytes
         if estimated_bytes > self.BUFFER_WARNING_BYTES:
             wandb.termwarn(
-                "@wandb.monitor estimates {} of memory will be consumed.\nConsider reducing max_call_samples (currently {})".format(
+                "@wandb.monitor estimates {} of memory will be consumed.\nConsider reducing max_pred_samples (currently {}) or use monitor.input(...) and monitor.output(...)".format(
                     human_size(estimated_bytes), self._max_samples
                 )
             )
 
 
 def monitor(
-    to_table: Optional[Callable[..., Table]] = None,
+    to_table: Optional[Callable[[Tuple[Prediction]], Table]] = None,
     name_or_artifact: Optional[Union[str, Artifact]] = None,
-    max_call_samples: Optional[int] = 32,
-    flush_interval: Optional[int] = 60,
+    max_pred_samples: Optional[int] = 64,
+    flush_interval: Optional[int] = 60 * 5,
+    config: Union[Dict, str, None] = None,
+    settings: Union[Settings, Dict[str, Any], None] = None,
 ):
     """
-    Function decorator for performantely monitoring predictions during inference.
-    You must call `wandb.init` before using this decorator.  It also requires that
-    numpy is available in your environment.
+    Function or class decorator for performantely monitoring predictions during inference.
+    Decorated classes must have a `predict` method.  By default we sample calls to the
+    decorated function or `predict` method and log a histogram of inputs and outputs
+    every 5 minutes.  We also capture system utilization, call time, and number of calls.
+
+    If you define `to_table` on your class or pass it into @wandb.monitor, we'll call this
+    method every flush_interval seconds passing in a sampled list of Predictions.  You can
+    access `.args`, `.kwargs`, and `.results` on each prediction and construct an instance
+    of wandb.Table to visualize real world predictions.
 
     Attributes:
-        to_table (lambda): A function which returns a `wandb.Table` and accepts a
+        to_table (func): A function which returns a `wandb.Table` and accepts a
             sampled list of `Call` objects.
         name_or_artifact (str, Artifact): The name or Artifact instance to store
             the data visualization table.
-        max_call_samples (int): The maximum number of calls to sample an buffer in
+        max_pred_samples (int): The maximum number of calls to sample an buffer in
             memory
         flush_interval (int): The number of seconds to buffer calls before flushing
             to W&B
+        config (dict):  Sets the config parameters for the run
+        settings (dict, wandb.Settings):  A wandb.Settings object or dictionary to configure the run
 
     Examples:
         Basic usage
         ```python
         wandb.init(project="monitoring")
 
-        def to_table(calls):
+        def to_table(preds):
             table = wandb.Table("Input", "Output")
-            for call in calls:
+            for pred in preds:
                 table.add_data([wandb.Image(call.args[0]), np.argmax(call.results[0])])
             return table
 
@@ -271,43 +376,75 @@ def monitor(
 
         Advanced usage
         ```python
-        wandb.init(project="monitoring")
+        @wandb.monitor(max_pred_samples=32, flush_interval=10, settings={"project": "monitoring"})
+        class Model(object):
+            def predict(self, input, id=None):
+                return self.model.predict(input)
 
-        @wandb.monitor(max_call_samples=64, flush_interval=10)
-        def predict(input, id=None):
-            return model.predict(input)
+            def to_table(self, preds):
+                table = wandb.Table("ID", Input", "Output")
+                for pred in preds:
+                    table.add_data([call.kwargs["id"], wandb.Image(call.args[0]), np.argmax(call.results[0])])
+                return table
+
+        model = Model()
 
         # disable all monitoring
-        predict.disable()
+        model.wandb_monitor.disable()
         # enable all monitoring
-        predict.enable()
-        # manually flush captured calls
-        predict.flush()
+        model.wandb_monitor.enable()
+        # manually flush captured predictions
+        model.wandb_monitor.flush()
+
+    Raises:
+        AttributeError - If numpy isn't available or the decorated class doesn't have a
+            predict method.
 
     Returns:
-        A wrapped function with the following methods:
+        A wrapped function or class with a wandb_monitor attribute that has the following methods
             flush: manually flush the current call samples
             disable: disable wandb monitoring
             enable: enable wandb monitoring
     """
 
-    def decorator(func):
+    def decorator(func: Optional[Callable[..., Tuple[Any]]] = None):
         if np is None:
             raise AttributeError("@wandb.monitor requires numpy")
-        # TODO: decide if we want to automatically init / move this into the wrapper?
-        if wandb.run is None:
-            raise ValueError("Call wandb.init before decorating your predict function")
-        monitored = Monitor(
-            func, name_or_artifact, max_call_samples, flush_interval, to_table
+
+        # If someone decorates a class, let's ensure it has a predict func
+        cls = None
+        if inspect.isclass(func):
+            cls = func
+            if not hasattr(cls, "predict"):
+                raise AttributeError(
+                    "@wandb.monitor can only decorate classes with a predict method"
+                )
+
+        monitor = Monitor(
+            func, to_table, name_or_artifact, max_pred_samples, flush_interval,
         )
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return monitored(*args, **kwargs)
+        # If someone calls wandb.monitor(...) not as a decorator, just return the
+        # equivalent of wandb.Monitor(...)
+        if func is None:
+            return monitor
 
-        wrapper.flush = lambda: monitored.flush()
-        wrapper.disable = lambda: monitored.disable()
-        wrapper.enable = lambda: monitored.enable()
+        @functools.wraps(cls or func)
+        def wrapper(*args, **kwargs):
+            # TODO: we might want this sooner for func only decorators
+            monitor.ensure_run(config, settings)
+            if cls is not None:
+                instance = cls(*args, **kwargs)
+                if hasattr(instance, "to_table"):
+                    monitor._to_table = instance.to_table
+                monitor._func = instance.predict
+                instance.predict = functools.update_wrapper(monitor, instance.predict)
+                instance.wandb_monitor = monitor
+                return instance
+            else:
+                return monitor(*args, **kwargs)
+
+        wrapper.wandb_monitor = monitor
         return wrapper
 
     return decorator
