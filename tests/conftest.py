@@ -87,15 +87,15 @@ def start_mock_server():
     server.reset_ctx = reset_ctx
 
     started = False
-    for i in range(5):
+    for i in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, timeout=1)
+            res = requests.get("%s/ctx" % server.base_url, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
             print("Attempting to connect but got: %s" % res)
         except requests.exceptions.RequestException:
-            print("Timed out waiting for server to start...")
+            print("Timed out waiting for server to start...", server.base_url, time.time())
             if server.poll() is None:
                 time.sleep(1)
             else:
