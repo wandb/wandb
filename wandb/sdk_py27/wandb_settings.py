@@ -88,6 +88,7 @@ env_settings = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    sagemaker_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -216,6 +217,9 @@ class Settings(object):
     save_code = None
     program_relpath = None
 
+    # Public attributes
+    sagemaker_disable = None
+
     # Private attributes
     # __start_time: Optional[float]
     # __start_datetime: Optional[datetime]
@@ -312,6 +316,7 @@ class Settings(object):
         username=None,
         email=None,
         docker=None,
+        sagemaker_disable = None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
