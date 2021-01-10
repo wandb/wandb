@@ -108,6 +108,14 @@ def start_mock_server():
     else:
         server.terminate()
         print("Server failed to launch, see tests/logs/live_mock_server.log")
+        try:
+            print("=" * 40)
+            with open("tests/logs/live_mock_server.log") as f:
+                for l in f.readlines():
+                    print(l.strip())
+            print("=" * 40)
+        except Exception as e:
+            print("EXCEPTION:", e)
         raise ValueError("Failed to start server!  Exit code %s" % server.returncode)
     return server
 
