@@ -26,5 +26,4 @@ def parse_sm_config():
             elif re.match(r"^[-.\d]+$", cast):
                 cast = float(cast)
             conf[k] = cast
-        return conf
     return conf
