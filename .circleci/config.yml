@@ -197,7 +197,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 1024
-                      python3 -m tox -vv -e << parameters.mac_toxenv >>
+                      python3 -m tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
