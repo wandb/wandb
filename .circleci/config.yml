@@ -3,6 +3,15 @@ version: 2.1
 orbs:
   win: circleci/windows@2.4.0
 
+parameters:
+  manual:
+    type: boolean
+    default: false
+  test_image:
+    type: string
+  test_toxenv:
+    type: string
+
 commands:
   save-tox-cache:
     description: "Save tox environment to cache"
@@ -25,6 +34,7 @@ commands:
 
 workflows:
   main:
+    unless: << pipeline.parameters.manual >>
     jobs:
       - test:
          name: "Linters"
@@ -59,6 +69,12 @@ workflows:
          requires:
             - "Python 2.7"
             - "Python 3.6"
+  manual:
+    when: << pipeline.parameters.manual >>
+      - test:
+         name: "Manual"
+         image: << pipeline.parameters.test_image >>
+         toxenv: << pipeline.parameters.test_toxenv >>
 
 jobs:
     test:
