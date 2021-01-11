@@ -9,8 +9,10 @@ parameters:
     default: false
   test_image:
     type: string
+    default: "python:3.7"
   test_toxenv:
     type: string
+    default: "py37"
 
 commands:
   save-tox-cache:
