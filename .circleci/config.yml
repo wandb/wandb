@@ -71,6 +71,7 @@ workflows:
             - "Python 3.6"
   manual:
     when: << pipeline.parameters.manual >>
+    jobs:
       - test:
          name: "Manual"
          image: << pipeline.parameters.test_image >>
