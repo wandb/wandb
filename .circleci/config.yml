@@ -31,6 +31,12 @@ parameters:
   manual_win_name:
     type: string
     default: "Windows (Python 3.7) [MANUAL]"
+  win_toxenv:
+    type: string
+    default: "py37"
+  mac_toxenv:
+    type: string
+    default: "py37"
 
 commands:
   save-tox-cache:
@@ -162,7 +168,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -vv -e py37
+                      tox -vv -e << pipeline.parameters.win_toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
@@ -181,7 +187,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 1024
-                      python3 -m tox -vv -e py37
+                      python3 -m tox -vv -e << pipeline.parameters.mac_toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
