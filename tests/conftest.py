@@ -95,7 +95,9 @@ def start_mock_server():
                 break
             print("Attempting to connect but got: %s" % res)
         except requests.exceptions.RequestException:
-            print("Timed out waiting for server to start...", server.base_url, time.time())
+            print(
+                "Timed out waiting for server to start...", server.base_url, time.time()
+            )
             if server.poll() is None:
                 time.sleep(1)
             else:

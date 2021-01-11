@@ -70,12 +70,13 @@ def test_parallel_runs(live_mock_server, test_settings):
     num_runs = 0
     # Assert we've stored 2 runs worth of files
     # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
+    # TODO: code saving sometimes doesnt work? (upstream_diff*.patch instead?)
     files_sorted = sorted(
         [
-            "wandb-metadata.json",
+            "config.yaml",
             "code/tests/logs/test_parallel_runs/train.py",
             "requirements.txt",
-            "config.yaml",
+            "wandb-metadata.json",
             "wandb-summary.json",
         ]
     )
