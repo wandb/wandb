@@ -89,29 +89,29 @@ workflows:
         and:
          - << pipeline.parameters.manual >>
          - << pipeline.parameters.manual_test >>
-    jobs:
-      - test:
-         name: << pipeline.parameters.manual_name >>
-         image: << pipeline.parameters.manual_test_image >>
-         toxenv: << pipeline.parameters.manual_test_toxenv >>
+      jobs:
+        - test:
+           name: << pipeline.parameters.manual_name >>
+           image: << pipeline.parameters.manual_test_image >>
+           toxenv: << pipeline.parameters.manual_test_toxenv >>
   manual_win:
     when:
       condition:
         and:
          - << pipeline.parameters.manual >>
          - << pipeline.parameters.manual_win >>
-    jobs:
-      - win:
-         name: << pipeline.parameters.manual_name >>
+      jobs:
+        - win:
+           name: << pipeline.parameters.manual_name >>
   manual_mac:
     when:
       condition:
         and:
          - << pipeline.parameters.manual >>
          - << pipeline.parameters.manual_mac >>
-    jobs:
-      - mac:
-         name: << pipeline.parameters.manual_name >>
+      jobs:
+        - mac:
+           name: << pipeline.parameters.manual_name >>
 
 jobs:
     test:
