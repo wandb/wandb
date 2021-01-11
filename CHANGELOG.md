@@ -1,3 +1,22 @@
+## 0.10.13 (January 11, 2021)
+
+#### :nail_care: Enhancement
+
+- Add support for Mac M1 GPU monitoring
+- Add support for TPU monitoring
+- Add setting to disable sagemaker integration
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync with tensorboardX and tf1
+- Fix issues logging images with slashes
+- Fix custom charts issues
+- Improve error messages using `wandb pull`
+- Improve error messages with `wandb.Table()`
+- Make sure silent mode is silent
+- Fix `wandb online` to renable logging
+- Multiple artifact fixes
+
 ## 0.10.12 (December 3, 2020)
 
 #### :nail_care: Enhancement
