@@ -84,34 +84,22 @@ workflows:
             - "Python 2.7"
             - "Python 3.6"
   manual_test:
-    when:
-      condition:
-        and:
-         - << pipeline.parameters.manual >>
-         - << pipeline.parameters.manual_test >>
-      jobs:
-        - test:
-           name: << pipeline.parameters.manual_name >>
-           image: << pipeline.parameters.manual_test_image >>
-           toxenv: << pipeline.parameters.manual_test_toxenv >>
+    when: << pipeline.parameters.manual >>
+    jobs:
+      - test:
+         name: << pipeline.parameters.manual_name >>
+         image: << pipeline.parameters.manual_test_image >>
+         toxenv: << pipeline.parameters.manual_test_toxenv >>
   manual_win:
-    when:
-      condition:
-        and:
-         - << pipeline.parameters.manual >>
-         - << pipeline.parameters.manual_win >>
-      jobs:
-        - win:
-           name: << pipeline.parameters.manual_name >>
+    when: << pipeline.parameters.manual >>
+    jobs:
+      - win:
+         name: << pipeline.parameters.manual_name >>
   manual_mac:
-    when:
-      condition:
-        and:
-         - << pipeline.parameters.manual >>
-         - << pipeline.parameters.manual_mac >>
-      jobs:
-        - mac:
-           name: << pipeline.parameters.manual_name >>
+    when: << pipeline.parameters.manual >>
+    jobs:
+      - mac:
+         name: << pipeline.parameters.manual_name >>
 
 jobs:
     test:
