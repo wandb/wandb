@@ -51,6 +51,14 @@ commands:
               - v0.6-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
               - v0.6-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
               - v0.6-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+  save-test-results:
+    description: "Save test results"
+    unless: << pipeline.parameters.manual >>
+    steps:
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
 
 workflows:
   main:
@@ -133,6 +141,7 @@ jobs:
                       tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
+            - save-test-results
     win:
         executor: win/default
         steps:
@@ -154,7 +163,7 @@ jobs:
                       tox -vv -e py37
                   no_output_timeout: 10m
             - save-tox-cache
-
+            - save-test-results
     mac:
         macos:
             xcode: 11.4.1
@@ -173,6 +182,7 @@ jobs:
                       python3 -m tox -vv -e py37
                   no_output_timeout: 10m
             - save-tox-cache
+            - save-test-results
     final:
         docker:
             - image: python:3.7
