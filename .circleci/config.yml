@@ -16,15 +16,21 @@ parameters:
   manual_mac:
     type: boolean
     default: false
-  manual_name:
-    type: string
-    default: "Python 3.7 (Manual)"
   manual_test_image:
     type: string
     default: "python:3.7"
   manual_test_toxenv:
     type: string
     default: "py37"
+  manual_test_name:
+    type: string
+    default: "Python 3.7 [MANUAL]"
+  manual_mac_name:
+    type: string
+    default: "MacOS (Python 3.7) [MANUAL]"
+  manual_win_name:
+    type: string
+    default: "Windows (Python 3.7) [MANUAL]"
 
 commands:
   save-tox-cache:
@@ -84,22 +90,22 @@ workflows:
             - "Python 2.7"
             - "Python 3.6"
   manual_test:
-    when: << pipeline.parameters.manual >>
+    when: << pipeline.parameters.manual_test >>
     jobs:
       - test:
-         name: << pipeline.parameters.manual_name >>
+         name: << pipeline.parameters.manual_test_name >>
          image: << pipeline.parameters.manual_test_image >>
          toxenv: << pipeline.parameters.manual_test_toxenv >>
   manual_win:
-    when: << pipeline.parameters.manual >>
+    when: << pipeline.parameters.manual_win >>
     jobs:
       - win:
-         name: << pipeline.parameters.manual_name >>
+         name: << pipeline.parameters.manual_win_name >>
   manual_mac:
-    when: << pipeline.parameters.manual >>
+    when: << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
-         name: << pipeline.parameters.manual_name >>
+         name: << pipeline.parameters.manual_mac_name >>
 
 jobs:
     test:
