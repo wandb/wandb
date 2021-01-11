@@ -175,7 +175,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -vv -e << parameters.win_toxenv >>
+                      tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
