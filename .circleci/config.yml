@@ -22,21 +22,21 @@ parameters:
   manual_test_toxenv:
     type: string
     default: "py37"
-  manual_test_name:
-    type: string
-    default: "Python 3.7 [MANUAL]"
-  manual_mac_name:
-    type: string
-    default: "MacOS (Python 3.7) [MANUAL]"
-  manual_win_name:
-    type: string
-    default: "Windows (Python 3.7) [MANUAL]"
   manual_win_toxenv:
     type: string
     default: "py37"
   manual_mac_toxenv:
     type: string
     default: "py37"
+  manual_test_name:
+    type: string
+    default: "Python 3.7 [MANUAL]"
+  manual_win_name:
+    type: string
+    default: "Windows (Python 3.7) [MANUAL]"
+  manual_mac_name:
+    type: string
+    default: "MacOS (Python 3.7) [MANUAL]"
 
 commands:
   save-tox-cache:
@@ -98,8 +98,10 @@ workflows:
          toxenv: "py39"
       - win:
          name: "Windows (Python 3.7)"
+         toxenv: "py37"
       - mac:
          name: "MacOS (Python 3.7)"
+         toxenv: "py37"
       - final:
          name: "Upload Coverage"
          requires:
