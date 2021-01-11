@@ -70,7 +70,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
 
-    def setup(self, kwargs):
+    def setup(self, kwargs) -> None:
         """
         Complete setup for wandb.init(). This includes parsing all arguments,
         applying them with settings and enabling logging.
@@ -91,7 +91,7 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config = sagemaker.parse_sm_config()
+        sm_config: Dict = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
