@@ -86,9 +86,9 @@ workflows:
   manual_test:
     when:
       condition:
-        - and:
-           - << pipeline.parameters.manual >>
-           - << pipeline.parameters.manual_test >>
+        and:
+         - << pipeline.parameters.manual >>
+         - << pipeline.parameters.manual_test >>
     jobs:
       - test:
          name: << pipeline.parameters.manual_name >>
@@ -97,18 +97,18 @@ workflows:
   manual_win:
     when:
       condition:
-        - and:
-           - << pipeline.parameters.manual >>
-           - << pipeline.parameters.manual_win >>
+        and:
+         - << pipeline.parameters.manual >>
+         - << pipeline.parameters.manual_win >>
     jobs:
       - win:
          name: << pipeline.parameters.manual_name >>
   manual_mac:
     when:
       condition:
-        - and:
-           - << pipeline.parameters.manual >>
-           - << pipeline.parameters.manual_mac >>
+        and:
+         - << pipeline.parameters.manual >>
+         - << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
          name: << pipeline.parameters.manual_name >>
