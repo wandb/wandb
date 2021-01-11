@@ -53,12 +53,14 @@ commands:
               - v0.6-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
   save-test-results:
     description: "Save test results"
-    unless: << pipeline.parameters.manual >>
     steps:
-      - store_test_results:
-          path: test-results
-      - store_artifacts:
-          path: test-results
+      - unless:
+          condition: << pipeline.parameters.manual >>
+          steps:
+            - store_test_results:
+                path: test-results
+            - store_artifacts:
+                path: test-results
 
 workflows:
   main:
