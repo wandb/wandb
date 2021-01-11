@@ -60,7 +60,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
 )
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
-def test_parallel_runs(request, live_mock_server, test_settings):
+def test_parallel_runs(request, live_mock_server, test_settings, test_name):
     with open("train.py", "w") as f:
         f.write(fixture_open("train.py").read())
     p1 = subprocess.Popen(["python", "train.py"], env=os.environ)
@@ -71,7 +71,6 @@ def test_parallel_runs(request, live_mock_server, test_settings):
     # Assert we've stored 2 runs worth of files
     # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
     # TODO: code saving sometimes doesnt work?
-    test_name = request.node.name
     files_sorted = sorted(
         [
             "config.yaml",

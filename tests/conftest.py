@@ -127,10 +127,17 @@ atexit.register(test_cleanup)
 
 
 @pytest.fixture
-def test_dir(request):
+def test_name(request):
+    # change "test[1]" to "test__1__"
+    name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
+    return name
+
+
+@pytest.fixture
+def test_dir(test_name):
     orig_dir = os.getcwd()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    test_dir = os.path.join(root, "tests", "logs", request.node.name)
+    test_dir = os.path.join(root, "tests", "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)

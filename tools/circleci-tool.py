@@ -19,6 +19,7 @@ parser.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
 parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
 parser.add_argument("--wait", action="store_true", help="Wait for finish or error")
 parser.add_argument("--loop", type=int, help="Outer loop (implies wait)")
+parser.add_argument("--wait-workflow", help="Wait for workflow")
 args = parser.parse_args()
 
 platforms_dict = dict(linux="test", mac="mac", win="win")
@@ -49,7 +50,7 @@ def poll(num):
             w = r.json()
             status = w["status"]
             print("Status:", status)
-            if status not in {"pending", "running"}:
+            if status != "running":
                 done += 1
         if num and done == num:
             print("Finished")
@@ -103,6 +104,10 @@ def req():
 
 
 def main():
+    if args.wait_workflow:
+        poll(args.wait_workflow)
+        return
+
     for i in range(args.loop or 1):
         if args.loop:
             print("Loop: {} of {}".format(i + 1, args.loop))
