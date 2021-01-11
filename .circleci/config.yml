@@ -19,10 +19,10 @@ parameters:
   manual_name:
     type: string
     default: "Python 3.7 (Manual)"
-  test_image:
+  manual_test_image:
     type: string
     default: "python:3.7"
-  test_toxenv:
+  manual_test_toxenv:
     type: string
     default: "py37"
 
@@ -92,8 +92,8 @@ workflows:
     jobs:
       - test:
          name: << pipeline.parameters.manual_name >>
-         image: << pipeline.parameters.test_image >>
-         toxenv: << pipeline.parameters.test_toxenv >>
+         image: << pipeline.parameters.manual_test_image >>
+         toxenv: << pipeline.parameters.manual_test_toxenv >>
   manual_win:
     when:
       condition:
@@ -101,7 +101,7 @@ workflows:
            - << pipeline.parameters.manual >>
            - << pipeline.parameters.manual_win >>
     jobs:
-      - test:
+      - win:
          name: << pipeline.parameters.manual_name >>
   manual_mac:
     when:
@@ -110,7 +110,7 @@ workflows:
            - << pipeline.parameters.manual >>
            - << pipeline.parameters.manual_mac >>
     jobs:
-      - test:
+      - mac:
          name: << pipeline.parameters.manual_name >>
 
 jobs:
