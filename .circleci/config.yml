@@ -31,10 +31,10 @@ parameters:
   manual_win_name:
     type: string
     default: "Windows (Python 3.7) [MANUAL]"
-  win_toxenv:
+  manual_win_toxenv:
     type: string
     default: "py37"
-  mac_toxenv:
+  manual_mac_toxenv:
     type: string
     default: "py37"
 
@@ -117,11 +117,13 @@ workflows:
     jobs:
       - win:
          name: << pipeline.parameters.manual_win_name >>
+         toxenv: << pipeline.parameters.manual_win_toxenv >>
   manual_mac:
     when: << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
          name: << pipeline.parameters.manual_mac_name >>
+         toxenv: << pipeline.parameters.manual_mac_toxenv >>
 
 jobs:
     test:
@@ -151,6 +153,9 @@ jobs:
             - save-tox-cache
             - save-test-results
     win:
+        parameters:
+            toxenv:
+              type: string
         executor: win/default
         steps:
             - checkout
@@ -168,11 +173,14 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -vv -e << pipeline.parameters.win_toxenv >>
+                      tox -vv -e << parameters.win_toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
     mac:
+        parameters:
+            toxenv:
+              type: string
         macos:
             xcode: 11.4.1
         steps:
@@ -187,7 +195,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 1024
-                      python3 -m tox -vv -e << pipeline.parameters.mac_toxenv >>
+                      python3 -m tox -vv -e << parameters.mac_toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
