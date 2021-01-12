@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from gql import gql
+from gql import Client, gql
+from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+
 import copy
 import datetime
 from functools import wraps
@@ -1579,8 +1581,8 @@ def gc(args):
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
-    
-    api = InternalApi()
+    print(host)
+    api = InternalApi({"base_url": host})
     
     print("Checking if logged in.......", end="")
     if api.api_key is None:
@@ -1730,8 +1732,9 @@ def verify(host):
         assert response.status_code == 200, "Uploading file to signed URL failed."
     '''
     print("GQL TIME")
-    descy = "a"*int(10**7)
-    print(sys.getsizeof(descy)/8/10000000)
+    descy = "a"*int(10**2)
+    print(sys.getsizeof(descy)/10000000)
+    username = getpass.getuser()
     query = gql(
             """
         query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
@@ -1744,17 +1747,35 @@ def verify(host):
         }
         """
         )
-    query_result = api.api.gql(
-            query,
-            variable_values = {
-                "entity": "kylegoyette",
-                "name": "verify",
-                "runName": run.id,
-                "desc": descy
-            }, timeout=120
+    try:
+        client = Client(
+            transport=RequestsHTTPTransport(
+                headers={
+                    "User-Agent": api.api.user_agent,
+                    "X-WANDB-USERNAME": username,
+                    "X-WANDB-USER-EMAIL": None,
+                },
+                use_json=True,
+                timeout=60,
+                auth=("api", api.api_key or ""),
+                url="%s/graphql" % host,
+            )
         )
 
-    print(query_result)
+        def execute(document, *args, **kwargs):
+            try:
+                result = client._get_result(document, *args, **kwargs)
+                return result.data
+            except Exception as e:
+                return e
+        
+        response = execute(query, variable_values={"entity": username, "name": "verify", "runName": run.id, "desc": descy}, timeout=60)
+    except Exception as e:
+        print("I print the exception")
+        print(e)
+
+
+    print(response)
 
 
     # version check
