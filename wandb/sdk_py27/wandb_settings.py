@@ -560,6 +560,11 @@ class Settings(object):
         if val is None:
             return "{} is not a boolean".format(value)
 
+    def _preprocess_base_url(self, value):
+        if value is not None:
+            value = value.rstrip("/")
+        return value
+
     def _start_run(self):
         datetime_now = datetime.now()
         time_now = time.time()
@@ -676,17 +681,23 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
+    def _preprocess_value(self, k, v):
+        f = getattr(self, "_preprocess_" + k, None)
+        if not f or not callable(f):
+            return v
+        else:
+            return f(v)
+
     def _update(self, __d=None, _source=None, _override=None, **kwargs):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
-        for check in d, kwargs:
-            for k in six.viewkeys(check):
-                if k not in self.__dict__:
-                    raise KeyError(k)
-                self._check_invalid(k, check[k])
         for data in d, kwargs:
             for k, v in six.iteritems(data):
+                if k not in self.__dict__:
+                    raise KeyError(k)
+                v = self._preprocess_value(k, v)
+                self._check_invalid(k, v)
                 if v is None:
                     continue
                 if self._priority_failed(k, source=_source, override=_override):
@@ -812,6 +823,7 @@ class Settings(object):
             raise AttributeError(name)
         if self.__frozen:
             raise TypeError("Settings object is frozen")
+        value = self._preprocess_value(name, value)
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 
