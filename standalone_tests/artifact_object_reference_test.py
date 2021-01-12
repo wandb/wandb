@@ -188,9 +188,21 @@ def _make_wandb_table():
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
 
+def _make_wandb_audio():
+    SAMPLE_RATE = 44100
+    DURATION_SECONDS = 1
+
+    def sine_wave(frequency):
+        return np.sin(
+            2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
+        )
+
+    return wandb.Audio(sine_wave(440), SAMPLE_RATE, "four forty")
+
 
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
+
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
@@ -580,6 +592,8 @@ def test_video_refs():
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
+def test_audio_refs():
+    assert_media_obj_referential_equality(_make_wandb_audio())
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
@@ -709,6 +723,7 @@ if __name__ == "__main__":
         test_video_refs,
         test_table_refs,
         test_joined_table_refs,
+        test_audio_refs,
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
