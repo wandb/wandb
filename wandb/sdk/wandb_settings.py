@@ -681,7 +681,7 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
-    def _preprocess_value(self, k, v):
+    def _perform_preprocess(self, k, v):
         f = getattr(self, "_preprocess_" + k, None)
         if not f or not callable(f):
             return v
@@ -692,11 +692,16 @@ class Settings(object):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
+        for check in d, kwargs:
+            for k in six.viewkeys(check):
+                if k not in self.__dict__:
+                    raise KeyError(k)
+                self._check_invalid(k, check[k])
         for data in d, kwargs:
             for k, v in six.iteritems(data):
                 if k not in self.__dict__:
                     raise KeyError(k)
-                v = self._preprocess_value(k, v)
+                v = self._perform_preprocess(k, v)
                 self._check_invalid(k, v)
                 if v is None:
                     continue
@@ -823,7 +828,7 @@ class Settings(object):
             raise AttributeError(name)
         if self.__frozen:
             raise TypeError("Settings object is frozen")
-        value = self._preprocess_value(name, value)
+        value = self._perform_preprocess(name, value)
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 

@@ -230,9 +230,6 @@ def test_preprocess_base_url():
     s = Settings()
     s.update(base_url="http://host.com")
     assert s.base_url == "http://host.com"
-    import pdb
-
-    pdb.set_trace()
     s.update(base_url="http://host.com/")
     assert s.base_url == "http://host.com"
     s.update(base_url="http://host.com///")
