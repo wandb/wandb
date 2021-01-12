@@ -8,6 +8,7 @@ import os
 
 import wandb
 
+from .lib import telemetry
 from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
@@ -31,6 +32,9 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         `wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
+
+    with telemetry.context() as tel:
+        tel.feature.watch = True
 
     logger.info("Watching")
     # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220

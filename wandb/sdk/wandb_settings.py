@@ -78,6 +78,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     problem=None,
     console=None,
     config_paths=None,
+    sweep_param_path=None,
     run_id=None,
     notebook_name=None,
     host=None,
@@ -87,6 +88,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    sagemaker_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -211,6 +213,12 @@ class Settings(object):
     show_info: bool = True
     show_warnings: bool = True
     show_errors: bool = True
+    email: Optional[str] = None
+    save_code: Optional[bool] = None
+    program_relpath: Optional[str] = None
+
+    # Public attributes
+    sagemaker_disable: Optional[bool] = None
 
     # Private attributes
     __start_time: Optional[float]
@@ -270,6 +278,7 @@ class Settings(object):
         system_samples=15,
         heartbeat_seconds=30,
         config_paths=None,
+        sweep_param_path=None,
         _config_dict=None,
         # directories and files
         root_dir=None,
@@ -307,6 +316,7 @@ class Settings(object):
         username=None,
         email=None,
         docker=None,
+        sagemaker_disable: Optional[bool] = None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
