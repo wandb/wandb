@@ -16,10 +16,19 @@ if os.name != "nt":
     impls.append(wandb.wandb_sdk.lib.redirect.Redirect)
 
 
+class CapList(list):
+    def append(self, x):
+        if x.startswith("\r"):
+            if self:
+                self.pop()
+            x = x[1:]
+        super(CapList, self).append(x)
+
+
 @pytest.mark.parametrize("cls", impls)
 def test_basic(cls, capfd):
     with capfd.disabled():
-        out = []
+        out = CapList()
         redir = cls("stdout", cbs=[out.append])
         redir.install()
         print("Test")
@@ -30,7 +39,7 @@ def test_basic(cls, capfd):
 @pytest.mark.parametrize("cls", impls)
 def test_reinstall(cls, capfd):
     with capfd.disabled():
-        o1, o2 = [], []
+        o1, o2 = CapList(), CapList()
         r1 = cls("stdout", cbs=[o1.append])
         r2 = cls("stdout", cbs=[o2.append])
         r1.install()
@@ -49,7 +58,7 @@ def test_reinstall(cls, capfd):
 @pytest.mark.parametrize("cls", impls)
 def test_tqdm_progbar(cls, capfd):
     with capfd.disabled():
-        o = []
+        o = CapList()
         r = cls("stderr", cbs=[o.append])
         r.install()
         for i in tqdm.tqdm(range(10)):
@@ -61,7 +70,7 @@ def test_tqdm_progbar(cls, capfd):
 @pytest.mark.parametrize("cls", impls)
 def test_formatting(cls, capfd):
     with capfd.disabled():
-        o = []
+        o = CapList()
         r = cls("stdout", cbs=[o.append])
         r.install()
         print("\x1b[31mHello\x1b[39m")  # [red]Hello[default]
@@ -81,7 +90,7 @@ def test_interactive(cls, capfd):
 @pytest.mark.parametrize("cls", impls)
 def test_keras_progbar(cls, capfd):
     with capfd.disabled():
-        o = []
+        o = CapList()
         r = wandb.wandb_sdk.lib.redirect.Redirect("stdout", [o.append])
         model = tf.keras.models.Sequential()
         model.add(tf.keras.layers.Dense(10, input_dim=10))
