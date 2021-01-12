@@ -692,30 +692,28 @@ class Settings(object):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
+        data = {}
         for check in d, kwargs:
             for k in six.viewkeys(check):
                 if k not in self.__dict__:
                     raise KeyError(k)
-                self._check_invalid(k, check[k])
-        for data in d, kwargs:
-            for k, v in six.iteritems(data):
-                if k not in self.__dict__:
-                    raise KeyError(k)
-                v = self._perform_preprocess(k, v)
+                v = self._perform_preprocess(k, check[k])
                 self._check_invalid(k, v)
-                if v is None:
-                    continue
-                if self._priority_failed(k, source=_source, override=_override):
-                    continue
-                if isinstance(v, list):
-                    v = tuple(v)
-                self.__dict__[k] = v
-                if _source:
-                    self.__defaults_dict[k] = _source
-                    self.__defaults_dict_set.setdefault(k, set()).add(_source)
-                if _override:
-                    self.__override_dict[k] = _override
-                    self.__override_dict_set.setdefault(k, set()).add(_override)
+                data[k] = v
+        for k, v in six.iteritems(data):
+            if v is None:
+                continue
+            if self._priority_failed(k, source=_source, override=_override):
+                continue
+            if isinstance(v, list):
+                v = tuple(v)
+            self.__dict__[k] = v
+            if _source:
+                self.__defaults_dict[k] = _source
+                self.__defaults_dict_set.setdefault(k, set()).add(_source)
+            if _override:
+                self.__override_dict[k] = _override
+                self.__override_dict_set.setdefault(k, set()).add(_override)
 
     def update(self, __d=None, **kwargs):
         self._update(__d, **kwargs)
