@@ -1578,13 +1578,18 @@ def gc(args):
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
+    
     api = InternalApi()
-    print("Checking if logged in...")
+    
+    print("Checking if logged in.......", end="")
     if api.api_key is None:
+        print(u'\u274C')
         print('\033[91m\033[1mNOT LOGGED IN\033[0m\033[0m')
         print("Please log in using wandb login")
         return
-
+    else:
+        print(u'\u2705')
+    
     # create a run
     n_epochs = 4
     string_test = "A test config"
@@ -1606,11 +1611,11 @@ def verify(host):
         "val1": 1.0,
         "val2": 2
     }
-    print(i)
-    run.log({"dict": log_dict}, step=i+1)
+    run.log({"dict": log_dict}, step=i + 1)
 
     # save and download a file
-    print("Checking logged metrics. Saving and downloading a file")
+    """
+    print("Checking logged metrics, saving and downloading a file......", end="")
     filepath = "./test with_special-characters.txt"
     f = open(filepath, "w")
     f.write("test")
@@ -1619,8 +1624,9 @@ def verify(host):
         wandb.save(filepath)
     except Exception:
         print("There was a problem saving the file. Please see...")
+    """
     wandb.finish()
-
+    """
     public_api = wandb.Api()
     prev_run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
     for key, value in prev_run.config.items():
@@ -1632,20 +1638,41 @@ def verify(host):
         assert prev_run.history_keys['keys']['dict.val2']['previousValue'] == 2, prev_run.history_keys
     except Exception:
         print("History is wrong.")
+        
     assert prev_run.summary["loss"] == 1.0 / 10
 
     read_file = prev_run.file(filepath).download(replace=True)
     contents = read_file.read()
     assert contents == "test", "Downloaded file contents do not match saved file. Please see..."
+    print(u'\u2705')
+    '''
+    ### log an artifact
+    artifact_file = open("./artifact_file", "wb")
+    artifact_file.write(bytes([x for x in range(100)]))
+    artifact_file.close()
+    print(os.stat("./artifact_file").st_size)
+    artifact_run = wandb.init(project="verify")
+    artifact = wandb.Artifact("testArtifact2", type="list")
+    artifact.add_file("./artifact_file", "artifact_test_list")
+    artifact_run.log_artifact(artifact)
+    artifact_run.finish()
+    ###### remove
+    public_api = wandb.Api()
+    prev_artifact_run = public_api.run('{}/verify/{}'.format(artifact_run.entity, artifact_run.id))
+
+    logged_artifact = prev_artifact_run.use_artifact(artifact)
+    print(logged_artifact)
+    '''
 
     # check graphql endpoint using an upload
+    print("Checking signed URL upload...............", end="")
     gql_fp = "blahblah3.txt"
     f = open(gql_fp, "w")
     f.write("test2")
     f.close()
 
     run_id, upload_headers, result = api.api.upload_urls(
-            "verify", [gql_fp], run.id, run.entity
+        "verify", [gql_fp], run.id, run.entity
         )
     extra_headers = {}
     for upload_header in upload_headers:
@@ -1658,23 +1685,22 @@ def verify(host):
         # since its a proxied file store like the on-prem VM.
         if file_url.startswith("/"):
             file_url = "{}{}".format(api.api.api_url, file_url)
-        
         response = requests.put(file_url, open(gql_fp, "rb"), headers=extra_headers)
-        print(response)
         assert response.status_code == 200, "Failed to upload file. This could happen..."
     time.sleep(5)
     read_file = prev_run.file(gql_fp).download(replace=True)
     contents = read_file.read()
     assert contents == "test2", ""
-    print("contents good")
+    print(u'\u2705')
 
-
+    """
 
     # check large file
+    '''
     print("Creating and opening a large file")
     largepath = 'newfile2.blob'
     f = open(largepath,"wb")
-    f.seek(int(1e1) - 1)
+    f.seek(int(1e10) - 1)
     f.write(b"\0")
     f.close()
     
@@ -1698,10 +1724,36 @@ def verify(host):
         #assert file_url.startswith("https"), "Request not over https"
         print(extra_headers)
         print(file_url)
-        response = requests.post(file_url, open(largepath, "rb"), headers=extra_headers)
+        response = requests.put(file_url, open(largepath, "rb"), headers=extra_headers)
         print(response)
         assert response.status_code == 200, "Uploading file to signed URL failed."
+    '''
+    print("GQL TIME")
+    descy = "a"*int(10**7)
+    print(sys.getsizeof(descy)/8/10000000)
+    query = gql(
+            """
+        query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
+            project(entityName: $entity, name: $name) {
+                run(name: $runName, desc: $desc) {
+                    name
+                    summaryMetrics
+                }
+            }
+        }
+        """
+        )
+    query_result = api.api.gql(
+            query,
+            variable_values = {
+                "entity": "kylegoyette",
+                "name": "verify",
+                "runName": run.id,
+                "desc": descy
+            }, timeout=120
+        )
 
+    print(query_result)
 
 
     # version check
@@ -1710,4 +1762,3 @@ def verify(host):
     print(wandb.__version__)
     if version.parse(response.json()["name"]) > version.parse(wandb.__version__):
         print("wandb version out of date, please run pip install --update wandb")
-
