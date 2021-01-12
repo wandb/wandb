@@ -33,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh"]
+columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -167,6 +167,20 @@ vid2 = _make_video()
 vid3 = _make_video()
 vid4 = _make_video()
 
+def _make_wandb_audio(frequency, caption):
+    SAMPLE_RATE = 44100
+    DURATION_SECONDS = 1
+
+    data = np.sin(
+        2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
+    )
+    return wandb.Audio(data, SAMPLE_RATE, caption)
+
+aud1 = _make_wandb_audio(440, "four forty")
+aud2 = _make_wandb_audio(480, "four eighty")
+aud3 = _make_wandb_audio(500, "five hundred")
+aud4 = _make_wandb_audio(520, "five twenty")
+
 def _make_wandb_table():
     classes = wandb.Classes([
         {"id": 1, "name": "tree"},
@@ -176,10 +190,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1, b1],
-            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2, b2],
-            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3, b3],
-            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4],
+            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
+            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud2],
+            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud3],
+            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud4],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -187,18 +201,6 @@ def _make_wandb_table():
 
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
-
-def _make_wandb_audio():
-    SAMPLE_RATE = 44100
-    DURATION_SECONDS = 1
-
-    def sine_wave(frequency):
-        return np.sin(
-            2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
-        )
-
-    return wandb.Audio(sine_wave(440), SAMPLE_RATE, "four forty")
-
 
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
@@ -593,7 +595,7 @@ def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 def test_audio_refs():
-    assert_media_obj_referential_equality(_make_wandb_audio())
+    assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
