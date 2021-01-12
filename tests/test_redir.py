@@ -18,7 +18,7 @@ if os.name != "nt":
 
 class CapList(list):
     def append(self, x):
-        if x.startswith("\r"):
+        if x.startswith(b"\r"):
             if self:
                 self.pop()
             x = x[1:]
