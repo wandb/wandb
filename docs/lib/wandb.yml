@@ -1,0 +1,54 @@
+loaders:
+  search_path: ../../
+  modules:
+    - wandb.sdk.wandb_artifacts
+    - wandb.sdk.wandb_config
+    - wandb.sdk.wandb_history
+    - wandb.sdk.wandb_init
+    - wandb.sdk.wandb_login
+    - wandb.sdk.wandb_run
+    - wandb.sdk.wandb_save
+    - wandb.sdk.wandb_settings
+    - wandb.sdk.wandb_summary
+    - wandb.sdk.wandb_watch
+    - wandb.data_types
+renderer:
+  content_directory: .
+  build_directory: docs
+  pages:
+    - title: Artifacts
+      contents:
+        - 'wandb.sdk.wandb_artifacts.*'
+    - title: Data Types
+      contents:
+        - 'wandb.data_types.*'
+    - title: Config
+      contents:
+        - 'wandb.sdk.wandb_config.*'
+    - title: History
+      contents:
+        - 'wandb.sdk.wandb_history.*'
+    - title: Init
+      contents:
+        - 'wandb.sdk.wandb_init.*'
+    - title: Login
+      contents:
+        - 'wandb.sdk.wandb_login.*'
+    - title: Run
+      contents:
+        - 'wandb.sdk.wandb_run.Run.*'
+    - title: Save
+      contents:
+        - 'wandb.sdk.wandb_save.*'
+    - title: Settings
+      contents:
+        - 'wandb.sdk.wandb_settings.*'
+    - title: Summary
+      contents:
+        - 'wandb.sdk.wandb_summary.*'
+    - title: Watch
+      contents:
+        - 'wandb.sdk.wandb_watch.*'
+    - title: Log
+      contents:
+        - 'wandb.sdk.wandb_run.Run.log'
