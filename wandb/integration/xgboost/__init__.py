@@ -10,12 +10,21 @@ bst = xgb.train(param_list, d_train, callbacks=[wandb_callback()])
 """
 
 import wandb
+import xgboost
 
+class WandbCallback(xgboost.callback.TrainingCallback):
+    def __init__(self):
+        pass
 
-def wandb_callback():
-    def callback(env):
-        for k, v in env.evaluation_result_list:
-            wandb.log({k: v}, commit=False)
+    def _get_key(self, data, metric):
+        return f'{data}-{metric}'
+
+    def after_iteration(self, model, epoch, evals_log):
+        for data, metric in evals_log.items():
+            for metric_name, log in metric.items():
+                key = self._get_key(data, metric_name) 
+                wandb.log({key: log[-1]}, commit=False)
         wandb.log({})
 
-    return callback
+def wandb_callback():
+    return WandbCallback()
