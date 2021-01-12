@@ -686,10 +686,7 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(
-            json_obj["columns"],
-            data=data,
-        )
+        new_obj = cls(json_obj["columns"], data=data,)
 
         new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
             json_obj["column_types"], source_artifact
@@ -1461,11 +1458,7 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(
-            t1,
-            t2,
-            json_obj["join_key"],
-        )
+        return cls(t1, t2, json_obj["join_key"],)
 
     @staticmethod
     def _validate_table_input(table):
@@ -2200,8 +2193,7 @@ class ImageMask(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact):
@@ -2936,9 +2928,7 @@ class _ClassesIdType(_dtypes.Type):
     types = [Classes]
 
     def __init__(
-        self,
-        classes_obj=None,
-        valid_ids=None,
+        self, classes_obj=None, valid_ids=None,
     ):
         if valid_ids is None:
             valid_ids = _dtypes.UnionType()
@@ -3044,10 +3034,7 @@ class _ImageType(_dtypes.Type):
             mask_keys = _dtypes.ConstType(set(mask_keys))
 
         self.params.update(
-            {
-                "box_keys": box_keys,
-                "mask_keys": mask_keys,
-            }
+            {"box_keys": box_keys, "mask_keys": mask_keys,}
         )
 
     def assign_type(self, wb_type=None):
