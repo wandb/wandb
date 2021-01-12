@@ -8,6 +8,7 @@ import time
 from math import sin, cos, pi
 import numpy as np
 import sys
+from bokeh.plotting import figure
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
@@ -32,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -142,6 +143,19 @@ pc2 = _make_point_cloud()
 pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
+def _make_bokeh():
+    x = [1, 2, 3, 4, 5]
+    y = [6, 7, 2, 4, 5]
+    p = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
+    p.line(x, y, legend_label="Temp.", line_width=2)
+
+    return wandb.data_types.Bokeh(p)
+
+b1 = _make_bokeh()
+b2 = _make_bokeh()
+b3 = _make_bokeh()
+b4 = _make_bokeh()
+
 def _make_html():
     return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
 
@@ -162,10 +176,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1],
-            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2],
-            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3],
-            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4],
+            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid, b1],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid, b2],
+            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3],
+            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -553,6 +567,9 @@ def test_image_refs():
 def test_point_cloud_refs():
     assert_media_obj_referential_equality(_make_point_cloud())
 
+def test_bokeh_refs():
+    assert_media_obj_referential_equality(_make_bokeh())
+
 def test_html_refs():
     assert_media_obj_referential_equality(_make_html())
 
@@ -687,6 +704,7 @@ if __name__ == "__main__":
         test_table_slice_reference_artifact,
         test_image_refs,
         test_point_cloud_refs,
+        test_bokeh_refs,
         test_html_refs,
         test_video_refs,
         test_table_refs,

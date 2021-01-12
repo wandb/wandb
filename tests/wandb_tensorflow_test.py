@@ -127,6 +127,7 @@ def test_hook(mocked_run):
     reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
 )
 def test_compat_tensorboard(live_mock_server, test_settings):
+    # TODO(jhr): does not work with --flake-finder
     # TODO: we currently don't unpatch tensorflow so this is the only test that can do it...
     wandb.init(sync_tensorboard=True, settings=test_settings)
 
