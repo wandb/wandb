@@ -49,11 +49,13 @@ from .lib import (
     proto_util,
     redirect,
     sparkline,
+    telemetry,
 )
+from .wandb_settings import Settings
 
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Sequence, Tuple
+    from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -154,7 +156,16 @@ class Run(object):
             final value.
     """
 
-    def __init__(self, config=None, settings=None, sweep_config=None):
+    # _telemetry_obj: telemetry.TelemetryRecord
+    # _teardown_hooks: List[Any]
+    # _tags: Optional[Tuple[Any, ...]]
+
+    def __init__(
+        self,
+        settings,
+        config = None,
+        sweep_config = None,
+    ):
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
@@ -171,7 +182,6 @@ class Run(object):
         self._settings = settings
         self._wl = None
         self._reporter = None
-        self._data = dict()
 
         self._entity = None
         self._project = None
@@ -229,23 +239,13 @@ class Run(object):
 
         self._poll_exit_response = None
 
+        # Initialize telemetry object
+        self._telemetry_obj = telemetry.TelemetryRecord()
+
+        # Populate config
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-
-        wandb_data = dict()
-        wandb_data["cli_version"] = wandb.__version__
-        wandb_data["python_version"] = platform.python_version()
-        wandb_data["is_jupyter_run"] = settings._jupyter or False
-        wandb_data["is_kaggle_kernel"] = settings._kaggle or False
-        hf_version = huggingface_version()
-        if hf_version:
-            wandb_data["huggingface_version"] = hf_version
-        framework = self._telemetry_get_framework()
-        if framework:
-            wandb_data["framework"] = framework
-        config[wandb_key].update(wandb_data)
-
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -253,9 +253,13 @@ class Run(object):
         if sweep_config:
             self._config.update_locked(sweep_config, user="sweep")
         self._config._update(config, ignore_locked=True)
+
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+
+    def _telemetry_callback(self, telem_obj):
+        self._telemetry_obj.MergeFrom(telem_obj)
 
     def _freeze(self):
         self._frozen = True
@@ -265,31 +269,30 @@ class Run(object):
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
 
-    def _telemetry_get_framework(self):
-        """Get telemetry data for internal config structure."""
-        # detect framework by checking what is loaded
-        loaded = {}
-        loaded["lightgbm"] = sys.modules.get("lightgbm")
-        loaded["catboost"] = sys.modules.get("catboost")
-        loaded["xgboost"] = sys.modules.get("xgboost")
-        loaded["fastai"] = sys.modules.get("fastai")
-        loaded["torch"] = sys.modules.get("torch")
-        loaded["keras"] = sys.modules.get("keras")  # vanilla keras
-        loaded["tensorflow"] = sys.modules.get("tensorflow")
-        loaded["sklearn"] = sys.modules.get("sklearn")
-
-        priority = (
-            "lightgbm",
-            "catboost",
-            "xgboost",
-            "fastai",
-            "torch",
-            "keras",
-            "tensorflow",
-            "sklearn",
-        )
-        framework = next((f for f in priority if loaded.get(f)), None)
-        return framework
+    def _telemetry_imports(self, imp):
+        mods = sys.modules
+        if mods.get("torch"):
+            imp.torch = True
+        if mods.get("keras"):
+            imp.keras = True
+        if mods.get("tensorflow"):
+            imp.tensorflow = True
+        if mods.get("sklearn"):
+            imp.sklearn = True
+        if mods.get("fastai"):
+            imp.fastai = True
+        if mods.get("xgboost"):
+            imp.xgboost = True
+        if mods.get("catboost"):
+            imp.catboost = True
+        if mods.get("lightgbm"):
+            imp.lightgbm = True
+        if mods.get("pytorch_lightning"):
+            imp.pytorch_lightning = True
+        if mods.get("ignite"):
+            imp.pytorch_ignite = True
+        if mods.get("transformers"):
+            imp.transformers = True
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -379,7 +382,7 @@ class Run(object):
 
     @property
     def notes(self):
-        """
+        r"""
         Returns:
             (str): notes associated with the run. Notes can be a multiline string
                 and can also use markdown and latex equations inside $$ like $\\{x}"""
@@ -404,7 +407,9 @@ class Run(object):
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.tags
+        if run_obj:
+            return run_obj.tags
+        return None
 
     @tags.setter
     def tags(self, tags):
@@ -414,8 +419,9 @@ class Run(object):
 
     @property
     def id(self):
-        """
-        Reutrns:
+        """id property.
+
+        Returns:
             (str): the run_id associated with the run
         """
         return self._run_id
@@ -602,10 +608,13 @@ class Run(object):
 
     def _config_callback(self, key=None, val=None, data=None):
         logger.info("config_cb %s %s %s", key, val, data)
-        self._backend.interface.publish_config(data)
+        if not self._backend or not self._backend.interface:
+            return
+        self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _summary_update_callback(self, summary_record):
-        self._backend.interface.publish_summary(summary_record)
+        if self._backend:
+            self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self):
         ret = self._backend.interface.communicate_summary()
@@ -915,6 +924,10 @@ class Run(object):
         wandb_glob_str = os.path.relpath(glob_str, base_path)
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
+
+        with telemetry.context(run=self) as tel:
+            tel.feature.save = True
+
         if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
             wandb.termlog(
                 "%s is a cloud storage url, can't save file to wandb." % glob_str
@@ -948,7 +961,8 @@ class Run(object):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        self._backend.interface.publish_files(files_dict)
+        if self._backend:
+            self._backend.interface.publish_files(files_dict)
         return files
 
     def restore(
@@ -965,6 +979,8 @@ class Run(object):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        with telemetry.context(run=self) as tel:
+            tel.feature.finish = True
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
@@ -1004,7 +1020,9 @@ class Run(object):
     def _set_yanked_version_message(self, msg):
         self._yanked_version_message = msg
 
-    def _add_panel(self, visualize_key, panel_type, panel_config):
+    def _add_panel(
+        self, visualize_key, panel_type, panel_config
+    ):
         if "visualize" not in self._config["_wandb"]:
             self._config["_wandb"]["visualize"] = dict()
         self._config["_wandb"]["visualize"][visualize_key] = {
@@ -1398,6 +1416,10 @@ class Run(object):
     def _on_finish(self):
         trigger.call("on_finished")
 
+        # populate final import telemetry
+        with telemetry.context(run=self) as tel:
+            self._telemetry_imports(tel.imports_finish)
+
         if self._run_status_checker:
             self._run_status_checker.stop()
 
@@ -1420,6 +1442,9 @@ class Run(object):
             else:
                 print("")
                 wandb.termlog(status_str)
+
+        # telemetry could have changed, publish final data
+        self._backend.interface.publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
@@ -1885,14 +1910,6 @@ try:
 # py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
-
-
-def huggingface_version():
-    if "transformers" in sys.modules:
-        trans = wandb.util.get_module("transformers")
-        if hasattr(trans, "__version__"):
-            return trans.__version__
-    return None
 
 
 class WriteSerializingFile(object):

@@ -35,8 +35,7 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
 
-        # keep track of config and summary from key/val updates
-        # self._consolidated_config = dict()
+        # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = dict()
 
@@ -193,6 +192,9 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_check_version(self, record):
+        self._dispatch_record(record)
+
+    def handle_telemetry(self, record):
         self._dispatch_record(record)
 
     def handle_request_run_start(self, record):
