@@ -3,9 +3,9 @@
 
 from __future__ import print_function
 import pytest
+import sys
 import os
 import wandb
-import tensorflow as tf
 import numpy as np
 import time
 import tqdm
@@ -96,8 +96,11 @@ def test_interactive(cls, capfd):
         r.uninstall()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Tensorflow not available")
 @pytest.mark.parametrize("cls", impls)
 def test_keras_progbar(cls, capfd):
+    import tensorflow as tf
+
     with capfd.disabled():
         o = CapList()
         r = wandb.wandb_sdk.lib.redirect.Redirect("stdout", [o.append])
