@@ -16,6 +16,7 @@ import sys
 import textwrap
 import time
 import traceback
+import socket
 
 import click
 from click.exceptions import ClickException
@@ -1581,9 +1582,13 @@ def gc(args):
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
-    print(host)
-    api = InternalApi({"base_url": host})
-    
+    api = _get_cling_api()
+    if host is None:
+        host = api.settings("base_url")
+
+    assert host != "https://api.wandb.ai", "Cannot run wandb verify against api.wandb.ai"
+
+    # check if logged in
     print("Checking if logged in.......", end="")
     if api.api_key is None:
         print(u'\u274C')
@@ -1592,8 +1597,15 @@ def verify(host):
         return
     else:
         print(u'\u2705')
-    
+
+    # check if request is over https
+    response = requests.get(api.settings("base_url"))
+    assert response.request.url.startswith("https")
+
+    # save and download a file
+
     # create a run
+    print("Checking logged metrics, saving and downloading a file......", end="")
     n_epochs = 4
     string_test = "A test config"
     dict_test = {
@@ -1615,10 +1627,6 @@ def verify(host):
         "val2": 2
     }
     run.log({"dict": log_dict}, step=i + 1)
-
-    # save and download a file
-    """
-    print("Checking logged metrics, saving and downloading a file......", end="")
     filepath = "./test with_special-characters.txt"
     f = open(filepath, "w")
     f.write("test")
@@ -1627,9 +1635,9 @@ def verify(host):
         wandb.save(filepath)
     except Exception:
         print("There was a problem saving the file. Please see...")
-    """
+
     wandb.finish()
-    """
+
     public_api = wandb.Api()
     prev_run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
     for key, value in prev_run.config.items():
@@ -1641,31 +1649,65 @@ def verify(host):
         assert prev_run.history_keys['keys']['dict.val2']['previousValue'] == 2, prev_run.history_keys
     except Exception:
         print("History is wrong.")
-        
+
     assert prev_run.summary["loss"] == 1.0 / 10
 
     read_file = prev_run.file(filepath).download(replace=True)
     contents = read_file.read()
     assert contents == "test", "Downloaded file contents do not match saved file. Please see..."
     print(u'\u2705')
-    '''
-    ### log an artifact
-    artifact_file = open("./artifact_file", "wb")
-    artifact_file.write(bytes([x for x in range(100)]))
-    artifact_file.close()
-    print(os.stat("./artifact_file").st_size)
-    artifact_run = wandb.init(project="verify")
-    artifact = wandb.Artifact("testArtifact2", type="list")
-    artifact.add_file("./artifact_file", "artifact_test_list")
-    artifact_run.log_artifact(artifact)
-    artifact_run.finish()
-    ###### remove
-    public_api = wandb.Api()
-    prev_artifact_run = public_api.run('{}/verify/{}'.format(artifact_run.entity, artifact_run.id))
 
-    logged_artifact = prev_artifact_run.use_artifact(artifact)
-    print(logged_artifact)
-    '''
+    # check artifacts
+    def artifact_with_various_paths():
+        art = wandb.Artifact(type='artsy', name='my-artys')
+
+        # internal file
+        with open('random.txt', 'w') as f:
+            f.write('file1 %s' % 1)
+            f.close()
+            art.add_file(f.name)
+        # internal file (using new_file)
+        with art.new_file('a.txt') as f:
+            f.write('hello %s' % 2)
+        os.makedirs('./dir', exist_ok=True)
+        with open('./dir/1.txt', 'w') as f:
+            f.write('1')
+        with open('./dir/2.txt', 'w') as f:
+            f.write('2')
+        art.add_dir('./dir')
+
+        with open('bla.txt', 'w') as f:
+            f.write('BLAAAAAAAAAAH')
+
+        # reference to local file
+        art.add_reference('file://bla.txt')
+
+        return art
+
+    art_run1 = wandb.init(project="verify")
+    art1 = artifact_with_various_paths()
+    art_run1.log_artifact(art1, aliases="art1")
+
+    art_run2 = wandb.init(reinit=True, project='verify')
+    art2 = art_run2.use_artifact("my-artys:art1")
+
+    art_dir = art2.download()
+    assert os.listdir(art_dir) == ['a.txt', '2.txt', '1.txt', 'bla.txt', 'random.txt']
+    try:
+        art2.verify()
+    except ValueError:
+        print("art verify failed")
+
+    computed = wandb.Artifact('bla', type='dataset')
+    computed.add_dir(art_dir)
+    assert art2.digest == computed.digest
+    print(art2._load_manifest().to_manifest_json())
+    print(computed.manifest.to_manifest_json())
+    computed_manifest = computed.manifest.to_manifest_json()["contents"]
+    downloaded_manifest = art2._load_manifest().to_manifest_json()["contents"]
+    for key in computed_manifest.keys():
+        assert computed_manifest[key]["digest"] == downloaded_manifest[key]["digest"]
+        assert computed_manifest[key]["size"] == downloaded_manifest[key]["size"]
 
     # check graphql endpoint using an upload
     print("Checking signed URL upload...............", end="")
@@ -1676,7 +1718,7 @@ def verify(host):
 
     run_id, upload_headers, result = api.api.upload_urls(
         "verify", [gql_fp], run.id, run.entity
-        )
+    )
     extra_headers = {}
     for upload_header in upload_headers:
         key, val = upload_header.split(":", 1)
@@ -1696,47 +1738,11 @@ def verify(host):
     assert contents == "test2", ""
     print(u'\u2705')
 
-    """
-
     # check large file
-    '''
-    print("Creating and opening a large file")
-    largepath = 'newfile2.blob'
-    f = open(largepath,"wb")
-    f.seek(int(1e10) - 1)
-    f.write(b"\0")
-    f.close()
-    
-    print(os.stat("newfile").st_size)
-    #largef = open(largepath, "rb")
-    print("performing request on large file")
-    run_id, upload_headers, result = api.api.upload_urls(
-            "verify", [largepath], run.id, run.entity
-        )
-    extra_headers = {}
-    for upload_header in upload_headers:
-        key, val = upload_header.split(":", 1)
-        extra_headers[key] = val
-
-    for file_name, file_info in result.items():
-        file_url = file_info["url"]
-        # If the upload URL is relative, fill it in with the base URL,
-        # since its a proxied file store like the on-prem VM.
-        if file_url.startswith("/"):
-            file_url = "{}{}".format(api.api.api_url, file_url)
-        #assert file_url.startswith("https"), "Request not over https"
-        print(extra_headers)
-        print(file_url)
-        response = requests.put(file_url, open(largepath, "rb"), headers=extra_headers)
-        print(response)
-        assert response.status_code == 200, "Uploading file to signed URL failed."
-    '''
-    print("GQL TIME")
-    descy = "a"*int(10**2)
-    print(sys.getsizeof(descy)/10000000)
+    descy = "a" * int(10**7)
     username = getpass.getuser()
     query = gql(
-            """
+        """
         query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
             project(entityName: $entity, name: $name) {
                 run(name: $runName, desc: $desc) {
@@ -1746,7 +1752,7 @@ def verify(host):
             }
         }
         """
-        )
+    )
     try:
         client = Client(
             transport=RequestsHTTPTransport(
@@ -1764,23 +1770,19 @@ def verify(host):
 
         def execute(document, *args, **kwargs):
             try:
+                print(document)
                 result = client._get_result(document, *args, **kwargs)
                 return result.data
-            except Exception as e:
+            except requests.HTTPError as e:
                 return e
-        
+        ini = time.time()
         response = execute(query, variable_values={"entity": username, "name": "verify", "runName": run.id, "desc": descy}, timeout=60)
-    except Exception as e:
-        print("I print the exception")
-        print(e)
-
-
-    print(response)
-
+        print("time", time.time() - ini)
+    except requests.HTTPError as e:
+        if e.ErrorCode == 413:
+            print("Failed to send large payload")
 
     # version check
     response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
-    print(response.json()["name"])
-    print(wandb.__version__)
     if version.parse(response.json()["name"]) > version.parse(wandb.__version__):
-        print("wandb version out of date, please run pip install --update wandb")
+        print("wandb version out of date, please run pip install --upgrade wandb")
