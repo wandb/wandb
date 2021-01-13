@@ -1,13 +1,13 @@
+import getpass
 import os
-import requests
 import time
+from typing import List, Union
 
 import click
-import getpass
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 from packaging import version
-from typing import List, Union
+import requests
 import wandb
 from wandb.apis.internal import Api
 
@@ -280,7 +280,7 @@ def check_graphql(api: Api, host: str) -> None:
         key, val = upload_header.split(":", 1)
         extra_headers[key] = val
 
-    for file_name, file_info in result.items():
+    for _, file_info in result.items():
         file_url = file_info["url"]
         # If the upload URL is relative, fill it in with the base URL,
         # since its a proxied file store like the on-prem VM.

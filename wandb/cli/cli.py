@@ -31,11 +31,11 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
-import wandb.verify.util as verify_util
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
+import wandb.verify.util as verify_util
 import yaml
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
