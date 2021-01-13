@@ -203,16 +203,17 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _setup(self):
         # TODO: use fork context if unix and frozen?
         # if py34+, else fall back
-        if hasattr(multiprocessing, "get_context"):
-            all_methods = multiprocessing.get_all_start_methods()
-            logger.info(
-                "multiprocessing start_methods={}".format(",".join(all_methods))
-            )
-            ctx = multiprocessing.get_context("spawn")
-        else:
-            logger.info("multiprocessing fallback, likely fork on unix")
-            ctx = multiprocessing
-        self._multiprocessing = ctx
+        # if False:
+        #     if hasattr(multiprocessing, "get_context"):
+        #         all_methods = multiprocessing.get_all_start_methods()
+        #         logger.info(
+        #             "multiprocessing start_methods={}".format(",".join(all_methods))
+        #         )
+        #         ctx = multiprocessing.get_context("spawn")
+        #     else:
+        #         logger.info("multiprocessing fallback, likely fork on unix")
+        #         ctx = multiprocessing
+        self._multiprocessing = multiprocessing
         # print("t3b", self._multiprocessing.get_start_method())
 
         sweep_path = self._settings.sweep_param_path
