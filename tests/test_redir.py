@@ -30,7 +30,7 @@ class CapList(list):
                 self.pop()
             x = x[1:]
         if x.endswith(sep):
-            x = x[:-len(sep)]
+            x = x[: -len(sep)]
         super(CapList, self).append(x)
 
 

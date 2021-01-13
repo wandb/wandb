@@ -246,6 +246,19 @@ class BaseRedirect(object):
         _redirects[self.src] = None
 
 
+class _WrappedStream(object):
+    """
+    For python 2.7 only.
+    """
+
+    def __init__(self, stream, write_f):
+        object.__setattr__(self, "write", write_f)
+        object.__setattr__(self, "_stream", stream)
+
+    def __getattr__(self, attr):
+        return getattr(self._stream, attr)
+
+
 class StreamWrapper(BaseRedirect):
     def __init__(self, src, cbs=()):
         super(StreamWrapper, self).__init__(src=src, cbs=cbs)
@@ -257,11 +270,12 @@ class StreamWrapper(BaseRedirect):
         if self._installed:
             return
         stream = self.src_wrapped_stream
-        self.old_write = stream.write
+        old_write = stream.write
         self._prev_callback_timestamp = time.time()
+        self._old_write = old_write
 
         def write(data):
-            self.old_write(data)
+            self._old_write(data)
             if isinstance(data, bytes):
                 data = data.decode("utf-8")
             self._emulator.write(data)
@@ -277,7 +291,11 @@ class StreamWrapper(BaseRedirect):
                     except Exception:
                         pass  # TODO(frz)
 
-        stream.write = write
+        if sys.version_info[0] > 2:
+            stream.write = write
+        else:
+            self._old_stream = stream
+            setattr(sys, self.src, _WrappedStream(stream, write))
         self._installed = True
 
     def flush(self):
@@ -293,7 +311,10 @@ class StreamWrapper(BaseRedirect):
         if not self._installed:
             return
         self.flush()
-        self.src_wrapped_stream.write = self.old_write
+        if sys.version_info[0] > 2:
+            self.src_wrapped_stream.write = self._old_write
+        else:
+            setattr(sys, self.src, self._old_stream)
         self._installed = False
         super(StreamWrapper, self).uninstall()
 
