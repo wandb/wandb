@@ -29,8 +29,8 @@ class CapList(list):
             if self:
                 self.pop()
             x = x[1:]
-        if not x.endswith(sep):
-            x += sep
+        if x.endswith(sep):
+            x = x[:-len(sep)]
         super(CapList, self).append(x)
 
 
@@ -42,7 +42,7 @@ def test_basic(cls, capfd):
         redir.install()
         print("Test")
         redir.uninstall()
-        assert out == [b"Test\n"]
+        assert out == [b"Test"]
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -60,8 +60,8 @@ def test_reinstall(cls, capfd):
         r2.install()
         print("5678")
         r2.uninstall()
-        assert o1 == [b"ABCD\n", b"1234\n"]
-        assert o2 == [b"WXYZ\n", b"5678\n"]
+        assert o1 == [b"ABCD", b"1234"]
+        assert o2 == [b"WXYZ", b"5678"]
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -84,7 +84,7 @@ def test_formatting(cls, capfd):
         r.install()
         print("\x1b[31mHello\x1b[39m")  # [red]Hello[default]
         r.uninstall()
-        assert o == [b"\x1b[91mHello\n"]
+        assert o == [b"\x1b[91mHello"]
 
 
 @pytest.mark.parametrize("cls", impls)
