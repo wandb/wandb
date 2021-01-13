@@ -24,6 +24,7 @@ logger = logging.getLogger("wandb")
 
 _redirects = {"stdout": None, "stderr": None}
 
+
 # Reverse graphic maps
 FG = {
     v: str(k)
@@ -389,11 +390,12 @@ class Redirect(BaseRedirect):
         getattr(sys, self.src).flush()
         time.sleep(1)
         self._stopped.set()
+        os.dup2(self._orig_src_fd, self.src_fd)
+        os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
-        os.dup2(self._orig_src_fd, self.src_fd)
         super(Redirect, self).uninstall()
 
     def flush(self):
@@ -415,9 +417,11 @@ class Redirect(BaseRedirect):
             # self._prev_callback_timestamp = time.time()
 
     def _pipe_relay(self):
-        while not self._stopped.is_set():
+        while True:
             try:
                 data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set():
+                    return
             except OSError:
                 return
             try:
