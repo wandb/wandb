@@ -176,8 +176,8 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid, b1],
-            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid, b2],
+            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2],
             [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3],
             [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4],
         ],
