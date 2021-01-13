@@ -109,7 +109,7 @@ class RunStatusChecker(object):
         self._thread.daemon = True
         self._thread.start()
 
-    def check_status(self):
+    def check_status(self) -> None:
         join_requested = False
         while not join_requested:
             status_response = (
