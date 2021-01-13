@@ -18,6 +18,13 @@ if os.name != "nt":
 
 class CapList(list):
     def append(self, x):
+        if not x:
+            return
+        sep = os.linesep.encode()
+        if sep in x:
+            for line in x.split(sep):
+                self.append(line)
+            return
         if x.startswith(b"\r"):
             if self:
                 self.pop()
