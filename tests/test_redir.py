@@ -23,7 +23,7 @@ class CapList(list):
         sep = os.linesep.encode()
         if sep in x:
             for line in x.split(sep):
-                self.append(line)
+                self.append(line + sep)
             return
         if x.startswith(b"\r"):
             if self:
@@ -106,5 +106,4 @@ def test_keras_progbar(cls, capfd):
         epochs = 5
         model.fit(np.zeros((10000, 10)), np.ones((10000, 10)), epochs=epochs)
         r.uninstall()
-        assert len(o) == 1
-        assert len(o[0].split(os.linesep.encode())) == epochs * 2 + 1
+        assert len(o) == epochs * 2
