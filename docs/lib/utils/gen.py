@@ -94,3 +94,31 @@ def module_parser(source_path):
     # - sig: signature
     # - parse: {header, args, text} for docstring. args- list of {field, signature, description}
     return p_module
+
+
+def pretty_docs(components, mytemplate):
+# components is a list of component
+# component is a dict with keys:
+# - md_name
+# - module_name
+# - query
+    for component in components:
+        source_code = component['module_name']
+        p_module = module_parser(component['module_name'])
+        comp_split = component['query'].split('.')
+        if component['query'] == '*':
+            # The whole module is documented
+            with open(component['md_name'], 'a') as f:
+                for element in p_module:
+                    f.write(mytemplate.render(el=element, source=source_code))
+        elif len(comp_split)==2 and comp_split[-1] == "*":
+            # Document the class
+            for element in p_module:
+                if '.'.join(comp_split[:-1]) in element['name'].split('.'):
+                    with open(component['md_name'], 'a') as f:
+                        f.write(mytemplate.render(el=element, source=source_code))
+        else:
+            for element in p_module:
+                if component['query'] == element['name']:
+                    with open(component['md_name'], 'a') as f:
+                        f.write(mytemplate.render(el=element, source=source_code))
