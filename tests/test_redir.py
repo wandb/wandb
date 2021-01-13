@@ -73,7 +73,7 @@ def test_tqdm_progbar(cls, capfd):
         for i in tqdm.tqdm(range(10)):
             time.sleep(0.1)
         r.uninstall()
-        assert len(o) == 1 and o[0].startswith(b"100%|")
+        assert len(o) == 1 and o[0].startswith(b"100%")
 
 
 @pytest.mark.parametrize("cls", impls)
