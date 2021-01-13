@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from gql import Client, gql
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-
 import copy
 import datetime
 from functools import wraps
@@ -16,17 +13,14 @@ import sys
 import textwrap
 import time
 import traceback
-import socket
 
 import click
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-from packaging import version
 import six
 from six.moves import configparser
-import requests
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -36,6 +30,7 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.integration.magic import magic_install
+import wandb.verify.util as verify_util
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
@@ -1586,203 +1581,13 @@ def verify(host):
     if host is None:
         host = api.settings("base_url")
 
-    assert host != "https://api.wandb.ai", "Cannot run wandb verify against api.wandb.ai"
-
-    # check if logged in
-    print("Checking if logged in.......", end="")
-    if api.api_key is None:
-        print(u'\u274C')
-        print('\033[91m\033[1mNOT LOGGED IN\033[0m\033[0m')
-        print("Please log in using wandb login")
+    if not verify_util.check_host(host):
         return
-    else:
-        print(u'\u2705')
-
-    # check if request is over https
-    response = requests.get(api.settings("base_url"))
-    assert response.request.url.startswith("https")
-
-    # save and download a file
-
-    # create a run
-    print("Checking logged metrics, saving and downloading a file......", end="")
-    n_epochs = 4
-    string_test = "A test config"
-    dict_test = {
-        "config_val": 2,
-        "config_string": "config string"
-    }
-    list_test = [0, "one", "2"]
-    config = {
-        "epochs": n_epochs,
-        "stringTest": string_test,
-        "dictTest": dict_test,
-        "listTest": list_test
-    }
-    run = wandb.init(project='verify', config=config)
-    for i in range(1, 11):
-        run.log({"loss": 1.0 / i}, step=i)
-    log_dict = {
-        "val1": 1.0,
-        "val2": 2
-    }
-    run.log({"dict": log_dict}, step=i + 1)
-    filepath = "./test with_special-characters.txt"
-    f = open(filepath, "w")
-    f.write("test")
-    f.close()
-    try:
-        wandb.save(filepath)
-    except Exception:
-        print("There was a problem saving the file. Please see...")
-
-    wandb.finish()
-
-    public_api = wandb.Api()
-    prev_run = public_api.run('{}/verify/{}'.format(run.entity, run.id))
-    for key, value in prev_run.config.items():
-        assert config[key] == value, (config[key], value)
-    try:
-        assert prev_run.history_keys['keys']['loss']['previousValue'] == 0.1, prev_run.history_keys
-        assert prev_run.history_keys['lastStep'] == 11, prev_run.history_keys['lastStep']
-        assert prev_run.history_keys['keys']['dict.val1']['previousValue'] == 1.0, prev_run.history_keys
-        assert prev_run.history_keys['keys']['dict.val2']['previousValue'] == 2, prev_run.history_keys
-    except Exception:
-        print("History is wrong.")
-
-    assert prev_run.summary["loss"] == 1.0 / 10
-
-    read_file = prev_run.file(filepath).download(replace=True)
-    contents = read_file.read()
-    assert contents == "test", "Downloaded file contents do not match saved file. Please see..."
-    print(u'\u2705')
-
-    # check artifacts
-    def artifact_with_various_paths():
-        art = wandb.Artifact(type='artsy', name='my-artys')
-
-        # internal file
-        with open('random.txt', 'w') as f:
-            f.write('file1 %s' % 1)
-            f.close()
-            art.add_file(f.name)
-        # internal file (using new_file)
-        with art.new_file('a.txt') as f:
-            f.write('hello %s' % 2)
-        os.makedirs('./dir', exist_ok=True)
-        with open('./dir/1.txt', 'w') as f:
-            f.write('1')
-        with open('./dir/2.txt', 'w') as f:
-            f.write('2')
-        art.add_dir('./dir')
-
-        with open('bla.txt', 'w') as f:
-            f.write('BLAAAAAAAAAAH')
-
-        # reference to local file
-        art.add_reference('file://bla.txt')
-
-        return art
-
-    art_run1 = wandb.init(project="verify")
-    art1 = artifact_with_various_paths()
-    art_run1.log_artifact(art1, aliases="art1")
-
-    art_run2 = wandb.init(reinit=True, project='verify')
-    art2 = art_run2.use_artifact("my-artys:art1")
-
-    art_dir = art2.download()
-    assert os.listdir(art_dir) == ['a.txt', '2.txt', '1.txt', 'bla.txt', 'random.txt']
-    try:
-        art2.verify()
-    except ValueError:
-        print("art verify failed")
-
-    computed = wandb.Artifact('bla', type='dataset')
-    computed.add_dir(art_dir)
-    assert art2.digest == computed.digest
-    print(art2._load_manifest().to_manifest_json())
-    print(computed.manifest.to_manifest_json())
-    computed_manifest = computed.manifest.to_manifest_json()["contents"]
-    downloaded_manifest = art2._load_manifest().to_manifest_json()["contents"]
-    for key in computed_manifest.keys():
-        assert computed_manifest[key]["digest"] == downloaded_manifest[key]["digest"]
-        assert computed_manifest[key]["size"] == downloaded_manifest[key]["size"]
-
-    # check graphql endpoint using an upload
-    print("Checking signed URL upload...............", end="")
-    gql_fp = "blahblah3.txt"
-    f = open(gql_fp, "w")
-    f.write("test2")
-    f.close()
-
-    run_id, upload_headers, result = api.api.upload_urls(
-        "verify", [gql_fp], run.id, run.entity
-    )
-    extra_headers = {}
-    for upload_header in upload_headers:
-        key, val = upload_header.split(":", 1)
-        extra_headers[key] = val
-
-    for file_name, file_info in result.items():
-        file_url = file_info["url"]
-        # If the upload URL is relative, fill it in with the base URL,
-        # since its a proxied file store like the on-prem VM.
-        if file_url.startswith("/"):
-            file_url = "{}{}".format(api.api.api_url, file_url)
-        response = requests.put(file_url, open(gql_fp, "rb"), headers=extra_headers)
-        assert response.status_code == 200, "Failed to upload file. This could happen..."
-    time.sleep(5)
-    read_file = prev_run.file(gql_fp).download(replace=True)
-    contents = read_file.read()
-    assert contents == "test2", ""
-    print(u'\u2705')
-
-    # check large file
-    descy = "a" * int(10**7)
-    username = getpass.getuser()
-    query = gql(
-        """
-        query Project($entity: String!, $name: String!, $runName: String!, $desc: String!){
-            project(entityName: $entity, name: $name) {
-                run(name: $runName, desc: $desc) {
-                    name
-                    summaryMetrics
-                }
-            }
-        }
-        """
-    )
-    try:
-        client = Client(
-            transport=RequestsHTTPTransport(
-                headers={
-                    "User-Agent": api.api.user_agent,
-                    "X-WANDB-USERNAME": username,
-                    "X-WANDB-USER-EMAIL": None,
-                },
-                use_json=True,
-                timeout=60,
-                auth=("api", api.api_key or ""),
-                url="%s/graphql" % host,
-            )
-        )
-
-        def execute(document, *args, **kwargs):
-            try:
-                print(document)
-                result = client._get_result(document, *args, **kwargs)
-                return result.data
-            except requests.HTTPError as e:
-                return e
-        ini = time.time()
-        response = execute(query, variable_values={"entity": username, "name": "verify", "runName": run.id, "desc": descy}, timeout=60)
-        print("time", time.time() - ini)
-    except requests.HTTPError as e:
-        if e.ErrorCode == 413:
-            print("Failed to send large payload")
-
-    # version check
-    response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
-    if version.parse(response.json()["name"]) > version.parse(wandb.__version__):
-        print("wandb version out of date, please run pip install --upgrade wandb")
+    verify_util.wandb_version_check()
+    if not verify_util.check_logged_in(api):
+        return
+    verify_util.check_secure_requests(api)
+    verify_util.check_run(api)
+    verify_util.check_artifacts()
+    verify_util.check_graphql(api, host)
+    verify_util.check_large_file(api, host)
