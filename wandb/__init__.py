@@ -41,6 +41,9 @@ else:
 
 import wandb
 
+# import util early as other libraries use it often
+from wandb import util
+
 wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
@@ -63,7 +66,6 @@ from wandb.errors.error import CommError, UsageError
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
-from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph

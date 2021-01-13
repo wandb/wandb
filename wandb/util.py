@@ -636,6 +636,22 @@ def make_safe_for_json(obj):
     return obj
 
 
+def config_dir():
+    return os.environ.get(
+        env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
+    )
+
+
+def ensure_config_dir():
+    cfg_dir = config_dir()
+    try:
+        # Many docker environments don't allow writes to the home directory
+        mkdir_exists_ok(cfg_dir)
+    except OSError:
+        cfg_dir = tempfile.gettempdir()
+    return cfg_dir
+
+
 def mkdir_exists_ok(path):
     try:
         os.makedirs(path)

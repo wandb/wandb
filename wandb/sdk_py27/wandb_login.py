@@ -13,13 +13,16 @@ from wandb.errors.error import UsageError
 
 from .internal.internal_api import Api
 from .lib import apikey
+from .lib import oidc
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None):
+def login(
+    anonymous=None, key=None, relogin=None, host=None, force=None, auth_mode=None
+):
     """Log in to W&B.
 
     Arguments:
@@ -30,12 +33,14 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
         key (string, optional): authentication key.
         relogin (bool, optional): If true, will re-prompt for API key.
         host (string, optional): The host to connect to.
+        auth_mode (string, optional): Can be "key", "google" or "oidc" for
+            Open ID Connect refresh tokens
 
     Returns:
         bool: if key is configured
 
     Raises:
-        UsageError - if api_key can not configured and no tty
+        UsageError - if api_key can not be configured and no tty
     """
     kwargs = dict(locals())
     configured = _login(**kwargs)
@@ -47,6 +52,7 @@ class _WandbLogin(object):
         self.kwargs = None
         self._settings = None
         self._backend = None
+        self._session_manager = None
         self._silent = None
         self._wl = None
         self._key = None
@@ -66,6 +72,13 @@ class _WandbLogin(object):
         self._wl = wandb.setup(settings=login_settings)
         self._settings = self._wl._settings
 
+        # setup session manager
+        if self.is_oidc_auth():
+            self._session_manager = oidc.SessionManager(self._settings)
+
+    def is_oidc_auth(self):
+        return self._settings.auth_mode in ["oidc", "google"]
+
     def is_apikey_configured(self):
         return apikey.api_key(settings=self._settings) is not None
 
@@ -76,6 +89,13 @@ class _WandbLogin(object):
         self._silent = silent
 
     def login(self):
+        if self.is_oidc_auth():
+            session_configured = self._session_manager.authorized
+            authed = session_configured and not self._settings.relogin
+            if authed and not self._silent:
+                self.login_display()
+            return True
+
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin:
             apikey_configured = False
@@ -102,7 +122,7 @@ class _WandbLogin(object):
                 repeat=False,
             )
         else:
-            login_state_str = "W&B API key is configured"
+            login_state_str = "W&B API is authenticated"
             wandb.termlog(
                 "{} {}".format(login_state_str, login_info_str,), repeat=False,
             )
@@ -132,6 +152,9 @@ class _WandbLogin(object):
         if not self._wl.settings._offline:
             self._wl._update_user_settings()
 
+    def prompt_oidc(self):
+        return self._session_manager.prompt_login()
+
     def prompt_api_key(self):
         api = Api(self._settings)
         key = apikey.prompt_api_key(
@@ -160,6 +183,7 @@ def _login(
     relogin=None,
     host=None,
     force=None,
+    auth_mode=None,
     _backend=None,
     _silent=None,
     _disable_warning=None,
@@ -197,6 +221,9 @@ def _login(
 
     if logged_in:
         return logged_in
+
+    if wlogin.is_oidc_auth():
+        return wlogin.prompt_oidc()
 
     if not key:
         wlogin.prompt_api_key()

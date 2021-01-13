@@ -29,6 +29,7 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
+        "device_code_calls": 0,
     }
 
 
@@ -665,6 +666,50 @@ index 30d74d2..9a2c773 100644
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
         return json.dumps({"exitcode": None, "limits": {}})
+
+    @app.route("/openid_configuration")
+    def openid_config():
+        return json.dumps(
+            {
+                "token_endpoint": request.url_root + "oidc/token",
+                "device_authorization_endpoint": request.url_root + "oidc/device_code",
+            }
+        )
+
+    @app.route("/oidc/token", methods=["POST"])
+    def openid_token():
+        ctx = get_ctx()
+        if request.form.get("device_code"):
+            ctx["device_code_calls"] += 1
+            if ctx["device_code_calls"] < 3:
+                return json.dumps({"error": "device not yet activated"}), 400
+        refreshed = request.form.get("refresh_token") == "REFRESH ME"
+        return json.dumps(
+            {
+                "access_token": "gAw7BhOh4UwFwS-d2f8df8xs6zfGlOE5",
+                "refresh_token": "JUSkVOek0xTlRsRFEwUXlNVU0yTXpReU1EUXdSRGcyUkVVNE",
+                "id_token": "REFRESHED_ID_TOKEN" if refreshed else "REGULAR_ID_TOKEN",
+                "scope": "openid offline_access",
+                "expires_in": 86400,
+                "token_type": "Bearer",
+            }
+        )
+
+    @app.route("/oidc/device_code", methods=["POST"])
+    def openid_code():
+        return json.dumps(
+            {
+                "device_code": "AH-1Ng0eo5WmcrQVMD_",
+                "user_code": "YYVM-DGMD",
+                "expires_in": 1800,
+                "interval": 1,
+                "verification_url": request.url_root + "device",
+            }
+        )
+
+    @app.route("/headers")
+    def headers():
+        return json.dumps(dict(request.headers))
 
     @app.route("/api/v1/namespaces/default/pods/test")
     def k8s_pod():

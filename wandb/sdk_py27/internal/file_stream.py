@@ -135,16 +135,8 @@ class FileStreamApi(object):
         self._api = api
         self._run_id = run_id
         self._start_time = start_time
-        self._client = requests.Session()
-        self._client.auth = ("api", api.api_key)
-        self._client.timeout = self.HTTP_TIMEOUT
-        self._client.headers.update(
-            {
-                "User-Agent": api.user_agent,
-                "X-WANDB-USERNAME": env.get_username(),
-                "X-WANDB-USER-EMAIL": env.get_user_email(),
-            }
-        )
+        # Use our Internal API's session
+        self._client = api.client.session
         self._file_policies = {}
         self._queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)

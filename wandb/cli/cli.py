@@ -206,8 +206,11 @@ def projects(entity, display=True):
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option(
+    "--mode", default="key", help="The login mode, defaults to key can be oidc"
+)
 @display_error
-def login(key, host, cloud, relogin, anonymously, no_offline=False):
+def login(key, host, cloud, relogin, anonymously, no_offline=False, mode="key"):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -225,7 +228,8 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         # force relogin if host is specified
         _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
-    if host or cloud or key:
+
+    if key:
         relogin = True
 
     wandb.setup(
@@ -234,6 +238,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
             _disable_viewer=relogin,
             anonymous=anon_mode,
             base_url=host,
+            auth_mode=mode,
         )
     )
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)

@@ -4,7 +4,6 @@ import configparser
 
 from wandb import util
 from wandb.old import core
-from wandb import env
 from wandb.util import wandb_dir
 
 
@@ -101,8 +100,7 @@ class Settings(object):
 
     @staticmethod
     def _global_path():
-        config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
-        util.mkdir_exists_ok(config_dir)
+        config_dir = util.ensure_config_dir()
         return os.path.join(config_dir, 'settings')
 
     @staticmethod

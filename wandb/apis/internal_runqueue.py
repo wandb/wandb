@@ -7,15 +7,13 @@ import re
 import sys
 
 # from wandb.git_repo import GitRepo
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import requests
 import six
 from six import BytesIO
 import wandb
 from wandb import __version__, env, util
 from wandb import wandb_lib
+from wandb.apis.client import gql, GQLClient
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
 from wandb.old import retry
@@ -78,33 +76,30 @@ class Api(object):
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
-        self.client = Client(
-            transport=RequestsHTTPTransport(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
-                    "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                },
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
-            )
+        self.client = GQLClient(
+            headers={
+                "User-Agent": self.user_agent,
+                "X-WANDB-USERNAME": env.get_username(env=self._environ),
+                "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+            },
+            # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
+            # https://bugs.python.org/issue22889
+            timeout=self.HTTP_TIMEOUT,
+            api_key=self.api_key,
+            url="%s/graphql" % self.settings("base_url"),
         )
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException),
+            retryable_exceptions=(requests.RequestException),
         )
         self._current_run_id = None
         self._file_stream_api = None
 
     def reauth(self):
-        """Ensures the current api key is set in the transport"""
-        self.client.transport.auth = ("api", self.api_key or "")
+        """Ensures the current api key is set in client"""
+        self.client.auth = ("api", self.api_key or "")
 
     def relocate(self):
         """Ensures the current api points to the right server"""

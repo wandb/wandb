@@ -7,7 +7,6 @@ import ast
 from functools import wraps
 import sys
 
-from gql.client import RetryError
 import requests
 import six
 from wandb import env
@@ -24,28 +23,6 @@ def normalize_exceptions(func):
             return func(*args, **kwargs)
         except requests.HTTPError as err:
             raise CommError(err.response, err)
-        except RetryError as err:
-            if (
-                "response" in dir(err.last_exception)
-                and err.last_exception.response is not None
-            ):
-                try:
-                    message = err.last_exception.response.json().get(
-                        "errors", [{"message": message}]
-                    )[0]["message"]
-                except ValueError:
-                    message = err.last_exception.response.text
-            else:
-                message = err.last_exception
-
-            if env.is_debug():
-                six.reraise(
-                    type(err.last_exception), err.last_exception, sys.exc_info()[2]
-                )
-            else:
-                six.reraise(
-                    CommError, CommError(message, err.last_exception), sys.exc_info()[2]
-                )
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:

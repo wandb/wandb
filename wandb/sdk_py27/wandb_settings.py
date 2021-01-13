@@ -89,6 +89,7 @@ env_settings = dict(
     resume=None,
     silent=None,
     sagemaker_disable=None,
+    auth_mode=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -192,6 +193,7 @@ class Settings(object):
     """
 
     mode = "online"
+    auth_mode = "key"
     console = "auto"
     disabled = False
     run_tags = None
@@ -255,6 +257,7 @@ class Settings(object):
         api_key = None,
         anonymous=None,
         mode = None,
+        auth_mode = None,
         entity = None,
         project = None,
         run_group = None,
@@ -511,6 +514,16 @@ class Settings(object):
             "offline",
             "online",
             "disabled",
+        }
+        if value in choices:
+            return
+        return _error_choices(value, choices)
+
+    def _validate_auth_mode(self, value):
+        choices = {
+            "key",
+            "oidc",
+            "google",
         }
         if value in choices:
             return

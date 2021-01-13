@@ -62,6 +62,10 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
+AUTH_MODE = "WANDB_AUTH_MODE"
+CLIENT_ID = "WANDB_OIDC_CLIENT_ID"
+CLIENT_SECRET = "WANDB_OIDC_CLIENT_SECRET"
+DISCOVERY_URL = "WANDB_OIDC_DISCOVERY_URL"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -98,6 +102,9 @@ def immutable_keys():
         HOST,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
+        CLIENT_ID,
+        CLIENT_SECRET,
+        DISCOVERY_URL,
     ]
 
 
@@ -132,6 +139,13 @@ def get_run(default=None, env=None):
         env = os.environ
 
     return env.get(RUN_ID, default)
+
+
+def get_auth_mode(default="key", env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(AUTH_MODE, default)
 
 
 def get_args(default=None, env=None):
