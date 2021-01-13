@@ -380,7 +380,7 @@ class Run(object):
 
     @property
     def notes(self):
-        r"""
+        """
         Returns:
             (str): notes associated with the run. Notes can be a multiline string
                 and can also use markdown and latex equations inside $$ like $\\{x}"""

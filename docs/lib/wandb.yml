@@ -1,6 +1,9 @@
 loaders:
   search_path: ../../
   modules:
+    - wandb.apis.public
+    - wandb.cli.cli
+    - wandb.sdk.wandb_alerts
     - wandb.sdk.wandb_artifacts
     - wandb.sdk.wandb_config
     - wandb.sdk.wandb_history
@@ -12,16 +15,29 @@ loaders:
     - wandb.sdk.wandb_summary
     - wandb.sdk.wandb_watch
     - wandb.data_types
+    - wandb.integration.keras.keras
 renderer:
   content_directory: .
   build_directory: docs
   pages:
+    - title: wandb
+      contents:
+        - 'wandb.sdk.wandb_init.init'
+        - 'wandb.sdk.wandb_run.Run.log'
+        - 'wandb.sdk.wandb_watch.watch'
+        - 'wandb.sdk.wandb_save.*'
+        - 'wandb.sdk.wandb_login.login'
+        - 'wandb.sdk.wandb_run.Run.finish'
+    - title: Media
+      contents:
+        - 'wandb.data_types.Graph'
+        - 'wandb.data_types.Image'
+        - 'wandb.data_types.Table'
+        - 'wandb.data_types.Video'
+        - 'wandb.data_types.Audio'
     - title: Artifacts
       contents:
         - 'wandb.sdk.wandb_artifacts.*'
-    - title: Data Types
-      contents:
-        - 'wandb.data_types.*'
     - title: Config
       contents:
         - 'wandb.sdk.wandb_config.*'
