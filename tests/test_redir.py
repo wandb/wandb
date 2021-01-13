@@ -23,12 +23,14 @@ class CapList(list):
         sep = os.linesep.encode()
         if sep in x:
             for line in x.split(sep):
-                self.append(line + sep)
+                self.append(line)
             return
         if x.startswith(b"\r"):
             if self:
                 self.pop()
             x = x[1:]
+        if not x.endswith(sep):
+            x += sep
         super(CapList, self).append(x)
 
 
