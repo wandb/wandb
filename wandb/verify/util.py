@@ -14,17 +14,15 @@ from wandb.apis.internal import Api
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
-START_FAIL = "\033[91m" + "\033[1m"
-END_FAIL = 2 * "\033[0m"
 
 
 def print_results(failed_test_or_tests: Union[str, List[str]] = None) -> None:
     if isinstance(failed_test_or_tests, str):
         print(RED_X)
-        print(START_FAIL + failed_test_or_tests + END_FAIL)
+        print(click.style(failed_test_or_tests, fg="red", bold=True))
     elif isinstance(failed_test_or_tests, list) and len(failed_test_or_tests) > 0:
         print(RED_X)
-        print(START_FAIL + "\n".join(failed_test_or_tests) + END_FAIL)
+        print("\n".join(click.style(failed_test_or_tests, fg="red", bold=True)))
     else:
         print(CHECKMARK)
 
