@@ -10,9 +10,9 @@ import requests
 import wandb
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Union
+    from typing import List, Union  # noqa: F401 pylint: disable=unused-import
 
-    from wandb.apis.internal import Api
+    from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
 
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
