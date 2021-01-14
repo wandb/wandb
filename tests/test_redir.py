@@ -7,6 +7,7 @@ import sys
 import os
 import wandb
 import numpy as np
+import re
 import time
 import tqdm
 
@@ -20,17 +21,18 @@ class CapList(list):
     def append(self, x):
         if not x:
             return
-        sep = os.linesep.encode()
-        if sep in x:
-            for line in x.split(sep):
-                self.append(line)
+        lines = re.split("\r\n|\n", x)
+        if len(lines) > 1:
+            [self.append(l) for l in lines]
             return
         if x.startswith(b"\r"):
             if self:
                 self.pop()
             x = x[1:]
-        if x.endswith(sep):
-            x = x[: -len(sep)]
+        seps = ["\n", "\r\n"]
+        for sep in seps:
+            if x.endswith(sep):
+                x = x[: -len(sep)]
         super(CapList, self).append(x)
 
 

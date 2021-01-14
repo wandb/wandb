@@ -318,13 +318,6 @@ class StreamWrapper(BaseRedirect):
         super(StreamWrapper, self).uninstall()
 
 
-class Unbuffered(StreamWrapper):
-    def __init__(self, src):
-        super(Unbuffered, self).__init__(
-            src=src, cbs=[lambda _: getattr(sys, src).flush()]
-        )
-
-
 class _WindowSizeChangeHandler(object):
     def __init__(self):
         self._fds = set()
@@ -452,6 +445,7 @@ class Redirect(BaseRedirect):
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
+                self.src_wrapped_stream.flush()
             except OSError:
                 return
             self._emulator.write(data.decode("utf-8"))
