@@ -111,7 +111,7 @@ class StoragePolicy(object):
     def load_file(self, artifact, name, manifest_entry):
         raise NotImplementedError
 
-    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+    def store_file(self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None):
         raise NotImplementedError
 
     def store_reference(
