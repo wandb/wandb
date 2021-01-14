@@ -84,7 +84,7 @@ def test_formatting(cls, capfd):
         r.install()
         print("\x1b[31mHello\x1b[39m")  # [red]Hello[default]
         r.uninstall()
-        assert o == [b"\x1b[91mHello"]
+        assert o == [b"\x1b[31mHello"]
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -111,4 +111,4 @@ def test_keras_progbar(cls, capfd):
         epochs = 5
         model.fit(np.zeros((10000, 10)), np.ones((10000, 10)), epochs=epochs)
         r.uninstall()
-        assert len(o) == epochs * 2
+        assert len(o) in (epochs * 2, epochs * 2 + 1)  # Allow 1 offs
