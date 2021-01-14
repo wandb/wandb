@@ -9,7 +9,14 @@ with open('package_readme.md') as readme_file:
     readme = readme_file.read()
 
 with open('requirements.txt') as requirements_file:
-    requirements = requirements_file.read().splitlines()
+    all_requirements = requirements_file.read().splitlines()
+    requirements = []
+    dependency_links = []
+    for r in all_requirements:
+        if 'git+' in r:
+            requirements.append(r)
+        else:
+            dependency_links.append(r)
 
 test_requirements = [
     'mock>=2.0.0',
@@ -47,6 +54,7 @@ setup(
     },
     include_package_data=True,
     install_requires=requirements,
+    dependency_links=dependency_links,
     license="MIT license",
     zip_safe=False,
     # keywords='wandb',
