@@ -692,6 +692,73 @@ def test_image_reference_with_preferred_path():
     
     # This test just checks that all this logic does not fail
 
+def test_simple_partition_table():
+    table_name = "dataset"
+    table_parts_dir = "dataset_parts"
+    artifact_name = "simple_dataset"
+    group_name = "test_group"
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    data = []
+    
+    # Add Data
+    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    for i in range(5):
+        row = [i,i*i,2**i]
+        data.append(row)
+        table = wandb.Table(columns=columns, data=[row])
+        artifact.add(table, "{}/{}".format(table_parts_dir, i))
+    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    artifact.add(partition_table, table_name)
+    run.log_artifact(artifact)
+    run.finish()
+    
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
+    table = partition_table.materialize()
+    assert table.columns == columns
+    assert table.data == data
+
+def test_distributed_partition_table():
+    table_name = "dataset"
+    table_parts_dir = "dataset_parts"
+    artifact_name = "dist_dataset"
+    group_name = "test_group"
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    data = []
+    
+    # Add Data
+    for i in range(5):
+        run = wandb.init(project=WANDB_PROJECT, group=group_name)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        row = [i,i*i,2**i]
+        data.append(row)
+        table = wandb.Table(columns=columns, data=[row])
+        artifact.add(table, "{}/{}".format(table_parts_dir, i))
+        run.upsert_artifact(artifact)
+        run.finish()
+
+    # TODO: Should we try to use_artifact in some way before it is finished?
+
+    # Finish
+    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    artifact.add(partition_table, table_name)
+    run.finish_artifact(artifact)
+    run.finish()
+    
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
+    table = partition_table.materialize()
+    assert table.columns == columns
+    assert table.data == data
+    
+
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
@@ -712,6 +779,8 @@ if __name__ == "__main__":
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
+        test_simple_partition_table,
+        test_distributed_partition_table
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:
