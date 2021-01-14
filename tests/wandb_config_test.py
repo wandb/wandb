@@ -7,7 +7,7 @@ import yaml
 from wandb import wandb_sdk
 
 
-def callback_func(key, val, data):
+def callback_func(key=None, val=None, data=None):
     print(key, val, data)
 
 
