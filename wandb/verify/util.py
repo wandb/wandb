@@ -38,7 +38,7 @@ def check_host(host: str) -> bool:
 
 def check_logged_in(api: Api) -> bool:
     # check if logged in
-    print("Checking if logged in.......", end="")
+    print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
     if api.api_key is None:
@@ -51,7 +51,7 @@ def check_logged_in(api: Api) -> bool:
 
 def check_secure_requests(api: Api) -> None:
     # check if request is over https
-    print("Checking requests are made over a secure connection.....", end="")
+    print("Checking requests are made over a secure connection".ljust(72, "."), end="")
     response = requests.get(api.settings("base_url"))
     doc_url = "insert bad_secure_requests url here"
     try:
@@ -67,7 +67,7 @@ def check_secure_requests(api: Api) -> None:
 
 
 def check_run(api: Api) -> None:
-    print("Checking logged metrics, saving and downloading a file......", end="")
+    print("Checking logged metrics, saving and downloading a file".ljust(72, "."), end="")
     failed_test_strings = []
     bad_config_url = "insert bad config url here"
     bad_history_url = "insert bad history url here"
@@ -161,7 +161,7 @@ def check_run(api: Api) -> None:
 
 
 def check_artifacts() -> None:
-    print("Checking artifact save and download workflows.....", end="")
+    print("Checking artifact save and download workflows".ljust(72, "."), end="")
     failed_test_strings = []
 
     def artifact_with_path_or_paths(name, singular=False):
@@ -264,7 +264,7 @@ def check_artifacts() -> None:
 
 def check_graphql(api: Api, host: str) -> None:
     # check graphql endpoint using an upload
-    print("Checking signed URL upload...............", end="")
+    print("Checking signed URL upload".ljust(72, "."), end="")
     failed_test_strings = []
     gql_fp = "gql_test_file.txt"
     f = open(gql_fp, "w")
@@ -320,7 +320,7 @@ def check_graphql(api: Api, host: str) -> None:
 
 
 def check_large_file(api: Api, host: str) -> None:
-    print("Checking ability to send large files through proxy.....", end="")
+    print("Checking ability to send large files through proxy".ljust(72, "."), end="")
     descy = "a" * int(10 ** 3)
 
     username = getpass.getuser()
@@ -372,7 +372,7 @@ def check_large_file(api: Api, host: str) -> None:
 
 
 def wandb_version_check() -> None:
-    print("Checking wandb package version is up to date.......", end="")
+    print("Checking wandb package version is up to date".ljust(72, "."), end="")
     response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
     fail_string = None
     if version.parse(response.json()["name"]) > version.parse(wandb.__version__):
