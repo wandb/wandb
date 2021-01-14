@@ -1,7 +1,6 @@
 import getpass
 import os
 import time
-from typing import List, Union
 
 import click
 from gql import Client, gql
@@ -9,14 +8,18 @@ from gql.transport.requests import RequestsHTTPTransport
 from packaging import version
 import requests
 import wandb
-from wandb.apis.internal import Api
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import List, Union
+
+    from wandb.apis.internal import Api
 
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
 
 
-def print_results(failed_test_or_tests = None):
+def print_results(failed_test_or_tests):
     if isinstance(failed_test_or_tests, str):
         print(RED_X)
         print(click.style(failed_test_or_tests, fg="red", bold=True))
@@ -59,14 +62,12 @@ def check_logged_in(api):
 def check_secure_requests(url):
     # check if request is over https
     print("Checking requests are made over a secure connection".ljust(72, "."), end="")
+    fail_string = None
     if not url.startswith("https"):
-        print_results(
-            "Connections are not made over https. See the docs: {}".format(
-                click.style("PLACEHOLDER", underline=True, fg="blue")
-            )
+        fail_string = "Connections are not made over https. See the docs: {}".format(
+            click.style("PLACEHOLDER", underline=True, fg="blue")
         )
-    else:
-        print_results()
+    print_results(fail_string)
 
 
 def check_run(api):
