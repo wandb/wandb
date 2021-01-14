@@ -51,10 +51,8 @@ def check_logged_in(api: Api) -> bool:
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
     if api.api_key is None:
-        fail_string = (
-            "Not logged in. Please log in using wandb login. See the docs: {}".format(
-                click.style(login_doc_url, underline=True, fg="blue")
-            )
+        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
+            click.style(login_doc_url, underline=True, fg="blue")
         )
     print_results(fail_string)
     return fail_string is None
