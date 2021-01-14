@@ -148,6 +148,7 @@ def test_dir(test_name):
 
 @pytest.fixture
 def git_repo(runner):
+    print("running git repo test fixture")
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
         mkdir_exists_ok("wandb")
@@ -158,6 +159,14 @@ def git_repo(runner):
         r.index.add(["README"])
         r.index.commit("Initial commit")
         yield GitRepo(lazy=False)
+
+
+@pytest.fixture
+def git_repo_with_remote(runner):
+    with runner.isolated_filesystem():
+        r = git.Repo.init(".")        
+        r.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
+        yield GitRepo(lazy=False, hide_git_token=True)
 
 
 @pytest.fixture
