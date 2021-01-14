@@ -750,6 +750,7 @@ class Table(Media):
 
         return json_dict
 
+
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
@@ -863,6 +864,7 @@ class JoinedTable(Media):
             and self._join_key == other._join_key
         )
 
+
 class PartitionedTable(Media):
     artifact_type = "partitioned-table"
 
@@ -877,13 +879,16 @@ class PartitionedTable(Media):
         return json_obj
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact): 
+    def from_json(cls, json_obj, source_artifact):
         instance = cls(json_obj["parts_path"])
-        entries = source_artifact.manifest.get_entries_in_directory(json_obj["parts_path"])
+        entries = source_artifact.manifest.get_entries_in_directory(
+            json_obj["parts_path"]
+        )
         for entry in entries:
             part = source_artifact.get(entry.path)
             if isinstance(part, Table):
-                self._add_part(part)
+                instance._add_part(part)
+        return instance
 
     def materialize(self):
         columns = None
@@ -891,20 +896,25 @@ class PartitionedTable(Media):
         for part in self._loaded_parts:
             if columns is None:
                 columns = part.columns
+            elif columns != part.columns:
+                raise ValueError(
+                    "Table parts have non-matching columns. {} != {}".format(
+                        columns, part.columns
+                    )
+                )
+
             data += part.data
         return wandb.Table(data=data, columns=columns)
 
-    def _add_part(part):
+    def _add_part(self, part):
         self._loaded_parts.append(part)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        return (
-            isinstance(other, self.__class__) and
-            self.parts_path == other.parts_path
-        )
+        return isinstance(other, self.__class__) and self.parts_path == other.parts_path
+
 
 class Audio(BatchableMedia):
     """

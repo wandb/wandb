@@ -87,7 +87,9 @@ class ArtifactManifest(object):
         return [
             self.entries[entry_key]
             for entry_key in self.entries
-            if entry_key.starts_with(directory + "/") # entries use forward slash even for windows
+            if entry_key.startswith(
+                directory + "/"
+            )  # entries use forward slash even for windows
         ]
 
 
