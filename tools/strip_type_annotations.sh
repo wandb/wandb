@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib"
+CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib sdk/verify"
 
 CODEMOD_SRC_BASE="wandb"
 CODEMOD_DEST_SUFFIX="_py27"
@@ -19,6 +19,7 @@ for dir in $CODEMOD_DIRS; do
   src="$CODEMOD_SRC_BASE/${dir}/"
 
   dest=`echo $CODEMOD_SRC_BASE/$dir | sed 's:/sdk:/sdk_py27:'`
+  echo $dest
   dest_tmp="$dest${CODEMOD_DEST_SUFFIX_TMP}/"
   if $check; then
     dest_orig=$dest

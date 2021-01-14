@@ -56,17 +56,13 @@ def check_logged_in(api: Api) -> bool:
     return fail_string is None
 
 
-def check_secure_requests(api: Api) -> None:
+def check_secure_requests(url: str) -> None:
     # check if request is over https
     print("Checking requests are made over a secure connection".ljust(72, "."), end="")
-    response = requests.get(api.settings("base_url"))
-    doc_url = "insert bad_secure_requests url here"
-    try:
-        assert response.request.url.startswith("https")
-    except AssertionError:
+    if not url.startswith("https"):
         print_results(
             "Connections are not made over https. See the docs: {}".format(
-                click.style(doc_url, underline=True, fg="blue")
+                click.style("PLACEHOLDER", underline=True, fg="blue")
             )
         )
     else:
@@ -283,7 +279,7 @@ def check_artifacts() -> None:
     os.remove("verify_int_test.txt")
 
 
-def check_graphql(api: Api, host: str) -> None:
+def check_graphql(api: Api, host: str) -> str:
     # check graphql endpoint using an upload
     print("Checking signed URL upload".ljust(72, "."), end="")
     failed_test_strings = []
@@ -338,6 +334,7 @@ def check_graphql(api: Api, host: str) -> None:
         )
 
     print_results(failed_test_strings)
+    return response.request.url
 
 
 def check_large_file(api: Api, host: str) -> None:
@@ -358,20 +355,20 @@ def check_large_file(api: Api, host: str) -> None:
         }
         """
     )
-    try:
-        client = Client(
-            transport=RequestsHTTPTransport(
-                headers={
-                    "User-Agent": api.api.user_agent,
-                    "X-WANDB-USERNAME": username,
-                    "X-WANDB-USER-EMAIL": None,
-                },
-                use_json=True,
-                timeout=60,
-                auth=("api", api.api_key or ""),
-                url="%s/graphql" % host,
-            )
+    client = Client(
+        transport=RequestsHTTPTransport(
+            headers={
+                "User-Agent": api.api.user_agent,
+                "X-WANDB-USERNAME": username,
+                "X-WANDB-USER-EMAIL": None,
+            },
+            use_json=True,
+            timeout=60,
+            auth=("api", api.api_key or ""),
+            url="%s/graphql" % host,
         )
+    )
+    try:
         client._get_result(
             query,
             variable_values={
@@ -387,6 +384,12 @@ def check_large_file(api: Api, host: str) -> None:
             failed_test_strings.append(
                 "Failed to send a large file. See the docs: {}".format(
                     click.style("PLACEHOLDER", underline=True, fg="blue")
+                )
+            )
+        else:
+            failed_test_strings.append(
+                "Failed to send a file with response code: {}".format(
+                    e.response.status_code
                 )
             )
     print_results(failed_test_strings)

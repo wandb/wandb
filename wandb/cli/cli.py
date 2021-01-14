@@ -34,8 +34,8 @@ from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
+import wandb.sdk.verify.util as verify_util
 from wandb.sync import get_run_from_path, get_runs, SyncManager
-import wandb.verify.util as verify_util
 import yaml
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
@@ -1587,8 +1587,10 @@ def verify(host):
     verify_util.wandb_version_check()
     if not verify_util.check_logged_in(api):
         return
-    verify_util.check_secure_requests(api)
+
     verify_util.check_run(api)
     verify_util.check_artifacts()
-    verify_util.check_graphql(api, host)
+    url = verify_util.check_graphql(api, host)
     verify_util.check_large_file(api, host)
+    if url is not None:
+        verify_util.check_secure_requests(url)
