@@ -70,6 +70,7 @@ class Artifact(object):
         self.name = name
         self.description = description
         self.metadata = metadata
+        self.distributed_id = None
 
     @property
     def id(self):

@@ -1713,6 +1713,17 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
+    def _log_artifact(self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None, is_final=True):
+        if not is_final and distributed_id is None:
+            raise TypeError("Must provide distributed_id if artifact is not final")
+        artifact, aliases = self._prepare_artifact(
+            artifact_or_path, name, type, aliases
+        )
+        artifact.distributed_id = distributed_id
+        self._assert_can_log_artifact(artifact)
+        self._backend.interface.publish_artifact(self, artifact, aliases, is_final)
+        return artifact
+
     def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
         """ Declare an artifact as output of a run.
 
@@ -1738,20 +1749,18 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        artifact, aliases = self._prepare_artifact(
-            artifact_or_path, name, type, aliases
-        )
-        self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases)
-        return artifact
+        return self._log_artifact(self, artifact_or_path, name, type, aliases)
 
     def upsert_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        # TODO: Implement Properly with Anni
-        self.log_artifact(artifact_or_path, name, type, aliases)
+        if (self.group is None):
+            raise TypeError("Cannot upsert artifact unless run is in a group")
+        return self._log_artifact(self, artifact_or_path, name, type, aliases, distributed_id=self.group, is_final=False):
 
     def finish_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        # TODO: Implement Properly with Anni
-        self.log_artifact(artifact_or_path, name, type, aliases)
+        if (self.group is None):
+            raise TypeError("Cannot finish artifact unless run is in a group")
+        return self._log_artifact(self, artifact_or_path, name, type, aliases, distributed_id=self.group, is_final=True:
+
 
     def _public_api(self):
         overrides = {"run": self.id}
