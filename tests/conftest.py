@@ -164,7 +164,7 @@ def git_repo(runner):
 @pytest.fixture
 def git_repo_with_remote(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")        
+        r = git.Repo.init(".")
         r.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
         yield GitRepo(lazy=False, hide_git_token=True)
 
