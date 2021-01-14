@@ -1738,6 +1738,46 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
+        artifact, aliases = self._prepare_artifact(
+            artifact_or_path, name, type, aliases
+        )
+        self._assert_can_log_artifact(artifact)
+        self._backend.interface.publish_artifact(self, artifact, aliases)
+        return artifact
+
+    def upsert_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+        # TODO: Implement Properly with Anni
+        self.log_artifact(artifact_or_path, name, type, aliases)
+
+    def finish_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+        # TODO: Implement Properly with Anni
+        self.log_artifact(artifact_or_path, name, type, aliases)
+
+    def _public_api(self):
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return public.Api(overrides)
+
+    def _assert_can_log_artifact(self, artifact):
+        if not self._settings._offline:
+            public_api = self._public_api()
+            expected_type = public.Artifact.expected_type(
+                public_api.client,
+                artifact.name,
+                public_api.settings["entity"],
+                public_api.settings["project"],
+            )
+            if expected_type is not None and artifact.type != expected_type:
+                raise ValueError(
+                    "Expected artifact type {}, got {}".format(
+                        expected_type, artifact.type
+                    )
+                )
+
+    def _prepare_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
@@ -1764,33 +1804,7 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
-        self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases)
-        return artifact
-
-    def _assert_can_log_artifact(self, artifact):
-        if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
-                )
-
-    def _public_api(self):
-        overrides = {"run": self.id}
-        run_obj = self._run_obj
-        if run_obj is not None:
-            overrides["entity"] = run_obj.entity
-            overrides["project"] = run_obj.project
-        return public.Api(overrides)
+        return artifact, aliases
 
     def alert(self, title, text, level=None, wait_duration=None):
         """Launch an alert with the given title and text.
