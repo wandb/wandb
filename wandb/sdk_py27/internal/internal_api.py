@@ -1794,6 +1794,7 @@ class Api(object):
         project=None,
         run=None,
         include_upload=True,
+        type=None,
     ):
         mutation = gql(
             """
@@ -1805,7 +1806,8 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $includeUpload: Boolean!
+            $includeUpload: Boolean!,
+            $type: ArtifactManifestType! = FULL
         ) {
             createArtifactManifest(input: {
                 name: $name,
@@ -1814,7 +1816,8 @@ class Api(object):
                 baseArtifactID: $baseArtifactID,
                 entityName: $entityName,
                 projectName: $projectName,
-                runName: $runName
+                runName: $runName,
+                type: $type
             }) {
                 artifactManifest {
                     id
@@ -1846,10 +1849,60 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "includeUpload": include_upload,
+                "type": type,
             },
         )
 
-        return response["createArtifactManifest"]["artifactManifest"]["file"]
+        return response["createArtifactManifest"]["artifactManifest"]["id"],\
+               response["createArtifactManifest"]["artifactManifest"]["file"]
+
+    def update_artifact_manifest(
+        self,
+        artifact_manifest_id,
+        base_artifact_id=None,
+        digest=None,
+        include_upload=True,
+    ):
+        mutation = gql(
+            """
+        mutation UpdateArtifactManifest(
+            $artifactManifestID: ID!,
+            $digest: String,
+            $baseArtifactID: ID,
+            $includeUpload: Boolean!,
+        ) {
+            updateArtifactManifest(input: {
+                artifactManifestID: $artifactManifestID,
+                digest: $digest,
+                baseArtifactID: $baseArtifactID,
+            }) {
+                artifactManifest {
+                    id
+                    file {
+                        id
+                        name
+                        displayName
+                        uploadUrl @include(if: $includeUpload)
+                        uploadHeaders @include(if: $includeUpload)
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactManifestID": artifact_manifest_id,
+                "digest": digest,
+                "baseArtifactID": base_artifact_id,
+                "includeUpload": include_upload,
+            },
+        )
+
+        return response["updateArtifactManifest"]["artifactManifest"]["id"],\
+               response["updateArtifactManifest"]["artifactManifest"]["file"]
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):

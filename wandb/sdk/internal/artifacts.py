@@ -111,7 +111,7 @@ class ArtifactSaver(object):
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
-        self._api.create_artifact_manifest(
+        manifest_id, _ = self._api.create_artifact_manifest(
             "wandb_manifest.json",
             "",
             artifact_id,
@@ -138,13 +138,9 @@ class ArtifactSaver(object):
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
+            _, resp = self._api.update_artifact_manifest(manifest_id, digest=digest,)
+
             # We're duplicating the file upload logic a little, which isn't great.
-            resp = self._api.create_artifact_manifest(
-                "wandb_manifest.json",
-                digest,
-                artifact_id,
-                base_artifact_id=latest_artifact_id,
-            )
             upload_url = resp["uploadUrl"]
             upload_headers = resp["uploadHeaders"]
             extra_headers = {}
