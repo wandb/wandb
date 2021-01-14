@@ -14,7 +14,7 @@ with open('requirements.txt') as requirements_file:
     dependency_links = []
     for r in all_requirements:
         if 'git+' in r:
-            requirements.append(r)
+            dependency_links.append(r)
         else:
             dependency_links.append(r)
 
