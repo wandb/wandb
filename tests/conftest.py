@@ -148,7 +148,6 @@ def test_dir(test_name):
 
 @pytest.fixture
 def git_repo(runner):
-    print("running git repo test fixture")
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
         mkdir_exists_ok("wandb")
