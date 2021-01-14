@@ -517,7 +517,9 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception("unrecognized storage layout: {}".format(storage_layout))
 
-    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+    def store_file(
+        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
+    ):
         # write-through cache
         cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
         if not hit:
@@ -526,6 +528,7 @@ class WandbStoragePolicy(StoragePolicy):
         resp = preparer.prepare(
             lambda: {
                 "artifactID": artifact_id,
+                "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
