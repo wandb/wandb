@@ -21,7 +21,7 @@ class CapList(list):
     def append(self, x):
         if not x:
             return
-        lines = re.split("\r\n|\n", x)
+        lines = re.split(b"\r\n|\n", x)
         if len(lines) > 1:
             [self.append(l) for l in lines]
             return
@@ -29,8 +29,7 @@ class CapList(list):
             if self:
                 self.pop()
             x = x[1:]
-        seps = ["\n", "\r\n"]
-        for sep in seps:
+        for sep in [b"\r\n", b"\n"]:
             if x.endswith(sep):
                 x = x[: -len(sep)]
         super(CapList, self).append(x)
