@@ -34,7 +34,6 @@ from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
-import wandb.sdk.verify.util as verify_util
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
 
@@ -1575,22 +1574,22 @@ def gc(args):
 
 
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
     api = _get_cling_api()
     if host is None:
         host = api.settings("base_url")
 
-    if not verify_util.check_host(host):
+    if not wandb_sdk.verify.util.check_host(host):
         return
-    verify_util.wandb_version_check()
-    if not verify_util.check_logged_in(api):
+    wandb_sdk.verify.util.wandb_version_check()
+    if not wandb_sdk.verify.util.check_logged_in(api):
         return
 
-    verify_util.check_run(api)
-    verify_util.check_artifacts()
-    url = verify_util.check_graphql(api, host)
-    verify_util.check_large_file(api, host)
+    wandb_sdk.verify.util.check_run(api)
+    wandb_sdk.verify.util.check_artifacts()
+    url = wandb_sdk.verify.util.check_graphql(api, host)
+    wandb_sdk.verify.util.check_large_file(api, host)
     if url is not None:
-        verify_util.check_secure_requests(url)
+        wandb_sdk.verify.util.check_secure_requests(url)
