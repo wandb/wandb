@@ -403,7 +403,7 @@ class Redirect(BaseRedirect):
         if not self._installed:
             return
         self._installed = False
-        getattr(sys, self.src).flush()
+        self.src_wrapped_stream.flush()
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)

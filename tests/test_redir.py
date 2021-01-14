@@ -97,7 +97,10 @@ def test_interactive(cls, capfd):
         r.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Tensorflow not available")
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Tensorflow not available.")
+@pytest.mark.skipif(
+    not sys.stdout.isatty(), reason="Keras won't show progressbar on non tty terminal."
+)
 @pytest.mark.parametrize("cls", impls)
 def test_keras_progbar(cls, capfd):
     import tensorflow as tf
