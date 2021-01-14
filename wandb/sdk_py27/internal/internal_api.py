@@ -1675,6 +1675,7 @@ class Api(object):
         labels=None,
         metadata=None,
         aliases=None,
+        distributed_id=None,
         is_user_created=False,
     ):
         mutation = gql(
@@ -1685,11 +1686,12 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String,
-            $description: String
+            $description: String,
             $digest: String!,
-            $labels: JSONString
-            $aliases: [ArtifactAliasInput!]
-            $metadata: JSONString
+            $labels: JSONString,
+            $aliases: [ArtifactAliasInput!],
+            $metadata: JSONString,
+            $distributedID: String
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1700,9 +1702,10 @@ class Api(object):
                 description: $description,
                 digest: $digest,
                 digestAlgorithm: MANIFEST_MD5,
-                labels: $labels
-                aliases: $aliases
-                metadata: $metadata
+                labels: $labels,
+                aliases: $aliases,
+                metadata: $metadata,
+                distributedID: $distributedID
             }) {
                 artifact {
                     id
@@ -1749,6 +1752,7 @@ class Api(object):
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
+                "distributedID": distributed_id,
             },
         )
         av = response["createArtifact"]["artifact"]
