@@ -89,6 +89,7 @@ class ArtifactSaver(object):
             labels=labels,
             description=description,
             is_user_created=self._is_user_created,
+            distributed_id=distributed_id,
         )
 
         # TODO(artifacts):
