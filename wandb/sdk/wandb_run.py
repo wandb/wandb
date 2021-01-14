@@ -25,6 +25,7 @@ from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
 from wandb.apis import internal, public
+import wandb.data_types as data_types
 from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
@@ -92,6 +93,114 @@ class ExitHooks(object):
             self.exit_code = 255
 
         traceback.print_exception(exc_type, exc, *tb)
+
+
+class _InternalArtifactMediaObject:
+    def __init__(self, media, path):
+        self.media = media
+        self.path = path
+
+
+class _InternalArtifact:
+    def __init__(self, name, atype, media_objects=None):
+        self.artifact = wandb.Artifact(name=name, atype=type)
+        self.media_objects = media_objects if media_objects is not None else []
+        for media_object in media_objects:
+            self.add_media_object(media_object)
+
+    def add_media_object(self, media_object):
+        assert isinstance(media_object.media, data_types.Media)
+        self.media_objects.append(media_object)
+
+    def finish(self, run):
+        for media_object in self.media_objects:
+            self.artifact.add(media_object.media, media_object.path)
+        run.log_artifact(self.artifact)
+
+
+class _InternalDatasetArtifact(_InternalArtifact):
+    def __init__(self, name, atype="__wb_dataset__", media_objects=None):
+        self.artifact = wandb.Artifact(
+            name=self.make_artifact_name(name), type=self.make_artifact_type()
+        )
+        self.media_objects = []
+        for media_object in media_objects:
+            self.add_media_object(media_object)
+
+    def add_media_object(self, media_object):
+        assert isinstance(media_object.media, data_types.Table)
+        super(_InternalDatasetArtifact, self).add_media_object(media_object)
+
+    @staticmethod
+    def make_artifact_name(name):
+        return "__wb_dataset__{}".format(name)
+
+    @staticmethod
+    def make_artifact_type():
+        return "__wb_dataset__"
+
+
+class _InternalTableArtifact(_InternalDatasetArtifact):
+    def __init__(
+        self, name, atype="__wb_dataset__", media_objects=None, table_kwargs=None
+    ):
+        super(_InternalTableArtifact, self).__init__(name)
+        table_kwargs = table_kwargs if table_kwargs is not None else {}
+        self._table = wandb.Table(**table_kwargs)
+        super(_InternalTableArtifact, self).add_media_object(
+            _InternalArtifactMediaObject(self.table, self.make_path())
+        )
+
+    @property
+    def table(self):
+        return self._table
+
+    def add_media_object(self, media_object):
+        raise NotImplementedError(
+            "add_media_object not supported on _InternalTableArtifact. Use _InternalArtifact for general artifacts"
+        )
+
+    @staticmethod
+    def make_path():
+        return "table"
+
+
+# UNCOMMENT AFTER MERGING IN PARTITION TABLES AND DISTRIBUTED WORK
+# class _InternalOpenTableArtifact(_InternalTableArtifact):
+#     def __init__(self, name, atype="__wb_dataset__", media_objects=[], part_id=1, table_kwargs={}):
+#         super(_InternalTableArtifact, self).__init__(name)
+#         self._table = self.make_table_wrapper()(**table_kwargs)
+#         self.finalized = False
+#         super(_InternalTableArtifact, self).add_media_object(_InternalArtifactMediaObject(self.table, "{}/{}".format(self.make_parts_path(), part_id)))
+
+#     def make_table_wrapper(self):
+#         this = self
+#         class TableWrapper(wandb.Table):
+#             def finalize(self):
+#                 this.finalize()
+
+#         return TableWrapper
+
+#     @classmethod
+#     def finalize_by_name(cls, name):
+#         iartifact = cls(name)
+#         iartifact.table.finalize()
+#         return iartifact
+
+#     def finalize(self):
+#         super(_InternalDatasetArtifact, self).add_media_object(_InternalArtifactMediaObject(data_types.PartitionTable(self.make_parts_path()), self.make_path()))
+#         self.finalized = True
+
+#     @staticmethod
+#     def make_parts_path():
+#         return "{}-parts".format(_InternalOpenTableArtifact.make_path())
+
+#     def finish(self, run):
+#         # TODO: Do something differed based on self.finalized (in terms of artifact committing)
+#         for media_object in self.media_objects:
+#             if media_object.media.__class__ == wandb.PartitionTable or len(media_object.media.data) > 0:
+#                 self.artifact.add(media_object.media, media_object.path)
+#         run.log_artifact(self.artifact)
 
 
 class RunStatusChecker(object):
@@ -255,6 +364,7 @@ class Run(object):
         self._atexit_cleanup_called = None
         self._use_redirect = True
         self._progress_step = 0
+        self._internal_artifacts: List[_InternalArtifact] = []
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -979,6 +1089,7 @@ class Run(object):
         """
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
+        self._finish_internal_artifacts()
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
@@ -987,6 +1098,10 @@ class Run(object):
         if len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
+
+    def _finish_internal_artifacts(self):
+        for iartifact in self._internal_artifacts:
+            iartifact.finish(self)
 
     def join(self, exit_code=None):
         """Deprecated alias for `finish()` - please use finish"""
@@ -1835,6 +1950,43 @@ class Run(object):
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
+
+    def new_table(self, table_name, **kwargs):
+        iartifact = _InternalTableArtifact(table_name, table_kwargs=kwargs)
+        self._internal_artifacts.append(iartifact)
+        return iartifact.table
+
+    def use_table(self, table_name, alias=None):
+        if alias is None:
+            alias = "latest"
+        artifact = self.use_artifact(
+            "{}:{}".format(
+                _InternalTableArtifact.make_artifact_name(table_name), alias
+            ),
+            _InternalTableArtifact.make_artifact_type(),
+        )
+
+        return artifact.get(_InternalTableArtifact.make_path())
+
+    # UNCOMMENT AFTER MERGING IN PARTITION TABLES AND ANNI's WORK
+    # def new_table(self, table_name, leave_open=False, **kwargs):
+    #     if (leave_open):
+    #         iartifact = _InternalOpenTableArtifact(table_name, part_id=self.id, table_kwargs=kwargs)
+    #     else:
+    #         iartifact = _InternalTableArtifact(table_name, table_kwargs=kwargs)
+
+    #     self._internal_artifacts.append(iartifact)
+    #     return iartifact.table
+
+    # def finalize_open_table(self, table_name):
+    #     self._internal_artifacts.append(_InternalOpenTableArtifact.finalize_by_name(table_name))
+
+    # def use_table(self, table_name, alias=None):
+    #     if alias is None:
+    #         alias = "latest"
+    #     artifact = self.use_artifact("{}:{}".format(_InternalTableArtifact.make_artifact_name(table_name), alias), _InternalTableArtifact.make_artifact_type())
+
+    #     return artifact.get(_InternalTableArtifact.make_path())
 
 
 # We define this outside of the run context to support restoring before init
