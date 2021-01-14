@@ -103,7 +103,7 @@ def test_keras_progbar(cls, capfd):
 
     with capfd.disabled():
         o = CapList()
-        r = wandb.wandb_sdk.lib.redirect.Redirect("stdout", [o.append])
+        r = cls("stdout", [o.append])
         model = tf.keras.models.Sequential()
         model.add(tf.keras.layers.Dense(10, input_dim=10))
         model.compile(loss="mse", optimizer="sgd")

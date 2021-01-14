@@ -55,8 +55,7 @@ class InfiniteScreen(pyte.Screen):
         super(InfiniteScreen, self).__init__(columns=5, lines=5)
         self._prev_num_lines = None
         self._prev_last_line = None
-        if os.name != "nt":
-            self.set_mode(pyte.modes.LNM)
+        self.set_mode(pyte.modes.LNM)
 
     def reset(self):
         super(InfiniteScreen, self).reset()
@@ -399,10 +398,12 @@ class Redirect(BaseRedirect):
         self._installed = True
         self._stopped = threading.Event()
         # self._prev_callback_timestamp = time.time()
-        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay, daemon=True)
+        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
+        self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
-            self._callback_thread = threading.Thread(target=self._callback, daemon=True)
+            self._callback_thread = threading.Thread(target=self._callback)
+            self._callback_thread.daemon = True
             self._callback_thread.start()
 
     def uninstall(self):
