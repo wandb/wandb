@@ -718,6 +718,8 @@ class SendManager(object):
                 description=artifact.description,
                 aliases=artifact.aliases,
                 use_after_commit=artifact.use_after_commit,
+                distributed_id=artifact.distributed_id,
+                finalize=artifact.final
             )
         except Exception as e:
             logger.error(

@@ -89,6 +89,7 @@ class ArtifactSaver(object):
             labels=labels,
             description=description,
             is_user_created=self._is_user_created,
+            distributed_id=distributed_id,
         )
 
         # TODO(artifacts):
@@ -114,7 +115,7 @@ class ArtifactSaver(object):
             )
 
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
-            "wandb_manifest.json",
+            "wandb_manifest.json" if distributed_id is None else "wandb_manifest.patch.json",
             "",
             artifact_id,
             base_artifact_id=latest_artifact_id,
