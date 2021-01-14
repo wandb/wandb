@@ -38,3 +38,8 @@ class TestGitRepo:
 
     def test_no_remote(self):
         assert not GitRepo(remote=None).enabled
+
+    def test_remote_url_no_token(self, git_repo):
+        git_repo.hide_git_token = True
+        git_repo.remote.url = "https://foo:bar@github.com/FooTest/Foo.git"
+        assert "bar" not in git_repo.remote_url
