@@ -106,16 +106,11 @@ class GitRepo(object):
 
     @property
     def remote_url(self):
-        print(type(self.remote))
         if not self.remote:
             return None
         if self.hide_git_token:
             parsed = urlparse(self.remote.url)
-            return urlunparse(
-                parsed._replace(
-                    netloc="{}:{}@{}".format(parsed.username, "???", parsed.hostname)
-                )
-            )
+            return urlunparse(parsed._replace(netloc=parsed.hostname))
         return self.remote.url
 
     @property

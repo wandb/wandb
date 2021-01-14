@@ -39,7 +39,8 @@ class Meta(object):
         self._git = GitRepo(
             remote=self._settings["git_remote"]
             if "git_remote" in self._settings.keys()
-            else "origin"
+            else "origin",
+            hide_git_token=self._settings["hide_git_token"],
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None

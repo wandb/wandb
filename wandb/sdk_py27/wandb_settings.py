@@ -127,8 +127,8 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(program, _logger=None, hide_git_token=None):
-    repo = GitRepo(hide_git_token=hide_git_token)
+def _get_program_relpath_from_gitrepo(program, _logger=None):
+    repo = GitRepo()
     root = repo.root
     if not root:
         root = os.getcwd()
@@ -319,6 +319,7 @@ class Settings(object):
         email=None,
         docker=None,
         sagemaker_disable = None,
+        hide_git_token = None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
@@ -788,7 +789,7 @@ class Settings(object):
         program = self.program or _get_program()
         if program:
             program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program, _logger=_logger, hide_git_token=self.hide_git_token
+                program, _logger=_logger
             )
             self.update(dict(program=program, program_relpath=program_relpath))
         else:
