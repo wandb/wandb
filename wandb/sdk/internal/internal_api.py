@@ -1807,7 +1807,7 @@ class Api(object):
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            $type: ArtifactManifestType! = FULL
+            $type: ArtifactManifestType = FULL
         ) {
             createArtifactManifest(input: {
                 name: $name,
@@ -1837,6 +1837,7 @@ class Api(object):
         entity_name = entity or self.settings("entity")
         project_name = project or self.settings("project")
         run_name = run or self.current_run_id
+        type = type or "FULL"
 
         response = self.gql(
             mutation,

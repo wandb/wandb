@@ -138,10 +138,7 @@ class ArtifactSaver(object):
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
-            _, resp = self._api.update_artifact_manifest(
-                manifest_id,
-                digest=digest,
-            )
+            _, resp = self._api.update_artifact_manifest(manifest_id, digest=digest,)
 
             # We're duplicating the file upload logic a little, which isn't great.
             upload_url = resp["uploadUrl"]

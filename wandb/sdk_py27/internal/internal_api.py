@@ -1807,7 +1807,7 @@ class Api(object):
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            $type: ArtifactManifestType! = FULL
+            $type: ArtifactManifestType = FULL
         ) {
             createArtifactManifest(input: {
                 name: $name,
@@ -1837,6 +1837,7 @@ class Api(object):
         entity_name = entity or self.settings("entity")
         project_name = project or self.settings("project")
         run_name = run or self.current_run_id
+        type = type or "FULL"
 
         response = self.gql(
             mutation,
@@ -1853,8 +1854,10 @@ class Api(object):
             },
         )
 
-        return response["createArtifactManifest"]["artifactManifest"]["id"],\
-               response["createArtifactManifest"]["artifactManifest"]["file"]
+        return (
+            response["createArtifactManifest"]["artifactManifest"]["id"],
+            response["createArtifactManifest"]["artifactManifest"]["file"],
+        )
 
     def update_artifact_manifest(
         self,
@@ -1901,8 +1904,10 @@ class Api(object):
             },
         )
 
-        return response["updateArtifactManifest"]["artifactManifest"]["id"],\
-               response["updateArtifactManifest"]["artifactManifest"]["file"]
+        return (
+            response["updateArtifactManifest"]["artifactManifest"]["id"],
+            response["updateArtifactManifest"]["artifactManifest"]["file"],
+        )
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):
