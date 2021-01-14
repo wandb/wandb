@@ -29,6 +29,15 @@ def print_results(failed_test_or_tests: Union[str, List[str]] = None) -> None:
         print(CHECKMARK)
 
 
+def cleanup(dirs: List[str]) -> None:
+    for top in dirs:
+        for root, dirs, files in os.walk(top, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+
+
 def check_host(host: str) -> bool:
     if host == "api.wandb.ai":
         print_results("Cannot run wandb verify against api.wandb.ai")
@@ -42,8 +51,10 @@ def check_logged_in(api: Api) -> bool:
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using wandb login. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     print_results(fail_string)
     return fail_string is None
@@ -67,7 +78,9 @@ def check_secure_requests(api: Api) -> None:
 
 
 def check_run(api: Api) -> None:
-    print("Checking logged metrics, saving and downloading a file".ljust(72, "."), end="")
+    print(
+        "Checking logged metrics, saving and downloading a file".ljust(72, "."), end=""
+    )
     failed_test_strings = []
     bad_config_url = "insert bad config url here"
     bad_history_url = "insert bad history url here"
@@ -163,31 +176,33 @@ def check_run(api: Api) -> None:
 def check_artifacts() -> None:
     print("Checking artifact save and download workflows".ljust(72, "."), end="")
     failed_test_strings = []
+    verify_dir = "./verify_art_dir"
 
     def artifact_with_path_or_paths(name, singular=False):
         art = wandb.Artifact(type="artsy", name=name)
 
         # internal file
-        with open("random.txt", "w") as f:
+        with open("verify_int_test.txt", "w") as f:
             f.write("test 1")
             f.close()
             art.add_file(f.name)
         if singular:
             return art
 
-        with art.new_file("a.txt") as f:
+        with art.new_file("verify_a.txt") as f:
             f.write("test 2")
-        os.makedirs("./dir", exist_ok=True)
-        with open("./dir/1.txt", "w") as f:
+
+        os.makedirs(verify_dir, exist_ok=True)
+        with open("{}/verify_1.txt".format(verify_dir), "w") as f:
             f.write("1")
-        with open("./dir/2.txt", "w") as f:
+        with open("{}/verify_2.txt".format(verify_dir), "w") as f:
             f.write("2")
-        art.add_dir("./dir")
-        with open("3.txt", "w") as f:
-            f.write("Test 3")
+        art.add_dir(verify_dir)
+        with open("verify_3.txt", "w") as f:
+            f.write("3")
 
         # reference to local file
-        art.add_reference("file://3.txt")
+        art.add_reference("file://verify_3.txt")
 
         return art
 
@@ -199,11 +214,12 @@ def check_artifacts() -> None:
 
     sing_art_run2 = wandb.init(reinit=True, project=PROJECT_NAME)
     sing_art2 = sing_art_run2.use_artifact("sing-artys:sing_art1")
-    sing_art2.download()
+    sing_art_dir = "./verify_sing_art"
+    sing_art2.download(root=sing_art_dir)
     sing_art_run2.finish()
 
     try:
-        sing_art2.verify()
+        sing_art2.verify(root=sing_art_dir)
     except ValueError:
         failed_test_strings.append(
             "Artifact does not contain expected checksum. See the docs: {}".format(
@@ -219,12 +235,19 @@ def check_artifacts() -> None:
 
     art_run2 = wandb.init(reinit=True, project=PROJECT_NAME)
     art2 = art_run2.use_artifact("my-artys:art1")
-    art_dir = art2.download()
+    multi_art_dir = "./verify_art"
+    art_dir = art2.download(root=multi_art_dir)
     art_run2.finish()
 
     try:
         assert set(os.listdir(art_dir)) == set(
-            ["a.txt", "2.txt", "1.txt", "3.txt", "random.txt"]
+            [
+                "verify_a.txt",
+                "verify_2.txt",
+                "verify_1.txt",
+                "verify_3.txt",
+                "verify_int_test.txt",
+            ]
         )
     except AssertionError:
         failed_test_strings.append(
@@ -260,6 +283,8 @@ def check_artifacts() -> None:
 
     art_run2.finish()
     print_results(failed_test_strings)
+    cleanup([verify_dir, sing_art_dir, multi_art_dir])
+    os.remove("verify_int_test.txt")
 
 
 def check_graphql(api: Api, host: str) -> None:
