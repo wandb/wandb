@@ -19,7 +19,6 @@ for dir in $CODEMOD_DIRS; do
   src="$CODEMOD_SRC_BASE/${dir}/"
 
   dest=`echo $CODEMOD_SRC_BASE/$dir | sed 's:/sdk:/sdk_py27:'`
-  echo $dest
   dest_tmp="$dest${CODEMOD_DEST_SUFFIX_TMP}/"
   if $check; then
     dest_orig=$dest
