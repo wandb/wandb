@@ -54,6 +54,8 @@ class ArtifactSaver(object):
         self,
         type,
         name,
+        distributed_id=None,
+        finalize=True,
         metadata=None,
         description=None,
         aliases=None,
@@ -157,12 +159,15 @@ class ArtifactSaver(object):
                 self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
 
         def on_commit():
-            if use_after_commit:
+            if finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
-            artifact_id, before_commit=before_commit, on_commit=on_commit
+            artifact_id,
+            finalize=finalize,
+            before_commit=before_commit,
+            on_commit=on_commit,
         )
         return self._server_artifact
