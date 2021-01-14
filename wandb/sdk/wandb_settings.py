@@ -89,6 +89,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     resume=None,
     silent=None,
     sagemaker_disable=None,
+    hide_git_token=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -126,8 +127,8 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(program, _logger=None):
-    repo = GitRepo()
+def _get_program_relpath_from_gitrepo(program, _logger=None, hide_git_token=None):
+    repo = GitRepo(hide_git_token=hide_git_token)
     root = repo.root
     if not root:
         root = os.getcwd()
@@ -219,6 +220,7 @@ class Settings(object):
 
     # Public attributes
     sagemaker_disable: Optional[bool] = None
+    hide_git_token: Optional[bool] = None
 
     # Private attributes
     __start_time: Optional[float]
@@ -786,7 +788,7 @@ class Settings(object):
         program = self.program or _get_program()
         if program:
             program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program, _logger=_logger
+                program, _logger=_logger, hide_git_token=self.hide_git_token
             )
             self.update(dict(program=program, program_relpath=program_relpath))
         else:

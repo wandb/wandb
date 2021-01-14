@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+from urllib.parse import urlparse, urlunparse
 
 from six.moves import configparser
 
@@ -10,10 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class GitRepo(object):
-    def __init__(self, root=None, remote="origin", lazy=True):
+    def __init__(self, root=None, remote="origin", lazy=True, hide_git_token=False):
         self.remote_name = remote
         self._root = root
         self._repo = None
+        self.hide_token = hide_git_token
         if not lazy:
             self.repo
 
@@ -106,6 +108,13 @@ class GitRepo(object):
     def remote_url(self):
         if not self.remote:
             return None
+        if self.hide_git_token:
+            parsed = urlparse(self.remote.url)
+            return urlunparse(
+                parsed._replace(
+                    netloc="{}:{}@{}".format(parsed.username, "???", parsed.hostname)
+                )
+            )
         return self.remote.url
 
     @property
