@@ -67,7 +67,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings
     from .interface.summary_record import SummaryRecord
-    from .backend.backend import Backend
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import RunRecord
@@ -186,7 +185,8 @@ class Run(object):
 
     _run_obj: Optional[RunRecord]
     _run_obj_offline: Optional[RunRecord]
-    _backend: Optional[Backend]
+    # Use string literal anotation because of type reference loop
+    _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _wl: Optional[_WandbSetup]
 
     def __init__(
@@ -705,7 +705,7 @@ class Run(object):
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend: Backend) -> None:
+    def _set_backend(self, backend: "wandb.sdk.backend.backend.Backend") -> None:
         self._backend = backend
 
     def _set_reporter(self, reporter: Reporter) -> None:
