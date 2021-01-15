@@ -34,6 +34,15 @@ def test_locked_update():
     assert s.that == 4
 
 
+def test_locked_no_sideeffect():
+    s = wandb_sdk.Config()
+    s.update_locked(dict(this=2, that=4), "sweep")
+    update_arg = dict(this=8)
+    s.update(update_arg)
+    assert update_arg == dict(this=8)
+    assert dict(s) == dict(this=2, that=4)
+
+
 def test_load_config_default():
     test_path = "config-defaults.yaml"
     yaml_dict = {"epochs": {"value": 32}, "size_batch": {"value": 32}}
