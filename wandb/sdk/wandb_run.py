@@ -173,7 +173,7 @@ class Run(object):
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _teardown_hooks: List[Callable[[None], None]]
+    _teardown_hooks: List[Callable[[], None]]
     _tags: Optional[Tuple[Any, ...]]
 
     _entity: Optional[str]
@@ -188,6 +188,10 @@ class Run(object):
     # Use string literal anotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _wl: Optional[_WandbSetup]
+
+    _upgraded_version_message: Optional[str]
+    _deleted_version_message: Optional[str]
+    _yanked_version_message: Optional[str]
 
     def __init__(
         self,
@@ -711,7 +715,7 @@ class Run(object):
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
-    def _set_teardown_hooks(self, hooks: List[Callable[[None], None]]) -> None:
+    def _set_teardown_hooks(self, hooks: List[Callable[[], None]]) -> None:
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
@@ -773,7 +777,13 @@ class Run(object):
             self.config["_wandb"][data_type][key] = value_extra
             self.config.persist()
 
-    def log(self, data, step=None, commit=None, sync=None):
+    def log(
+        self,
+        data: Dict[str, Any],
+        step: int = None,
+        commit: bool = None,
+        sync: bool = None,
+    ) -> None:
         """Log a dict to the global run's history.
 
         `wandb.log` can be used to log everything from scalars to histograms, media
@@ -1008,7 +1018,7 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def finish(self, exit_code=None):
+    def finish(self, exit_code: int = None) -> None:
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
@@ -1020,15 +1030,16 @@ class Run(object):
         for hook in self._teardown_hooks:
             hook()
         self._atexit_cleanup(exit_code=exit_code)
-        if len(self._wl._global_run_stack) > 0:
+        if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
 
-    def join(self, exit_code=None):
+    def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish"""
         self.finish(exit_code=exit_code)
 
-    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):
+    # TODO(jhr): annotate this
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
         """Creates a custom plot on a table.
         Arguments:
             vega_spec_name: the name of the spec for the plot
@@ -1045,13 +1056,13 @@ class Run(object):
         )
         return visualization
 
-    def _set_upgraded_version_message(self, msg):
+    def _set_upgraded_version_message(self, msg: str) -> None:
         self._upgraded_version_message = msg
 
-    def _set_deleted_version_message(self, msg):
+    def _set_deleted_version_message(self, msg: str) -> None:
         self._deleted_version_message = msg
 
-    def _set_yanked_version_message(self, msg):
+    def _set_yanked_version_message(self, msg: str) -> None:
         self._yanked_version_message = msg
 
     def _add_panel(
