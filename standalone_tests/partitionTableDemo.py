@@ -2,12 +2,11 @@ import ray
 import wandb
 import numpy as np
 
-project = "dist_dev_test"
-table_name = "dataset_demo"
-table_parts_dir = "dataset_parts"
+table_name = "table"
+table_parts_dir = "table_parts"
 artifact_name = "dist_dataset_demo"
 group_name = "test_group_{}".format(np.random.rand())
-artifact_type = "dataset"
+artifact_type = "dist_dataset"
 columns = ["A", "B", "C"]
 data = []
 
@@ -16,11 +15,11 @@ ray.init()
 
 @ray.remote
 def train(i):
-    run = wandb.init(project=project, group=group_name)
+    run = wandb.init(group=group_name)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     row = [i,i*i,2**i]
     table = wandb.Table(columns=columns, data=[row])
-    artifact.add(table, "{}/{}".format(table_parts_dir, i))
+    artifact.add(table, "{}/t_{}".format(table_parts_dir, i))
     run.upsert_artifact(artifact)
     run.finish()
 
@@ -33,7 +32,7 @@ for i in range(4):
 # With at least 4 cores, this will take 1 second.
 results = ray.get(result_ids)  # [0, 1, 2, 3]
 
-run = wandb.init(project=project, group=group_name)
+run = wandb.init(group=group_name)
 artifact = wandb.Artifact(artifact_name, type=artifact_type)
 partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
 artifact.add(partition_table, table_name)
