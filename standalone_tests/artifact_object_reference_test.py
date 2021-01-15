@@ -715,13 +715,18 @@ def test_distributed_artifact_simple():
     artifact_type = "dataset"
     columns = ["A", "B", "C"]
     count = 5
+    images = []
+    image_paths = []
 
     # Add Data
     for i in range(count):
         run = wandb.init(project=WANDB_PROJECT, group=group_name)
         artifact = wandb.Artifact(artifact_name, type=artifact_type)
         image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-        artifact.add(image, "image_{}".format(i))
+        path = "image_{}".format(i)
+        images.append(image)
+        image_paths.append(path)
+        artifact.add(image, path)
         run.upsert_artifact(artifact)
         run.finish()
 
@@ -737,6 +742,8 @@ def test_distributed_artifact_simple():
     run = wandb.init(project=WANDB_PROJECT)
     artifact = run.use_artifact("{}:latest".format(artifact_name))
     assert len(artifact.manifest.entries) == count
+    for image, path in zip(images, image_paths):
+        assert image == artifact.get(path)
 
 if __name__ == "__main__":
     _cleanup()
