@@ -181,9 +181,10 @@ class Config(object):
 
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
-        d = self._sanitize_dict(d)
         # strip out keys already configured
         d = {k: v for k, v in six.iteritems(d) if k not in self._items}
+        d = self._sanitize_dict(d)
+        self._items.update(d)
         if self._callback:
             self._callback(data=d)
 
