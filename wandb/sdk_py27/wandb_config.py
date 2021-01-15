@@ -156,10 +156,13 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
-                del parsed_dict[key]
-        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
+                locked_keys.add(key)
+        sanitized = self._sanitize_dict(
+            parsed_dict, allow_val_change, ignore_keys=locked_keys
+        )
         self._items.update(sanitized)
         return sanitized
 
@@ -205,9 +208,11 @@ class Config(object):
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None):
+    def _sanitize_dict(self, config_dict, allow_val_change=None, ignore_keys=None):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
+            if k in ignore_keys:
+                continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
