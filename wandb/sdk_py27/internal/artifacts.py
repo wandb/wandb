@@ -115,11 +115,14 @@ class ArtifactSaver(object):
             )
 
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
-            "wandb_manifest.json" if distributed_id is None else "wandb_manifest.patch.json",
+            "wandb_manifest.json"
+            if distributed_id is None
+            else "wandb_manifest.patch.json",
             "",
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
+            type="FULL" if distributed_id is None else "PATCH",
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(

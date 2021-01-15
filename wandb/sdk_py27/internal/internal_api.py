@@ -1798,7 +1798,7 @@ class Api(object):
         project=None,
         run=None,
         include_upload=True,
-        type=None,
+        type="FULL",
     ):
         mutation = gql(
             """
@@ -1841,7 +1841,6 @@ class Api(object):
         entity_name = entity or self.settings("entity")
         project_name = project or self.settings("project")
         run_name = run or self.current_run_id
-        type = type or "FULL"
 
         response = self.gql(
             mutation,

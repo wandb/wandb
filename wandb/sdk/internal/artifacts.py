@@ -122,6 +122,7 @@ class ArtifactSaver(object):
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
+            type="FULL" if distributed_id is None else "PATCH",
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(
