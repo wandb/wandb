@@ -1740,27 +1740,40 @@ class Run(object):
         """
         return self._log_artifact(artifact_or_path, name, type, aliases)
 
-    def upsert_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        if self.group is None:
-            raise TypeError("Cannot upsert artifact unless run is in a group")
+    def upsert_artifact(
+        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+    ):
+        if self.group is None and distributed_id is None:
+            raise TypeError(
+                "Cannot upsert artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
         return self._log_artifact(
             artifact_or_path,
             name,
             type,
             aliases,
-            distributed_id=self.group,
+            distributed_id=distributed_id,
             finalize=False,
         )
 
-    def finish_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        if self.group is None:
-            raise TypeError("Cannot finish artifact unless run is in a group")
+    def finish_artifact(
+        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+    ):
+        if self.group is None and distributed_id is None:
+            raise TypeError(
+                "Cannot finish artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+
         return self._log_artifact(
             artifact_or_path,
             name,
             type,
             aliases,
-            distributed_id=self.group,
+            distributed_id=distributed_id,
             finalize=True,
         )
 
@@ -1780,7 +1793,9 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases, finalize=finalize)
+        self._backend.interface.publish_artifact(
+            self, artifact, aliases, finalize=finalize
+        )
         return artifact
 
     def _public_api(self):

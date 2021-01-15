@@ -1740,27 +1740,95 @@ class Run(object):
         """
         return self._log_artifact(artifact_or_path, name, type, aliases)
 
-    def upsert_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        if self.group is None:
-            raise TypeError("Cannot upsert artifact unless run is in a group")
+    def upsert_artifact(
+        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+    ):
+        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
+        run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
+        need to all contribute to the same artifact.
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group is None and distributed_id is None:
+            raise TypeError(
+                "Cannot upsert artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
         return self._log_artifact(
             artifact_or_path,
             name,
             type,
             aliases,
-            distributed_id=self.group,
+            distributed_id=distributed_id,
             finalize=False,
         )
 
-    def finish_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        if self.group is None:
-            raise TypeError("Cannot finish artifact unless run is in a group")
+    def finish_artifact(
+        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+    ):
+        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
+        the same distributed ID will result in a new version
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group is None and distributed_id is None:
+            raise TypeError(
+                "Cannot finish artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+
         return self._log_artifact(
             artifact_or_path,
             name,
             type,
             aliases,
-            distributed_id=self.group,
+            distributed_id=distributed_id,
             finalize=True,
         )
 
