@@ -38,7 +38,6 @@ from wandb.viz import (
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
-from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
@@ -50,10 +49,29 @@ from .lib import (
     sparkline,
     telemetry,
 )
-from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
+    from typing import (
+        Any,
+        Dict,
+        List,
+        Optional,
+        Sequence,
+        TextIO,
+        Tuple,
+        Union,
+        NoReturn,
+        Type,
+        Callable,
+    )
+    from types import TracebackType
+    from .wandb_settings import Settings
+    from .interface.summary_record import SummaryRecord
+    from .backend.backend import Backend
+    from .interface.interface import BackendSender
+    from .lib.reporting import Reporter
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from .wandb_setup import _WandbSetup
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -61,16 +79,19 @@ RUN_NAME_COLOR = "#cdcd00"
 
 
 class ExitHooks(object):
-    def __init__(self):
+
+    exception: Optional[BaseException] = None
+
+    def __init__(self) -> None:
         self.exit_code = 0
         self.exception = None
 
-    def hook(self):
+    def hook(self) -> None:
         self._orig_exit = sys.exit
         sys.exit = self.exit
         sys.excepthook = self.exc_handler
 
-    def exit(self, code=0):
+    def exit(self, code: object = 0) -> NoReturn:
         orig_code = code
         if code is None:
             code = 0
@@ -79,10 +100,12 @@ class ExitHooks(object):
         self.exit_code = code
         self._orig_exit(orig_code)
 
-    def was_ctrl_c(self):
+    def was_ctrl_c(self) -> bool:
         return isinstance(self.exception, KeyboardInterrupt)
 
-    def exc_handler(self, exc_type, exc, *tb):
+    def exc_handler(
+        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
+    ) -> None:
         self.exit_code = 1
         self.exception = exc
         if issubclass(exc_type, Error):
@@ -91,7 +114,7 @@ class ExitHooks(object):
         if self.was_ctrl_c():
             self.exit_code = 255
 
-        traceback.print_exception(exc_type, exc, *tb)
+        traceback.print_exception(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -100,7 +123,7 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface, polling_interval=15):
+    def __init__(self, interface: BackendSender, polling_interval: int = 15) -> None:
         self._interface = interface
         self._polling_interval = polling_interval
 
@@ -112,12 +135,8 @@ class RunStatusChecker(object):
     def check_status(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = (
-                # 'or False' because this could return None.
-                self._interface.communicate_status(check_stop_req=True)
-                or False
-            )
-            if status_response.run_should_stop:
+            status_response = self._interface.communicate_status(check_stop_req=True)
+            if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
@@ -125,10 +144,10 @@ class RunStatusChecker(object):
                     return
             join_requested = self._join_event.wait(self._polling_interval)
 
-    def stop(self):
+    def stop(self) -> None:
         self._join_event.set()
 
-    def join(self):
+    def join(self) -> None:
         self.stop()
         self._thread.join()
 
@@ -155,8 +174,20 @@ class Run(object):
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _teardown_hooks: List[Any]
+    _teardown_hooks: List[Callable[[None], None]]
     _tags: Optional[Tuple[Any, ...]]
+
+    _entity: Optional[str]
+    _project: Optional[str]
+    _group: Optional[str]
+    _job_type: Optional[str]
+    _name: Optional[str]
+    _notes: Optional[str]
+
+    _run_obj: Optional[RunRecord]
+    _run_obj_offline: Optional[RunRecord]
+    _backend: Optional[Backend]
+    _wl: Optional[_WandbSetup]
 
     def __init__(
         self,
@@ -179,7 +210,7 @@ class Run(object):
 
         self._settings = settings
         self._wl = None
-        self._reporter = None
+        self._reporter: Optional[Reporter] = None
 
         self._entity = None
         self._project = None
@@ -259,10 +290,10 @@ class Run(object):
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
 
-    def _freeze(self):
+    def _freeze(self) -> None:
         self._frozen = True
 
-    def __setattr__(self, attr, value):
+    def __setattr__(self, attr: str, value: object) -> None:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
@@ -292,7 +323,7 @@ class Run(object):
         if mods.get("transformers"):
             imp.transformers = True
 
-    def _init_from_settings(self, settings):
+    def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
             self._entity = settings.entity
         if settings.project is not None:
@@ -308,7 +339,7 @@ class Run(object):
         if settings.run_tags is not None:
             self._tags = settings.run_tags
 
-    def _make_proto_run(self, run):
+    def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
         if self._entity is not None:
             run.entity = self._entity
@@ -331,14 +362,14 @@ class Run(object):
             run.start_time.FromSeconds(int(self._start_time))
         # Note: run.config is set in interface/interface:_make_run()
 
-    def __getstate__(self):
+    def __getstate__(self) -> None:
         pass
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: Any) -> None:
         pass
 
     @property
-    def dir(self):
+    def dir(self) -> str:
         """
         Returns:
             (str): The directory where all of the files associated with the run are
@@ -347,7 +378,7 @@ class Run(object):
         return self._settings.files_dir
 
     @property
-    def config(self):
+    def config(self) -> wandb_config.Config:
         """
         Returns:
             (Config): A config object (similar to a nested dict) of key
@@ -356,11 +387,11 @@ class Run(object):
         return self._config
 
     @property
-    def config_static(self):
+    def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property
-    def name(self):
+    def name(self) -> Optional[str]:
         """
         Returns:
             (str): the display name of the run. It does not need to be unique
@@ -373,13 +404,13 @@ class Run(object):
         return self._run_obj.display_name
 
     @name.setter
-    def name(self, name):
+    def name(self, name: str) -> None:
         self._name = name
         if self._backend:
             self._backend.interface.publish_run(self)
 
     @property
-    def notes(self):
+    def notes(self) -> Optional[str]:
         r"""
         Returns:
             (str): notes associated with the run. Notes can be a multiline string
@@ -391,7 +422,7 @@ class Run(object):
         return self._run_obj.notes
 
     @notes.setter
-    def notes(self, notes):
+    def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend:
             self._backend.interface.publish_run(self)
@@ -406,7 +437,7 @@ class Run(object):
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
         if run_obj:
-            return run_obj.tags
+            return tuple(run_obj.tags)
         return None
 
     @tags.setter
@@ -416,7 +447,7 @@ class Run(object):
             self._backend.interface.publish_run(self)
 
     @property
-    def id(self):
+    def id(self) -> str:
         """id property.
 
         Returns:
@@ -425,7 +456,7 @@ class Run(object):
         return self._run_id
 
     @property
-    def sweep_id(self):
+    def sweep_id(self) -> Optional[str]:
         """
         Returns:
             (str, optional): the sweep id associated with the run or None
@@ -435,7 +466,7 @@ class Run(object):
         return self._run_obj.sweep_id or None
 
     @property
-    def path(self):
+    def path(self) -> str:
         """
         Returns:
             (str): the path to the run `[entity]/[project]/[run_id]`
@@ -447,7 +478,7 @@ class Run(object):
         return "/".join(parts)
 
     @property
-    def start_time(self):
+    def start_time(self) -> float:
         """
         Returns:
             (int): the unix time stamp in seconds when the run started
@@ -458,7 +489,7 @@ class Run(object):
             return self._run_obj.start_time.ToSeconds()
 
     @property
-    def starting_step(self):
+    def starting_step(self) -> int:
         """
         Returns:
             (int): the first step of the run
@@ -469,7 +500,7 @@ class Run(object):
             return self._run_obj.starting_step
 
     @property
-    def resumed(self):
+    def resumed(self) -> bool:
         """
         Returns:
             (bool): whether or not the run was resumed
@@ -479,7 +510,7 @@ class Run(object):
         return False
 
     @property
-    def step(self):
+    def step(self) -> int:
         """
         Every time you call wandb.log() it will by default increment the step
         counter.
@@ -489,25 +520,25 @@ class Run(object):
         """
         return self.history._step
 
-    def project_name(self, api=None):
+    def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.project
+        return run_obj.project if run_obj else ""
 
     @property
-    def mode(self):
+    def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         return "dryrun" if self._settings._offline else "run"
 
     @property
-    def offline(self):
+    def offline(self) -> bool:
         return self._settings._offline
 
     @property
-    def disabled(self):
+    def disabled(self) -> bool:
         return self._settings._noop
 
     @property
-    def group(self):
+    def group(self) -> str:
         """
         Setting a group helps the W&B UI organize runs in a sensible way.
 
@@ -520,22 +551,22 @@ class Run(object):
             (str): name of W&B group associated with run.
         """
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.run_group
+        return run_obj.run_group if run_obj else ""
 
     @property
-    def job_type(self):
+    def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.job_type
+        return run_obj.job_type if run_obj else ""
 
     @property
-    def project(self):
+    def project(self) -> str:
         """
         Returns:
             (str): name of W&B project associated with run.
         """
         return self.project_name()
 
-    def get_url(self):
+    def get_url(self) -> Optional[str]:
         """
         Returns:
             (str, optional): url for the W&B run or None if the run
@@ -543,10 +574,10 @@ class Run(object):
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
-            return
+            return None
         return self._get_run_url()
 
-    def get_project_url(self):
+    def get_project_url(self) -> Optional[str]:
         """
         Returns:
             (str, optional): url for the W&B project associated with
@@ -554,10 +585,10 @@ class Run(object):
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
-            return
+            return None
         return self._get_project_url()
 
-    def get_sweep_url(self):
+    def get_sweep_url(self) -> Optional[str]:
         """
         Returns:
             (str, optional): url for the sweep associated with the run
@@ -565,11 +596,11 @@ class Run(object):
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
-            return
+            return None
         return self._get_sweep_url()
 
     @property
-    def url(self):
+    def url(self) -> Optional[str]:
         """
         Returns:
             (str): name of W&B url associated with run.
@@ -577,34 +608,27 @@ class Run(object):
         return self.get_url()
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         """
         Returns:
             (str): name of W&B entity associated with run. Entity is either
                 a user name or an organization name.
         """
-        return self._entity
+        return self._entity or ""
 
-    # def _repr_html_(self):
-    #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
-    #       self.run_id)
-    #     style = "border:none;width:100%;height:400px"
-    #     s = "<h1>Run({})</h1><iframe src=\"{}\" style=\"{}\"></iframe>".format(
-    #       self.run_id, url, style)
-    #     return s
-
-    def _repr_mimebundle_(self, include=None, exclude=None):
+    def _repr_mimebundle_(
+        self, include: Any = None, exclude: Any = None
+    ) -> Dict[str, str]:
         url = self._get_run_url()
         style = "border:none;width:100%;height:400px"
-        note = ""
-        if include or exclude:
-            note = "(DEBUG: include={}, exclude={})".format(include, exclude)
-        s = '<h1>Run({})</h1><p>{}</p><iframe src="{}" style="{}"></iframe>'.format(
-            self._run_id, note, url, style
+        s = '<h1>Run({})</h1><iframe src="{}" style="{}"></iframe>'.format(
+            self._run_id, url, style
         )
         return {"text/html": s}
 
-    def _config_callback(self, key=None, val=None, data=None):
+    def _config_callback(
+        self, key: str = None, val: object = None, data: Dict[str, object] = None
+    ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
         if not self._backend or not self._backend.interface:
             return
@@ -614,15 +638,20 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_summary(summary_record)
 
-    def _summary_get_current_summary_callback(self):
+    def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if not self._backend:
+            return {}
         ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
 
-    def _datatypes_callback(self, fname):
+    def _datatypes_callback(self, fname: str) -> None:
+        if not self._backend:
+            return
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
-    def _history_callback(self, row=None, step=None):
+    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
+    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
 
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
@@ -657,30 +686,35 @@ class Run(object):
         if visualize_persist_config:
             self._config_callback(data=self._config._as_dict())
 
-        self._backend.interface.publish_history(row, step)
+        if self._backend:
+            self._backend.interface.publish_history(row, step)
 
-    def _console_callback(self, name, data):
+    def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
-        self._backend.interface.publish_output(name, data)
+        if self._backend:
+            self._backend.interface.publish_output(name, data)
 
-    def _tensorboard_callback(self, logdir, save=None, root_logdir=None):
+    def _tensorboard_callback(
+        self, logdir: str, save: bool = None, root_logdir: str = None
+    ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        self._backend.interface.publish_tbdata(logdir, save, root_logdir)
+        if self._backend:
+            self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
-    def _set_library(self, library):
+    def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend):
+    def _set_backend(self, backend: Backend) -> None:
         self._backend = backend
 
-    def _set_reporter(self, reporter):
+    def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
-    def _set_teardown_hooks(self, hooks):
+    def _set_teardown_hooks(self, hooks: List[Callable[[None], None]]) -> None:
         self._teardown_hooks = hooks
 
-    def _set_run_obj(self, run_obj):
+    def _set_run_obj(self, run_obj: RunRecord) -> None:
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -708,10 +742,10 @@ class Run(object):
             url=self._get_run_url(),
         )
 
-    def _set_run_obj_offline(self, run_obj):
+    def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
 
-    def _add_singleton(self, type, key, value):
+    def _add_singleton(self, type, key, value) -> None:
         """Stores a singleton item to wandb config.
 
         A singleton in this context is a piece of data that is continually
@@ -1051,9 +1085,11 @@ class Run(object):
         )
         return url
 
-    def _get_run_url(self):
+    def _get_run_url(self) -> str:
         s = self._settings
         r = self._run_obj
+        if not r:
+            return ""
         app_url = wandb.util.app_url(s.base_url)
         qs = self._get_url_query_string()
         url = "{}/{}/{}/runs/{}{}".format(
