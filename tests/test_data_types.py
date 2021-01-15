@@ -11,6 +11,7 @@ import platform
 import pandas as pd
 from click.testing import CliRunner
 from . import utils
+from .utils import dummy_data
 import matplotlib
 
 matplotlib.use("Agg")
@@ -332,6 +333,14 @@ def test_make_plot_media_from_matplotlib_with_image():
     fig = utils.matplotlib_with_image()
     assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Image
     plt.close()
+
+
+def test_create_bokeh_plot(mocked_run):
+    """Ensures that wandb.Bokeh constructor accepts a bokeh plot 
+    """
+    bp = dummy_data.bokeh_plot()
+    bp = wandb.data_types.Bokeh(bp)
+    bp.bind_to_run(mocked_run, "bokeh", 0)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")

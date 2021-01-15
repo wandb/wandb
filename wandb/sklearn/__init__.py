@@ -288,7 +288,7 @@ def plot_summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
               under 'auto visualizations'.
 
     Example:
-        wandb.sklearn.plot_summary_metrics(model, X_train, X_test, y_train, y_test)
+        wandb.sklearn.plot_summary_metrics(model, X_train, y_train, X_test, y_test)
     """
     wandb.log({"summary_metrics": summary_metrics(model, X, y, X_test, y_test)})
 
