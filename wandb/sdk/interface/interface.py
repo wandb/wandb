@@ -197,6 +197,7 @@ class BackendSender(object):
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
         proto_artifact.digest = artifact.digest
+        proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
@@ -569,7 +570,13 @@ class BackendSender(object):
         self._publish(rec)
 
     def publish_artifact(
-        self, run, artifact, aliases, is_user_created=False, use_after_commit=False
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created=False,
+        use_after_commit=False,
+        finalize=True,
     ):
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
@@ -578,6 +585,7 @@ class BackendSender(object):
         proto_artifact.entity = proto_run.entity
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
         for alias in aliases:
             proto_artifact.aliases.append(alias)
         rec = self._make_record(artifact=proto_artifact)

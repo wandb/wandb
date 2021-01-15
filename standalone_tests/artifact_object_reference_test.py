@@ -33,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -167,6 +167,20 @@ vid2 = _make_video()
 vid3 = _make_video()
 vid4 = _make_video()
 
+def _make_wandb_audio(frequency, caption):
+    SAMPLE_RATE = 44100
+    DURATION_SECONDS = 1
+
+    data = np.sin(
+        2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
+    )
+    return wandb.Audio(data, SAMPLE_RATE, caption)
+
+aud1 = _make_wandb_audio(440, "four forty")
+aud2 = _make_wandb_audio(480, "four eighty")
+aud3 = _make_wandb_audio(500, "five hundred")
+aud4 = _make_wandb_audio(520, "five twenty")
+
 def _make_wandb_table():
     classes = wandb.Classes([
         {"id": 1, "name": "tree"},
@@ -176,10 +190,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1],
-            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2],
-            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3],
-            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4],
+            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b, aud1],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b, aud2],
+            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud3],
+            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud4],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -188,9 +202,9 @@ def _make_wandb_table():
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
 
-
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
+
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
@@ -580,6 +594,8 @@ def test_video_refs():
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
+def test_audio_refs():
+    assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
@@ -692,6 +708,7 @@ def test_image_reference_with_preferred_path():
     
     # This test just checks that all this logic does not fail
 
+
 def test_simple_partition_table():
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
@@ -741,11 +758,10 @@ def test_distributed_partition_table():
         run.upsert_artifact(artifact)
         run.finish()
 
-    # TODO: Should we try to use_artifact in some way before it is finished?
-
     # Finish
     run = wandb.init(project=WANDB_PROJECT, group=group_name)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
+
     partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     run.finish_artifact(artifact)
@@ -757,7 +773,44 @@ def test_distributed_partition_table():
     table = partition_table.materialize()
     assert table.columns == columns
     assert table.data == data
-    
+
+
+def test_distributed_artifact_simple():
+    table_name = "dataset"
+    artifact_name = "simple_dist_dataset"
+    group_name = "test_group_{}".format(np.random.rand())
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    count = 2
+    images = []
+    image_paths = []
+
+    # Add Data
+    for i in range(count):
+        run = wandb.init(project=WANDB_PROJECT, group=group_name)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        path = "image_{}".format(i)
+        images.append(image)
+        image_paths.append(path)
+        artifact.add(image, path)
+        run.upsert_artifact(artifact)
+        run.finish()
+
+    # TODO: Should we try to use_artifact in some way before it is finished?
+
+    # Finish
+    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact)
+    run.finish()
+
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    artifact = run.use_artifact("{}:latest".format(artifact_name))
+    assert len(artifact.manifest.entries.keys()) == count * 2
+    # for image, path in zip(images, image_paths):
+    #     assert image == artifact.get(path)
 
 if __name__ == "__main__":
     _cleanup()
@@ -780,7 +833,8 @@ if __name__ == "__main__":
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
         test_simple_partition_table,
-        test_distributed_partition_table
+        test_distributed_partition_table,
+        test_distributed_artifact_simple,
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:
