@@ -745,7 +745,9 @@ class Run(object):
     def _set_run_obj_offline(self, run_obj):
         self._run_obj_offline = run_obj
 
-    def _add_singleton(self, type, key, value):
+    def _add_singleton(
+        self, data_type, key, value
+    ):
         """Stores a singleton item to wandb config.
 
         A singleton in this context is a piece of data that is continually
@@ -757,18 +759,18 @@ class Run(object):
         Add singleton can be called many times in one run and it will only be
         updated when the value changes. The last value logged will be the one
         persisted to the server"""
-        value_extra = {"type": type, "key": key, "value": value}
+        value_extra = {"type": data_type, "key": key, "value": value}
 
-        if type not in self.config["_wandb"]:
-            self.config["_wandb"][type] = {}
+        if data_type not in self.config["_wandb"]:
+            self.config["_wandb"][data_type] = {}
 
-        if type in self.config["_wandb"][type]:
-            old_value = self.config["_wandb"][type][key]
+        if data_type in self.config["_wandb"][data_type]:
+            old_value = self.config["_wandb"][data_type][key]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config["_wandb"][type][key] = value_extra
+            self.config["_wandb"][data_type][key] = value_extra
             self.config.persist()
 
     def log(self, data, step=None, commit=None, sync=None):
