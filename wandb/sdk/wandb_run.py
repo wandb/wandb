@@ -1780,7 +1780,9 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases, finalize=finalize)
+        self._backend.interface.publish_artifact(
+            self, artifact, aliases, finalize=finalize
+        )
         return artifact
 
     def _public_api(self):
