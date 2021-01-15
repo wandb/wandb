@@ -26,6 +26,22 @@ def test_locked_set():
     assert s.that == 4
 
 
+def test_update():
+    s = wandb_sdk.Config()
+    s.update(dict(this=8))
+    assert dict(s) == dict(this=8)
+    s.update(dict(that=4))
+    assert dict(s) == dict(this=8, that=4)
+
+
+def test_setdefaults():
+    s = wandb_sdk.Config()
+    s.update(dict(this=8))
+    assert dict(s) == dict(this=8)
+    s.setdefaults(dict(thiss=2, that=4))
+    assert dict(s) == dict(this=8, that=4)
+
+
 def test_locked_update():
     s = wandb_sdk.Config()
     s.update_locked(dict(this=2, that=4), "sweep")

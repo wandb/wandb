@@ -208,10 +208,12 @@ class Config(object):
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None, ignore_keys=None):
+    def _sanitize_dict(
+        self, config_dict, allow_val_change=None, ignore_keys: set = None
+    ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
-            if k in ignore_keys:
+            if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
