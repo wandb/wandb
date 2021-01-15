@@ -269,7 +269,7 @@ message ArtifactRecord {
   repeated string               aliases = 11;
   ArtifactManifest              manifest = 12;
   string                        distributed_id=13;
-  bool                          final=14;
+  bool                          finalize=14;
 }
 
 message ArtifactManifest {

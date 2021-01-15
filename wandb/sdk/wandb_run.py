@@ -1749,14 +1749,19 @@ class Run(object):
             type,
             aliases,
             distributed_id=self.group,
-            final=False,
+            finalize=False,
         )
 
     def finish_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
         if self.group is None:
             raise TypeError("Cannot finish artifact unless run is in a group")
         return self._log_artifact(
-            artifact_or_path, name, type, aliases, distributed_id=self.group, final=True
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=self.group,
+            finalize=True,
         )
 
     def _log_artifact(
@@ -1766,16 +1771,18 @@ class Run(object):
         type=None,
         aliases=None,
         distributed_id=None,
-        final=True,
+        finalize=True,
     ):
-        if not final and distributed_id is None:
-            raise TypeError("Must provide distributed_id if artifact is not final")
+        if not finalize and distributed_id is None:
+            raise TypeError("Must provide distributed_id if artifact is not finalize")
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases, final)
+        self._backend.interface.publish_artifact(
+            self, artifact, aliases, finalize=finalize
+        )
         return artifact
 
     def _public_api(self):
