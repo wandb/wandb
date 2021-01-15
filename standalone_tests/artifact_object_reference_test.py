@@ -713,13 +713,12 @@ def test_simple_partition_table():
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
     artifact_name = "simple_dataset"
-    group_name = "test_group"
     artifact_type = "dataset"
     columns = ["A", "B", "C"]
     data = []
     
     # Add Data
-    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    run = wandb.init(project=WANDB_PROJECT)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     for i in range(5):
         row = [i,i*i,2**i]
@@ -742,7 +741,7 @@ def test_distributed_partition_table():
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
     artifact_name = "dist_dataset"
-    group_name = "test_group"
+    group_name = "test_group_{}".format(np.random.rand())
     artifact_type = "dataset"
     columns = ["A", "B", "C"]
     data = []
@@ -850,5 +849,5 @@ if __name__ == "__main__":
     if WANDB_PROJECT_ENV is not None:
         os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
 
-    if WANDB_SILENT_ENV is not None:
-        os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
+    # if WANDB_SILENT_ENV is not None:
+    #     os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
