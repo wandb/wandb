@@ -22,7 +22,6 @@ import sys
 import warnings
 
 import six
-from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import wandb
 from wandb import util
@@ -355,7 +354,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(urllib.parse.quote_plus(key), step, id_, extension)
+        file_path = wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
