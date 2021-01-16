@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   win: circleci/windows@2.4.0
+  codecov: codecov/codecov@1.0.2
 
 parameters:
   manual:
