@@ -1483,21 +1483,19 @@ class Run(object):
         self._pusher_print_status(progress, done=done)
 
     def _wait_for_finish(self) -> PollExitResponse:
-        ret = None
         while True:
             if self._backend:
-                ret = self._backend.interface.communicate_poll_exit()
-            logger.info("got exit ret: %s", ret)
+                poll_exit_resp = self._backend.interface.communicate_poll_exit()
+            logger.info("got exit ret: %s", poll_exit_resp)
 
-            if ret:
-                done = ret.response.poll_exit_response.done
-                pusher_stats = ret.response.poll_exit_response.pusher_stats
+            if poll_exit_resp:
+                done = poll_exit_resp.done
+                pusher_stats = poll_exit_resp.pusher_stats
                 if pusher_stats:
                     self._on_finish_progress(pusher_stats, done)
-            if done:
-                break
+                if done:
+                    return poll_exit_resp
             time.sleep(2)
-        return ret
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
