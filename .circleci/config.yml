@@ -70,6 +70,8 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: test-results
+            - store_artifacts:
+                path: mypy-results
 
 workflows:
   main:
