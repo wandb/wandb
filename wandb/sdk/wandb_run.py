@@ -58,6 +58,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
+        BinaryIO,
         Tuple,
         Union,
         NoReturn,
@@ -65,12 +66,17 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Callable,
     )
     from types import TracebackType
-    from .wandb_settings import Settings
+    from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
-    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from wandb.proto.wandb_internal_pb2 import (
+        RunRecord,
+        FilePusherStats,
+        PollExitResponse,
+    )
     from .wandb_setup import _WandbSetup
+    from wandb.apis.public import Api as PublicApi
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -193,6 +199,24 @@ class Run(object):
     _deleted_version_message: Optional[str]
     _yanked_version_message: Optional[str]
 
+    _out_redir: Optional[redirect.RedirectBase]
+    _err_redir: Optional[redirect.RedirectBase]
+    _redirect_cb: Optional[Callable[[str, str], None]]
+    _output_writer: Optional["WriteSerializingFile"]
+
+    _atexit_cleanup_called: bool
+    _hooks: Optional[ExitHooks]
+    _exit_code: Optional[int]
+
+    _run_status_checker: Optional[RunStatusChecker]
+    _poll_exit_response: Optional[PollExitResponse]
+
+    _sampled_history: Optional[Dict[str, Union[List[int], List[float]]]]
+
+    _use_redirect: bool
+    _stdout_slave_fd: Optional[int]
+    _stderr_slave_fd: Optional[int]
+
     def __init__(
         self,
         settings: Settings,
@@ -287,7 +311,7 @@ class Run(object):
             self._config.update_locked(sweep_config, user="sweep")
         self._config._update(config, ignore_locked=True)
 
-        self._atexit_cleanup_called = None
+        self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
 
@@ -1077,7 +1101,7 @@ class Run(object):
 
         self._config_callback(data=self._config._as_dict())
 
-    def _get_url_query_string(self):
+    def _get_url_query_string(self) -> str:
         s = self._settings
 
         # TODO(jhr): migrate to new settings, but for now this is safer
@@ -1088,9 +1112,11 @@ class Run(object):
         api_key = apikey.api_key(settings=s)
         return "?" + urlencode({"apiKey": api_key})
 
-    def _get_project_url(self):
+    def _get_project_url(self) -> str:
         s = self._settings
         r = self._run_obj
+        if not r:
+            return ""
         app_url = wandb.util.app_url(s.base_url)
         qs = self._get_url_query_string()
         url = "{}/{}/{}{}".format(
@@ -1110,7 +1136,7 @@ class Run(object):
         )
         return url
 
-    def _get_sweep_url(self):
+    def _get_sweep_url(self) -> str:
         """Generate a url for a sweep.
 
         Returns:
@@ -1119,9 +1145,11 @@ class Run(object):
         """
 
         r = self._run_obj
+        if not r:
+            return ""
         sweep_id = r.sweep_id
         if not sweep_id:
-            return
+            return ""
 
         app_url = wandb.util.app_url(self._settings.base_url)
         qs = self._get_url_query_string()
@@ -1134,11 +1162,13 @@ class Run(object):
             qs=qs,
         )
 
-    def _get_run_name(self):
+    def _get_run_name(self) -> str:
         r = self._run_obj
+        if not r:
+            return ""
         return r.display_name
 
-    def _display_run(self):
+    def _display_run(self) -> None:
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
@@ -1218,11 +1248,18 @@ class Run(object):
                 wandb.termlog("Run `wandb offline` to turn off syncing.")
             print("")
 
-    def _redirect(self, stdout_slave_fd, stderr_slave_fd, console=None):
+    def _redirect(
+        self,
+        stdout_slave_fd: Optional[int],
+        stderr_slave_fd: Optional[int],
+        console: SettingsConsole = None,
+    ) -> None:
         if console is None:
             console = self._settings._console
         logger.info("redirect: %s", console)
 
+        out_redir: redirect.RedirectBase
+        err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
             out_cap = redirect.Capture(
@@ -1239,9 +1276,11 @@ class Run(object):
             )
             if os.name == "nt":
 
-                def wrap_fallback():
-                    self._out_redir.uninstall()
-                    self._err_redir.uninstall()
+                def wrap_fallback() -> None:
+                    if self._out_redir:
+                        self._out_redir.uninstall()
+                    if self._err_redir:
+                        self._err_redir.uninstall()
                     msg = (
                         "Tensorflow detected. Stream redirection is not supported "
                         "on Windows when tensorflow is imported. Falling back to "
@@ -1295,7 +1334,7 @@ class Run(object):
         #     self.stderr_redirector = stderr_redirector
         # logger.info("redirect done")
 
-    def _restore(self):
+    def _restore(self) -> None:
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
         if self._use_redirect:
@@ -1315,10 +1354,10 @@ class Run(object):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code=None):
+    def _atexit_cleanup(self, exit_code: int = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
-            return False
+            return
         if self._atexit_cleanup_called:
             return
         self._atexit_cleanup_called = True
@@ -1353,7 +1392,7 @@ class Run(object):
                 return
             self._on_final()
 
-    def _console_start(self):
+    def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()
@@ -1367,16 +1406,16 @@ class Run(object):
         self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
-    def _console_stop(self):
+    def _console_stop(self) -> None:
         self._restore()
         if self._output_writer:
             self._output_writer.close()
             self._output_writer = None
 
-    def _on_init(self):
+    def _on_init(self) -> None:
         self._show_version_info()
 
-    def _on_start(self):
+    def _on_start(self) -> None:
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
             wandb.termlog("Offline run mode, not syncing to the cloud.")
@@ -1394,7 +1433,12 @@ class Run(object):
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
-    def _pusher_print_status(self, progress, prefix=True, done=False):
+    def _pusher_print_status(
+        self,
+        progress: FilePusherStats,
+        prefix: bool = True,
+        done: Optional[bool] = False,
+    ) -> None:
         if self._settings._offline:
             return
 
@@ -1405,6 +1449,7 @@ class Run(object):
         )
 
         if self._jupyter_progress:
+            percent_done: float
             if progress.total_bytes == 0:
                 percent_done = 1
             else:
@@ -1434,25 +1479,27 @@ class Run(object):
                 # clear progress line.
                 wandb.termlog(" " * 79, prefix=prefix)
 
-    def _on_finish_progress(self, progress, done=None):
+    def _on_finish_progress(self, progress: FilePusherStats, done: bool = None) -> None:
         self._pusher_print_status(progress, done=done)
 
-    def _wait_for_finish(self):
+    def _wait_for_finish(self) -> PollExitResponse:
         ret = None
         while True:
-            ret = self._backend.interface.communicate_poll_exit()
+            if self._backend:
+                ret = self._backend.interface.communicate_poll_exit()
             logger.info("got exit ret: %s", ret)
 
-            done = ret.response.poll_exit_response.done
-            pusher_stats = ret.response.poll_exit_response.pusher_stats
-            if pusher_stats:
-                self._on_finish_progress(pusher_stats, done)
+            if ret:
+                done = ret.response.poll_exit_response.done
+                pusher_stats = ret.response.poll_exit_response.pusher_stats
+                if pusher_stats:
+                    self._on_finish_progress(pusher_stats, done)
             if done:
                 break
             time.sleep(2)
         return ret
 
-    def _on_finish(self):
+    def _on_finish(self) -> None:
         trigger.call("on_finished")
 
         # populate final import telemetry
@@ -1467,9 +1514,9 @@ class Run(object):
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
         if not self._settings._silent:
-            pid = self._backend._internal_pid
-
-            status_str = "Waiting for W&B process to finish, PID {}".format(pid)
+            if self._backend:
+                pid = self._backend._internal_pid
+                status_str = "Waiting for W&B process to finish, PID {}".format(pid)
             if not self._exit_code:
                 status_str += "\nProgram ended successfully."
             else:
@@ -1483,30 +1530,33 @@ class Run(object):
                 wandb.termlog(status_str)
 
         # telemetry could have changed, publish final data
-        self._backend.interface.publish_telemetry(self._telemetry_obj)
+        if self._backend:
+            self._backend.interface.publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
-        self._backend.interface.publish_exit(self._exit_code)
+        if self._backend:
+            self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
-        ret = self._wait_for_finish()
+        self._poll_exit_response = self._wait_for_finish()
 
-        self._poll_exit_response = ret.response.poll_exit_response
+        if self._backend:
+            ret = self._backend.interface.communicate_summary()
+            self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-        ret = self._backend.interface.communicate_summary()
-        self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        if self._backend:
+            ret = self._backend.interface.communicate_sampled_history()
+            d = {item.key: item.values_float or item.values_int for item in ret.item}
+            self._sampled_history = d
 
-        ret = self._backend.interface.communicate_sampled_history()
-        d = {item.key: item.values_float or item.values_int for item in ret.item}
-        self._sampled_history = d
-
-        self._backend.cleanup()
+        if self._backend:
+            self._backend.cleanup()
 
         if self._run_status_checker:
             self._run_status_checker.join()
 
-    def _on_final(self):
+    def _on_final(self) -> None:
         # check for warnings and errors, show log file locations
         if self._reporter:
             # TODO: handle warnings and errors nicely in jupyter
@@ -1578,7 +1628,7 @@ class Run(object):
 
         self._show_version_info(footer=True)
 
-    def _show_version_info(self, footer=None):
+    def _show_version_info(self, footer: bool = None) -> None:
         package_problem = False
         if self._deleted_version_message:
             wandb.termerror(self._deleted_version_message)
@@ -1591,7 +1641,7 @@ class Run(object):
             if self._upgraded_version_message:
                 wandb.termlog(self._upgraded_version_message)
 
-    def _show_summary(self):
+    def _show_summary(self) -> None:
         if self._final_summary:
             logger.info("rendering summary")
             max_len = max([len(k) for k in self._final_summary.keys()])
@@ -1620,7 +1670,7 @@ class Run(object):
                 wandb.termlog("Run summary:")
                 wandb.termlog(summary_lines)
 
-    def _show_history(self):
+    def _show_history(self) -> None:
         if not self._sampled_history:
             return
 
@@ -1654,7 +1704,7 @@ class Run(object):
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
 
-    def _show_files(self):
+    def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
             return
         if self._settings._offline:
@@ -1676,7 +1726,7 @@ class Run(object):
         else:
             wandb.termlog(file_str)
 
-    def _save_job_spec(self):
+    def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
@@ -1706,10 +1756,12 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):
+    # TODO(jhr): annotate this
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx)
 
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):
+    # TODO(jhr): annotate this
+    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
         """ Declare an artifact as an input to a run, call `download` or `file` on
         the returned object to get the contents locally.
 
@@ -1762,7 +1814,8 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+    # TODO(jhr): annotate this
+    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):  # type: ignore
         """ Declare an artifact as output of a run.
 
         Arguments:
@@ -1817,7 +1870,8 @@ class Run(object):
         self._backend.interface.publish_artifact(self, artifact, aliases)
         return artifact
 
-    def _assert_can_log_artifact(self, artifact):
+    # TODO(jhr): annotate this
+    def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
         if not self._settings._offline:
             public_api = self._public_api()
             expected_type = public.Artifact.expected_type(
@@ -1833,7 +1887,7 @@ class Run(object):
                     )
                 )
 
-    def _public_api(self):
+    def _public_api(self) -> PublicApi:
         overrides = {"run": self.id}
         run_obj = self._run_obj
         if run_obj is not None:
@@ -1841,7 +1895,8 @@ class Run(object):
             overrides["project"] = run_obj.project
         return public.Api(overrides)
 
-    def alert(self, title, text, level=None, wait_duration=None):
+    # TODO(jhr): annotate this
+    def alert(self, title, text, level=None, wait_duration=None):  # type: ignore
         """Launch an alert with the given title and text.
 
         Arguments:
@@ -1872,15 +1927,25 @@ class Run(object):
 
         self._backend.interface.publish_alert(title, text, level, wait_duration)
 
-    def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
+    def _set_console(
+        self,
+        use_redirect: bool,
+        stdout_slave_fd: Optional[int],
+        stderr_slave_fd: Optional[int],
+    ) -> None:
         self._use_redirect = use_redirect
         self._stdout_slave_fd = stdout_slave_fd
         self._stderr_slave_fd = stderr_slave_fd
 
-    def __enter__(self):
+    def __enter__(self) -> "Run":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
+    ) -> bool:
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
@@ -1955,11 +2020,12 @@ class WriteSerializingFile(object):
     """Wrapper for a file object that serializes writes.
     """
 
-    def __init__(self, f):
+    def __init__(self, f: BinaryIO) -> None:
         self.lock = threading.Lock()
         self.f = f
 
-    def write(self, *args, **kargs):
+    # TODO(jhr): annotate this
+    def write(self, *args, **kargs) -> None:  # type: ignore
         self.lock.acquire()
         try:
             self.f.write(*args, **kargs)
@@ -1967,7 +2033,7 @@ class WriteSerializingFile(object):
         finally:
             self.lock.release()
 
-    def close(self):
+    def close(self) -> None:
         self.lock.acquire()  # wait for pending writes
         try:
             self.f.close()
@@ -1975,6 +2041,6 @@ class WriteSerializingFile(object):
             self.lock.release()
 
 
-def finish(exit_code=None):
+def finish(exit_code: int = None) -> None:
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)

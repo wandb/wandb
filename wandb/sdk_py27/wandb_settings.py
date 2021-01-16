@@ -227,6 +227,7 @@ class Settings(object):
 
     # TODO(jhr): Audit these attributes
     run_job_type = None
+    base_url = None
 
     # Private attributes
     # __start_time: Optional[float]
