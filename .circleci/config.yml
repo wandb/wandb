@@ -2,7 +2,6 @@ version: 2.1
 
 orbs:
   win: circleci/windows@2.4.0
-  codecov: codecov/codecov@1.0.2
 
 parameters:
   manual:
@@ -106,16 +105,6 @@ workflows:
       - mac:
          name: "MacOS (Python 3.7)"
          toxenv: "py37"
-      - final:
-         name: "Upload Coverage"
-         requires:
-            - "Python 2.7"
-            - "Python 3.6"
-      - codecov:
-         name: "Upload Codecov"
-         requires:
-            - "Python 2.7"
-            - "Python 3.6"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
@@ -210,17 +199,3 @@ jobs:
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
-    final:
-        docker:
-            - image: python:3.7
-        steps:
-            - run:
-                  name: Call coveralls webhook
-                  command: |
-                      curl -k https://coveralls.io/webhook?repo_token=$COVERALLS_REPO_TOKEN -d "payload[build_num]=$CIRCLE_WORKFLOW_ID&payload[status]=done"
-    codecov:
-        docker:
-            - image: python:3.7
-        steps:
-            - codecov/upload:
-                file: cov/
