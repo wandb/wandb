@@ -219,8 +219,17 @@ class Settings(object):
     program_relpath = None
 
     # Public attributes
+    entity = None
+    project = None
+    run_group = None
+    run_name = None
+    run_notes = None
     sagemaker_disable = None
     hide_git_token = None
+
+    # TODO(jhr): Audit these attributes
+    run_job_type = None
+    base_url = None
 
     # Private attributes
     # __start_time: Optional[float]
