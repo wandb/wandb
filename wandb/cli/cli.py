@@ -242,19 +242,20 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
+@click.option("--port", default=None, help="The host port to bind grpc service.")
 @display_error
-def grpc_server(project=None, entity=None):
+def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server()
+    grpc_server(port=port)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument("agent_spec", nargs=-1)
 @display_error
@@ -1488,10 +1489,11 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
-        "W&B enabled, running your script from this directory will now sync to the cloud."
+        "W&B online, running your script from this directory will now sync to the cloud."
     )
 
 
@@ -1501,8 +1503,9 @@ def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B disabled, running your script from this directory will only write metadata locally."
+            "W&B offline, running your script from this directory will only write metadata locally."
         )
     except configparser.Error:
         click.echo(
@@ -1560,3 +1563,11 @@ def enabled():
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
         )
+
+
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )

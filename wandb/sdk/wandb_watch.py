@@ -8,6 +8,7 @@ import os
 
 import wandb
 
+from .lib import telemetry
 from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
@@ -32,6 +33,9 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     """
     global _global_watch_idx
 
+    with telemetry.context() as tel:
+        tel.feature.watch = True
+
     logger.info("Watching")
     # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
     if os.getenv("WANDB_WATCH") == "false":
@@ -54,6 +58,18 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
 
     if not isinstance(models, (tuple, list)):
         models = (models,)
+
+    torch = wandb.util.get_module(
+        "torch", required="wandb.watch only works with pytorch, couldn't import torch."
+    )
+
+    for model in models:
+        if not isinstance(model, torch.nn.Module):
+            raise ValueError(
+                "Expected a pytorch model (torch.nn.Module). Received "
+                + str(type(model))
+            )
+
     graphs = []
     prefix = ""
     if idx is None:

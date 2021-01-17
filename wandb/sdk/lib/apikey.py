@@ -1,3 +1,4 @@
+#
 # -*- coding: utf-8 -*-
 """
 apikey util.
@@ -63,7 +64,7 @@ def prompt_api_key(  # noqa: C901
     """
     input_callback = input_callback or getpass.getpass
     log_string = term.LOG_STRING
-    api = api or InternalApi()
+    api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)
     jupyter = settings._jupyter or False
     app_url = api.app_url
@@ -81,7 +82,7 @@ def prompt_api_key(  # noqa: C901
         log_string = term.LOG_STRING_NOCOLOR
         key = wandb.jupyter.attempt_colab_login(app_url)
         if key is not None:
-            write_key(settings, key)
+            write_key(settings, key, api=api)
             return key
 
     if anon_mode == "must":
@@ -109,7 +110,7 @@ def prompt_api_key(  # noqa: C901
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
-        write_key(settings, key)
+        write_key(settings, key, api=api, anonymous=True)
         return key
     elif result == LOGIN_CHOICE_NEW:
         key = browser_callback(signup=True) if browser_callback else None
@@ -120,7 +121,7 @@ def prompt_api_key(  # noqa: C901
             )
             key = input_callback(api_ask).strip()
 
-        write_key(settings, key)
+        write_key(settings, key, api=api)
         return key
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
@@ -132,7 +133,7 @@ def prompt_api_key(  # noqa: C901
                 )
             )
             key = input_callback(api_ask).strip()
-        write_key(settings, key)
+        write_key(settings, key, api=api)
         return key
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
@@ -144,7 +145,7 @@ def prompt_api_key(  # noqa: C901
             browser_callback() if jupyter and browser_callback else (None, False)
         )
 
-        write_key(settings, key)
+        write_key(settings, key, api=api)
         return key
 
 
@@ -205,18 +206,26 @@ def write_netrc(host, entity, key):
         return None
 
 
-def write_key(settings, key):
+def write_key(settings, key, api=None, anonymous=False):
     if not key:
         return
+
+    # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers
+    api = api or InternalApi()
 
     # Normal API keys are 40-character hex strings. Onprem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
     prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
 
-    if len(suffix) == 40:
-        write_netrc(settings.base_url, "user", key)
-        return
-    raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
+    if len(suffix) != 40:
+        raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
+
+    if anonymous:
+        api.set_setting("anonymous", "true", globally=True, persist=True)
+    else:
+        api.clear_setting("anonymous", globally=True, persist=True)
+
+    write_netrc(settings.base_url, "user", key)
 
 
 def api_key(settings=None):

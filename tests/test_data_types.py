@@ -11,6 +11,7 @@ import platform
 import pandas as pd
 from click.testing import CliRunner
 from . import utils
+from .utils import dummy_data
 import matplotlib
 
 matplotlib.use("Agg")
@@ -71,6 +72,12 @@ def dissoc(d, key):
 
 optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
+
+
+def test_image_accepts_other_images(mocked_run):
+    image_a = wandb.Image(np.random.random((300, 300, 3)))
+    image_b = wandb.Image(image_a)
+    assert image_a == image_b
 
 
 def test_image_accepts_bounding_boxes(mocked_run):
@@ -253,6 +260,9 @@ def test_matplotlib_image_with_multiple_axes():
         wandb.Image(plt)  # this should not error.
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_matplotlib_plotly_with_multiple_axes():
     """Ensures that wandb.Plotly constructor can accept a plotly figure 
     reference in which the figure has multiple axes. Importantly, there is 
@@ -296,6 +306,9 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
+)
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
     there is no image
@@ -320,6 +333,14 @@ def test_make_plot_media_from_matplotlib_with_image():
     fig = utils.matplotlib_with_image()
     assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Image
     plt.close()
+
+
+def test_create_bokeh_plot(mocked_run):
+    """Ensures that wandb.Bokeh constructor accepts a bokeh plot 
+    """
+    bp = dummy_data.bokeh_plot()
+    bp = wandb.data_types.Bokeh(bp)
+    bp.bind_to_run(mocked_run, "bokeh", 0)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
@@ -535,6 +556,58 @@ def test_table_init():
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"],
     }
+
+
+table_data = [
+    ["a", 1, True],
+    ["b", 2, False],
+    ["c", 3, True],
+]
+
+
+def test_table_from_list():
+    table = wandb.Table(data=table_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(table_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=table_data)
+
+    # legacy
+    table = wandb.Table(rows=table_data)
+    assert table.data == table_data
+
+
+def test_table_from_numpy():
+    np_data = np.array(table_data)
+    table = wandb.Table(data=np_data)
+    assert table.data == np_data.tolist()
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(np_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=np_data)
+
+
+def test_table_from_pandas():
+    pd_data = pd.DataFrame(table_data)
+    table = wandb.Table(data=pd_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(pd_data)
+
+    # legacy
+    table = wandb.Table(dataframe=pd_data)
+    assert table.data == table_data
 
 
 def test_graph():
