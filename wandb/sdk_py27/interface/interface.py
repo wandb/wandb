@@ -28,6 +28,8 @@ from wandb.util import (
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
     from . import summary_record as sr
+    from typing import Optional
+    from wandb.proto.wandb_internal_pb2 import PollExitResponse
 
 logger = logging.getLogger("wandb")
 
@@ -622,7 +624,11 @@ class BackendSender(object):
         poll_request = wandb_internal_pb2.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
         result = self._communicate(rec, timeout=timeout)
-        return result
+        if result is None:
+            return None
+        poll_exit_response = result.response.poll_exit_response
+        assert poll_exit_response
+        return poll_exit_response
 
     def communicate_check_version(self, current_version=None):
         check_version = wandb_internal_pb2.CheckVersionRequest()

@@ -218,7 +218,16 @@ class Settings(object):
     program_relpath: Optional[str] = None
 
     # Public attributes
+    entity: Optional[str] = None
+    project: Optional[str] = None
+    run_group: Optional[str] = None
+    run_name: Optional[str] = None
+    run_notes: Optional[str] = None
     sagemaker_disable: Optional[bool] = None
+
+    # TODO(jhr): Audit these attributes
+    run_job_type: Optional[str] = None
+    base_url: Optional[str] = None
 
     # Private attributes
     __start_time: Optional[float]
