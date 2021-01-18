@@ -4,20 +4,17 @@ import os
 import time
 import shutil
 import requests
-import threading
 
+from contextlib import contextmanager
 from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
-from wandb import env
 from .interface.artifacts import *
-from .internal.progress import Progress
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
-from .lib import filesystem
 from wandb.data_types import WBValue
 
 # This makes the first sleep 1s, and then doubles it up to total times,
@@ -60,7 +57,6 @@ class Artifact(object):
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
-        self._added_new = False
         self._added_objs = {}
         # You can write into this directory when creating artifact files
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
@@ -100,6 +96,7 @@ class Artifact(object):
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
 
+    @contextmanager
     def new_file(self, name, mode="w"):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
@@ -107,9 +104,12 @@ class Artifact(object):
             raise ValueError(
                 'File with name "%s" already exists at "%s"' % (name, path)
             )
+
         util.mkdir_exists_ok(os.path.dirname(path))
-        self._added_new = True
-        return open(path, mode)
+        with open(path, mode) as f:
+            yield f
+
+        self.add_file(path, name=name)
 
     def add_file(self, local_path, name=None, is_tmp=False):
         """Adds a local file to the artifact
@@ -135,16 +135,7 @@ class Artifact(object):
             file_name_parts[0] = b64_string_to_hex(digest)[:8]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        entry = ArtifactManifestEntry(
-            name,
-            None,
-            digest=digest,
-            size=os.path.getsize(local_path),
-            local_path=local_path,
-        )
-
-        self._manifest.add_entry(entry)
-        return entry
+        return self._write_through(name, local_path, digest=digest)
 
     def add_dir(self, local_path, name=None):
         self._ensure_can_add()
@@ -169,15 +160,7 @@ class Artifact(object):
 
         def add_manifest_file(log_phy_path):
             logical_path, physical_path = log_phy_path
-            self._manifest.add_entry(
-                ArtifactManifestEntry(
-                    logical_path,
-                    None,
-                    digest=md5_file_b64(physical_path),
-                    size=os.path.getsize(physical_path),
-                    local_path=physical_path,
-                )
-            )
+            self._write_through(logical_path, physical_path)
 
         import multiprocessing.dummy  # this uses threads
 
@@ -198,6 +181,7 @@ class Artifact(object):
                 Artifact.get_path to store a reference to another artifact's entry.
             name (str) - the path to save
         """
+        self._ensure_can_add()
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
@@ -214,8 +198,7 @@ class Artifact(object):
             raise ValueError(
                 "References must be URIs. To reference a local file, use file://"
             )
-        if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+
         manifest_entries = self._storage_policy.store_reference(
             self, uri, name=name, checksum=checksum, max_objects=max_objects
         )
@@ -232,6 +215,7 @@ class Artifact(object):
             obj (wandb.WBValue): The object to save in an artifact
             name (str): The path to save
         """
+        self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
         if not isinstance(obj, WBValue):
@@ -287,37 +271,28 @@ class Artifact(object):
         if self._final:
             return self._file_entries
 
-        # Record any created files in the manifest.
-        if self._added_new:
-            self.add_dir(self._artifact_dir.name)
-
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
 
-        # If there are new files, move them into the artifact cache now. Our temp
-        # self._artifact_dir may not be available by the time file pusher syncs
-        # these files.
-        if self._added_new:
-            # Update the file entries for new files to point at their new location.
-            def remap_entry(entry):
-                if entry.local_path is None or not entry.local_path.startswith(
-                    self._artifact_dir.name
-                ):
-                    return entry
-                rel_path = os.path.relpath(
-                    entry.local_path, start=self._artifact_dir.name
-                )
-                local_path = os.path.join(self._artifact_dir.name, rel_path)
-                cache_path, hit = self._cache.check_md5_obj_path(
-                    entry.digest, entry.size
-                )
-                if not hit:
-                    shutil.copyfile(local_path, cache_path)
-                entry.local_path = cache_path
+    def _write_through(self, name, path, digest=None):
+        digest = digest or md5_file_b64(path)
+        size = os.path.getsize(path)
 
-            for entry in self._manifest.entries.values():
-                remap_entry(entry)
+        cache_path, hit = self._cache.check_md5_obj_path(digest, size)
+        if not hit:
+            shutil.copyfile(path, cache_path)
+
+        entry = ArtifactManifestEntry(
+            name,
+            None,
+            digest=digest,
+            size=size,
+            local_path=cache_path,
+        )
+
+        self._manifest.add_entry(entry)
+        return entry
 
 
 class ArtifactManifestV1(ArtifactManifest):
