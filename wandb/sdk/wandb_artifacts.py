@@ -1,11 +1,11 @@
 #
+import contextlib
 import re
 import os
 import time
 import shutil
 import requests
 
-from contextlib import contextmanager
 from six.moves.urllib.parse import urlparse, quote
 
 from wandb.compat import tempfile as compat_tempfile
@@ -36,8 +36,8 @@ class Artifact(object):
     def __init__(self, name, type, description=None, metadata=None):
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
-                'Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. Invalid name: "%s"'
-                % name
+                "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
+                'Invalid name: "%s"' % name
             )
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
@@ -96,7 +96,7 @@ class Artifact(object):
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
 
-    @contextmanager
+    @contextlib.contextmanager
     def new_file(self, name, mode="w"):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
