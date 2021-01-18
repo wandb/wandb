@@ -180,9 +180,9 @@ def stop_backend(
     def stop_backend_func():
         sender.publish_exit(0)
         for _ in range(10):
-            ret = sender.communicate_poll_exit()
-            assert ret, "poll exit timedout"
-            done = ret.response.poll_exit_response.done
+            poll_exit_resp = sender.communicate_poll_exit()
+            assert poll_exit_resp, "poll exit timedout"
+            done = poll_exit_resp.done
             if done:
                 break
             time.sleep(1)

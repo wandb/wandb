@@ -48,6 +48,7 @@ def mock_boto(artifact, path=False):
     handler = artifact._storage_policy._handler._handlers["s3"]
     handler._s3 = mock
     handler._botocore = util.get_module("botocore")
+    handler._botocore.exceptions = util.get_module("botocore.exceptions")
     return mock
 
 
