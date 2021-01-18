@@ -284,11 +284,7 @@ class Artifact(object):
             shutil.copyfile(path, cache_path)
 
         entry = ArtifactManifestEntry(
-            name,
-            None,
-            digest=digest,
-            size=size,
-            local_path=cache_path,
+            name, None, digest=digest, size=size, local_path=cache_path,
         )
 
         self._manifest.add_entry(entry)
