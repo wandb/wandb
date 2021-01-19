@@ -1,6 +1,5 @@
 pytest
 coverage
-coveralls
 tox==3.7
 pip
 Pillow
