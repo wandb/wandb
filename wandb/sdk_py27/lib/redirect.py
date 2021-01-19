@@ -276,7 +276,11 @@ class StreamWrapper(BaseRedirect):
         def write(data):
             self._old_write(data)
             if isinstance(data, bytes):
-                data = data.decode("utf-8")
+                try:
+                    data = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    # TODO(frz)
+                    data = ''
             self._emulator.write(data)
             curr_time = time.time()
             if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
@@ -448,4 +452,7 @@ class Redirect(BaseRedirect):
                 self.src_wrapped_stream.flush()
             except OSError:
                 return
-            self._emulator.write(data.decode("utf-8"))
+            try:
+                self._emulator.write(data.decode("utf-8"))
+            except UnicodeDecodeError:
+                pass  # TODO(frz): partial unicode character?
