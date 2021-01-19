@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 
-CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib sdk/verify"
+CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib"
 
 CODEMOD_SRC_BASE="wandb"
 CODEMOD_DEST_SUFFIX="_py27"
 CODEMOD_DEST_SUFFIX_TMP="_tmp"
 
 # Hack for check
-CODEMOD_SDK_EXCLUDES="--exclude internal --exclude interface --exclude backend --exclude lib --exclude verify"
+CODEMOD_SDK_EXCLUDES="--exclude internal --exclude interface --exclude backend --exclude lib"
 
 check=false
 if [ "$1" == "--check" ]; then
