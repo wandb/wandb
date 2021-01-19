@@ -438,8 +438,7 @@ class Run(object):
             self._backend.interface.publish_run(self)
 
     @property
-
-    def notes(self):
+    def notes(self) -> str:
         """
         Returns:
             (str): notes associated with the run. Notes can be a multiline string

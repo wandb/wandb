@@ -1,0 +1,240 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.wcwidth.table_wide</h2>
+<table>
+<caption>wandb/vendor/wcwidth/table_wide.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">"""Wide_Eastasian table. Created by setup.py."""</span>
+<span class="line-empty" title="No Anys on this line!"># Generated: 2016-07-02T04:20:28.048222</span>
+<span class="line-empty" title="No Anys on this line!"># Source: EastAsianWidth-9.0.0.txt</span>
+<span class="line-empty" title="No Anys on this line!"># Date:  2016-05-27, 17:00:00 GMT [KW, LI]</span>
+<span class="line-precise" title="No Anys on this line!">WIDE_EASTASIAN = (</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1100, 0x115f,),  # Hangul Choseong Kiyeok  ..Hangul Choseong Filler</span>
+<span class="line-precise" title="No Anys on this line!">    (0x231a, 0x231b,),  # Watch                   ..Hourglass</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2329, 0x232a,),  # Left-pointing Angle Brac..Right-pointing Angle Bra</span>
+<span class="line-precise" title="No Anys on this line!">    (0x23e9, 0x23ec,),  # Black Right-pointing Dou..Black Down-pointing Doub</span>
+<span class="line-precise" title="No Anys on this line!">    (0x23f0, 0x23f0,),  # Alarm Clock             ..Alarm Clock</span>
+<span class="line-precise" title="No Anys on this line!">    (0x23f3, 0x23f3,),  # Hourglass With Flowing S..Hourglass With Flowing S</span>
+<span class="line-precise" title="No Anys on this line!">    (0x25fd, 0x25fe,),  # White Medium Small Squar..Black Medium Small Squar</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2614, 0x2615,),  # Umbrella With Rain Drops..Hot Beverage</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2648, 0x2653,),  # Aries                   ..Pisces</span>
+<span class="line-precise" title="No Anys on this line!">    (0x267f, 0x267f,),  # Wheelchair Symbol       ..Wheelchair Symbol</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2693, 0x2693,),  # Anchor                  ..Anchor</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26a1, 0x26a1,),  # High Voltage Sign       ..High Voltage Sign</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26aa, 0x26ab,),  # Medium White Circle     ..Medium Black Circle</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26bd, 0x26be,),  # Soccer Ball             ..Baseball</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26c4, 0x26c5,),  # Snowman Without Snow    ..Sun Behind Cloud</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26ce, 0x26ce,),  # Ophiuchus               ..Ophiuchus</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26d4, 0x26d4,),  # No Entry                ..No Entry</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26ea, 0x26ea,),  # Church                  ..Church</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26f2, 0x26f3,),  # Fountain                ..Flag In Hole</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26f5, 0x26f5,),  # Sailboat                ..Sailboat</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26fa, 0x26fa,),  # Tent                    ..Tent</span>
+<span class="line-precise" title="No Anys on this line!">    (0x26fd, 0x26fd,),  # Fuel Pump               ..Fuel Pump</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2705, 0x2705,),  # White Heavy Check Mark  ..White Heavy Check Mark</span>
+<span class="line-precise" title="No Anys on this line!">    (0x270a, 0x270b,),  # Raised Fist             ..Raised Hand</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2728, 0x2728,),  # Sparkles                ..Sparkles</span>
+<span class="line-precise" title="No Anys on this line!">    (0x274c, 0x274c,),  # Cross Mark              ..Cross Mark</span>
+<span class="line-precise" title="No Anys on this line!">    (0x274e, 0x274e,),  # Negative Squared Cross M..Negative Squared Cross M</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2753, 0x2755,),  # Black Question Mark Orna..White Exclamation Mark O</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2757, 0x2757,),  # Heavy Exclamation Mark S..Heavy Exclamation Mark S</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2795, 0x2797,),  # Heavy Plus Sign         ..Heavy Division Sign</span>
+<span class="line-precise" title="No Anys on this line!">    (0x27b0, 0x27b0,),  # Curly Loop              ..Curly Loop</span>
+<span class="line-precise" title="No Anys on this line!">    (0x27bf, 0x27bf,),  # Double Curly Loop       ..Double Curly Loop</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2b1b, 0x2b1c,),  # Black Large Square      ..White Large Square</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2b50, 0x2b50,),  # White Medium Star       ..White Medium Star</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2b55, 0x2b55,),  # Heavy Large Circle      ..Heavy Large Circle</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2e80, 0x2e99,),  # Cjk Radical Repeat      ..Cjk Radical Rap</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2e9b, 0x2ef3,),  # Cjk Radical Choke       ..Cjk Radical C-simplified</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2f00, 0x2fd5,),  # Kangxi Radical One      ..Kangxi Radical Flute</span>
+<span class="line-precise" title="No Anys on this line!">    (0x2ff0, 0x2ffb,),  # Ideographic Description ..Ideographic Description</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3000, 0x303e,),  # Ideographic Space       ..Ideographic Variation In</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3041, 0x3096,),  # Hiragana Letter Small A ..Hiragana Letter Small Ke</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3099, 0x30ff,),  # Combining Katakana-hirag..Katakana Digraph Koto</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3105, 0x312d,),  # Bopomofo Letter B       ..Bopomofo Letter Ih</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3131, 0x318e,),  # Hangul Letter Kiyeok    ..Hangul Letter Araeae</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3190, 0x31ba,),  # Ideographic Annotation L..Bopomofo Letter Zy</span>
+<span class="line-precise" title="No Anys on this line!">    (0x31c0, 0x31e3,),  # Cjk Stroke T            ..Cjk Stroke Q</span>
+<span class="line-precise" title="No Anys on this line!">    (0x31f0, 0x321e,),  # Katakana Letter Small Ku..Parenthesized Korean Cha</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3220, 0x3247,),  # Parenthesized Ideograph ..Circled Ideograph Koto</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3250, 0x32fe,),  # Partnership Sign        ..Circled Katakana Wo</span>
+<span class="line-precise" title="No Anys on this line!">    (0x3300, 0x4dbf,),  # Square Apaato           ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x4e00, 0xa48c,),  # Cjk Unified Ideograph-4e..Yi Syllable Yyr</span>
+<span class="line-precise" title="No Anys on this line!">    (0xa490, 0xa4c6,),  # Yi Radical Qot          ..Yi Radical Ke</span>
+<span class="line-precise" title="No Anys on this line!">    (0xa960, 0xa97c,),  # Hangul Choseong Tikeut-m..Hangul Choseong Ssangyeo</span>
+<span class="line-precise" title="No Anys on this line!">    (0xac00, 0xd7a3,),  # Hangul Syllable Ga      ..Hangul Syllable Hih</span>
+<span class="line-precise" title="No Anys on this line!">    (0xf900, 0xfaff,),  # Cjk Compatibility Ideogr..</span>
+<span class="line-precise" title="No Anys on this line!">    (0xfe10, 0xfe19,),  # Presentation Form For Ve..Presentation Form For Ve</span>
+<span class="line-precise" title="No Anys on this line!">    (0xfe30, 0xfe52,),  # Presentation Form For Ve..Small Full Stop</span>
+<span class="line-precise" title="No Anys on this line!">    (0xfe54, 0xfe66,),  # Small Semicolon         ..Small Equals Sign</span>
+<span class="line-precise" title="No Anys on this line!">    (0xfe68, 0xfe6b,),  # Small Reverse Solidus   ..Small Commercial At</span>
+<span class="line-precise" title="No Anys on this line!">    (0xff01, 0xff60,),  # Fullwidth Exclamation Ma..Fullwidth Right White Pa</span>
+<span class="line-precise" title="No Anys on this line!">    (0xffe0, 0xffe6,),  # Fullwidth Cent Sign     ..Fullwidth Won Sign</span>
+<span class="line-precise" title="No Anys on this line!">    (0x16fe0, 0x16fe0,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x17000, 0x187ec,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x18800, 0x18af2,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1b000, 0x1b001,),  # Katakana Letter Archaic ..Hiragana Letter Archaic</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f004, 0x1f004,),  # Mahjong Tile Red Dragon ..Mahjong Tile Red Dragon</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f0cf, 0x1f0cf,),  # Playing Card Black Joker..Playing Card Black Joker</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f18e, 0x1f18e,),  # Negative Squared Ab     ..Negative Squared Ab</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f191, 0x1f19a,),  # Squared Cl              ..Squared Vs</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f200, 0x1f202,),  # Square Hiragana Hoka    ..Squared Katakana Sa</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f210, 0x1f23b,),  # Squared Cjk Unified Ideo..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f240, 0x1f248,),  # Tortoise Shell Bracketed..Tortoise Shell Bracketed</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f250, 0x1f251,),  # Circled Ideograph Advant..Circled Ideograph Accept</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f300, 0x1f320,),  # Cyclone                 ..Shooting Star</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f32d, 0x1f335,),  # Hot Dog                 ..Cactus</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f337, 0x1f37c,),  # Tulip                   ..Baby Bottle</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f37e, 0x1f393,),  # Bottle With Popping Cork..Graduation Cap</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f3a0, 0x1f3ca,),  # Carousel Horse          ..Swimmer</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f3cf, 0x1f3d3,),  # Cricket Bat And Ball    ..Table Tennis Paddle And</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f3e0, 0x1f3f0,),  # House Building          ..European Castle</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f3f4, 0x1f3f4,),  # Waving Black Flag       ..Waving Black Flag</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f3f8, 0x1f43e,),  # Badminton Racquet And Sh..Paw Prints</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f440, 0x1f440,),  # Eyes                    ..Eyes</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f442, 0x1f4fc,),  # Ear                     ..Videocassette</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f4ff, 0x1f53d,),  # Prayer Beads            ..Down-pointing Small Red</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f54b, 0x1f54e,),  # Kaaba                   ..Menorah With Nine Branch</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f550, 0x1f567,),  # Clock Face One Oclock   ..Clock Face Twelve-thirty</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f57a, 0x1f57a,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f595, 0x1f596,),  # Reversed Hand With Middl..Raised Hand With Part Be</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f5a4, 0x1f5a4,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f5fb, 0x1f64f,),  # Mount Fuji              ..Person With Folded Hands</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f680, 0x1f6c5,),  # Rocket                  ..Left Luggage</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f6cc, 0x1f6cc,),  # Sleeping Accommodation  ..Sleeping Accommodation</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f6d0, 0x1f6d2,),  # Place Of Worship        ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f6eb, 0x1f6ec,),  # Airplane Departure      ..Airplane Arriving</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f6f4, 0x1f6f6,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f910, 0x1f91e,),  # Zipper-mouth Face       ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f920, 0x1f927,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f930, 0x1f930,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f933, 0x1f93e,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f940, 0x1f94b,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f950, 0x1f95e,),  # (nil)                   ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f980, 0x1f991,),  # Crab                    ..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x1f9c0, 0x1f9c0,),  # Cheese Wedge            ..Cheese Wedge</span>
+<span class="line-precise" title="No Anys on this line!">    (0x20000, 0x2fffd,),  # Cjk Unified Ideograph-20..</span>
+<span class="line-precise" title="No Anys on this line!">    (0x30000, 0x3fffd,),  # (nil)                   ..</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.plot.line_series</h2>
+<table>
+<caption>wandb/plot/line_series.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-precise" title="No Anys on this line!">from six.moves.collections_abc import Sequence</span>
+<span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def line_series(xs, ys, keys=None, title=None, xname=None):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Construct a line series plot.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Arguments:</span>
+<span class="line-empty" title="No Anys on this line!">        xs (array of arrays, or array): Array of arrays of x values</span>
+<span class="line-empty" title="No Anys on this line!">        ys (array of arrays): Array of y values</span>
+<span class="line-empty" title="No Anys on this line!">        title (string): Plot title.</span>
+<span class="line-empty" title="No Anys on this line!">        xname: Title of x-axis</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Returns:</span>
+<span class="line-empty" title="No Anys on this line!">        A plot object, to be passed to wandb.log()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Example:</span>
+<span class="line-empty" title="No Anys on this line!">        ```</span>
+<span class="line-empty" title="No Anys on this line!">        When logging a singular array for x, all ys are plotted against that x</span>
+<span class="line-empty" title="No Anys on this line!">        x = [i for i in range(10)]</span>
+<span class="line-empty" title="No Anys on this line!">        ys = [</span>
+<span class="line-empty" title="No Anys on this line!">            [i for i in range(10)],</span>
+<span class="line-empty" title="No Anys on this line!">            [i**2 for i in range(10)]</span>
+<span class="line-empty" title="No Anys on this line!">        ]</span>
+<span class="line-empty" title="No Anys on this line!">        wandb.log({'line-series-plot1': wandb.plot.line_series(x, ys, "title", "step")})</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        xs can also contain an array of arrays for having different steps for each metric</span>
+<span class="line-empty" title="No Anys on this line!">        xs = [[i for i in range(10)], [2*i for i in range(10)]]</span>
+<span class="line-empty" title="No Anys on this line!">        ys = [</span>
+<span class="line-empty" title="No Anys on this line!">            [i for i in range(10)],</span>
+<span class="line-empty" title="No Anys on this line!">            [i**2 for i in range(10)]</span>
+<span class="line-empty" title="No Anys on this line!">        ]</span>
+<span class="line-empty" title="No Anys on this line!">        wandb.log({'line-series-plot1': wandb.plot.line_series(xs, ys, "title", "step")})</span>
+<span class="line-empty" title="No Anys on this line!">        ```</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    data = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">    if not isinstance(xs[0], Sequence):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        xs = [xs for _ in range(len(ys))]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    assert len(xs) == len(ys), "Number of x-lines and y-lines must match"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x15)
+Explicit (x8)">    for i, series in enumerate([list(zip(xs[i], ys[i])) for i in range(len(xs))]):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        for x, y in series:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if keys is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                key = "key_{}".format(i)</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                key = keys[i]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            data.append([x, key, y])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">    table = wandb.Table(data=data, columns=["step", "lineKey", "lineVal"])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    return wandb.plot_table(</span>
+<span class="line-any" title="No Anys on this line!">        "wandb/lineseries/v0",</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        table,</span>
+<span class="line-any" title="No Anys on this line!">        {"step": "step", "lineKey": "lineKey", "lineVal": "lineVal"},</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        {"title": title, "xname": xname or "x"},</span>
+<span class="line-empty" title="No Anys on this line!">    )</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

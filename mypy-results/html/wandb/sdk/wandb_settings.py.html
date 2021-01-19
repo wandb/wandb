@@ -1,0 +1,2292 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.sdk.wandb_settings</h2>
+<table>
+<caption>wandb/sdk/wandb_settings.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+<span id="L375" class="lineno"><a class="lineno" href="#L375">375</a></span>
+<span id="L376" class="lineno"><a class="lineno" href="#L376">376</a></span>
+<span id="L377" class="lineno"><a class="lineno" href="#L377">377</a></span>
+<span id="L378" class="lineno"><a class="lineno" href="#L378">378</a></span>
+<span id="L379" class="lineno"><a class="lineno" href="#L379">379</a></span>
+<span id="L380" class="lineno"><a class="lineno" href="#L380">380</a></span>
+<span id="L381" class="lineno"><a class="lineno" href="#L381">381</a></span>
+<span id="L382" class="lineno"><a class="lineno" href="#L382">382</a></span>
+<span id="L383" class="lineno"><a class="lineno" href="#L383">383</a></span>
+<span id="L384" class="lineno"><a class="lineno" href="#L384">384</a></span>
+<span id="L385" class="lineno"><a class="lineno" href="#L385">385</a></span>
+<span id="L386" class="lineno"><a class="lineno" href="#L386">386</a></span>
+<span id="L387" class="lineno"><a class="lineno" href="#L387">387</a></span>
+<span id="L388" class="lineno"><a class="lineno" href="#L388">388</a></span>
+<span id="L389" class="lineno"><a class="lineno" href="#L389">389</a></span>
+<span id="L390" class="lineno"><a class="lineno" href="#L390">390</a></span>
+<span id="L391" class="lineno"><a class="lineno" href="#L391">391</a></span>
+<span id="L392" class="lineno"><a class="lineno" href="#L392">392</a></span>
+<span id="L393" class="lineno"><a class="lineno" href="#L393">393</a></span>
+<span id="L394" class="lineno"><a class="lineno" href="#L394">394</a></span>
+<span id="L395" class="lineno"><a class="lineno" href="#L395">395</a></span>
+<span id="L396" class="lineno"><a class="lineno" href="#L396">396</a></span>
+<span id="L397" class="lineno"><a class="lineno" href="#L397">397</a></span>
+<span id="L398" class="lineno"><a class="lineno" href="#L398">398</a></span>
+<span id="L399" class="lineno"><a class="lineno" href="#L399">399</a></span>
+<span id="L400" class="lineno"><a class="lineno" href="#L400">400</a></span>
+<span id="L401" class="lineno"><a class="lineno" href="#L401">401</a></span>
+<span id="L402" class="lineno"><a class="lineno" href="#L402">402</a></span>
+<span id="L403" class="lineno"><a class="lineno" href="#L403">403</a></span>
+<span id="L404" class="lineno"><a class="lineno" href="#L404">404</a></span>
+<span id="L405" class="lineno"><a class="lineno" href="#L405">405</a></span>
+<span id="L406" class="lineno"><a class="lineno" href="#L406">406</a></span>
+<span id="L407" class="lineno"><a class="lineno" href="#L407">407</a></span>
+<span id="L408" class="lineno"><a class="lineno" href="#L408">408</a></span>
+<span id="L409" class="lineno"><a class="lineno" href="#L409">409</a></span>
+<span id="L410" class="lineno"><a class="lineno" href="#L410">410</a></span>
+<span id="L411" class="lineno"><a class="lineno" href="#L411">411</a></span>
+<span id="L412" class="lineno"><a class="lineno" href="#L412">412</a></span>
+<span id="L413" class="lineno"><a class="lineno" href="#L413">413</a></span>
+<span id="L414" class="lineno"><a class="lineno" href="#L414">414</a></span>
+<span id="L415" class="lineno"><a class="lineno" href="#L415">415</a></span>
+<span id="L416" class="lineno"><a class="lineno" href="#L416">416</a></span>
+<span id="L417" class="lineno"><a class="lineno" href="#L417">417</a></span>
+<span id="L418" class="lineno"><a class="lineno" href="#L418">418</a></span>
+<span id="L419" class="lineno"><a class="lineno" href="#L419">419</a></span>
+<span id="L420" class="lineno"><a class="lineno" href="#L420">420</a></span>
+<span id="L421" class="lineno"><a class="lineno" href="#L421">421</a></span>
+<span id="L422" class="lineno"><a class="lineno" href="#L422">422</a></span>
+<span id="L423" class="lineno"><a class="lineno" href="#L423">423</a></span>
+<span id="L424" class="lineno"><a class="lineno" href="#L424">424</a></span>
+<span id="L425" class="lineno"><a class="lineno" href="#L425">425</a></span>
+<span id="L426" class="lineno"><a class="lineno" href="#L426">426</a></span>
+<span id="L427" class="lineno"><a class="lineno" href="#L427">427</a></span>
+<span id="L428" class="lineno"><a class="lineno" href="#L428">428</a></span>
+<span id="L429" class="lineno"><a class="lineno" href="#L429">429</a></span>
+<span id="L430" class="lineno"><a class="lineno" href="#L430">430</a></span>
+<span id="L431" class="lineno"><a class="lineno" href="#L431">431</a></span>
+<span id="L432" class="lineno"><a class="lineno" href="#L432">432</a></span>
+<span id="L433" class="lineno"><a class="lineno" href="#L433">433</a></span>
+<span id="L434" class="lineno"><a class="lineno" href="#L434">434</a></span>
+<span id="L435" class="lineno"><a class="lineno" href="#L435">435</a></span>
+<span id="L436" class="lineno"><a class="lineno" href="#L436">436</a></span>
+<span id="L437" class="lineno"><a class="lineno" href="#L437">437</a></span>
+<span id="L438" class="lineno"><a class="lineno" href="#L438">438</a></span>
+<span id="L439" class="lineno"><a class="lineno" href="#L439">439</a></span>
+<span id="L440" class="lineno"><a class="lineno" href="#L440">440</a></span>
+<span id="L441" class="lineno"><a class="lineno" href="#L441">441</a></span>
+<span id="L442" class="lineno"><a class="lineno" href="#L442">442</a></span>
+<span id="L443" class="lineno"><a class="lineno" href="#L443">443</a></span>
+<span id="L444" class="lineno"><a class="lineno" href="#L444">444</a></span>
+<span id="L445" class="lineno"><a class="lineno" href="#L445">445</a></span>
+<span id="L446" class="lineno"><a class="lineno" href="#L446">446</a></span>
+<span id="L447" class="lineno"><a class="lineno" href="#L447">447</a></span>
+<span id="L448" class="lineno"><a class="lineno" href="#L448">448</a></span>
+<span id="L449" class="lineno"><a class="lineno" href="#L449">449</a></span>
+<span id="L450" class="lineno"><a class="lineno" href="#L450">450</a></span>
+<span id="L451" class="lineno"><a class="lineno" href="#L451">451</a></span>
+<span id="L452" class="lineno"><a class="lineno" href="#L452">452</a></span>
+<span id="L453" class="lineno"><a class="lineno" href="#L453">453</a></span>
+<span id="L454" class="lineno"><a class="lineno" href="#L454">454</a></span>
+<span id="L455" class="lineno"><a class="lineno" href="#L455">455</a></span>
+<span id="L456" class="lineno"><a class="lineno" href="#L456">456</a></span>
+<span id="L457" class="lineno"><a class="lineno" href="#L457">457</a></span>
+<span id="L458" class="lineno"><a class="lineno" href="#L458">458</a></span>
+<span id="L459" class="lineno"><a class="lineno" href="#L459">459</a></span>
+<span id="L460" class="lineno"><a class="lineno" href="#L460">460</a></span>
+<span id="L461" class="lineno"><a class="lineno" href="#L461">461</a></span>
+<span id="L462" class="lineno"><a class="lineno" href="#L462">462</a></span>
+<span id="L463" class="lineno"><a class="lineno" href="#L463">463</a></span>
+<span id="L464" class="lineno"><a class="lineno" href="#L464">464</a></span>
+<span id="L465" class="lineno"><a class="lineno" href="#L465">465</a></span>
+<span id="L466" class="lineno"><a class="lineno" href="#L466">466</a></span>
+<span id="L467" class="lineno"><a class="lineno" href="#L467">467</a></span>
+<span id="L468" class="lineno"><a class="lineno" href="#L468">468</a></span>
+<span id="L469" class="lineno"><a class="lineno" href="#L469">469</a></span>
+<span id="L470" class="lineno"><a class="lineno" href="#L470">470</a></span>
+<span id="L471" class="lineno"><a class="lineno" href="#L471">471</a></span>
+<span id="L472" class="lineno"><a class="lineno" href="#L472">472</a></span>
+<span id="L473" class="lineno"><a class="lineno" href="#L473">473</a></span>
+<span id="L474" class="lineno"><a class="lineno" href="#L474">474</a></span>
+<span id="L475" class="lineno"><a class="lineno" href="#L475">475</a></span>
+<span id="L476" class="lineno"><a class="lineno" href="#L476">476</a></span>
+<span id="L477" class="lineno"><a class="lineno" href="#L477">477</a></span>
+<span id="L478" class="lineno"><a class="lineno" href="#L478">478</a></span>
+<span id="L479" class="lineno"><a class="lineno" href="#L479">479</a></span>
+<span id="L480" class="lineno"><a class="lineno" href="#L480">480</a></span>
+<span id="L481" class="lineno"><a class="lineno" href="#L481">481</a></span>
+<span id="L482" class="lineno"><a class="lineno" href="#L482">482</a></span>
+<span id="L483" class="lineno"><a class="lineno" href="#L483">483</a></span>
+<span id="L484" class="lineno"><a class="lineno" href="#L484">484</a></span>
+<span id="L485" class="lineno"><a class="lineno" href="#L485">485</a></span>
+<span id="L486" class="lineno"><a class="lineno" href="#L486">486</a></span>
+<span id="L487" class="lineno"><a class="lineno" href="#L487">487</a></span>
+<span id="L488" class="lineno"><a class="lineno" href="#L488">488</a></span>
+<span id="L489" class="lineno"><a class="lineno" href="#L489">489</a></span>
+<span id="L490" class="lineno"><a class="lineno" href="#L490">490</a></span>
+<span id="L491" class="lineno"><a class="lineno" href="#L491">491</a></span>
+<span id="L492" class="lineno"><a class="lineno" href="#L492">492</a></span>
+<span id="L493" class="lineno"><a class="lineno" href="#L493">493</a></span>
+<span id="L494" class="lineno"><a class="lineno" href="#L494">494</a></span>
+<span id="L495" class="lineno"><a class="lineno" href="#L495">495</a></span>
+<span id="L496" class="lineno"><a class="lineno" href="#L496">496</a></span>
+<span id="L497" class="lineno"><a class="lineno" href="#L497">497</a></span>
+<span id="L498" class="lineno"><a class="lineno" href="#L498">498</a></span>
+<span id="L499" class="lineno"><a class="lineno" href="#L499">499</a></span>
+<span id="L500" class="lineno"><a class="lineno" href="#L500">500</a></span>
+<span id="L501" class="lineno"><a class="lineno" href="#L501">501</a></span>
+<span id="L502" class="lineno"><a class="lineno" href="#L502">502</a></span>
+<span id="L503" class="lineno"><a class="lineno" href="#L503">503</a></span>
+<span id="L504" class="lineno"><a class="lineno" href="#L504">504</a></span>
+<span id="L505" class="lineno"><a class="lineno" href="#L505">505</a></span>
+<span id="L506" class="lineno"><a class="lineno" href="#L506">506</a></span>
+<span id="L507" class="lineno"><a class="lineno" href="#L507">507</a></span>
+<span id="L508" class="lineno"><a class="lineno" href="#L508">508</a></span>
+<span id="L509" class="lineno"><a class="lineno" href="#L509">509</a></span>
+<span id="L510" class="lineno"><a class="lineno" href="#L510">510</a></span>
+<span id="L511" class="lineno"><a class="lineno" href="#L511">511</a></span>
+<span id="L512" class="lineno"><a class="lineno" href="#L512">512</a></span>
+<span id="L513" class="lineno"><a class="lineno" href="#L513">513</a></span>
+<span id="L514" class="lineno"><a class="lineno" href="#L514">514</a></span>
+<span id="L515" class="lineno"><a class="lineno" href="#L515">515</a></span>
+<span id="L516" class="lineno"><a class="lineno" href="#L516">516</a></span>
+<span id="L517" class="lineno"><a class="lineno" href="#L517">517</a></span>
+<span id="L518" class="lineno"><a class="lineno" href="#L518">518</a></span>
+<span id="L519" class="lineno"><a class="lineno" href="#L519">519</a></span>
+<span id="L520" class="lineno"><a class="lineno" href="#L520">520</a></span>
+<span id="L521" class="lineno"><a class="lineno" href="#L521">521</a></span>
+<span id="L522" class="lineno"><a class="lineno" href="#L522">522</a></span>
+<span id="L523" class="lineno"><a class="lineno" href="#L523">523</a></span>
+<span id="L524" class="lineno"><a class="lineno" href="#L524">524</a></span>
+<span id="L525" class="lineno"><a class="lineno" href="#L525">525</a></span>
+<span id="L526" class="lineno"><a class="lineno" href="#L526">526</a></span>
+<span id="L527" class="lineno"><a class="lineno" href="#L527">527</a></span>
+<span id="L528" class="lineno"><a class="lineno" href="#L528">528</a></span>
+<span id="L529" class="lineno"><a class="lineno" href="#L529">529</a></span>
+<span id="L530" class="lineno"><a class="lineno" href="#L530">530</a></span>
+<span id="L531" class="lineno"><a class="lineno" href="#L531">531</a></span>
+<span id="L532" class="lineno"><a class="lineno" href="#L532">532</a></span>
+<span id="L533" class="lineno"><a class="lineno" href="#L533">533</a></span>
+<span id="L534" class="lineno"><a class="lineno" href="#L534">534</a></span>
+<span id="L535" class="lineno"><a class="lineno" href="#L535">535</a></span>
+<span id="L536" class="lineno"><a class="lineno" href="#L536">536</a></span>
+<span id="L537" class="lineno"><a class="lineno" href="#L537">537</a></span>
+<span id="L538" class="lineno"><a class="lineno" href="#L538">538</a></span>
+<span id="L539" class="lineno"><a class="lineno" href="#L539">539</a></span>
+<span id="L540" class="lineno"><a class="lineno" href="#L540">540</a></span>
+<span id="L541" class="lineno"><a class="lineno" href="#L541">541</a></span>
+<span id="L542" class="lineno"><a class="lineno" href="#L542">542</a></span>
+<span id="L543" class="lineno"><a class="lineno" href="#L543">543</a></span>
+<span id="L544" class="lineno"><a class="lineno" href="#L544">544</a></span>
+<span id="L545" class="lineno"><a class="lineno" href="#L545">545</a></span>
+<span id="L546" class="lineno"><a class="lineno" href="#L546">546</a></span>
+<span id="L547" class="lineno"><a class="lineno" href="#L547">547</a></span>
+<span id="L548" class="lineno"><a class="lineno" href="#L548">548</a></span>
+<span id="L549" class="lineno"><a class="lineno" href="#L549">549</a></span>
+<span id="L550" class="lineno"><a class="lineno" href="#L550">550</a></span>
+<span id="L551" class="lineno"><a class="lineno" href="#L551">551</a></span>
+<span id="L552" class="lineno"><a class="lineno" href="#L552">552</a></span>
+<span id="L553" class="lineno"><a class="lineno" href="#L553">553</a></span>
+<span id="L554" class="lineno"><a class="lineno" href="#L554">554</a></span>
+<span id="L555" class="lineno"><a class="lineno" href="#L555">555</a></span>
+<span id="L556" class="lineno"><a class="lineno" href="#L556">556</a></span>
+<span id="L557" class="lineno"><a class="lineno" href="#L557">557</a></span>
+<span id="L558" class="lineno"><a class="lineno" href="#L558">558</a></span>
+<span id="L559" class="lineno"><a class="lineno" href="#L559">559</a></span>
+<span id="L560" class="lineno"><a class="lineno" href="#L560">560</a></span>
+<span id="L561" class="lineno"><a class="lineno" href="#L561">561</a></span>
+<span id="L562" class="lineno"><a class="lineno" href="#L562">562</a></span>
+<span id="L563" class="lineno"><a class="lineno" href="#L563">563</a></span>
+<span id="L564" class="lineno"><a class="lineno" href="#L564">564</a></span>
+<span id="L565" class="lineno"><a class="lineno" href="#L565">565</a></span>
+<span id="L566" class="lineno"><a class="lineno" href="#L566">566</a></span>
+<span id="L567" class="lineno"><a class="lineno" href="#L567">567</a></span>
+<span id="L568" class="lineno"><a class="lineno" href="#L568">568</a></span>
+<span id="L569" class="lineno"><a class="lineno" href="#L569">569</a></span>
+<span id="L570" class="lineno"><a class="lineno" href="#L570">570</a></span>
+<span id="L571" class="lineno"><a class="lineno" href="#L571">571</a></span>
+<span id="L572" class="lineno"><a class="lineno" href="#L572">572</a></span>
+<span id="L573" class="lineno"><a class="lineno" href="#L573">573</a></span>
+<span id="L574" class="lineno"><a class="lineno" href="#L574">574</a></span>
+<span id="L575" class="lineno"><a class="lineno" href="#L575">575</a></span>
+<span id="L576" class="lineno"><a class="lineno" href="#L576">576</a></span>
+<span id="L577" class="lineno"><a class="lineno" href="#L577">577</a></span>
+<span id="L578" class="lineno"><a class="lineno" href="#L578">578</a></span>
+<span id="L579" class="lineno"><a class="lineno" href="#L579">579</a></span>
+<span id="L580" class="lineno"><a class="lineno" href="#L580">580</a></span>
+<span id="L581" class="lineno"><a class="lineno" href="#L581">581</a></span>
+<span id="L582" class="lineno"><a class="lineno" href="#L582">582</a></span>
+<span id="L583" class="lineno"><a class="lineno" href="#L583">583</a></span>
+<span id="L584" class="lineno"><a class="lineno" href="#L584">584</a></span>
+<span id="L585" class="lineno"><a class="lineno" href="#L585">585</a></span>
+<span id="L586" class="lineno"><a class="lineno" href="#L586">586</a></span>
+<span id="L587" class="lineno"><a class="lineno" href="#L587">587</a></span>
+<span id="L588" class="lineno"><a class="lineno" href="#L588">588</a></span>
+<span id="L589" class="lineno"><a class="lineno" href="#L589">589</a></span>
+<span id="L590" class="lineno"><a class="lineno" href="#L590">590</a></span>
+<span id="L591" class="lineno"><a class="lineno" href="#L591">591</a></span>
+<span id="L592" class="lineno"><a class="lineno" href="#L592">592</a></span>
+<span id="L593" class="lineno"><a class="lineno" href="#L593">593</a></span>
+<span id="L594" class="lineno"><a class="lineno" href="#L594">594</a></span>
+<span id="L595" class="lineno"><a class="lineno" href="#L595">595</a></span>
+<span id="L596" class="lineno"><a class="lineno" href="#L596">596</a></span>
+<span id="L597" class="lineno"><a class="lineno" href="#L597">597</a></span>
+<span id="L598" class="lineno"><a class="lineno" href="#L598">598</a></span>
+<span id="L599" class="lineno"><a class="lineno" href="#L599">599</a></span>
+<span id="L600" class="lineno"><a class="lineno" href="#L600">600</a></span>
+<span id="L601" class="lineno"><a class="lineno" href="#L601">601</a></span>
+<span id="L602" class="lineno"><a class="lineno" href="#L602">602</a></span>
+<span id="L603" class="lineno"><a class="lineno" href="#L603">603</a></span>
+<span id="L604" class="lineno"><a class="lineno" href="#L604">604</a></span>
+<span id="L605" class="lineno"><a class="lineno" href="#L605">605</a></span>
+<span id="L606" class="lineno"><a class="lineno" href="#L606">606</a></span>
+<span id="L607" class="lineno"><a class="lineno" href="#L607">607</a></span>
+<span id="L608" class="lineno"><a class="lineno" href="#L608">608</a></span>
+<span id="L609" class="lineno"><a class="lineno" href="#L609">609</a></span>
+<span id="L610" class="lineno"><a class="lineno" href="#L610">610</a></span>
+<span id="L611" class="lineno"><a class="lineno" href="#L611">611</a></span>
+<span id="L612" class="lineno"><a class="lineno" href="#L612">612</a></span>
+<span id="L613" class="lineno"><a class="lineno" href="#L613">613</a></span>
+<span id="L614" class="lineno"><a class="lineno" href="#L614">614</a></span>
+<span id="L615" class="lineno"><a class="lineno" href="#L615">615</a></span>
+<span id="L616" class="lineno"><a class="lineno" href="#L616">616</a></span>
+<span id="L617" class="lineno"><a class="lineno" href="#L617">617</a></span>
+<span id="L618" class="lineno"><a class="lineno" href="#L618">618</a></span>
+<span id="L619" class="lineno"><a class="lineno" href="#L619">619</a></span>
+<span id="L620" class="lineno"><a class="lineno" href="#L620">620</a></span>
+<span id="L621" class="lineno"><a class="lineno" href="#L621">621</a></span>
+<span id="L622" class="lineno"><a class="lineno" href="#L622">622</a></span>
+<span id="L623" class="lineno"><a class="lineno" href="#L623">623</a></span>
+<span id="L624" class="lineno"><a class="lineno" href="#L624">624</a></span>
+<span id="L625" class="lineno"><a class="lineno" href="#L625">625</a></span>
+<span id="L626" class="lineno"><a class="lineno" href="#L626">626</a></span>
+<span id="L627" class="lineno"><a class="lineno" href="#L627">627</a></span>
+<span id="L628" class="lineno"><a class="lineno" href="#L628">628</a></span>
+<span id="L629" class="lineno"><a class="lineno" href="#L629">629</a></span>
+<span id="L630" class="lineno"><a class="lineno" href="#L630">630</a></span>
+<span id="L631" class="lineno"><a class="lineno" href="#L631">631</a></span>
+<span id="L632" class="lineno"><a class="lineno" href="#L632">632</a></span>
+<span id="L633" class="lineno"><a class="lineno" href="#L633">633</a></span>
+<span id="L634" class="lineno"><a class="lineno" href="#L634">634</a></span>
+<span id="L635" class="lineno"><a class="lineno" href="#L635">635</a></span>
+<span id="L636" class="lineno"><a class="lineno" href="#L636">636</a></span>
+<span id="L637" class="lineno"><a class="lineno" href="#L637">637</a></span>
+<span id="L638" class="lineno"><a class="lineno" href="#L638">638</a></span>
+<span id="L639" class="lineno"><a class="lineno" href="#L639">639</a></span>
+<span id="L640" class="lineno"><a class="lineno" href="#L640">640</a></span>
+<span id="L641" class="lineno"><a class="lineno" href="#L641">641</a></span>
+<span id="L642" class="lineno"><a class="lineno" href="#L642">642</a></span>
+<span id="L643" class="lineno"><a class="lineno" href="#L643">643</a></span>
+<span id="L644" class="lineno"><a class="lineno" href="#L644">644</a></span>
+<span id="L645" class="lineno"><a class="lineno" href="#L645">645</a></span>
+<span id="L646" class="lineno"><a class="lineno" href="#L646">646</a></span>
+<span id="L647" class="lineno"><a class="lineno" href="#L647">647</a></span>
+<span id="L648" class="lineno"><a class="lineno" href="#L648">648</a></span>
+<span id="L649" class="lineno"><a class="lineno" href="#L649">649</a></span>
+<span id="L650" class="lineno"><a class="lineno" href="#L650">650</a></span>
+<span id="L651" class="lineno"><a class="lineno" href="#L651">651</a></span>
+<span id="L652" class="lineno"><a class="lineno" href="#L652">652</a></span>
+<span id="L653" class="lineno"><a class="lineno" href="#L653">653</a></span>
+<span id="L654" class="lineno"><a class="lineno" href="#L654">654</a></span>
+<span id="L655" class="lineno"><a class="lineno" href="#L655">655</a></span>
+<span id="L656" class="lineno"><a class="lineno" href="#L656">656</a></span>
+<span id="L657" class="lineno"><a class="lineno" href="#L657">657</a></span>
+<span id="L658" class="lineno"><a class="lineno" href="#L658">658</a></span>
+<span id="L659" class="lineno"><a class="lineno" href="#L659">659</a></span>
+<span id="L660" class="lineno"><a class="lineno" href="#L660">660</a></span>
+<span id="L661" class="lineno"><a class="lineno" href="#L661">661</a></span>
+<span id="L662" class="lineno"><a class="lineno" href="#L662">662</a></span>
+<span id="L663" class="lineno"><a class="lineno" href="#L663">663</a></span>
+<span id="L664" class="lineno"><a class="lineno" href="#L664">664</a></span>
+<span id="L665" class="lineno"><a class="lineno" href="#L665">665</a></span>
+<span id="L666" class="lineno"><a class="lineno" href="#L666">666</a></span>
+<span id="L667" class="lineno"><a class="lineno" href="#L667">667</a></span>
+<span id="L668" class="lineno"><a class="lineno" href="#L668">668</a></span>
+<span id="L669" class="lineno"><a class="lineno" href="#L669">669</a></span>
+<span id="L670" class="lineno"><a class="lineno" href="#L670">670</a></span>
+<span id="L671" class="lineno"><a class="lineno" href="#L671">671</a></span>
+<span id="L672" class="lineno"><a class="lineno" href="#L672">672</a></span>
+<span id="L673" class="lineno"><a class="lineno" href="#L673">673</a></span>
+<span id="L674" class="lineno"><a class="lineno" href="#L674">674</a></span>
+<span id="L675" class="lineno"><a class="lineno" href="#L675">675</a></span>
+<span id="L676" class="lineno"><a class="lineno" href="#L676">676</a></span>
+<span id="L677" class="lineno"><a class="lineno" href="#L677">677</a></span>
+<span id="L678" class="lineno"><a class="lineno" href="#L678">678</a></span>
+<span id="L679" class="lineno"><a class="lineno" href="#L679">679</a></span>
+<span id="L680" class="lineno"><a class="lineno" href="#L680">680</a></span>
+<span id="L681" class="lineno"><a class="lineno" href="#L681">681</a></span>
+<span id="L682" class="lineno"><a class="lineno" href="#L682">682</a></span>
+<span id="L683" class="lineno"><a class="lineno" href="#L683">683</a></span>
+<span id="L684" class="lineno"><a class="lineno" href="#L684">684</a></span>
+<span id="L685" class="lineno"><a class="lineno" href="#L685">685</a></span>
+<span id="L686" class="lineno"><a class="lineno" href="#L686">686</a></span>
+<span id="L687" class="lineno"><a class="lineno" href="#L687">687</a></span>
+<span id="L688" class="lineno"><a class="lineno" href="#L688">688</a></span>
+<span id="L689" class="lineno"><a class="lineno" href="#L689">689</a></span>
+<span id="L690" class="lineno"><a class="lineno" href="#L690">690</a></span>
+<span id="L691" class="lineno"><a class="lineno" href="#L691">691</a></span>
+<span id="L692" class="lineno"><a class="lineno" href="#L692">692</a></span>
+<span id="L693" class="lineno"><a class="lineno" href="#L693">693</a></span>
+<span id="L694" class="lineno"><a class="lineno" href="#L694">694</a></span>
+<span id="L695" class="lineno"><a class="lineno" href="#L695">695</a></span>
+<span id="L696" class="lineno"><a class="lineno" href="#L696">696</a></span>
+<span id="L697" class="lineno"><a class="lineno" href="#L697">697</a></span>
+<span id="L698" class="lineno"><a class="lineno" href="#L698">698</a></span>
+<span id="L699" class="lineno"><a class="lineno" href="#L699">699</a></span>
+<span id="L700" class="lineno"><a class="lineno" href="#L700">700</a></span>
+<span id="L701" class="lineno"><a class="lineno" href="#L701">701</a></span>
+<span id="L702" class="lineno"><a class="lineno" href="#L702">702</a></span>
+<span id="L703" class="lineno"><a class="lineno" href="#L703">703</a></span>
+<span id="L704" class="lineno"><a class="lineno" href="#L704">704</a></span>
+<span id="L705" class="lineno"><a class="lineno" href="#L705">705</a></span>
+<span id="L706" class="lineno"><a class="lineno" href="#L706">706</a></span>
+<span id="L707" class="lineno"><a class="lineno" href="#L707">707</a></span>
+<span id="L708" class="lineno"><a class="lineno" href="#L708">708</a></span>
+<span id="L709" class="lineno"><a class="lineno" href="#L709">709</a></span>
+<span id="L710" class="lineno"><a class="lineno" href="#L710">710</a></span>
+<span id="L711" class="lineno"><a class="lineno" href="#L711">711</a></span>
+<span id="L712" class="lineno"><a class="lineno" href="#L712">712</a></span>
+<span id="L713" class="lineno"><a class="lineno" href="#L713">713</a></span>
+<span id="L714" class="lineno"><a class="lineno" href="#L714">714</a></span>
+<span id="L715" class="lineno"><a class="lineno" href="#L715">715</a></span>
+<span id="L716" class="lineno"><a class="lineno" href="#L716">716</a></span>
+<span id="L717" class="lineno"><a class="lineno" href="#L717">717</a></span>
+<span id="L718" class="lineno"><a class="lineno" href="#L718">718</a></span>
+<span id="L719" class="lineno"><a class="lineno" href="#L719">719</a></span>
+<span id="L720" class="lineno"><a class="lineno" href="#L720">720</a></span>
+<span id="L721" class="lineno"><a class="lineno" href="#L721">721</a></span>
+<span id="L722" class="lineno"><a class="lineno" href="#L722">722</a></span>
+<span id="L723" class="lineno"><a class="lineno" href="#L723">723</a></span>
+<span id="L724" class="lineno"><a class="lineno" href="#L724">724</a></span>
+<span id="L725" class="lineno"><a class="lineno" href="#L725">725</a></span>
+<span id="L726" class="lineno"><a class="lineno" href="#L726">726</a></span>
+<span id="L727" class="lineno"><a class="lineno" href="#L727">727</a></span>
+<span id="L728" class="lineno"><a class="lineno" href="#L728">728</a></span>
+<span id="L729" class="lineno"><a class="lineno" href="#L729">729</a></span>
+<span id="L730" class="lineno"><a class="lineno" href="#L730">730</a></span>
+<span id="L731" class="lineno"><a class="lineno" href="#L731">731</a></span>
+<span id="L732" class="lineno"><a class="lineno" href="#L732">732</a></span>
+<span id="L733" class="lineno"><a class="lineno" href="#L733">733</a></span>
+<span id="L734" class="lineno"><a class="lineno" href="#L734">734</a></span>
+<span id="L735" class="lineno"><a class="lineno" href="#L735">735</a></span>
+<span id="L736" class="lineno"><a class="lineno" href="#L736">736</a></span>
+<span id="L737" class="lineno"><a class="lineno" href="#L737">737</a></span>
+<span id="L738" class="lineno"><a class="lineno" href="#L738">738</a></span>
+<span id="L739" class="lineno"><a class="lineno" href="#L739">739</a></span>
+<span id="L740" class="lineno"><a class="lineno" href="#L740">740</a></span>
+<span id="L741" class="lineno"><a class="lineno" href="#L741">741</a></span>
+<span id="L742" class="lineno"><a class="lineno" href="#L742">742</a></span>
+<span id="L743" class="lineno"><a class="lineno" href="#L743">743</a></span>
+<span id="L744" class="lineno"><a class="lineno" href="#L744">744</a></span>
+<span id="L745" class="lineno"><a class="lineno" href="#L745">745</a></span>
+<span id="L746" class="lineno"><a class="lineno" href="#L746">746</a></span>
+<span id="L747" class="lineno"><a class="lineno" href="#L747">747</a></span>
+<span id="L748" class="lineno"><a class="lineno" href="#L748">748</a></span>
+<span id="L749" class="lineno"><a class="lineno" href="#L749">749</a></span>
+<span id="L750" class="lineno"><a class="lineno" href="#L750">750</a></span>
+<span id="L751" class="lineno"><a class="lineno" href="#L751">751</a></span>
+<span id="L752" class="lineno"><a class="lineno" href="#L752">752</a></span>
+<span id="L753" class="lineno"><a class="lineno" href="#L753">753</a></span>
+<span id="L754" class="lineno"><a class="lineno" href="#L754">754</a></span>
+<span id="L755" class="lineno"><a class="lineno" href="#L755">755</a></span>
+<span id="L756" class="lineno"><a class="lineno" href="#L756">756</a></span>
+<span id="L757" class="lineno"><a class="lineno" href="#L757">757</a></span>
+<span id="L758" class="lineno"><a class="lineno" href="#L758">758</a></span>
+<span id="L759" class="lineno"><a class="lineno" href="#L759">759</a></span>
+<span id="L760" class="lineno"><a class="lineno" href="#L760">760</a></span>
+<span id="L761" class="lineno"><a class="lineno" href="#L761">761</a></span>
+<span id="L762" class="lineno"><a class="lineno" href="#L762">762</a></span>
+<span id="L763" class="lineno"><a class="lineno" href="#L763">763</a></span>
+<span id="L764" class="lineno"><a class="lineno" href="#L764">764</a></span>
+<span id="L765" class="lineno"><a class="lineno" href="#L765">765</a></span>
+<span id="L766" class="lineno"><a class="lineno" href="#L766">766</a></span>
+<span id="L767" class="lineno"><a class="lineno" href="#L767">767</a></span>
+<span id="L768" class="lineno"><a class="lineno" href="#L768">768</a></span>
+<span id="L769" class="lineno"><a class="lineno" href="#L769">769</a></span>
+<span id="L770" class="lineno"><a class="lineno" href="#L770">770</a></span>
+<span id="L771" class="lineno"><a class="lineno" href="#L771">771</a></span>
+<span id="L772" class="lineno"><a class="lineno" href="#L772">772</a></span>
+<span id="L773" class="lineno"><a class="lineno" href="#L773">773</a></span>
+<span id="L774" class="lineno"><a class="lineno" href="#L774">774</a></span>
+<span id="L775" class="lineno"><a class="lineno" href="#L775">775</a></span>
+<span id="L776" class="lineno"><a class="lineno" href="#L776">776</a></span>
+<span id="L777" class="lineno"><a class="lineno" href="#L777">777</a></span>
+<span id="L778" class="lineno"><a class="lineno" href="#L778">778</a></span>
+<span id="L779" class="lineno"><a class="lineno" href="#L779">779</a></span>
+<span id="L780" class="lineno"><a class="lineno" href="#L780">780</a></span>
+<span id="L781" class="lineno"><a class="lineno" href="#L781">781</a></span>
+<span id="L782" class="lineno"><a class="lineno" href="#L782">782</a></span>
+<span id="L783" class="lineno"><a class="lineno" href="#L783">783</a></span>
+<span id="L784" class="lineno"><a class="lineno" href="#L784">784</a></span>
+<span id="L785" class="lineno"><a class="lineno" href="#L785">785</a></span>
+<span id="L786" class="lineno"><a class="lineno" href="#L786">786</a></span>
+<span id="L787" class="lineno"><a class="lineno" href="#L787">787</a></span>
+<span id="L788" class="lineno"><a class="lineno" href="#L788">788</a></span>
+<span id="L789" class="lineno"><a class="lineno" href="#L789">789</a></span>
+<span id="L790" class="lineno"><a class="lineno" href="#L790">790</a></span>
+<span id="L791" class="lineno"><a class="lineno" href="#L791">791</a></span>
+<span id="L792" class="lineno"><a class="lineno" href="#L792">792</a></span>
+<span id="L793" class="lineno"><a class="lineno" href="#L793">793</a></span>
+<span id="L794" class="lineno"><a class="lineno" href="#L794">794</a></span>
+<span id="L795" class="lineno"><a class="lineno" href="#L795">795</a></span>
+<span id="L796" class="lineno"><a class="lineno" href="#L796">796</a></span>
+<span id="L797" class="lineno"><a class="lineno" href="#L797">797</a></span>
+<span id="L798" class="lineno"><a class="lineno" href="#L798">798</a></span>
+<span id="L799" class="lineno"><a class="lineno" href="#L799">799</a></span>
+<span id="L800" class="lineno"><a class="lineno" href="#L800">800</a></span>
+<span id="L801" class="lineno"><a class="lineno" href="#L801">801</a></span>
+<span id="L802" class="lineno"><a class="lineno" href="#L802">802</a></span>
+<span id="L803" class="lineno"><a class="lineno" href="#L803">803</a></span>
+<span id="L804" class="lineno"><a class="lineno" href="#L804">804</a></span>
+<span id="L805" class="lineno"><a class="lineno" href="#L805">805</a></span>
+<span id="L806" class="lineno"><a class="lineno" href="#L806">806</a></span>
+<span id="L807" class="lineno"><a class="lineno" href="#L807">807</a></span>
+<span id="L808" class="lineno"><a class="lineno" href="#L808">808</a></span>
+<span id="L809" class="lineno"><a class="lineno" href="#L809">809</a></span>
+<span id="L810" class="lineno"><a class="lineno" href="#L810">810</a></span>
+<span id="L811" class="lineno"><a class="lineno" href="#L811">811</a></span>
+<span id="L812" class="lineno"><a class="lineno" href="#L812">812</a></span>
+<span id="L813" class="lineno"><a class="lineno" href="#L813">813</a></span>
+<span id="L814" class="lineno"><a class="lineno" href="#L814">814</a></span>
+<span id="L815" class="lineno"><a class="lineno" href="#L815">815</a></span>
+<span id="L816" class="lineno"><a class="lineno" href="#L816">816</a></span>
+<span id="L817" class="lineno"><a class="lineno" href="#L817">817</a></span>
+<span id="L818" class="lineno"><a class="lineno" href="#L818">818</a></span>
+<span id="L819" class="lineno"><a class="lineno" href="#L819">819</a></span>
+<span id="L820" class="lineno"><a class="lineno" href="#L820">820</a></span>
+<span id="L821" class="lineno"><a class="lineno" href="#L821">821</a></span>
+<span id="L822" class="lineno"><a class="lineno" href="#L822">822</a></span>
+<span id="L823" class="lineno"><a class="lineno" href="#L823">823</a></span>
+<span id="L824" class="lineno"><a class="lineno" href="#L824">824</a></span>
+<span id="L825" class="lineno"><a class="lineno" href="#L825">825</a></span>
+<span id="L826" class="lineno"><a class="lineno" href="#L826">826</a></span>
+<span id="L827" class="lineno"><a class="lineno" href="#L827">827</a></span>
+<span id="L828" class="lineno"><a class="lineno" href="#L828">828</a></span>
+<span id="L829" class="lineno"><a class="lineno" href="#L829">829</a></span>
+<span id="L830" class="lineno"><a class="lineno" href="#L830">830</a></span>
+<span id="L831" class="lineno"><a class="lineno" href="#L831">831</a></span>
+<span id="L832" class="lineno"><a class="lineno" href="#L832">832</a></span>
+<span id="L833" class="lineno"><a class="lineno" href="#L833">833</a></span>
+<span id="L834" class="lineno"><a class="lineno" href="#L834">834</a></span>
+<span id="L835" class="lineno"><a class="lineno" href="#L835">835</a></span>
+<span id="L836" class="lineno"><a class="lineno" href="#L836">836</a></span>
+<span id="L837" class="lineno"><a class="lineno" href="#L837">837</a></span>
+<span id="L838" class="lineno"><a class="lineno" href="#L838">838</a></span>
+<span id="L839" class="lineno"><a class="lineno" href="#L839">839</a></span>
+<span id="L840" class="lineno"><a class="lineno" href="#L840">840</a></span>
+<span id="L841" class="lineno"><a class="lineno" href="#L841">841</a></span>
+<span id="L842" class="lineno"><a class="lineno" href="#L842">842</a></span>
+<span id="L843" class="lineno"><a class="lineno" href="#L843">843</a></span>
+<span id="L844" class="lineno"><a class="lineno" href="#L844">844</a></span>
+<span id="L845" class="lineno"><a class="lineno" href="#L845">845</a></span>
+<span id="L846" class="lineno"><a class="lineno" href="#L846">846</a></span>
+<span id="L847" class="lineno"><a class="lineno" href="#L847">847</a></span>
+<span id="L848" class="lineno"><a class="lineno" href="#L848">848</a></span>
+<span id="L849" class="lineno"><a class="lineno" href="#L849">849</a></span>
+<span id="L850" class="lineno"><a class="lineno" href="#L850">850</a></span>
+<span id="L851" class="lineno"><a class="lineno" href="#L851">851</a></span>
+<span id="L852" class="lineno"><a class="lineno" href="#L852">852</a></span>
+<span id="L853" class="lineno"><a class="lineno" href="#L853">853</a></span>
+<span id="L854" class="lineno"><a class="lineno" href="#L854">854</a></span>
+<span id="L855" class="lineno"><a class="lineno" href="#L855">855</a></span>
+<span id="L856" class="lineno"><a class="lineno" href="#L856">856</a></span>
+<span id="L857" class="lineno"><a class="lineno" href="#L857">857</a></span>
+<span id="L858" class="lineno"><a class="lineno" href="#L858">858</a></span>
+<span id="L859" class="lineno"><a class="lineno" href="#L859">859</a></span>
+<span id="L860" class="lineno"><a class="lineno" href="#L860">860</a></span>
+<span id="L861" class="lineno"><a class="lineno" href="#L861">861</a></span>
+<span id="L862" class="lineno"><a class="lineno" href="#L862">862</a></span>
+<span id="L863" class="lineno"><a class="lineno" href="#L863">863</a></span>
+<span id="L864" class="lineno"><a class="lineno" href="#L864">864</a></span>
+<span id="L865" class="lineno"><a class="lineno" href="#L865">865</a></span>
+<span id="L866" class="lineno"><a class="lineno" href="#L866">866</a></span>
+<span id="L867" class="lineno"><a class="lineno" href="#L867">867</a></span>
+<span id="L868" class="lineno"><a class="lineno" href="#L868">868</a></span>
+<span id="L869" class="lineno"><a class="lineno" href="#L869">869</a></span>
+<span id="L870" class="lineno"><a class="lineno" href="#L870">870</a></span>
+<span id="L871" class="lineno"><a class="lineno" href="#L871">871</a></span>
+<span id="L872" class="lineno"><a class="lineno" href="#L872">872</a></span>
+<span id="L873" class="lineno"><a class="lineno" href="#L873">873</a></span>
+<span id="L874" class="lineno"><a class="lineno" href="#L874">874</a></span>
+<span id="L875" class="lineno"><a class="lineno" href="#L875">875</a></span>
+<span id="L876" class="lineno"><a class="lineno" href="#L876">876</a></span>
+<span id="L877" class="lineno"><a class="lineno" href="#L877">877</a></span>
+<span id="L878" class="lineno"><a class="lineno" href="#L878">878</a></span>
+<span id="L879" class="lineno"><a class="lineno" href="#L879">879</a></span>
+<span id="L880" class="lineno"><a class="lineno" href="#L880">880</a></span>
+<span id="L881" class="lineno"><a class="lineno" href="#L881">881</a></span>
+<span id="L882" class="lineno"><a class="lineno" href="#L882">882</a></span>
+<span id="L883" class="lineno"><a class="lineno" href="#L883">883</a></span>
+<span id="L884" class="lineno"><a class="lineno" href="#L884">884</a></span>
+<span id="L885" class="lineno"><a class="lineno" href="#L885">885</a></span>
+<span id="L886" class="lineno"><a class="lineno" href="#L886">886</a></span>
+<span id="L887" class="lineno"><a class="lineno" href="#L887">887</a></span>
+<span id="L888" class="lineno"><a class="lineno" href="#L888">888</a></span>
+<span id="L889" class="lineno"><a class="lineno" href="#L889">889</a></span>
+<span id="L890" class="lineno"><a class="lineno" href="#L890">890</a></span>
+<span id="L891" class="lineno"><a class="lineno" href="#L891">891</a></span>
+<span id="L892" class="lineno"><a class="lineno" href="#L892">892</a></span>
+<span id="L893" class="lineno"><a class="lineno" href="#L893">893</a></span>
+<span id="L894" class="lineno"><a class="lineno" href="#L894">894</a></span>
+<span id="L895" class="lineno"><a class="lineno" href="#L895">895</a></span>
+<span id="L896" class="lineno"><a class="lineno" href="#L896">896</a></span>
+<span id="L897" class="lineno"><a class="lineno" href="#L897">897</a></span>
+<span id="L898" class="lineno"><a class="lineno" href="#L898">898</a></span>
+<span id="L899" class="lineno"><a class="lineno" href="#L899">899</a></span>
+<span id="L900" class="lineno"><a class="lineno" href="#L900">900</a></span>
+<span id="L901" class="lineno"><a class="lineno" href="#L901">901</a></span>
+<span id="L902" class="lineno"><a class="lineno" href="#L902">902</a></span>
+<span id="L903" class="lineno"><a class="lineno" href="#L903">903</a></span>
+<span id="L904" class="lineno"><a class="lineno" href="#L904">904</a></span>
+<span id="L905" class="lineno"><a class="lineno" href="#L905">905</a></span>
+<span id="L906" class="lineno"><a class="lineno" href="#L906">906</a></span>
+<span id="L907" class="lineno"><a class="lineno" href="#L907">907</a></span>
+<span id="L908" class="lineno"><a class="lineno" href="#L908">908</a></span>
+<span id="L909" class="lineno"><a class="lineno" href="#L909">909</a></span>
+<span id="L910" class="lineno"><a class="lineno" href="#L910">910</a></span>
+<span id="L911" class="lineno"><a class="lineno" href="#L911">911</a></span>
+<span id="L912" class="lineno"><a class="lineno" href="#L912">912</a></span>
+<span id="L913" class="lineno"><a class="lineno" href="#L913">913</a></span>
+<span id="L914" class="lineno"><a class="lineno" href="#L914">914</a></span>
+<span id="L915" class="lineno"><a class="lineno" href="#L915">915</a></span>
+<span id="L916" class="lineno"><a class="lineno" href="#L916">916</a></span>
+<span id="L917" class="lineno"><a class="lineno" href="#L917">917</a></span>
+<span id="L918" class="lineno"><a class="lineno" href="#L918">918</a></span>
+<span id="L919" class="lineno"><a class="lineno" href="#L919">919</a></span>
+<span id="L920" class="lineno"><a class="lineno" href="#L920">920</a></span>
+<span id="L921" class="lineno"><a class="lineno" href="#L921">921</a></span>
+<span id="L922" class="lineno"><a class="lineno" href="#L922">922</a></span>
+<span id="L923" class="lineno"><a class="lineno" href="#L923">923</a></span>
+<span id="L924" class="lineno"><a class="lineno" href="#L924">924</a></span>
+<span id="L925" class="lineno"><a class="lineno" href="#L925">925</a></span>
+<span id="L926" class="lineno"><a class="lineno" href="#L926">926</a></span>
+<span id="L927" class="lineno"><a class="lineno" href="#L927">927</a></span>
+<span id="L928" class="lineno"><a class="lineno" href="#L928">928</a></span>
+<span id="L929" class="lineno"><a class="lineno" href="#L929">929</a></span>
+<span id="L930" class="lineno"><a class="lineno" href="#L930">930</a></span>
+<span id="L931" class="lineno"><a class="lineno" href="#L931">931</a></span>
+<span id="L932" class="lineno"><a class="lineno" href="#L932">932</a></span>
+<span id="L933" class="lineno"><a class="lineno" href="#L933">933</a></span>
+<span id="L934" class="lineno"><a class="lineno" href="#L934">934</a></span>
+<span id="L935" class="lineno"><a class="lineno" href="#L935">935</a></span>
+<span id="L936" class="lineno"><a class="lineno" href="#L936">936</a></span>
+<span id="L937" class="lineno"><a class="lineno" href="#L937">937</a></span>
+<span id="L938" class="lineno"><a class="lineno" href="#L938">938</a></span>
+<span id="L939" class="lineno"><a class="lineno" href="#L939">939</a></span>
+<span id="L940" class="lineno"><a class="lineno" href="#L940">940</a></span>
+<span id="L941" class="lineno"><a class="lineno" href="#L941">941</a></span>
+<span id="L942" class="lineno"><a class="lineno" href="#L942">942</a></span>
+<span id="L943" class="lineno"><a class="lineno" href="#L943">943</a></span>
+<span id="L944" class="lineno"><a class="lineno" href="#L944">944</a></span>
+<span id="L945" class="lineno"><a class="lineno" href="#L945">945</a></span>
+<span id="L946" class="lineno"><a class="lineno" href="#L946">946</a></span>
+<span id="L947" class="lineno"><a class="lineno" href="#L947">947</a></span>
+<span id="L948" class="lineno"><a class="lineno" href="#L948">948</a></span>
+<span id="L949" class="lineno"><a class="lineno" href="#L949">949</a></span>
+<span id="L950" class="lineno"><a class="lineno" href="#L950">950</a></span>
+<span id="L951" class="lineno"><a class="lineno" href="#L951">951</a></span>
+<span id="L952" class="lineno"><a class="lineno" href="#L952">952</a></span>
+<span id="L953" class="lineno"><a class="lineno" href="#L953">953</a></span>
+<span id="L954" class="lineno"><a class="lineno" href="#L954">954</a></span>
+<span id="L955" class="lineno"><a class="lineno" href="#L955">955</a></span>
+<span id="L956" class="lineno"><a class="lineno" href="#L956">956</a></span>
+<span id="L957" class="lineno"><a class="lineno" href="#L957">957</a></span>
+<span id="L958" class="lineno"><a class="lineno" href="#L958">958</a></span>
+<span id="L959" class="lineno"><a class="lineno" href="#L959">959</a></span>
+<span id="L960" class="lineno"><a class="lineno" href="#L960">960</a></span>
+<span id="L961" class="lineno"><a class="lineno" href="#L961">961</a></span>
+<span id="L962" class="lineno"><a class="lineno" href="#L962">962</a></span>
+<span id="L963" class="lineno"><a class="lineno" href="#L963">963</a></span>
+<span id="L964" class="lineno"><a class="lineno" href="#L964">964</a></span>
+<span id="L965" class="lineno"><a class="lineno" href="#L965">965</a></span>
+<span id="L966" class="lineno"><a class="lineno" href="#L966">966</a></span>
+<span id="L967" class="lineno"><a class="lineno" href="#L967">967</a></span>
+<span id="L968" class="lineno"><a class="lineno" href="#L968">968</a></span>
+<span id="L969" class="lineno"><a class="lineno" href="#L969">969</a></span>
+<span id="L970" class="lineno"><a class="lineno" href="#L970">970</a></span>
+<span id="L971" class="lineno"><a class="lineno" href="#L971">971</a></span>
+<span id="L972" class="lineno"><a class="lineno" href="#L972">972</a></span>
+<span id="L973" class="lineno"><a class="lineno" href="#L973">973</a></span>
+<span id="L974" class="lineno"><a class="lineno" href="#L974">974</a></span>
+<span id="L975" class="lineno"><a class="lineno" href="#L975">975</a></span>
+<span id="L976" class="lineno"><a class="lineno" href="#L976">976</a></span>
+<span id="L977" class="lineno"><a class="lineno" href="#L977">977</a></span>
+<span id="L978" class="lineno"><a class="lineno" href="#L978">978</a></span>
+<span id="L979" class="lineno"><a class="lineno" href="#L979">979</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">This module configures settings for wandb runs.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Order of loading settings: (differs from priority)</span>
+<span class="line-empty" title="No Anys on this line!">    defaults</span>
+<span class="line-empty" title="No Anys on this line!">    environment</span>
+<span class="line-empty" title="No Anys on this line!">    wandb.setup(settings=)</span>
+<span class="line-empty" title="No Anys on this line!">    system_config</span>
+<span class="line-empty" title="No Anys on this line!">    workspace_config</span>
+<span class="line-empty" title="No Anys on this line!">    wandb.init(settings=)</span>
+<span class="line-empty" title="No Anys on this line!">    network_org</span>
+<span class="line-empty" title="No Anys on this line!">    network_entity</span>
+<span class="line-empty" title="No Anys on this line!">    network_project</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Priority of settings:  See "source" variable.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">When override is used, it has priority over non-override settings</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Override priorities are in the reverse order of non-override settings</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import configparser</span>
+<span class="line-precise" title="No Anys on this line!">import copy</span>
+<span class="line-precise" title="No Anys on this line!">from datetime import datetime</span>
+<span class="line-precise" title="No Anys on this line!">from distutils.util import strtobool</span>
+<span class="line-precise" title="No Anys on this line!">import enum</span>
+<span class="line-precise" title="No Anys on this line!">import getpass</span>
+<span class="line-precise" title="No Anys on this line!">import itertools</span>
+<span class="line-precise" title="No Anys on this line!">import json</span>
+<span class="line-precise" title="No Anys on this line!">import os</span>
+<span class="line-precise" title="No Anys on this line!">import platform</span>
+<span class="line-precise" title="No Anys on this line!">import socket</span>
+<span class="line-precise" title="No Anys on this line!">import sys</span>
+<span class="line-precise" title="No Anys on this line!">import tempfile</span>
+<span class="line-precise" title="No Anys on this line!">import time</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import six</span>
+<span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-precise" title="No Anys on this line!">from wandb import util</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from .lib.git import GitRepo</span>
+<span class="line-precise" title="No Anys on this line!">from .lib.ipython import _get_python_type</span>
+<span class="line-precise" title="No Anys on this line!">from .lib.runid import generate_id</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">if wandb.TYPE_CHECKING:  # type: ignore</span>
+<span class="line-precise" title="No Anys on this line!">    from typing import (  # noqa: F401 pylint: disable=unused-import</span>
+<span class="line-empty" title="No Anys on this line!">        Dict,</span>
+<span class="line-empty" title="No Anys on this line!">        List,</span>
+<span class="line-empty" title="No Anys on this line!">        Optional,</span>
+<span class="line-empty" title="No Anys on this line!">        Union,</span>
+<span class="line-empty" title="No Anys on this line!">        Tuple,</span>
+<span class="line-empty" title="No Anys on this line!">        Callable,</span>
+<span class="line-empty" title="No Anys on this line!">        Set,</span>
+<span class="line-empty" title="No Anys on this line!">        Type,</span>
+<span class="line-empty" title="No Anys on this line!">        Sequence,</span>
+<span class="line-empty" title="No Anys on this line!">    )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-imprecise" title="Any Types on this line: 
+Omitted Generics (x3)">defaults: Dict[str, Union[str, int, Tuple]] = dict(</span>
+<span class="line-precise" title="No Anys on this line!">    base_url="https://api.wandb.ai",</span>
+<span class="line-precise" title="No Anys on this line!">    summary_warnings=5,</span>
+<span class="line-precise" title="No Anys on this line!">    git_remote="origin",</span>
+<span class="line-empty" title="No Anys on this line!">    ignore_globs=(),</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># env mapping?</span>
+<span class="line-precise" title="No Anys on this line!">env_prefix: str = "WANDB_"</span>
+<span class="line-empty" title="No Anys on this line!"># env_override_suffix: str = "_OVERRIDE"</span>
+<span class="line-precise" title="No Anys on this line!">env_settings: Dict[str, Optional[str]] = dict(</span>
+<span class="line-precise" title="No Anys on this line!">    entity=None,</span>
+<span class="line-precise" title="No Anys on this line!">    project=None,</span>
+<span class="line-precise" title="No Anys on this line!">    base_url=None,</span>
+<span class="line-precise" title="No Anys on this line!">    api_key=None,</span>
+<span class="line-precise" title="No Anys on this line!">    sweep_id=None,</span>
+<span class="line-precise" title="No Anys on this line!">    mode=None,</span>
+<span class="line-precise" title="No Anys on this line!">    run_group=None,</span>
+<span class="line-precise" title="No Anys on this line!">    problem=None,</span>
+<span class="line-precise" title="No Anys on this line!">    console=None,</span>
+<span class="line-precise" title="No Anys on this line!">    config_paths=None,</span>
+<span class="line-precise" title="No Anys on this line!">    sweep_param_path=None,</span>
+<span class="line-precise" title="No Anys on this line!">    run_id=None,</span>
+<span class="line-precise" title="No Anys on this line!">    notebook_name=None,</span>
+<span class="line-precise" title="No Anys on this line!">    host=None,</span>
+<span class="line-precise" title="No Anys on this line!">    username=None,</span>
+<span class="line-precise" title="No Anys on this line!">    disable_code=None,</span>
+<span class="line-precise" title="No Anys on this line!">    anonymous=None,</span>
+<span class="line-precise" title="No Anys on this line!">    ignore_globs=None,</span>
+<span class="line-precise" title="No Anys on this line!">    resume=None,</span>
+<span class="line-precise" title="No Anys on this line!">    silent=None,</span>
+<span class="line-precise" title="No Anys on this line!">    sagemaker_disable=None,</span>
+<span class="line-precise" title="No Anys on this line!">    root_dir="WANDB_DIR",</span>
+<span class="line-precise" title="No Anys on this line!">    run_name="WANDB_NAME",</span>
+<span class="line-precise" title="No Anys on this line!">    run_notes="WANDB_NOTES",</span>
+<span class="line-precise" title="No Anys on this line!">    run_tags="WANDB_TAGS",</span>
+<span class="line-precise" title="No Anys on this line!">    run_job_type="WANDB_JOB_TYPE",</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">env_convert: Dict[str, Callable[[str], List[str]]] = dict(</span>
+<span class="line-precise" title="No Anys on this line!">    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","),</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">def _build_inverse_map(prefix: str, d: Dict[str, str]) -&gt; Dict[str, str]:</span>
+<span class="line-precise" title="No Anys on this line!">    inv_map = dict()</span>
+<span class="line-precise" title="No Anys on this line!">    for k, v in six.iteritems(d):</span>
+<span class="line-precise" title="No Anys on this line!">        v = v or prefix + k.upper()</span>
+<span class="line-precise" title="No Anys on this line!">        inv_map[v] = k</span>
+<span class="line-precise" title="No Anys on this line!">    return inv_map</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">def _error_choices(value: str, choices: Set[str]) -&gt; str:</span>
+<span class="line-precise" title="No Anys on this line!">    return "{} not in {}".format(value, ",".join(list(choices)))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _get_program():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    program = os.getenv(wandb.env.PROGRAM)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if program:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return program</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-any" title="No Anys on this line!">        import __main__  # type: ignore</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)
+Unimported (x1)">        return __main__.__file__</span>
+<span class="line-precise" title="No Anys on this line!">    except (ImportError, AttributeError):</span>
+<span class="line-any" title="No Anys on this line!">        return None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _get_program_relpath_from_gitrepo(program, _logger=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    repo = GitRepo()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    root = repo.root</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if not root:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        root = os.getcwd()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    full_path_to_program = os.path.join(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        root, os.path.relpath(os.getcwd(), root), program</span>
+<span class="line-empty" title="No Anys on this line!">    )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if os.path.exists(full_path_to_program):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        relative_path = os.path.relpath(full_path_to_program, start=root)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if "../" in relative_path:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                _logger.warning("could not save program above cwd: %s" % program)</span>
+<span class="line-any" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return relative_path</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        _logger.warning("could not find program at %s" % program)</span>
+<span class="line-any" title="No Anys on this line!">    return None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># the setting exposed to users as `dir=` or `WANDB_DIR` is actually</span>
+<span class="line-empty" title="No Anys on this line!"># the `root_dir`. We add the `__stage_dir__` to it to get the full</span>
+<span class="line-empty" title="No Anys on this line!"># `wandb_dir`</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">def get_wandb_dir(root_dir: str):</span>
+<span class="line-empty" title="No Anys on this line!">    # We use the hidden version if it already exists, otherwise non-hidden.</span>
+<span class="line-precise" title="No Anys on this line!">    if os.path.exists(os.path.join(root_dir, ".wandb")):</span>
+<span class="line-precise" title="No Anys on this line!">        __stage_dir__ = ".wandb" + os.sep</span>
+<span class="line-empty" title="No Anys on this line!">    else:</span>
+<span class="line-precise" title="No Anys on this line!">        __stage_dir__ = "wandb" + os.sep</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    path = os.path.join(root_dir, __stage_dir__)</span>
+<span class="line-precise" title="No Anys on this line!">    if not os.access(root_dir or ".", os.W_OK):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        wandb.termwarn("Path %s wasn't writable, using system temp directory" % path)</span>
+<span class="line-precise" title="No Anys on this line!">        path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    return path</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">def _str_as_bool(val) -&gt; Optional[bool]:</span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        val = bool(strtobool(val))</span>
+<span class="line-precise" title="No Anys on this line!">    except (AttributeError, ValueError):</span>
+<span class="line-precise" title="No Anys on this line!">        pass</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x1)
+Unannotated (x1)">    return val if isinstance(val, bool) else None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">@enum.unique</span>
+<span class="line-precise" title="No Anys on this line!">class SettingsConsole(enum.Enum):</span>
+<span class="line-precise" title="No Anys on this line!">    OFF = 0</span>
+<span class="line-precise" title="No Anys on this line!">    WRAP = 1</span>
+<span class="line-precise" title="No Anys on this line!">    REDIRECT = 2</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class Settings(object):</span>
+<span class="line-empty" title="No Anys on this line!">    """Settings Constructor</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Arguments:</span>
+<span class="line-empty" title="No Anys on this line!">        entity: personal user or team to use for Run.</span>
+<span class="line-empty" title="No Anys on this line!">        project: project name for the Run.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Raises:</span>
+<span class="line-empty" title="No Anys on this line!">        Exception: if problem.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    mode: str = "online"</span>
+<span class="line-precise" title="No Anys on this line!">    console: str = "auto"</span>
+<span class="line-precise" title="No Anys on this line!">    disabled: bool = False</span>
+<span class="line-imprecise" title="Any Types on this line: 
+Omitted Generics (x2)">    run_tags: Optional[Tuple] = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    resume_fname_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    root_dir: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    log_dir_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    log_user_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    log_internal_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    sync_file_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    sync_dir_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    files_dir_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    log_symlink_user_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    log_symlink_internal_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    sync_symlink_latest_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    settings_system_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    settings_workspace_spec: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    silent: bool = False</span>
+<span class="line-precise" title="No Anys on this line!">    show_info: bool = True</span>
+<span class="line-precise" title="No Anys on this line!">    show_warnings: bool = True</span>
+<span class="line-precise" title="No Anys on this line!">    show_errors: bool = True</span>
+<span class="line-precise" title="No Anys on this line!">    email: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    save_code: Optional[bool] = None</span>
+<span class="line-precise" title="No Anys on this line!">    program_relpath: Optional[str] = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # Public attributes</span>
+<span class="line-precise" title="No Anys on this line!">    entity: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    project: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    run_group: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    run_name: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    run_notes: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    sagemaker_disable: Optional[bool] = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # TODO(jhr): Audit these attributes</span>
+<span class="line-precise" title="No Anys on this line!">    run_job_type: Optional[str] = None</span>
+<span class="line-precise" title="No Anys on this line!">    base_url: Optional[str] = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # Private attributes</span>
+<span class="line-precise" title="No Anys on this line!">    __start_time: Optional[float]</span>
+<span class="line-precise" title="No Anys on this line!">    __start_datetime: Optional[datetime]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # Internal attributes</span>
+<span class="line-precise" title="No Anys on this line!">    __frozen: bool</span>
+<span class="line-precise" title="No Anys on this line!">    __defaults_dict: Dict[str, int]</span>
+<span class="line-precise" title="No Anys on this line!">    __override_dict: Dict[str, int]</span>
+<span class="line-precise" title="No Anys on this line!">    __defaults_dict_set: Dict[str, Set[int]]</span>
+<span class="line-precise" title="No Anys on this line!">    __override_dict_set: Dict[str, Set[int]]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    @enum.unique</span>
+<span class="line-precise" title="No Anys on this line!">    class Source(enum.IntEnum):</span>
+<span class="line-precise" title="No Anys on this line!">        BASE: int = 1</span>
+<span class="line-precise" title="No Anys on this line!">        ORG: int = 2</span>
+<span class="line-precise" title="No Anys on this line!">        ENTITY: int = 3</span>
+<span class="line-precise" title="No Anys on this line!">        PROJECT: int = 4</span>
+<span class="line-precise" title="No Anys on this line!">        USER: int = 5</span>
+<span class="line-precise" title="No Anys on this line!">        SYSTEM: int = 6</span>
+<span class="line-precise" title="No Anys on this line!">        WORKSPACE: int = 7</span>
+<span class="line-precise" title="No Anys on this line!">        ENV: int = 8</span>
+<span class="line-precise" title="No Anys on this line!">        SETUP: int = 9</span>
+<span class="line-precise" title="No Anys on this line!">        LOGIN: int = 10</span>
+<span class="line-precise" title="No Anys on this line!">        INIT: int = 11</span>
+<span class="line-precise" title="No Anys on this line!">        SETTINGS: int = 12</span>
+<span class="line-precise" title="No Anys on this line!">        ARGS: int = 13</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    Console: Type[SettingsConsole] = SettingsConsole</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x65)
+Omitted Generics (x3)">    def __init__(  # pylint: disable=unused-argument</span>
+<span class="line-empty" title="No Anys on this line!">        self,</span>
+<span class="line-precise" title="No Anys on this line!">        base_url: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        api_key: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        anonymous=None,</span>
+<span class="line-precise" title="No Anys on this line!">        mode: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        entity: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        project: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        run_group: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        run_job_type: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        run_id: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        run_name: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        run_notes: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        resume: str = None,</span>
+<span class="line-precise" title="No Anys on this line!">        magic: Union[Dict, str, bool] = False,</span>
+<span class="line-precise" title="No Anys on this line!">        run_tags: Sequence = None,</span>
+<span class="line-precise" title="No Anys on this line!">        sweep_id=None,</span>
+<span class="line-precise" title="No Anys on this line!">        allow_val_change: bool = None,</span>
+<span class="line-precise" title="No Anys on this line!">        force: bool = None,</span>
+<span class="line-precise" title="No Anys on this line!">        relogin: bool = None,</span>
+<span class="line-empty" title="No Anys on this line!">        # compatibility / error handling</span>
+<span class="line-empty" title="No Anys on this line!">        # compat_version=None,  # set to "0.8" for safer defaults for older users</span>
+<span class="line-empty" title="No Anys on this line!">        # strict=None,  # set to "on" to enforce current best practices (also "warn")</span>
+<span class="line-precise" title="No Anys on this line!">        problem="fatal",</span>
+<span class="line-empty" title="No Anys on this line!">        # dynamic settings</span>
+<span class="line-precise" title="No Anys on this line!">        system_sample_seconds=2,</span>
+<span class="line-precise" title="No Anys on this line!">        system_samples=15,</span>
+<span class="line-precise" title="No Anys on this line!">        heartbeat_seconds=30,</span>
+<span class="line-precise" title="No Anys on this line!">        config_paths=None,</span>
+<span class="line-precise" title="No Anys on this line!">        sweep_param_path=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _config_dict=None,</span>
+<span class="line-empty" title="No Anys on this line!">        # directories and files</span>
+<span class="line-precise" title="No Anys on this line!">        root_dir=None,</span>
+<span class="line-precise" title="No Anys on this line!">        settings_system_spec="~/.config/wandb/settings",</span>
+<span class="line-precise" title="No Anys on this line!">        settings_workspace_spec="{wandb_dir}/settings",</span>
+<span class="line-precise" title="No Anys on this line!">        sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",</span>
+<span class="line-precise" title="No Anys on this line!">        sync_file_spec="run-{run_id}.wandb",</span>
+<span class="line-empty" title="No Anys on this line!">        # sync_symlink_sync_spec="{wandb_dir}/sync",</span>
+<span class="line-empty" title="No Anys on this line!">        # sync_symlink_offline_spec="{wandb_dir}/offline",</span>
+<span class="line-precise" title="No Anys on this line!">        sync_symlink_latest_spec="{wandb_dir}/latest-run",</span>
+<span class="line-precise" title="No Anys on this line!">        log_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",</span>
+<span class="line-precise" title="No Anys on this line!">        log_user_spec="debug.log",</span>
+<span class="line-precise" title="No Anys on this line!">        log_internal_spec="debug-internal.log",</span>
+<span class="line-precise" title="No Anys on this line!">        log_symlink_user_spec="{wandb_dir}/debug.log",</span>
+<span class="line-precise" title="No Anys on this line!">        log_symlink_internal_spec="{wandb_dir}/debug-internal.log",</span>
+<span class="line-precise" title="No Anys on this line!">        resume_fname_spec="{wandb_dir}/wandb-resume.json",</span>
+<span class="line-precise" title="No Anys on this line!">        files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",</span>
+<span class="line-precise" title="No Anys on this line!">        symlink=None,  # probed</span>
+<span class="line-empty" title="No Anys on this line!">        # where files are temporary stored when saving</span>
+<span class="line-empty" title="No Anys on this line!">        # files_dir=None,</span>
+<span class="line-empty" title="No Anys on this line!">        # data_base_dir="wandb",</span>
+<span class="line-empty" title="No Anys on this line!">        # data_dir="",</span>
+<span class="line-empty" title="No Anys on this line!">        # data_spec="wandb-{timespec}-{pid}-data.bin",</span>
+<span class="line-empty" title="No Anys on this line!">        # run_base_dir="wandb",</span>
+<span class="line-empty" title="No Anys on this line!">        # run_dir_spec="run-{timespec}-{pid}",</span>
+<span class="line-precise" title="No Anys on this line!">        program=None,</span>
+<span class="line-precise" title="No Anys on this line!">        notebook_name=None,</span>
+<span class="line-precise" title="No Anys on this line!">        disable_code=None,</span>
+<span class="line-precise" title="No Anys on this line!">        ignore_globs=None,</span>
+<span class="line-precise" title="No Anys on this line!">        save_code=None,</span>
+<span class="line-precise" title="No Anys on this line!">        program_relpath=None,</span>
+<span class="line-precise" title="No Anys on this line!">        git_remote=None,</span>
+<span class="line-precise" title="No Anys on this line!">        dev_prod=None,  # in old settings files, TODO: support?</span>
+<span class="line-precise" title="No Anys on this line!">        host=None,</span>
+<span class="line-precise" title="No Anys on this line!">        username=None,</span>
+<span class="line-precise" title="No Anys on this line!">        email=None,</span>
+<span class="line-precise" title="No Anys on this line!">        docker=None,</span>
+<span class="line-precise" title="No Anys on this line!">        sagemaker_disable: Optional[bool] = None,</span>
+<span class="line-precise" title="No Anys on this line!">        _start_time=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _start_datetime=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _cli_only_mode=None,  # avoid running any code specific for runs</span>
+<span class="line-precise" title="No Anys on this line!">        _disable_viewer=None,  # prevent early viewer query</span>
+<span class="line-precise" title="No Anys on this line!">        console=None,</span>
+<span class="line-precise" title="No Anys on this line!">        disabled=None,  # alias for mode=dryrun, not supported yet</span>
+<span class="line-precise" title="No Anys on this line!">        reinit=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _save_requirements=True,</span>
+<span class="line-empty" title="No Anys on this line!">        # compute environment</span>
+<span class="line-precise" title="No Anys on this line!">        show_colors=None,</span>
+<span class="line-precise" title="No Anys on this line!">        show_emoji=None,</span>
+<span class="line-precise" title="No Anys on this line!">        silent=None,</span>
+<span class="line-precise" title="No Anys on this line!">        show_info=None,</span>
+<span class="line-precise" title="No Anys on this line!">        show_warnings=None,</span>
+<span class="line-precise" title="No Anys on this line!">        show_errors=None,</span>
+<span class="line-precise" title="No Anys on this line!">        summary_errors=None,</span>
+<span class="line-precise" title="No Anys on this line!">        summary_warnings=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _internal_queue_timeout=2,</span>
+<span class="line-precise" title="No Anys on this line!">        _internal_check_process=8,</span>
+<span class="line-precise" title="No Anys on this line!">        _disable_meta=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _disable_stats=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _jupyter_path=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _jupyter_name=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _jupyter_root=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _executable=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _cuda=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _args=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _os=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _python=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _kaggle=None,</span>
+<span class="line-precise" title="No Anys on this line!">        _except_exit=None,</span>
+<span class="line-empty" title="No Anys on this line!">    ):</span>
+<span class="line-imprecise" title="Any Types on this line: 
+Explicit (x4)">        kwargs = dict(locals())</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x5)">        kwargs.pop("self")</span>
+<span class="line-empty" title="No Anys on this line!">        # Set up entries for all possible parameters</span>
+<span class="line-imprecise" title="Any Types on this line: 
+Explicit (x7)">        self.__dict__.update({k: None for k in kwargs})</span>
+<span class="line-empty" title="No Anys on this line!">        # setup private attributes</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x1)">        object.__setattr__(self, "_Settings__frozen", False)</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x3)">        object.__setattr__(self, "_Settings__defaults_dict", dict())</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x3)">        object.__setattr__(self, "_Settings__override_dict", dict())</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x3)">        object.__setattr__(self, "_Settings__defaults_dict_set", dict())</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x3)">        object.__setattr__(self, "_Settings__override_dict_set", dict())</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x1)">        object.__setattr__(self, "_Settings__start_datetime", None)</span>
+<span class="line-any" title="Any Types on this line: 
+Explicit (x1)">        object.__setattr__(self, "_Settings__start_time", None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        class_defaults = self._get_class_defaults()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._apply_defaults(class_defaults)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Omitted Generics (x1)">        self._apply_defaults(defaults)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x1)">        self._update(kwargs, _source=self.Source.SETTINGS)</span>
+<span class="line-precise" title="No Anys on this line!">        if os.environ.get(wandb.env.DIR) is None:</span>
+<span class="line-precise" title="No Anys on this line!">            self.root_dir = os.path.abspath(os.getcwd())</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _offline(self) -&gt; bool:</span>
+<span class="line-precise" title="No Anys on this line!">        ret = False</span>
+<span class="line-precise" title="No Anys on this line!">        if self.disabled:</span>
+<span class="line-precise" title="No Anys on this line!">            ret = True</span>
+<span class="line-precise" title="No Anys on this line!">        if self.mode in ("dryrun", "offline"):</span>
+<span class="line-precise" title="No Anys on this line!">            ret = True</span>
+<span class="line-precise" title="No Anys on this line!">        return ret</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _silent(self) -&gt; Optional[bool]:</span>
+<span class="line-precise" title="No Anys on this line!">        if not self.silent:</span>
+<span class="line-precise" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return _str_as_bool(self.silent)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _show_info(self) -&gt; Optional[bool]:</span>
+<span class="line-precise" title="No Anys on this line!">        if not self.show_info:</span>
+<span class="line-precise" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return _str_as_bool(self.show_info)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _show_warnings(self) -&gt; Optional[bool]:</span>
+<span class="line-precise" title="No Anys on this line!">        if not self.show_warnings:</span>
+<span class="line-precise" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return _str_as_bool(self.show_warnings)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _show_errors(self) -&gt; Optional[bool]:</span>
+<span class="line-precise" title="No Anys on this line!">        if not self.show_errors:</span>
+<span class="line-precise" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return _str_as_bool(self.show_errors)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _noop(self) -&gt; bool:</span>
+<span class="line-precise" title="No Anys on this line!">        return self.mode == "disabled"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _jupyter(self) -&gt; bool:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return _get_python_type() != "python"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _kaggle(self) -&gt; bool:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return util._is_kaggle()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _windows(self) -&gt; bool:</span>
+<span class="line-precise" title="No Anys on this line!">        return platform.system() == "Windows"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _console(self) -&gt; SettingsConsole:</span>
+<span class="line-precise" title="No Anys on this line!">        convert_dict: Dict[str, SettingsConsole] = dict(</span>
+<span class="line-precise" title="No Anys on this line!">            off=SettingsConsole.OFF,</span>
+<span class="line-precise" title="No Anys on this line!">            wrap=SettingsConsole.WRAP,</span>
+<span class="line-precise" title="No Anys on this line!">            redirect=SettingsConsole.REDIRECT,</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-precise" title="No Anys on this line!">        console: str = self.console</span>
+<span class="line-precise" title="No Anys on this line!">        if console == "auto":</span>
+<span class="line-precise" title="No Anys on this line!">            if self._jupyter:</span>
+<span class="line-precise" title="No Anys on this line!">                console = "wrap"</span>
+<span class="line-precise" title="No Anys on this line!">            elif self._windows:</span>
+<span class="line-precise" title="No Anys on this line!">                console = "wrap"</span>
+<span class="line-empty" title="No Anys on this line!">                # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"</span>
+<span class="line-empty" title="No Anys on this line!">                # if sys.version_info &gt;= (3, 6) and legacy_env_var not in os.environ:</span>
+<span class="line-empty" title="No Anys on this line!">                #     msg = (</span>
+<span class="line-empty" title="No Anys on this line!">                #         "Set %s environment variable to enable"</span>
+<span class="line-empty" title="No Anys on this line!">                #         " proper console logging on Windows. Falling "</span>
+<span class="line-empty" title="No Anys on this line!">                #         "back to wrapping stdout/err." % legacy_env_var</span>
+<span class="line-empty" title="No Anys on this line!">                #     )</span>
+<span class="line-empty" title="No Anys on this line!">                #     wandb.termwarn(msg)</span>
+<span class="line-empty" title="No Anys on this line!">                #     logger.info(msg)</span>
+<span class="line-empty" title="No Anys on this line!">                #     console = "wrap"</span>
+<span class="line-empty" title="No Anys on this line!">                # if "tensorflow" in sys.modules:</span>
+<span class="line-empty" title="No Anys on this line!">                #     msg = (</span>
+<span class="line-empty" title="No Anys on this line!">                #         "Tensorflow detected. Stream redirection is not supported "</span>
+<span class="line-empty" title="No Anys on this line!">                #         "on Windows when tensorflow is imported. Falling back to "</span>
+<span class="line-empty" title="No Anys on this line!">                #         "wrapping stdout/err."</span>
+<span class="line-empty" title="No Anys on this line!">                #     )</span>
+<span class="line-empty" title="No Anys on this line!">                #     wandb.termlog(msg)</span>
+<span class="line-empty" title="No Anys on this line!">                #     logger.info(msg)</span>
+<span class="line-empty" title="No Anys on this line!">                #     console = "wrap"</span>
+<span class="line-empty" title="No Anys on this line!">                # else:</span>
+<span class="line-empty" title="No Anys on this line!">                #     console = "redirect"</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-precise" title="No Anys on this line!">                console = "redirect"</span>
+<span class="line-precise" title="No Anys on this line!">        convert: SettingsConsole = convert_dict[console]</span>
+<span class="line-precise" title="No Anys on this line!">        return convert</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def resume_fname(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.resume_fname_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def wandb_dir(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return get_wandb_dir(self.root_dir or "")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def log_user(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.log_dir_spec, self.log_user_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def log_internal(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.log_dir_spec, self.log_internal_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def _sync_dir(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.sync_dir_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def sync_file(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.sync_dir_spec, self.sync_file_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def files_dir(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.files_dir_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def log_symlink_user(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.log_symlink_user_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def log_symlink_internal(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.log_symlink_internal_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def sync_symlink_latest(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.sync_symlink_latest_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def settings_system(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.settings_system_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @property</span>
+<span class="line-precise" title="No Anys on this line!">    def settings_workspace(self) -&gt; str:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._path_convert(self.settings_workspace_spec)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_mode(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        choices = {</span>
+<span class="line-any" title="No Anys on this line!">            "dryrun",</span>
+<span class="line-any" title="No Anys on this line!">            "run",</span>
+<span class="line-any" title="No Anys on this line!">            "offline",</span>
+<span class="line-any" title="No Anys on this line!">            "online",</span>
+<span class="line-any" title="No Anys on this line!">            "disabled",</span>
+<span class="line-empty" title="No Anys on this line!">        }</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if value in choices:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return _error_choices(value, choices)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_console(self, value):</span>
+<span class="line-empty" title="No Anys on this line!">        # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        choices = {</span>
+<span class="line-any" title="No Anys on this line!">            "auto",</span>
+<span class="line-any" title="No Anys on this line!">            "redirect",</span>
+<span class="line-any" title="No Anys on this line!">            "off",</span>
+<span class="line-any" title="No Anys on this line!">            "wrap",</span>
+<span class="line-empty" title="No Anys on this line!">        }</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if value in choices:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return _error_choices(value, choices)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_problem(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        choices = {"fatal", "warn", "silent"}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if value in choices:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return _error_choices(value, choices)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_anonymous(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        choices = {"allow", "must", "never", "false", "true"}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if value in choices:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return _error_choices(value, choices)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_silent(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        val = _str_as_bool(value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if val is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return "{} is not a boolean".format(value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_show_info(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        val = _str_as_bool(value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if val is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return "{} is not a boolean".format(value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_show_warnings(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        val = _str_as_bool(value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if val is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return "{} is not a boolean".format(value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _validate_show_errors(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        val = _str_as_bool(value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if val is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return "{} is not a boolean".format(value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _preprocess_base_url(self, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if value is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            value = value.rstrip("/")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return value</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _start_run(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        datetime_now: datetime = datetime.now()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        time_now: float = time.time()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        object.__setattr__(self, "_Settings__start_datetime", datetime_now)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        object.__setattr__(self, "_Settings__start_time", time_now)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_settings(self, settings, _logger=None):</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(jhr): make a more efficient version of this</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for k in settings._public_keys():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            source = settings.__defaults_dict.get(k)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            self._update({k: settings[k]}, _source=source)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_defaults(self, defaults):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(defaults, _source=self.Source.BASE)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_configfiles(self, _logger=None):</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(jhr): permit setting of config in system and workspace</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        self._update(self._load(self.settings_system), _source=self.Source.SYSTEM)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_environ(self, environ, _logger=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        inv_map = _build_inverse_map(env_prefix, env_settings)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        env_dict = dict()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for k, v in six.iteritems(environ):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            if not k.startswith(env_prefix):</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            setting_key = inv_map.get(k)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if setting_key:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                conv = env_convert.get(setting_key, None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if conv:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    v = conv(v)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                env_dict[setting_key] = v</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                    _logger.info("Unhandled environment var: {}".format(k))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            _logger.info("setting env: {}".format(env_dict))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(env_dict, _source=self.Source.ENV)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_user(self, user_settings, _logger=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            _logger.info("setting user settings: {}".format(user_settings))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(user_settings, _source=self.Source.USER)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_source_login(self, login_settings, _logger=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if _logger:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            _logger.info("setting login settings: {}".format(login_settings))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(login_settings, _source=self.Source.LOGIN)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _path_convert_part(self, path_part, format_dict):</span>
+<span class="line-empty" title="No Anys on this line!">        """convert slashes, expand ~ and other macros."""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        path_parts = path_part.split(os.sep if os.sep in path_part else "/")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for i in range(len(path_parts)):</span>
+<span class="line-empty" title="No Anys on this line!">            try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                path_parts[i] = path_parts[i].format(**format_dict)</span>
+<span class="line-precise" title="No Anys on this line!">            except KeyError:</span>
+<span class="line-any" title="No Anys on this line!">                return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return path_parts</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _path_convert(self, *path):</span>
+<span class="line-empty" title="No Anys on this line!">        """convert slashes, expand ~ and other macros."""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        format_dict = dict()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self._start_time:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            format_dict["timespec"] = datetime.strftime(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                self._start_datetime, "%Y%m%d_%H%M%S"</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.run_id:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            format_dict["run_id"] = self.run_id</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        format_dict["run_mode"] = "offline-run" if self._offline else "run"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        format_dict["proc"] = os.getpid()</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(cling): hack to make sure we read from local settings</span>
+<span class="line-empty" title="No Anys on this line!">        #              this is wrong if the run_dir changes later</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        format_dict["wandb_dir"] = self.wandb_dir or "wandb"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        path_items = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        for p in path:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            part = self._path_convert_part(p, format_dict)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if part is None:</span>
+<span class="line-any" title="No Anys on this line!">                return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            path_items += part</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        path = os.path.join(*path_items)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        path = os.path.expanduser(path)</span>
+<span class="line-imprecise" title="Any Types on this line: 
+Unannotated (x1)">        return path</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # def _clear_early_logger(self):</span>
+<span class="line-empty" title="No Anys on this line!">    #     # TODO(jhr): this is a hack</span>
+<span class="line-empty" title="No Anys on this line!">    #     object.__setattr__(self, "_Settings__early_logger", None)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _setup(self, kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for k, v in six.iteritems(kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if k not in self._unsaved_keys:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                object.__setattr__(self, k, v)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __copy__(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """Copy (note that the copied object will not be frozen)."""</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x67)
+Omitted Generics (x3)">        s = Settings()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        s._apply_settings(self)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return s</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def duplicate(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return copy.copy(self)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _check_invalid(self, k, v):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if v is None:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x3)">        f = getattr(self, "_validate_" + k, None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        if not f or not callable(f):</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        invalid = f(v)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if invalid:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            raise TypeError("Settings field {}: {}".format(k, invalid))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _perform_preprocess(self, k, v):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x3)">        f = getattr(self, "_preprocess_" + k, None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        if not f or not callable(f):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            return v</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return f(v)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _update(self, __d=None, _source=None, _override=None, **kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        if self.__frozen and (__d or kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            raise TypeError("Settings object is frozen")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        d = __d or dict()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        data = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        for check in d, kwargs:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            for k in six.viewkeys(check):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                if k not in self.__dict__:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    raise KeyError(k)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                v = self._perform_preprocess(k, check[k])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                self._check_invalid(k, v)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                data[k] = v</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for k, v in six.iteritems(data):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if v is None:</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            if self._priority_failed(k, source=_source, override=_override):</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">            if isinstance(v, list):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                v = tuple(v)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.__dict__[k] = v</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if _source:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                self.__defaults_dict[k] = _source</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                self.__defaults_dict_set.setdefault(k, set()).add(_source)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if _override:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                self.__override_dict[k] = _override</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                self.__override_dict_set.setdefault(k, set()).add(_override)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def update(self, __d=None, **kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._update(__d, **kwargs)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    def _priority_failed(</span>
+<span class="line-empty" title="No Anys on this line!">        self, k: str, source: Optional[int], override: Optional[int]</span>
+<span class="line-empty" title="No Anys on this line!">    ) -&gt; bool:</span>
+<span class="line-precise" title="No Anys on this line!">        key_source: Optional[int] = self.__defaults_dict.get(k)</span>
+<span class="line-precise" title="No Anys on this line!">        key_override: Optional[int] = self.__override_dict.get(k)</span>
+<span class="line-precise" title="No Anys on this line!">        if not key_source or not source:</span>
+<span class="line-precise" title="No Anys on this line!">            return False</span>
+<span class="line-precise" title="No Anys on this line!">        if key_override and not override:</span>
+<span class="line-precise" title="No Anys on this line!">            return True</span>
+<span class="line-precise" title="No Anys on this line!">        if key_override and override and source &gt; key_source:</span>
+<span class="line-precise" title="No Anys on this line!">            return True</span>
+<span class="line-precise" title="No Anys on this line!">        if not override and source &lt; key_source:</span>
+<span class="line-precise" title="No Anys on this line!">            return True</span>
+<span class="line-precise" title="No Anys on this line!">        return False</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _infer_settings_from_env(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """Modify settings based on environment (for runs and cli)."""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        d = {}</span>
+<span class="line-empty" title="No Anys on this line!">        # disable symlinks if on windows (requires admin or developer setup)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        d["symlink"] = True</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self._windows:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            d["symlink"] = False</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self.setdefaults(d)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(jhr): this needs to be moved last in setting up settings</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        u = {}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # For code saving, only allow env var override if value from server is true, or</span>
+<span class="line-empty" title="No Anys on this line!">        # if no preference was specified.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        if (self.save_code is True or self.save_code is None) and os.getenv(</span>
+<span class="line-precise" title="No Anys on this line!">            wandb.env.SAVE_CODE</span>
+<span class="line-any" title="No Anys on this line!">        ) is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            u["save_code"] = wandb.env.should_save_code()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Attempt to get notebook information if not already set by the user</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            meta = wandb.jupyter.notebook_metadata(self._silent)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            u["_jupyter_path"] = meta.get("path")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            u["_jupyter_name"] = meta.get("name")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            u["_jupyter_root"] = meta.get("root")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # host and username are populated by env_settings above if their env</span>
+<span class="line-empty" title="No Anys on this line!">        # vars exist -- but if they don't, we'll fill them in here</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not self.host:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            u["host"] = socket.gethostname()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not self.username:</span>
+<span class="line-empty" title="No Anys on this line!">            try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                u["username"] = getpass.getuser()</span>
+<span class="line-precise" title="No Anys on this line!">            except KeyError:</span>
+<span class="line-empty" title="No Anys on this line!">                # getuser() could raise KeyError in restricted environments like</span>
+<span class="line-empty" title="No Anys on this line!">                # chroot jails or docker containers.  Return user id in these cases.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                u["username"] = str(os.getuid())</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        u["_executable"] = sys.executable</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        u["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # TODO: we should use the cuda library to collect this</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if os.path.exists("/usr/local/cuda/version.txt"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">            with open("/usr/local/cuda/version.txt") as f:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">                u["_cuda"] = f.read().split(" ")[-1].strip()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        u["_args"] = sys.argv[1:]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        u["_os"] = platform.platform(aliased=True)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        u["_python"] = platform.python_version()</span>
+<span class="line-empty" title="No Anys on this line!">        # hack to make sure we don't hang on windows</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if self._windows and self._except_exit is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            u["_except_exit"] = True</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self.update(u)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _infer_run_settings_from_env(self, _logger=None):</span>
+<span class="line-empty" title="No Anys on this line!">        """Modify settings based on environment (for runs only)."""</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.disable_code:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.update(dict(program="&lt;code saving explicitly disabled&gt;"))</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # If there's not already a program file, infer it now.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        program = self.program or _get_program()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if program:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                program, _logger=_logger</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            self.update(dict(program=program, program_relpath=program_relpath))</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            program = "&lt;python with no main file&gt;"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.update(dict(program=program))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def setdefaults(self, __d=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Omitted Generics (x1)">        __d = __d or defaults</span>
+<span class="line-empty" title="No Anys on this line!">        # set defaults</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        for k, v in __d.items():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            if not k.startswith("_"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                if self.__dict__.get(k) is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    object.__setattr__(self, k, v)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def save(self, fname):</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def load(self, fname):</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __setattr__(self, name, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if name not in self.__dict__:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            raise AttributeError(name)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.__frozen:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            raise TypeError("Settings object is frozen")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        value = self._perform_preprocess(name, value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._check_invalid(name, value)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        object.__setattr__(self, name, value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def _property_keys(cls):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)
+Explicit (x8)">        return (k for k, v in vars(cls).items() if isinstance(v, property))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def _class_keys(cls):</span>
+<span class="line-empty" title="No Anys on this line!">        return (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            k</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x2)">            for k, v in vars(cls).items()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Explicit (x6)">            if not k.startswith("_") and not callable(v) and not isinstance(v, property)</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def _get_class_defaults(cls):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        class_keys = set(cls._class_keys())</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return dict(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)
+Explicit (x2)">            (k, v) for k, v in vars(cls).items() if k in class_keys and v is not None</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _public_keys(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">        return filter(lambda x: not x.startswith("_Settings__"), self.__dict__)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def keys(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        return itertools.chain(self._public_keys(), self._property_keys())</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __getitem__(self, k):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        props = self._property_keys()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if k in props:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x3)">            return getattr(self, k)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self.__dict__[k]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def freeze(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self.__frozen = True</span>
+<span class="line-precise" title="No Anys on this line!">        return self</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    def is_frozen(self) -&gt; bool:</span>
+<span class="line-precise" title="No Anys on this line!">        return self.__frozen</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _load(self, fname):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        section = "default"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        cp = configparser.ConfigParser()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        cp.add_section(section)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        cp.read(fname)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        d = dict()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for k in cp[section]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            d[k] = cp[section][k]</span>
+<span class="line-empty" title="No Anys on this line!">            # TODO (cvp): we didn't do this in the old cli, but it seems necessary</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if k == "ignore_globs":</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                d[k] = d[k].split(",")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return d</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_login(self, args, _logger=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        param_map = dict(key="api_key", host="base_url",)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._apply_source_login(args, _logger=_logger)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_init_login(self, args):</span>
+<span class="line-empty" title="No Anys on this line!">        # apply some init parameters dealing with login</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        keys = {"mode"}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">        args = {k: v for k, v in six.iteritems(args) if k in keys and v is not None}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(args, _source=self.Source.INIT)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _apply_init(self, args):</span>
+<span class="line-empty" title="No Anys on this line!">        # prevent setting project, entity if in sweep</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(jhr): these should be locked elements in the future</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.sweep_id:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            for key in ("project", "entity"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                val = args.pop(key, None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if val:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    wandb.termwarn(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        "Ignored wandb.init() arg %s when running a sweep" % key</span>
+<span class="line-empty" title="No Anys on this line!">                    )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # strip out items where value is None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        param_map = dict(</span>
+<span class="line-any" title="No Anys on this line!">            name="run_name",</span>
+<span class="line-any" title="No Anys on this line!">            id="run_id",</span>
+<span class="line-any" title="No Anys on this line!">            tags="run_tags",</span>
+<span class="line-any" title="No Anys on this line!">            group="run_group",</span>
+<span class="line-any" title="No Anys on this line!">            job_type="run_job_type",</span>
+<span class="line-any" title="No Anys on this line!">            notes="run_notes",</span>
+<span class="line-any" title="No Anys on this line!">            dir="root_dir",</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}</span>
+<span class="line-empty" title="No Anys on this line!">        # fun logic to convert the resume init arg</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if args.get("resume") is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            if isinstance(args["resume"], six.string_types):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if args["resume"] not in ("allow", "must", "never", "auto"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    if args.get("run_id") is None:</span>
+<span class="line-empty" title="No Anys on this line!">                        #  TODO: deprecate or don't support</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        args["run_id"] = args["resume"]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    args["resume"] = "allow"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            elif args["resume"] is True:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                args["resume"] = "auto"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # update settings</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self._update(args, _source=self.Source.INIT)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # handle auto resume logic</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if self.resume == "auto":</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if os.path.exists(self.resume_fname):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">                with open(self.resume_fname) as f:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x11)">                    resume_run_id = json.load(f)["run_id"]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if self.run_id is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    self.run_id = resume_run_id</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                elif self.run_id != resume_run_id:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    wandb.termwarn(</span>
+<span class="line-any" title="No Anys on this line!">                        "Tried to auto resume run with id %s but id %s is set."</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        % (resume_run_id, self.run_id)</span>
+<span class="line-empty" title="No Anys on this line!">                    )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self.run_id = self.run_id or generate_id()</span>
+<span class="line-empty" title="No Anys on this line!">        # persist our run id incase of failure</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if self.resume == "auto":</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            wandb.util.mkdir_exists_ok(self.wandb_dir)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            with open(self.resume_fname, "w") as f:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x4)">                f.write(json.dumps({"run_id": self.run_id}))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _as_source(self, source, override=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        return Settings._Setter(settings=self, source=source, override=override)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    class _Setter(object):</span>
+<span class="line-any" title="No Anys on this line!">        def __init__(self, settings, source, override):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            object.__setattr__(self, "_settings", settings)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            object.__setattr__(self, "_source", source)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            object.__setattr__(self, "_override", override)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def __enter__(self):</span>
+<span class="line-precise" title="No Anys on this line!">            return self</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def __exit__(self, exc_type, exc_value, exc_traceback):</span>
+<span class="line-any" title="No Anys on this line!">            pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def __setattr__(self, name, value):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.update({name: value})</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def update(self, *args, **kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            kwargs.update(_source=self._source, _override=self._override)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            self._settings.update(*args, **kwargs)</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

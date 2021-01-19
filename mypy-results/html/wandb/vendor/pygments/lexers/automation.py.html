@@ -1,0 +1,838 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.pygments.lexers.automation</h2>
+<table>
+<caption>wandb/vendor/pygments/lexers/automation.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">    pygments.lexers.automation</span>
+<span class="line-empty" title="No Anys on this line!">    ~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Lexers for automation scripting languages.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :copyright: Copyright 2006-2017 by the Pygments team, see AUTHORS.</span>
+<span class="line-empty" title="No Anys on this line!">    :license: BSD, see LICENSE for details.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from pygments.lexer import RegexLexer, include, bygroups, combined</span>
+<span class="line-any" title="No Anys on this line!">from pygments.token import Text, Comment, Operator, Name, String, \</span>
+<span class="line-empty" title="No Anys on this line!">    Number, Punctuation, Generic</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">__all__ = ['AutohotkeyLexer', 'AutoItLexer']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class AutohotkeyLexer(RegexLexer):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    For `autohotkey &lt;http://www.autohotkey.com/&gt;`_ source code.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    .. versionadded:: 1.4</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    name = 'autohotkey'</span>
+<span class="line-precise" title="No Anys on this line!">    aliases = ['ahk', 'autohotkey']</span>
+<span class="line-precise" title="No Anys on this line!">    filenames = ['*.ahk', '*.ahkl']</span>
+<span class="line-precise" title="No Anys on this line!">    mimetypes = ['text/x-autohotkey']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-imprecise" title="Any Types on this line: 
+Unimported (x1)">    tokens = {</span>
+<span class="line-precise" title="No Anys on this line!">        'root': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">            (r'^(\s*)(/\*)', bygroups(Text, Comment.Multiline), 'incomment'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x4)">            (r'^(\s*)(\()', bygroups(Text, Generic), 'incontinuation'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\s+;.*?$', Comment.Singleline),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'^;.*?$', Comment.Singleline),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[]{}(),;[]', Punctuation),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(in|is|and|or|not)\b', Operator.Word),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\%[a-zA-Z_#@$][\w#@$]*\%', Name.Variable),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'!=|==|:=|\.=|&lt;&lt;|&gt;&gt;|[-~+/*%=&lt;&gt;&amp;^|?:!.]', Operator),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('commands'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('labels'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('builtInFunctions'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('builtInVariables'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">            (r'"', String, combined('stringescape', 'dqs')),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('numbers'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[a-zA-Z_#@$][\w#@$]*', Name),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'\\|\'', Text),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\`([,%`abfnrtv\-+;])', String.Escape),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('garbage'),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'incomment': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'^\s*\*/', Comment.Multiline, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'[^*/]', Comment.Multiline),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'[*/]', Comment.Multiline)</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'incontinuation': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'^\s*\)', Generic, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[^)]', Generic),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[)]', Generic),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'commands': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)^(\s*)(global|local|static|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#AllowSameLineComments|#ClipboardTimeout|#CommentFlag|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#ErrorStdOut|#EscapeChar|#HotkeyInterval|#HotkeyModifierTimeout|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#Hotstring|#IfWinActive|#IfWinExist|#IfWinNotActive|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#IfWinNotExist|#IncludeAgain|#Include|#InstallKeybdHook|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#InstallMouseHook|#KeyHistory|#LTrim|#MaxHotkeysPerInterval|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#MaxMem|#MaxThreads|#MaxThreadsBuffer|#MaxThreadsPerHotkey|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#NoEnv|#NoTrayIcon|#Persistent|#SingleInstance|#UseHook|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'#WinActivateForce|AutoTrim|BlockInput|Break|Click|ClipWait|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Continue|Control|ControlClick|ControlFocus|ControlGetFocus|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ControlGetPos|ControlGetText|ControlGet|ControlMove|ControlSend|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ControlSendRaw|ControlSetText|CoordMode|Critical|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DetectHiddenText|DetectHiddenWindows|Drive|DriveGet|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DriveSpaceFree|Edit|Else|EnvAdd|EnvDiv|EnvGet|EnvMult|EnvSet|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'EnvSub|EnvUpdate|Exit|ExitApp|FileAppend|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileCopy|FileCopyDir|FileCreateDir|FileCreateShortcut|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileDelete|FileGetAttrib|FileGetShortcut|FileGetSize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileGetTime|FileGetVersion|FileInstall|FileMove|FileMoveDir|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileRead|FileReadLine|FileRecycle|FileRecycleEmpty|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileRemoveDir|FileSelectFile|FileSelectFolder|FileSetAttrib|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileSetTime|FormatTime|GetKeyState|Gosub|Goto|GroupActivate|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GroupAdd|GroupClose|GroupDeactivate|Gui|GuiControl|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GuiControlGet|Hotkey|IfEqual|IfExist|IfGreaterOrEqual|IfGreater|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IfInString|IfLess|IfLessOrEqual|IfMsgBox|IfNotEqual|IfNotExist|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IfNotInString|IfWinActive|IfWinExist|IfWinNotActive|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IfWinNotExist|If |ImageSearch|IniDelete|IniRead|IniWrite|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'InputBox|Input|KeyHistory|KeyWait|ListHotkeys|ListLines|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ListVars|Loop|Menu|MouseClickDrag|MouseClick|MouseGetPos|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MouseMove|MsgBox|OnExit|OutputDebug|Pause|PixelGetColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PixelSearch|PostMessage|Process|Progress|Random|RegDelete|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RegRead|RegWrite|Reload|Repeat|Return|RunAs|RunWait|Run|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SendEvent|SendInput|SendMessage|SendMode|SendPlay|SendRaw|Send|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetBatchLines|SetCapslockState|SetControlDelay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetDefaultMouseSpeed|SetEnv|SetFormat|SetKeyDelay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetMouseDelay|SetNumlockState|SetScrollLockState|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetStoreCapslockMode|SetTimer|SetTitleMatchMode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetWinDelay|SetWorkingDir|Shutdown|Sleep|Sort|SoundBeep|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SoundGet|SoundGetWaveVolume|SoundPlay|SoundSet|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SoundSetWaveVolume|SplashImage|SplashTextOff|SplashTextOn|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SplitPath|StatusBarGetText|StatusBarWait|StringCaseSense|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'StringGetPos|StringLeft|StringLen|StringLower|StringMid|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'StringReplace|StringRight|StringSplit|StringTrimLeft|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'StringTrimRight|StringUpper|Suspend|SysGet|Thread|ToolTip|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Transform|TrayTip|URLDownloadToFile|While|WinActivate|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WinActivateBottom|WinClose|WinGetActiveStats|WinGetActiveTitle|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WinGetClass|WinGetPos|WinGetText|WinGetTitle|WinGet|WinHide|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WinKill|WinMaximize|WinMenuSelectItem|WinMinimizeAllUndo|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WinMinimizeAll|WinMinimize|WinMove|WinRestore|WinSetTitle|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WinSet|WinShow|WinWaitActive|WinWaitClose|WinWaitNotActive|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">             r'WinWait)\b', bygroups(Text, Name.Builtin)),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'builtInFunctions': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)(Abs|ACos|Asc|ASin|ATan|Ceil|Chr|Cos|DllCall|Exp|FileExist|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Floor|GetKeyState|IL_Add|IL_Create|IL_Destroy|InStr|IsFunc|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IsLabel|Ln|Log|LV_Add|LV_Delete|LV_DeleteCol|LV_GetCount|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LV_GetNext|LV_GetText|LV_Insert|LV_InsertCol|LV_Modify|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LV_ModifyCol|LV_SetImageList|Mod|NumGet|NumPut|OnMessage|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RegExMatch|RegExReplace|RegisterCallback|Round|SB_SetIcon|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SB_SetParts|SB_SetText|Sin|Sqrt|StrLen|SubStr|Tan|TV_Add|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TV_Delete|TV_GetChild|TV_GetCount|TV_GetNext|TV_Get|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TV_GetParent|TV_GetPrev|TV_GetSelection|TV_GetText|TV_Modify|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'VarSetCapacity|WinActive|WinExist|Object|ComObjActive|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ComObjArray|ComObjEnwrap|ComObjUnwrap|ComObjParameter|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ComObjType|ComObjConnect|ComObjCreate|ComObjGet|ComObjError|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ComObjValue|Insert|MinIndex|MaxIndex|Remove|SetCapacity|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GetCapacity|GetAddress|_NewEnum|FileOpen|Read|Write|ReadLine|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WriteLine|ReadNumType|WriteNumType|RawRead|RawWrite|Seek|Tell|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Close|Next|IsObject|StrPut|StrGet|Trim|LTrim|RTrim)\b',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             Name.Function),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'builtInVariables': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)(A_AhkPath|A_AhkVersion|A_AppData|A_AppDataCommon|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_AutoTrim|A_BatchLines|A_CaretX|A_CaretY|A_ComputerName|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_ControlDelay|A_Cursor|A_DDDD|A_DDD|A_DD|A_DefaultMouseSpeed|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_Desktop|A_DesktopCommon|A_DetectHiddenText|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_DetectHiddenWindows|A_EndChar|A_EventInfo|A_ExitReason|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_FormatFloat|A_FormatInteger|A_Gui|A_GuiEvent|A_GuiControl|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_GuiControlEvent|A_GuiHeight|A_GuiWidth|A_GuiX|A_GuiY|A_Hour|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_IconFile|A_IconHidden|A_IconNumber|A_IconTip|A_Index|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_IPAddress1|A_IPAddress2|A_IPAddress3|A_IPAddress4|A_ISAdmin|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_IsCompiled|A_IsCritical|A_IsPaused|A_IsSuspended|A_KeyDelay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_Language|A_LastError|A_LineFile|A_LineNumber|A_LoopField|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopFileAttrib|A_LoopFileDir|A_LoopFileExt|A_LoopFileFullPath|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopFileLongPath|A_LoopFileName|A_LoopFileShortName|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopFileShortPath|A_LoopFileSize|A_LoopFileSizeKB|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopFileSizeMB|A_LoopFileTimeAccessed|A_LoopFileTimeCreated|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopFileTimeModified|A_LoopReadLine|A_LoopRegKey|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopRegName|A_LoopRegSubkey|A_LoopRegTimeModified|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_LoopRegType|A_MDAY|A_Min|A_MM|A_MMM|A_MMMM|A_Mon|A_MouseDelay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_MSec|A_MyDocuments|A_Now|A_NowUTC|A_NumBatchLines|A_OSType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_OSVersion|A_PriorHotkey|A_ProgramFiles|A_Programs|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_ProgramsCommon|A_ScreenHeight|A_ScreenWidth|A_ScriptDir|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_ScriptFullPath|A_ScriptName|A_Sec|A_Space|A_StartMenu|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_StartMenuCommon|A_Startup|A_StartupCommon|A_StringCaseSense|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_Tab|A_Temp|A_ThisFunc|A_ThisHotkey|A_ThisLabel|A_ThisMenu|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_ThisMenuItem|A_ThisMenuItemPos|A_TickCount|A_TimeIdle|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_TimeIdlePhysical|A_TimeSincePriorHotkey|A_TimeSinceThisHotkey|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_TitleMatchMode|A_TitleMatchModeSpeed|A_UserName|A_WDay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'A_WinDelay|A_WinDir|A_WorkingDir|A_YDay|A_YEAR|A_YWeek|A_YYYY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Clipboard|ClipboardAll|ComSpec|ErrorLevel|ProgramFiles|True|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'False|A_IsUnicode|A_FileEncoding|A_OSVersion|A_PtrSize)\b',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             Name.Variable),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'labels': [</span>
+<span class="line-empty" title="No Anys on this line!">            # hotkeys and labels</span>
+<span class="line-empty" title="No Anys on this line!">            # technically, hotkey names are limited to named keys and buttons</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">            (r'(^\s*)([^:\s("]+?:{1,2})', bygroups(Text, Name.Label)),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">            (r'(^\s*)(::[^:\s]+?::)', bygroups(Text, Name.Label)),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'numbers': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(\d+\.\d*|\d*\.\d+)([eE][+-]?[0-9]+)?', Number.Float),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\d+[eE][+-]?[0-9]+', Number.Float),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'0\d+', Number.Oct),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'0[xX][a-fA-F0-9]+', Number.Hex),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">            (r'\d+L', Number.Integer.Long),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\d+', Number.Integer)</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'stringescape': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\"\"|\`([,%`abfnrtv])', String.Escape),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'strings': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[^"\n]+', String),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'dqs': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'"', String, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('strings')</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'garbage': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[^\S\n]', Text),</span>
+<span class="line-empty" title="No Anys on this line!">            # (r'.', Text),      # no cheating</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-empty" title="No Anys on this line!">    }</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class AutoItLexer(RegexLexer):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    For `AutoIt &lt;http://www.autoitscript.com/site/autoit/&gt;`_ files.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    AutoIt is a freeware BASIC-like scripting language</span>
+<span class="line-empty" title="No Anys on this line!">    designed for automating the Windows GUI and general scripting</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    .. versionadded:: 1.6</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    name = 'AutoIt'</span>
+<span class="line-precise" title="No Anys on this line!">    aliases = ['autoit']</span>
+<span class="line-precise" title="No Anys on this line!">    filenames = ['*.au3']</span>
+<span class="line-precise" title="No Anys on this line!">    mimetypes = ['text/x-autoit']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # Keywords, functions, macros from au3.keywords.properties</span>
+<span class="line-empty" title="No Anys on this line!">    # which can be found in AutoIt installed directory, e.g.</span>
+<span class="line-empty" title="No Anys on this line!">    # c:\Program Files (x86)\AutoIt3\SciTE\au3.keywords.properties</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    keywords = """\</span>
+<span class="line-empty" title="No Anys on this line!">    #include-once #include #endregion #forcedef #forceref #region</span>
+<span class="line-empty" title="No Anys on this line!">    and byref case continueloop dim do else elseif endfunc endif</span>
+<span class="line-empty" title="No Anys on this line!">    endselect exit exitloop for func global</span>
+<span class="line-empty" title="No Anys on this line!">    if local next not or return select step</span>
+<span class="line-empty" title="No Anys on this line!">    then to until wend while exit""".split()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    functions = """\</span>
+<span class="line-empty" title="No Anys on this line!">    abs acos adlibregister adlibunregister asc ascw asin assign atan</span>
+<span class="line-empty" title="No Anys on this line!">    autoitsetoption autoitwingettitle autoitwinsettitle beep binary binarylen</span>
+<span class="line-empty" title="No Anys on this line!">    binarymid binarytostring bitand bitnot bitor bitrotate bitshift bitxor</span>
+<span class="line-empty" title="No Anys on this line!">    blockinput break call cdtray ceiling chr chrw clipget clipput consoleread</span>
+<span class="line-empty" title="No Anys on this line!">    consolewrite consolewriteerror controlclick controlcommand controldisable</span>
+<span class="line-empty" title="No Anys on this line!">    controlenable controlfocus controlgetfocus controlgethandle controlgetpos</span>
+<span class="line-empty" title="No Anys on this line!">    controlgettext controlhide controllistview controlmove controlsend</span>
+<span class="line-empty" title="No Anys on this line!">    controlsettext controlshow controltreeview cos dec dircopy dircreate</span>
+<span class="line-empty" title="No Anys on this line!">    dirgetsize dirmove dirremove dllcall dllcalladdress dllcallbackfree</span>
+<span class="line-empty" title="No Anys on this line!">    dllcallbackgetptr dllcallbackregister dllclose dllopen dllstructcreate</span>
+<span class="line-empty" title="No Anys on this line!">    dllstructgetdata dllstructgetptr dllstructgetsize dllstructsetdata</span>
+<span class="line-empty" title="No Anys on this line!">    drivegetdrive drivegetfilesystem drivegetlabel drivegetserial drivegettype</span>
+<span class="line-empty" title="No Anys on this line!">    drivemapadd drivemapdel drivemapget drivesetlabel drivespacefree</span>
+<span class="line-empty" title="No Anys on this line!">    drivespacetotal drivestatus envget envset envupdate eval execute exp</span>
+<span class="line-empty" title="No Anys on this line!">    filechangedir fileclose filecopy filecreatentfslink filecreateshortcut</span>
+<span class="line-empty" title="No Anys on this line!">    filedelete fileexists filefindfirstfile filefindnextfile fileflush</span>
+<span class="line-empty" title="No Anys on this line!">    filegetattrib filegetencoding filegetlongname filegetpos filegetshortcut</span>
+<span class="line-empty" title="No Anys on this line!">    filegetshortname filegetsize filegettime filegetversion fileinstall filemove</span>
+<span class="line-empty" title="No Anys on this line!">    fileopen fileopendialog fileread filereadline filerecycle filerecycleempty</span>
+<span class="line-empty" title="No Anys on this line!">    filesavedialog fileselectfolder filesetattrib filesetpos filesettime</span>
+<span class="line-empty" title="No Anys on this line!">    filewrite filewriteline floor ftpsetproxy guicreate guictrlcreateavi</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatebutton guictrlcreatecheckbox guictrlcreatecombo</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatecontextmenu guictrlcreatedate guictrlcreatedummy</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreateedit guictrlcreategraphic guictrlcreategroup guictrlcreateicon</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreateinput guictrlcreatelabel guictrlcreatelist</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatelistview guictrlcreatelistviewitem guictrlcreatemenu</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatemenuitem guictrlcreatemonthcal guictrlcreateobj</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatepic guictrlcreateprogress guictrlcreateradio</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreateslider guictrlcreatetab guictrlcreatetabitem</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlcreatetreeview guictrlcreatetreeviewitem guictrlcreateupdown</span>
+<span class="line-empty" title="No Anys on this line!">    guictrldelete guictrlgethandle guictrlgetstate guictrlread guictrlrecvmsg</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlregisterlistviewsort guictrlsendmsg guictrlsendtodummy</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlsetbkcolor guictrlsetcolor guictrlsetcursor guictrlsetdata</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlsetdefbkcolor guictrlsetdefcolor guictrlsetfont guictrlsetgraphic</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlsetimage guictrlsetlimit guictrlsetonevent guictrlsetpos</span>
+<span class="line-empty" title="No Anys on this line!">    guictrlsetresizing guictrlsetstate guictrlsetstyle guictrlsettip guidelete</span>
+<span class="line-empty" title="No Anys on this line!">    guigetcursorinfo guigetmsg guigetstyle guiregistermsg guisetaccelerators</span>
+<span class="line-empty" title="No Anys on this line!">    guisetbkcolor guisetcoord guisetcursor guisetfont guisethelp guiseticon</span>
+<span class="line-empty" title="No Anys on this line!">    guisetonevent guisetstate guisetstyle guistartgroup guiswitch hex hotkeyset</span>
+<span class="line-empty" title="No Anys on this line!">    httpsetproxy httpsetuseragent hwnd inetclose inetget inetgetinfo inetgetsize</span>
+<span class="line-empty" title="No Anys on this line!">    inetread inidelete iniread inireadsection inireadsectionnames</span>
+<span class="line-empty" title="No Anys on this line!">    inirenamesection iniwrite iniwritesection inputbox int isadmin isarray</span>
+<span class="line-empty" title="No Anys on this line!">    isbinary isbool isdeclared isdllstruct isfloat ishwnd isint iskeyword</span>
+<span class="line-empty" title="No Anys on this line!">    isnumber isobj isptr isstring log memgetstats mod mouseclick mouseclickdrag</span>
+<span class="line-empty" title="No Anys on this line!">    mousedown mousegetcursor mousegetpos mousemove mouseup mousewheel msgbox</span>
+<span class="line-empty" title="No Anys on this line!">    number objcreate objcreateinterface objevent objevent objget objname</span>
+<span class="line-empty" title="No Anys on this line!">    onautoitexitregister onautoitexitunregister opt ping pixelchecksum</span>
+<span class="line-empty" title="No Anys on this line!">    pixelgetcolor pixelsearch pluginclose pluginopen processclose processexists</span>
+<span class="line-empty" title="No Anys on this line!">    processgetstats processlist processsetpriority processwait processwaitclose</span>
+<span class="line-empty" title="No Anys on this line!">    progressoff progresson progressset ptr random regdelete regenumkey</span>
+<span class="line-empty" title="No Anys on this line!">    regenumval regread regwrite round run runas runaswait runwait send</span>
+<span class="line-empty" title="No Anys on this line!">    sendkeepactive seterror setextended shellexecute shellexecutewait shutdown</span>
+<span class="line-empty" title="No Anys on this line!">    sin sleep soundplay soundsetwavevolume splashimageon splashoff splashtexton</span>
+<span class="line-empty" title="No Anys on this line!">    sqrt srandom statusbargettext stderrread stdinwrite stdioclose stdoutread</span>
+<span class="line-empty" title="No Anys on this line!">    string stringaddcr stringcompare stringformat stringfromasciiarray</span>
+<span class="line-empty" title="No Anys on this line!">    stringinstr stringisalnum stringisalpha stringisascii stringisdigit</span>
+<span class="line-empty" title="No Anys on this line!">    stringisfloat stringisint stringislower stringisspace stringisupper</span>
+<span class="line-empty" title="No Anys on this line!">    stringisxdigit stringleft stringlen stringlower stringmid stringregexp</span>
+<span class="line-empty" title="No Anys on this line!">    stringregexpreplace stringreplace stringright stringsplit stringstripcr</span>
+<span class="line-empty" title="No Anys on this line!">    stringstripws stringtoasciiarray stringtobinary stringtrimleft</span>
+<span class="line-empty" title="No Anys on this line!">    stringtrimright stringupper tan tcpaccept tcpclosesocket tcpconnect</span>
+<span class="line-empty" title="No Anys on this line!">    tcplisten tcpnametoip tcprecv tcpsend tcpshutdown tcpstartup timerdiff</span>
+<span class="line-empty" title="No Anys on this line!">    timerinit tooltip traycreateitem traycreatemenu traygetmsg trayitemdelete</span>
+<span class="line-empty" title="No Anys on this line!">    trayitemgethandle trayitemgetstate trayitemgettext trayitemsetonevent</span>
+<span class="line-empty" title="No Anys on this line!">    trayitemsetstate trayitemsettext traysetclick trayseticon traysetonevent</span>
+<span class="line-empty" title="No Anys on this line!">    traysetpauseicon traysetstate traysettooltip traytip ubound udpbind</span>
+<span class="line-empty" title="No Anys on this line!">    udpclosesocket udpopen udprecv udpsend udpshutdown udpstartup vargettype</span>
+<span class="line-empty" title="No Anys on this line!">    winactivate winactive winclose winexists winflash wingetcaretpos</span>
+<span class="line-empty" title="No Anys on this line!">    wingetclasslist wingetclientsize wingethandle wingetpos wingetprocess</span>
+<span class="line-empty" title="No Anys on this line!">    wingetstate wingettext wingettitle winkill winlist winmenuselectitem</span>
+<span class="line-empty" title="No Anys on this line!">    winminimizeall winminimizeallundo winmove winsetontop winsetstate</span>
+<span class="line-empty" title="No Anys on this line!">    winsettitle winsettrans winwait winwaitactive winwaitclose</span>
+<span class="line-empty" title="No Anys on this line!">    winwaitnotactive""".split()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    macros = """\</span>
+<span class="line-empty" title="No Anys on this line!">    @appdatacommondir @appdatadir @autoitexe @autoitpid @autoitversion</span>
+<span class="line-empty" title="No Anys on this line!">    @autoitx64 @com_eventobj @commonfilesdir @compiled @computername @comspec</span>
+<span class="line-empty" title="No Anys on this line!">    @cpuarch @cr @crlf @desktopcommondir @desktopdepth @desktopdir</span>
+<span class="line-empty" title="No Anys on this line!">    @desktopheight @desktoprefresh @desktopwidth @documentscommondir @error</span>
+<span class="line-empty" title="No Anys on this line!">    @exitcode @exitmethod @extended @favoritescommondir @favoritesdir</span>
+<span class="line-empty" title="No Anys on this line!">    @gui_ctrlhandle @gui_ctrlid @gui_dragfile @gui_dragid @gui_dropid</span>
+<span class="line-empty" title="No Anys on this line!">    @gui_winhandle @homedrive @homepath @homeshare @hotkeypressed @hour</span>
+<span class="line-empty" title="No Anys on this line!">    @ipaddress1 @ipaddress2 @ipaddress3 @ipaddress4 @kblayout @lf</span>
+<span class="line-empty" title="No Anys on this line!">    @logondnsdomain @logondomain @logonserver @mday @min @mon @msec @muilang</span>
+<span class="line-empty" title="No Anys on this line!">    @mydocumentsdir @numparams @osarch @osbuild @oslang @osservicepack @ostype</span>
+<span class="line-empty" title="No Anys on this line!">    @osversion @programfilesdir @programscommondir @programsdir @scriptdir</span>
+<span class="line-empty" title="No Anys on this line!">    @scriptfullpath @scriptlinenumber @scriptname @sec @startmenucommondir</span>
+<span class="line-empty" title="No Anys on this line!">    @startmenudir @startupcommondir @startupdir @sw_disable @sw_enable @sw_hide</span>
+<span class="line-empty" title="No Anys on this line!">    @sw_lock @sw_maximize @sw_minimize @sw_restore @sw_show @sw_showdefault</span>
+<span class="line-empty" title="No Anys on this line!">    @sw_showmaximized @sw_showminimized @sw_showminnoactive @sw_showna</span>
+<span class="line-empty" title="No Anys on this line!">    @sw_shownoactivate @sw_shownormal @sw_unlock @systemdir @tab @tempdir</span>
+<span class="line-empty" title="No Anys on this line!">    @tray_id @trayiconflashing @trayiconvisible @username @userprofiledir @wday</span>
+<span class="line-empty" title="No Anys on this line!">    @windowsdir @workingdir @yday @year""".split()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-imprecise" title="Any Types on this line: 
+Unimported (x1)">    tokens = {</span>
+<span class="line-precise" title="No Anys on this line!">        'root': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r';.*\n', Comment.Single),</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(#comments-start|#cs)(.|\n)*?(#comments-end|#ce)',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             Comment.Multiline),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[\[\]{}(),;]', Punctuation),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(and|or|not)\b', Operator.Word),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'[$|@][a-zA-Z_]\w*', Name.Variable),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'!=|==|:=|\.=|&lt;&lt;|&gt;&gt;|[-~+/*%=&lt;&gt;&amp;^|?:!.]', Operator),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('commands'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('labels'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('builtInFunctions'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('builtInMarcros'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">            (r'"', String, combined('stringescape', 'dqs')),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('numbers'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[a-zA-Z_#@$][\w#@$]*', Name),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'\\|\'', Text),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\`([,%`abfnrtv\-+;])', String.Escape),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'_\n', Text),  # Line continuation</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('garbage'),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'commands': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)(\s*)(%s)\b' % '|'.join(keywords),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">             bygroups(Text, Name.Builtin)),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'builtInFunctions': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)(%s)\b' % '|'.join(functions),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             Name.Function),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'builtInMarcros': [</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(?i)(%s)\b' % '|'.join(macros),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">             Name.Variable.Global),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'labels': [</span>
+<span class="line-empty" title="No Anys on this line!">            # sendkeys</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x5)">            (r'(^\s*)(\{\S+?\})', bygroups(Text, Name.Label)),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'numbers': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(\d+\.\d*|\d*\.\d+)([eE][+-]?[0-9]+)?', Number.Float),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\d+[eE][+-]?[0-9]+', Number.Float),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'0\d+', Number.Oct),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'0[xX][a-fA-F0-9]+', Number.Hex),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">            (r'\d+L', Number.Integer.Long),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\d+', Number.Integer)</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'stringescape': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\"\"|\`([,%`abfnrtv])', String.Escape),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'strings': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[^"\n]+', String),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'dqs': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'"', String, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            include('strings')</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'garbage': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'[^\S\n]', Text),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-empty" title="No Anys on this line!">    }</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

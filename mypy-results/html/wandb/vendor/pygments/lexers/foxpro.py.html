@@ -1,0 +1,893 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.pygments.lexers.foxpro</h2>
+<table>
+<caption>wandb/vendor/pygments/lexers/foxpro.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+<span id="L375" class="lineno"><a class="lineno" href="#L375">375</a></span>
+<span id="L376" class="lineno"><a class="lineno" href="#L376">376</a></span>
+<span id="L377" class="lineno"><a class="lineno" href="#L377">377</a></span>
+<span id="L378" class="lineno"><a class="lineno" href="#L378">378</a></span>
+<span id="L379" class="lineno"><a class="lineno" href="#L379">379</a></span>
+<span id="L380" class="lineno"><a class="lineno" href="#L380">380</a></span>
+<span id="L381" class="lineno"><a class="lineno" href="#L381">381</a></span>
+<span id="L382" class="lineno"><a class="lineno" href="#L382">382</a></span>
+<span id="L383" class="lineno"><a class="lineno" href="#L383">383</a></span>
+<span id="L384" class="lineno"><a class="lineno" href="#L384">384</a></span>
+<span id="L385" class="lineno"><a class="lineno" href="#L385">385</a></span>
+<span id="L386" class="lineno"><a class="lineno" href="#L386">386</a></span>
+<span id="L387" class="lineno"><a class="lineno" href="#L387">387</a></span>
+<span id="L388" class="lineno"><a class="lineno" href="#L388">388</a></span>
+<span id="L389" class="lineno"><a class="lineno" href="#L389">389</a></span>
+<span id="L390" class="lineno"><a class="lineno" href="#L390">390</a></span>
+<span id="L391" class="lineno"><a class="lineno" href="#L391">391</a></span>
+<span id="L392" class="lineno"><a class="lineno" href="#L392">392</a></span>
+<span id="L393" class="lineno"><a class="lineno" href="#L393">393</a></span>
+<span id="L394" class="lineno"><a class="lineno" href="#L394">394</a></span>
+<span id="L395" class="lineno"><a class="lineno" href="#L395">395</a></span>
+<span id="L396" class="lineno"><a class="lineno" href="#L396">396</a></span>
+<span id="L397" class="lineno"><a class="lineno" href="#L397">397</a></span>
+<span id="L398" class="lineno"><a class="lineno" href="#L398">398</a></span>
+<span id="L399" class="lineno"><a class="lineno" href="#L399">399</a></span>
+<span id="L400" class="lineno"><a class="lineno" href="#L400">400</a></span>
+<span id="L401" class="lineno"><a class="lineno" href="#L401">401</a></span>
+<span id="L402" class="lineno"><a class="lineno" href="#L402">402</a></span>
+<span id="L403" class="lineno"><a class="lineno" href="#L403">403</a></span>
+<span id="L404" class="lineno"><a class="lineno" href="#L404">404</a></span>
+<span id="L405" class="lineno"><a class="lineno" href="#L405">405</a></span>
+<span id="L406" class="lineno"><a class="lineno" href="#L406">406</a></span>
+<span id="L407" class="lineno"><a class="lineno" href="#L407">407</a></span>
+<span id="L408" class="lineno"><a class="lineno" href="#L408">408</a></span>
+<span id="L409" class="lineno"><a class="lineno" href="#L409">409</a></span>
+<span id="L410" class="lineno"><a class="lineno" href="#L410">410</a></span>
+<span id="L411" class="lineno"><a class="lineno" href="#L411">411</a></span>
+<span id="L412" class="lineno"><a class="lineno" href="#L412">412</a></span>
+<span id="L413" class="lineno"><a class="lineno" href="#L413">413</a></span>
+<span id="L414" class="lineno"><a class="lineno" href="#L414">414</a></span>
+<span id="L415" class="lineno"><a class="lineno" href="#L415">415</a></span>
+<span id="L416" class="lineno"><a class="lineno" href="#L416">416</a></span>
+<span id="L417" class="lineno"><a class="lineno" href="#L417">417</a></span>
+<span id="L418" class="lineno"><a class="lineno" href="#L418">418</a></span>
+<span id="L419" class="lineno"><a class="lineno" href="#L419">419</a></span>
+<span id="L420" class="lineno"><a class="lineno" href="#L420">420</a></span>
+<span id="L421" class="lineno"><a class="lineno" href="#L421">421</a></span>
+<span id="L422" class="lineno"><a class="lineno" href="#L422">422</a></span>
+<span id="L423" class="lineno"><a class="lineno" href="#L423">423</a></span>
+<span id="L424" class="lineno"><a class="lineno" href="#L424">424</a></span>
+<span id="L425" class="lineno"><a class="lineno" href="#L425">425</a></span>
+<span id="L426" class="lineno"><a class="lineno" href="#L426">426</a></span>
+<span id="L427" class="lineno"><a class="lineno" href="#L427">427</a></span>
+<span id="L428" class="lineno"><a class="lineno" href="#L428">428</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">    pygments.lexers.foxpro</span>
+<span class="line-empty" title="No Anys on this line!">    ~~~~~~~~~~~~~~~~~~~~~~</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Simple lexer for Microsoft Visual FoxPro source code.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :copyright: Copyright 2006-2017 by the Pygments team, see AUTHORS.</span>
+<span class="line-empty" title="No Anys on this line!">    :license: BSD, see LICENSE for details.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import re</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from pygments.lexer import RegexLexer</span>
+<span class="line-any" title="No Anys on this line!">from pygments.token import Punctuation, Text, Comment, Operator, Keyword, \</span>
+<span class="line-empty" title="No Anys on this line!">     Name, String</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">__all__ = ['FoxProLexer']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class FoxProLexer(RegexLexer):</span>
+<span class="line-empty" title="No Anys on this line!">    """Lexer for Microsoft Visual FoxPro language.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    FoxPro syntax allows to shorten all keywords and function names</span>
+<span class="line-empty" title="No Anys on this line!">    to 4 characters.  Shortened forms are not recognized by this lexer.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    .. versionadded:: 1.6</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    name = 'FoxPro'</span>
+<span class="line-precise" title="No Anys on this line!">    aliases = ['foxpro', 'vfp', 'clipper', 'xbase']</span>
+<span class="line-precise" title="No Anys on this line!">    filenames = ['*.PRG', '*.prg']</span>
+<span class="line-precise" title="No Anys on this line!">    mimetype = []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    flags = re.IGNORECASE | re.MULTILINE</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    tokens = {</span>
+<span class="line-precise" title="No Anys on this line!">        'root': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r';\s*\n', Punctuation), # consume newline</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'(^|\n)\s*', Text, 'newline'),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">            # Square brackets may be used for array indices</span>
+<span class="line-empty" title="No Anys on this line!">            # and for string literal.  Look for arrays</span>
+<span class="line-empty" title="No Anys on this line!">            # before matching string literals.</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'(?&lt;=\w)\[[0-9, ]+\]', Text),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'\'[^\'\n]*\'|"[^"\n]*"|\[[^]*]\]', String),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(^\s*\*|&amp;&amp;|&amp;amp;&amp;amp;).*?\n', Comment.Single),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'(ABS|ACLASS|ACOPY|ACOS|ADATABASES|ADBOBJECTS|ADDBS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ADDPROPERTY|ADEL|ADIR|ADLLS|ADOCKSTATE|AELEMENT|AERROR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AEVENTS|AFIELDS|AFONT|AGETCLASS|AGETFILEVERSION|AINS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AINSTANCE|ALANGUAGE|ALEN|ALIAS|ALINES|ALLTRIM|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AMEMBERS|AMOUSEOBJ|ANETRESOURCES|APRINTERS|APROCINFO|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ASC|ASCAN|ASELOBJ|ASESSIONS|ASIN|ASORT|ASQLHANDLES|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ASTACKINFO|ASUBSCRIPT|AT|AT_C|ATAGINFO|ATAN|ATC|ATCC|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ATCLINE|ATLINE|ATN2|AUSED|AVCXCLASSES|BAR|BARCOUNT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BARPROMPT|BETWEEN|BINDEVENT|BINTOC|BITAND|BITCLEAR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BITLSHIFT|BITNOT|BITOR|BITRSHIFT|BITSET|BITTEST|BITXOR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BOF|CANDIDATE|CAPSLOCK|CAST|CDOW|CDX|CEILING|CHR|CHRSAW|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CHRTRAN|CHRTRANC|CLEARRESULTSET|CMONTH|CNTBAR|CNTPAD|COL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'COM|Functions|COMARRAY|COMCLASSINFO|COMPOBJ|COMPROP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'COMRETURNERROR|COS|CPCONVERT|CPCURRENT|CPDBF|CREATEBINARY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CREATEOBJECT|CREATEOBJECTEX|CREATEOFFLINE|CTOBIN|CTOD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CTOT|CURDIR|CURSORGETPROP|CURSORSETPROP|CURSORTOXML|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CURVAL|DATE|DATETIME|DAY|DBC|DBF|DBGETPROP|DBSETPROP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DBUSED|DDEAbortTrans|DDEAdvise|DDEEnabled|DDEExecute|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DDEInitiate|DDELastError|DDEPoke|DDERequest|DDESetOption|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DDESetService|DDESetTopic|DDETerminate|DEFAULTEXT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DELETED|DESCENDING|DIFFERENCE|DIRECTORY|DISKSPACE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DisplayPath|DMY|DODEFAULT|DOW|DRIVETYPE|DROPOFFLINE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DTOC|DTOR|DTOS|DTOT|EDITSOURCE|EMPTY|EOF|ERROR|EVAL(UATE)?|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'EVENTHANDLER|EVL|EXECSCRIPT|EXP|FCHSIZE|FCLOSE|FCOUNT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FCREATE|FDATE|FEOF|FERROR|FFLUSH|FGETS|FIELD|FILE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FILETOSTR|FILTER|FKLABEL|FKMAX|FLDLIST|FLOCK|FLOOR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FONTMETRIC|FOPEN|FOR|FORCEEXT|FORCEPATH|FOUND|FPUTS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FREAD|FSEEK|FSIZE|FTIME|FULLPATH|FV|FWRITE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETAUTOINCVALUE|GETBAR|GETCOLOR|GETCP|GETDIR|GETENV|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETFILE|GETFLDSTATE|GETFONT|GETINTERFACE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETNEXTMODIFIED|GETOBJECT|GETPAD|GETPEM|GETPICT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETPRINTER|GETRESULTSET|GETWORDCOUNT|GETWORDNUM|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETCURSORADAPTER|GOMONTH|HEADER|HOME|HOUR|ICASE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IDXCOLLATE|IIF|IMESTATUS|INDBC|INDEXSEEK|INKEY|INLIST|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'INPUTBOX|INSMODE|INT|ISALPHA|ISBLANK|ISCOLOR|ISDIGIT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ISEXCLUSIVE|ISFLOCKED|ISLEADBYTE|ISLOWER|ISMEMOFETCHED|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ISMOUSE|ISNULL|ISPEN|ISREADONLY|ISRLOCKED|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ISTRANSACTABLE|ISUPPER|JUSTDRIVE|JUSTEXT|JUSTFNAME|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'JUSTPATH|JUSTSTEM|KEY|KEYMATCH|LASTKEY|LEFT|LEFTC|LEN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LENC|LIKE|LIKEC|LINENO|LOADPICTURE|LOCFILE|LOCK|LOG|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LOG10|LOOKUP|LOWER|LTRIM|LUPDATE|MAKETRANSACTABLE|MAX|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MCOL|MDOWN|MDX|MDY|MEMLINES|MEMORY|MENU|MESSAGE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MESSAGEBOX|MIN|MINUTE|MLINE|MOD|MONTH|MRKBAR|MRKPAD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MROW|MTON|MWINDOW|NDX|NEWOBJECT|NORMALIZE|NTOM|NUMLOCK|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'NVL|OBJNUM|OBJTOCLIENT|OBJVAR|OCCURS|OEMTOANSI|OLDVAL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON|ORDER|OS|PAD|PADL|PARAMETERS|PAYMENT|PCOL|PCOUNT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PEMSTATUS|PI|POPUP|PRIMARY|PRINTSTATUS|PRMBAR|PRMPAD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PROGRAM|PROMPT|PROPER|PROW|PRTINFO|PUTFILE|PV|QUARTER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RAISEEVENT|RAND|RAT|RATC|RATLINE|RDLEVEL|READKEY|RECCOUNT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RECNO|RECSIZE|REFRESH|RELATION|REPLICATE|REQUERY|RGB|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RGBSCHEME|RIGHT|RIGHTC|RLOCK|ROUND|ROW|RTOD|RTRIM|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SAVEPICTURE|SCHEME|SCOLS|SEC|SECONDS|SEEK|SELECT|SET|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SETFLDSTATE|SETRESULTSET|SIGN|SIN|SKPBAR|SKPPAD|SOUNDEX|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SPACE|SQLCANCEL|SQLCOLUMNS|SQLCOMMIT|SQLCONNECT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SQLDISCONNECT|SQLEXEC|SQLGETPROP|SQLIDLEDISCONNECT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SQLMORERESULTS|SQLPREPARE|SQLROLLBACK|SQLSETPROP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SQLSTRINGCONNECT|SQLTABLES|SQRT|SROWS|STR|STRCONV|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'STREXTRACT|STRTOFILE|STRTRAN|STUFF|STUFFC|SUBSTR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SUBSTRC|SYS|SYSMETRIC|TABLEREVERT|TABLEUPDATE|TAG|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TAGCOUNT|TAGNO|TAN|TARGET|TEXTMERGE|TIME|TRANSFORM|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TRIM|TTOC|TTOD|TXNLEVEL|TXTWIDTH|TYPE|UNBINDEVENTS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UNIQUE|UPDATED|UPPER|USED|VAL|VARREAD|VARTYPE|VERSION|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WBORDER|WCHILD|WCOLS|WDOCKABLE|WEEK|WEXIST|WFONT|WLAST|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WLCOL|WLROW|WMAXIMUM|WMINIMUM|WONTOP|WOUTPUT|WPARENT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WREAD|WROWS|WTITLE|WVISIBLE|XMLTOCURSOR|XMLUPDATEGRAM|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'YEAR)(?=\s*\()', Name.Function),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'_ALIGNMENT|_ASCIICOLS|_ASCIIROWS|_ASSIST|_BEAUTIFY|_BOX|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_BROWSER|_BUILDER|_CALCMEM|_CALCVALUE|_CLIPTEXT|_CONVERTER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_COVERAGE|_CUROBJ|_DBLCLICK|_DIARYDATE|_DOS|_FOXDOC|_FOXREF|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_GALLERY|_GENGRAPH|_GENHTML|_GENMENU|_GENPD|_GENSCRN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_GENXTAB|_GETEXPR|_INCLUDE|_INCSEEK|_INDENT|_LMARGIN|_MAC|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_MENUDESIGNER|_MLINE|_PADVANCE|_PAGENO|_PAGETOTAL|_PBPAGE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_PCOLNO|_PCOPIES|_PDRIVER|_PDSETUP|_PECODE|_PEJECT|_PEPAGE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_PLENGTH|_PLINENO|_PLOFFSET|_PPITCH|_PQUALITY|_PRETEXT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_PSCODE|_PSPACING|_PWAIT|_RMARGIN|_REPORTBUILDER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_REPORTOUTPUT|_REPORTPREVIEW|_SAMPLES|_SCCTEXT|_SCREEN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_SHELL|_SPELLCHK|_STARTUP|_TABS|_TALLY|_TASKPANE|_TEXT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'_THROTTLE|_TOOLBOX|_TOOLTIPTIMEOUT|_TRANSPORT|_TRIGGERLEVEL|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'_UNIX|_VFP|_WINDOWS|_WIZARD|_WRAP', Keyword.Pseudo),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'THISFORMSET|THISFORM|THIS', Name.Builtin),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'Application|CheckBox|Collection|Column|ComboBox|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CommandButton|CommandGroup|Container|Control|CursorAdapter|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Cursor|Custom|DataEnvironment|DataObject|EditBox|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Empty|Exception|Fields|Files|File|FormSet|Form|FoxCode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Grid|Header|Hyperlink|Image|Label|Line|ListBox|Objects|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OptionButton|OptionGroup|PageFrame|Page|ProjectHook|Projects|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Project|Relation|ReportListener|Separator|Servers|Server|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Session|Shape|Spinner|Tables|TextBox|Timer|ToolBar|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'XMLAdapter|XMLField|XMLTable', Name.Class),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'm\.[a-z_]\w*', Name.Variable),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\.(F|T|AND|OR|NOT|NULL)\.|\b(AND|OR|NOT|NULL)\b', Operator.Word),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'\.(ActiveColumn|ActiveControl|ActiveForm|ActivePage|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ActiveProject|ActiveRow|AddLineFeeds|ADOCodePage|Alias|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Alignment|Align|AllowAddNew|AllowAutoColumnFit|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AllowCellSelection|AllowDelete|AllowHeaderSizing|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AllowInsert|AllowModalMessages|AllowOutput|AllowRowSizing|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AllowSimultaneousFetch|AllowTabs|AllowUpdate|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AlwaysOnBottom|AlwaysOnTop|Anchor|Application|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AutoActivate|AutoCenter|AutoCloseTables|AutoComplete|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AutoCompSource|AutoCompTable|AutoHideScrollBar|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AutoIncrement|AutoOpenTables|AutoRelease|AutoSize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AutoVerbMenu|AutoYield|BackColor|ForeColor|BackStyle|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BaseClass|BatchUpdateCount|BindControls|BorderColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BorderStyle|BorderWidth|BoundColumn|BoundTo|Bound|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BreakOnError|BufferModeOverride|BufferMode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BuildDateTime|ButtonCount|Buttons|Cancel|Caption|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Centered|Century|ChildAlias|ChildOrder|ChildTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ClassLibrary|Class|ClipControls|Closable|CLSID|CodePage|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ColorScheme|ColorSource|ColumnCount|ColumnLines|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ColumnOrder|Columns|ColumnWidths|CommandClauses|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Comment|CompareMemo|ConflictCheckCmd|ConflictCheckType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ContinuousScroll|ControlBox|ControlCount|Controls|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ControlSource|ConversionFunc|Count|CurrentControl|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CurrentDataSession|CurrentPass|CurrentX|CurrentY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CursorSchema|CursorSource|CursorStatus|Curvature|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Database|DataSessionID|DataSession|DataSourceType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DataSource|DataType|DateFormat|DateMark|Debug|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DeclareXMLPrefix|DEClassLibrary|DEClass|DefaultFilePath|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Default|DefOLELCID|DeleteCmdDataSourceType|DeleteCmdDataSource|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DeleteCmd|DeleteMark|Description|Desktop|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Details|DisabledBackColor|DisabledForeColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DisabledItemBackColor|DisabledItemForeColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DisabledPicture|DisableEncode|DisplayCount|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DisplayValue|Dockable|Docked|DockPosition|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DocumentFile|DownPicture|DragIcon|DragMode|DrawMode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DrawStyle|DrawWidth|DynamicAlignment|DynamicBackColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DynamicForeColor|DynamicCurrentControl|DynamicFontBold|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DynamicFontItalic|DynamicFontStrikethru|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DynamicFontUnderline|DynamicFontName|DynamicFontOutline|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DynamicFontShadow|DynamicFontSize|DynamicInputMask|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DynamicLineHeight|EditorOptions|Enabled|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'EnableHyperlinks|Encrypted|ErrorNo|Exclude|Exclusive|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FetchAsNeeded|FetchMemoCmdList|FetchMemoDataSourceType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FetchMemoDataSource|FetchMemo|FetchSize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FileClassLibrary|FileClass|FillColor|FillStyle|Filter|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FirstElement|FirstNestedTable|Flags|FontBold|FontItalic|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FontStrikethru|FontUnderline|FontCharSet|FontCondense|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FontExtend|FontName|FontOutline|FontShadow|FontSize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ForceCloseTag|Format|FormCount|FormattedOutput|Forms|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'FractionDigits|FRXDataSession|FullName|GDIPlusGraphics|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GridLineColor|GridLines|GridLineWidth|HalfHeightCaption|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HeaderClassLibrary|HeaderClass|HeaderHeight|Height|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HelpContextID|HideSelection|HighlightBackColor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HighlightForeColor|HighlightStyle|HighlightRowLineWidth|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HighlightRow|Highlight|HomeDir|Hours|HostName|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HScrollSmallChange|hWnd|Icon|IncrementalSearch|Increment|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'InitialSelectedAlias|InputMask|InsertCmdDataSourceType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'InsertCmdDataSource|InsertCmdRefreshCmd|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'InsertCmdRefreshFieldList|InsertCmdRefreshKeyFieldList|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'InsertCmd|Instancing|IntegralHeight|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Interval|IMEMode|IsAttribute|IsBase64|IsBinary|IsNull|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IsDiffGram|IsLoaded|ItemBackColor,|ItemData|ItemIDData|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ItemTips|IXMLDOMElement|KeyboardHighValue|KeyboardLowValue|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Keyfield|KeyFieldList|KeyPreview|KeySort|LanguageOptions|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LeftColumn|Left|LineContents|LineNo|LineSlant|LinkMaster|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ListCount|ListenerType|ListIndex|ListItemID|ListItem|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'List|LockColumnsLeft|LockColumns|LockScreen|MacDesktop|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MainFile|MapN19_4ToCurrency|MapBinary|MapVarchar|Margin|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MaxButton|MaxHeight|MaxLeft|MaxLength|MaxRecords|MaxTop|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MaxWidth|MDIForm|MemberClassLibrary|MemberClass|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MemoWindow|Message|MinButton|MinHeight|MinWidth|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MouseIcon|MousePointer|Movable|MoverBars|MultiSelect|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Name|NestedInto|NewIndex|NewItemID|NextSiblingTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'NoCpTrans|NoDataOnLoad|NoData|NullDisplay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'NumberOfElements|Object|OLEClass|OLEDragMode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLEDragPicture|OLEDropEffects|OLEDropHasData|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLEDropMode|OLEDropTextInsertion|OLELCID|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLERequestPendingTimeout|OLEServerBusyRaiseError|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLEServerBusyTimeout|OLETypeAllowed|OneToMany|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OpenViews|OpenWindow|Optimize|OrderDirection|Order|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OutputPageCount|OutputType|PageCount|PageHeight|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PageNo|PageOrder|Pages|PageTotal|PageWidth|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PanelLink|Panel|ParentAlias|ParentClass|ParentTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Parent|Partition|PasswordChar|PictureMargin|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PicturePosition|PictureSpacing|PictureSelectionDisplay|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PictureVal|Picture|Prepared|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PolyPoints|PreserveWhiteSpace|PreviewContainer|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PrintJobName|Procedure|PROCESSID|ProgID|ProjectHookClass|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ProjectHookLibrary|ProjectHook|QuietMode|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ReadCycle|ReadLock|ReadMouse|ReadObject|ReadOnly|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ReadSave|ReadTimeout|RecordMark|RecordSourceType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RecordSource|RefreshAlias|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RefreshCmdDataSourceType|RefreshCmdDataSource|RefreshCmd|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RefreshIgnoreFieldList|RefreshTimeStamp|RelationalExpr|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RelativeColumn|RelativeRow|ReleaseType|Resizable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RespectCursorCP|RespectNesting|RightToLeft|RotateFlip|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Rotation|RowColChange|RowHeight|RowSourceType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RowSource|ScaleMode|SCCProvider|SCCStatus|ScrollBars|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Seconds|SelectCmd|SelectedID|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SelectedItemBackColor|SelectedItemForeColor|Selected|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SelectionNamespaces|SelectOnEntry|SelLength|SelStart|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SelText|SendGDIPlusImage|SendUpdates|ServerClassLibrary|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ServerClass|ServerHelpFile|ServerName|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ServerProject|ShowTips|ShowInTaskbar|ShowWindow|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Sizable|SizeBox|SOM|Sorted|Sparse|SpecialEffect|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SpinnerHighValue|SpinnerLowValue|SplitBar|StackLevel|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'StartMode|StatusBarText|StatusBar|Stretch|StrictDateEntry|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Style|TabIndex|Tables|TabOrientation|Tabs|TabStop|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TabStretch|TabStyle|Tag|TerminateRead|Text|Themes|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ThreadID|TimestampFieldList|TitleBar|ToolTipText|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TopIndex|TopItemID|Top|TwoPassProcess|TypeLibCLSID|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'TypeLibDesc|TypeLibName|Type|Unicode|UpdatableFieldList|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UpdateCmdDataSourceType|UpdateCmdDataSource|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UpdateCmdRefreshCmd|UpdateCmdRefreshFieldList|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UpdateCmdRefreshKeyFieldList|UpdateCmd|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UpdateGramSchemaLocation|UpdateGram|UpdateNameList|UpdateType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UseCodePage|UseCursorSchema|UseDeDataSource|UseMemoSize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'UserValue|UseTransactions|UTF8Encoded|Value|VersionComments|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'VersionCompany|VersionCopyright|VersionDescription|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'VersionNumber|VersionProduct|VersionTrademarks|Version|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'VFPXMLProgID|ViewPortHeight|ViewPortLeft|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ViewPortTop|ViewPortWidth|VScrollSmallChange|View|Visible|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'VisualEffect|WhatsThisButton|WhatsThisHelpID|WhatsThisHelp|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WhereType|Width|WindowList|WindowState|WindowType|WordWrap|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'WrapCharInCDATA|WrapInCDATA|WrapMemoInCDATA|XMLAdapter|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'XMLConstraints|XMLNameIsXPath|XMLNamespace|XMLName|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'XMLPrefix|XMLSchemaLocation|XMLTable|XMLType|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'XSDfractionDigits|XSDmaxLength|XSDtotalDigits|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'XSDtype|ZoomBox)', Name.Attribute),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'\.(ActivateCell|AddColumn|AddItem|AddListItem|AddObject|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AddProperty|AddTableSchema|AddToSCC|Add|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ApplyDiffgram|Attach|AutoFit|AutoOpen|Box|Build|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CancelReport|ChangesToCursor|CheckIn|CheckOut|Circle|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CleanUp|ClearData|ClearStatus|Clear|CloneObject|CloseTables|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Close|Cls|CursorAttach|CursorDetach|CursorFill|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CursorRefresh|DataToClip|DelayedMemoFetch|DeleteColumn|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Dock|DoMessage|DoScroll|DoStatus|DoVerb|Drag|Draw|Eval|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GetData|GetDockState|GetFormat|GetKey|GetLatestVersion|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GetPageHeight|GetPageWidth|Help|Hide|IncludePageInOutput|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'IndexToItemID|ItemIDToIndex|Item|LoadXML|Line|Modify|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MoveItem|Move|Nest|OLEDrag|OnPreviewClose|OutputPage|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Point|Print|PSet|Quit|ReadExpression|ReadMethod|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RecordRefresh|Refresh|ReleaseXML|Release|RemoveFromSCC|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RemoveItem|RemoveListItem|RemoveObject|Remove|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'Render|Requery|RequestData|ResetToDefault|Reset|Run|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SaveAsClass|SaveAs|SetAll|SetData|SetFocus|SetFormat|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SetMain|SetVar|SetViewPort|ShowWhatsThis|Show|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SupportsListenerType|TextHeight|TextWidth|ToCursor|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ToXML|UndoCheckOut|Unnest|UpdateStatus|WhatsThisMode|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'WriteExpression|WriteMethod|ZOrder)', Name.Function),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">            (r'\.(Activate|AdjustObjectSize|AfterBand|AfterBuild|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AfterCloseTables|AfterCursorAttach|AfterCursorClose|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AfterCursorDetach|AfterCursorFill|AfterCursorRefresh|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AfterCursorUpdate|AfterDelete|AfterInsert|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AfterRecordRefresh|AfterUpdate|AfterDock|AfterReport|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'AfterRowColChange|BeforeBand|BeforeCursorAttach|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BeforeCursorClose|BeforeCursorDetach|BeforeCursorFill|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BeforeCursorRefresh|BeforeCursorUpdate|BeforeDelete|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BeforeInsert|BeforeDock|BeforeOpenTables|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BeforeRecordRefresh|BeforeReport|BeforeRowColChange|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BeforeUpdate|Click|dbc_Activate|dbc_AfterAddTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterAppendProc|dbc_AfterCloseTable|dbc_AfterCopyProc|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterCreateConnection|dbc_AfterCreateOffline|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterCreateTable|dbc_AfterCreateView|dbc_AfterDBGetProp|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterDBSetProp|dbc_AfterDeleteConnection|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterDropOffline|dbc_AfterDropTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterModifyConnection|dbc_AfterModifyProc|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterModifyTable|dbc_AfterModifyView|dbc_AfterOpenTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterRemoveTable|dbc_AfterRenameConnection|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterRenameTable|dbc_AfterRenameView|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_AfterValidateData|dbc_BeforeAddTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeAppendProc|dbc_BeforeCloseTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeCopyProc|dbc_BeforeCreateConnection|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeCreateOffline|dbc_BeforeCreateTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeCreateView|dbc_BeforeDBGetProp|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeDBSetProp|dbc_BeforeDeleteConnection|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeDropOffline|dbc_BeforeDropTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeModifyConnection|dbc_BeforeModifyProc|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeModifyTable|dbc_BeforeModifyView|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeOpenTable|dbc_BeforeRemoveTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeRenameConnection|dbc_BeforeRenameTable|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_BeforeRenameView|dbc_BeforeValidateData|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_CloseData|dbc_Deactivate|dbc_ModifyData|dbc_OpenData|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'dbc_PackData|DblClick|Deactivate|Deleted|Destroy|DoCmd|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DownClick|DragDrop|DragOver|DropDown|ErrorMessage|Error|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'EvaluateContents|GotFocus|Init|InteractiveChange|KeyPress|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LoadReport|Load|LostFocus|Message|MiddleClick|MouseDown|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MouseEnter|MouseLeave|MouseMove|MouseUp|MouseWheel|Moved|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLECompleteDrag|OLEDragOver|OLEGiveFeedback|OLESetData|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'OLEStartDrag|OnMoveItem|Paint|ProgrammaticChange|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'QueryAddFile|QueryModifyFile|QueryNewFile|QueryRemoveFile|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'QueryRunFile|QueryUnload|RangeHigh|RangeLow|ReadActivate|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ReadDeactivate|ReadShow|ReadValid|ReadWhen|Resize|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RightClick|SCCInit|SCCDestroy|Scrolled|Timer|UIEnable|'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">             r'UnDock|UnloadReport|Unload|UpClick|Valid|When)', Name.Function),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'\s+', Text),</span>
+<span class="line-empty" title="No Anys on this line!">            # everything else is not colored</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'.', Text),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-precise" title="No Anys on this line!">        'newline': [</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'\*.*?$', Comment.Single, '#pop'),</span>
+<span class="line-precise" title="No Anys on this line!">            (r'(ACCEPT|ACTIVATE\s*MENU|ACTIVATE\s*POPUP|ACTIVATE\s*SCREEN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ACTIVATE\s*WINDOW|APPEND|APPEND\s*FROM|APPEND\s*FROM\s*ARRAY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'APPEND\s*GENERAL|APPEND\s*MEMO|ASSIST|AVERAGE|BLANK|BROWSE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'BUILD\s*APP|BUILD\s*EXE|BUILD\s*PROJECT|CALCULATE|CALL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CANCEL|CHANGE|CLEAR|CLOSE|CLOSE\s*MEMO|COMPILE|CONTINUE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'COPY\s*FILE|COPY\s*INDEXES|COPY\s*MEMO|COPY\s*STRUCTURE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'COPY\s*STRUCTURE\s*EXTENDED|COPY\s*TAG|COPY\s*TO|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'COPY\s*TO\s*ARRAY|COUNT|CREATE|CREATE\s*COLOR\s*SET|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CREATE\s*CURSOR|CREATE\s*FROM|CREATE\s*LABEL|CREATE\s*MENU|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CREATE\s*PROJECT|CREATE\s*QUERY|CREATE\s*REPORT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'CREATE\s*SCREEN|CREATE\s*TABLE|CREATE\s*VIEW|DDE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DEACTIVATE\s*MENU|DEACTIVATE\s*POPUP|DEACTIVATE\s*WINDOW|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DECLARE|DEFINE\s*BAR|DEFINE\s*BOX|DEFINE\s*MENU|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DEFINE\s*PAD|DEFINE\s*POPUP|DEFINE\s*WINDOW|DELETE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DELETE\s*FILE|DELETE\s*TAG|DIMENSION|DIRECTORY|DISPLAY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DISPLAY\s*FILES|DISPLAY\s*MEMORY|DISPLAY\s*STATUS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DISPLAY\s*STRUCTURE|DO|EDIT|EJECT|EJECT\s*PAGE|ERASE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'EXIT|EXPORT|EXTERNAL|FILER|FIND|FLUSH|FUNCTION|GATHER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'GETEXPR|GO|GOTO|HELP|HIDE\s*MENU|HIDE\s*POPUP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'HIDE\s*WINDOW|IMPORT|INDEX|INPUT|INSERT|JOIN|KEYBOARD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'LABEL|LIST|LOAD|LOCATE|LOOP|MENU|MENU\s*TO|MODIFY\s*COMMAND|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MODIFY\s*FILE|MODIFY\s*GENERAL|MODIFY\s*LABEL|MODIFY\s*MEMO|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MODIFY\s*MENU|MODIFY\s*PROJECT|MODIFY\s*QUERY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MODIFY\s*REPORT|MODIFY\s*SCREEN|MODIFY\s*STRUCTURE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'MODIFY\s*WINDOW|MOVE\s*POPUP|MOVE\s*WINDOW|NOTE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*APLABOUT|ON\s*BAR|ON\s*ERROR|ON\s*ESCAPE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*EXIT\s*BAR|ON\s*EXIT\s*MENU|ON\s*EXIT\s*PAD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*EXIT\s*POPUP|ON\s*KEY|ON\s*KEY\s*=|ON\s*KEY\s*LABEL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*MACHELP|ON\s*PAD|ON\s*PAGE|ON\s*READERROR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*SELECTION\s*BAR|ON\s*SELECTION\s*MENU|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ON\s*SELECTION\s*PAD|ON\s*SELECTION\s*POPUP|ON\s*SHUTDOWN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PACK|PARAMETERS|PLAY\s*MACRO|POP\s*KEY|POP\s*MENU|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'POP\s*POPUP|PRIVATE|PROCEDURE|PUBLIC|PUSH\s*KEY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'PUSH\s*MENU|PUSH\s*POPUP|QUIT|READ|READ\s*MENU|RECALL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'REINDEX|RELEASE|RELEASE\s*MODULE|RENAME|REPLACE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'REPLACE\s*FROM\s*ARRAY|REPORT|RESTORE\s*FROM|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RESTORE\s*MACROS|RESTORE\s*SCREEN|RESTORE\s*WINDOW|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'RESUME|RETRY|RETURN|RUN|RUN\s*\/N"|RUNSCRIPT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SAVE\s*MACROS|SAVE\s*SCREEN|SAVE\s*TO|SAVE\s*WINDOWS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SCATTER|SCROLL|SEEK|SELECT|SET|SET\s*ALTERNATE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*ANSI|SET\s*APLABOUT|SET\s*AUTOSAVE|SET\s*BELL|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*BLINK|SET\s*BLOCKSIZE|SET\s*BORDER|SET\s*BRSTATUS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*CARRY|SET\s*CENTURY|SET\s*CLEAR|SET\s*CLOCK|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*COLLATE|SET\s*COLOR\s*OF|SET\s*COLOR\s*OF\s*SCHEME|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*COLOR\s*SET|SET\s*COLOR\s*TO|SET\s*COMPATIBLE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*CONFIRM|SET\s*CONSOLE|SET\s*CURRENCY|SET\s*CURSOR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*DATE|SET\s*DEBUG|SET\s*DECIMALS|SET\s*DEFAULT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*DELETED|SET\s*DELIMITERS|SET\s*DEVELOPMENT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*DEVICE|SET\s*DISPLAY|SET\s*DOHISTORY|SET\s*ECHO|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*ESCAPE|SET\s*EXACT|SET\s*EXCLUSIVE|SET\s*FIELDS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*FILTER|SET\s*FIXED|SET\s*FORMAT|SET\s*FULLPATH|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*FUNCTION|SET\s*HEADINGS|SET\s*HELP|SET\s*HELPFILTER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*HOURS|SET\s*INDEX|SET\s*INTENSITY|SET\s*KEY|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*KEYCOMP|SET\s*LIBRARY|SET\s*LOCK|SET\s*LOGERRORS|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*MACDESKTOP|SET\s*MACHELP|SET\s*MACKEY|SET\s*MARGIN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*MARK\s*OF|SET\s*MARK\s*TO|SET\s*MEMOWIDTH|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*MESSAGE|SET\s*MOUSE|SET\s*MULTILOCKS|SET\s*NEAR|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*NOCPTRANS|SET\s*NOTIFY|SET\s*ODOMETER|SET\s*OPTIMIZE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*ORDER|SET\s*PALETTE|SET\s*PATH|SET\s*PDSETUP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*POINT|SET\s*PRINTER|SET\s*PROCEDURE|SET\s*READBORDER|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*REFRESH|SET\s*RELATION|SET\s*RELATION\s*OFF|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*REPROCESS|SET\s*RESOURCE|SET\s*SAFETY|SET\s*SCOREBOARD|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*SEPARATOR|SET\s*SHADOWS|SET\s*SKIP|SET\s*SKIP\s*OF|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*SPACE|SET\s*STATUS|SET\s*STATUS\s*BAR|SET\s*STEP|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*STICKY|SET\s*SYSMENU|SET\s*TALK|SET\s*TEXTMERGE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*TEXTMERGE\s*DELIMITERS|SET\s*TOPIC|SET\s*TRBETWEEN|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*TYPEAHEAD|SET\s*UDFPARMS|SET\s*UNIQUE|SET\s*VIEW|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SET\s*VOLUME|SET\s*WINDOW\s*OF\s*MEMO|SET\s*XCMDFILE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SHOW\s*GET|SHOW\s*GETS|SHOW\s*MENU|SHOW\s*OBJECT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'SHOW\s*POPUP|SHOW\s*WINDOW|SIZE\s*POPUP|SKIP|SORT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'STORE|SUM|SUSPEND|TOTAL|TYPE|UNLOCK|UPDATE|USE|WAIT|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ZAP|ZOOM\s*WINDOW|DO\s*CASE|CASE|OTHERWISE|ENDCASE|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'DO\s*WHILE|ENDDO|FOR|ENDFOR|NEXT|IF|ELSE|ENDIF|PRINTJOB|'</span>
+<span class="line-empty" title="No Anys on this line!">             r'ENDPRINTJOB|SCAN|ENDSCAN|TEXT|ENDTEXT|=)',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">                Keyword.Reserved, '#pop'),</span>
+<span class="line-precise" title="No Anys on this line!">            (r'#\s*(IF|ELIF|ELSE|ENDIF|DEFINE|IFDEF|IFNDEF|INCLUDE)',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">                Comment.Preproc, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">            (r'(m\.)?[a-z_]\w*', Name.Variable, '#pop'),</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">            (r'.', Text, '#pop'),</span>
+<span class="line-empty" title="No Anys on this line!">        ],</span>
+<span class="line-empty" title="No Anys on this line!">    }</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

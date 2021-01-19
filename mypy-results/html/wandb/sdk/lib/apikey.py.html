@@ -1,0 +1,613 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.sdk.lib.apikey</h2>
+<table>
+<caption>wandb/sdk/lib/apikey.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">apikey util.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import getpass</span>
+<span class="line-precise" title="No Anys on this line!">import os</span>
+<span class="line-precise" title="No Anys on this line!">import stat</span>
+<span class="line-precise" title="No Anys on this line!">import sys</span>
+<span class="line-precise" title="No Anys on this line!">import textwrap</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import requests</span>
+<span class="line-precise" title="No Anys on this line!">from six.moves import input</span>
+<span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.apis import InternalApi</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.errors import term</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.util import isatty</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICE_ANON = "Private W&amp;B dashboard, no account required"</span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICE_NEW = "Create a W&amp;B account"</span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICE_EXISTS = "Use an existing W&amp;B account"</span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICE_DRYRUN = "Don't visualize my results"</span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICE_NOTTY = "Unconfigured"</span>
+<span class="line-precise" title="No Anys on this line!">LOGIN_CHOICES = [</span>
+<span class="line-precise" title="No Anys on this line!">    LOGIN_CHOICE_ANON,</span>
+<span class="line-precise" title="No Anys on this line!">    LOGIN_CHOICE_NEW,</span>
+<span class="line-precise" title="No Anys on this line!">    LOGIN_CHOICE_EXISTS,</span>
+<span class="line-precise" title="No Anys on this line!">    LOGIN_CHOICE_DRYRUN,</span>
+<span class="line-empty" title="No Anys on this line!">]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _fixup_anon_mode(default):</span>
+<span class="line-empty" title="No Anys on this line!">    # Convert weird anonymode values from legacy settings files</span>
+<span class="line-empty" title="No Anys on this line!">    # into one of our expected values.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    anon_mode = default or "never"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    mapping = {"true": "allow", "false": "never"}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    return mapping.get(anon_mode, anon_mode)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _prompt_choice():</span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503</span>
+<span class="line-precise" title="No Anys on this line!">    except ValueError:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return -1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def prompt_api_key(  # noqa: C901</span>
+<span class="line-empty" title="No Anys on this line!">    settings,</span>
+<span class="line-any" title="No Anys on this line!">    api=None,</span>
+<span class="line-any" title="No Anys on this line!">    input_callback=None,</span>
+<span class="line-any" title="No Anys on this line!">    browser_callback=None,</span>
+<span class="line-any" title="No Anys on this line!">    no_offline=False,</span>
+<span class="line-any" title="No Anys on this line!">    no_create=False,</span>
+<span class="line-any" title="No Anys on this line!">    local=False,</span>
+<span class="line-empty" title="No Anys on this line!">):</span>
+<span class="line-empty" title="No Anys on this line!">    """Prompt for api key.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Returns:</span>
+<span class="line-empty" title="No Anys on this line!">        str - if key is configured</span>
+<span class="line-empty" title="No Anys on this line!">        None - if dryrun is selected</span>
+<span class="line-empty" title="No Anys on this line!">        False - if unconfigured (notty)</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    input_callback = input_callback or getpass.getpass</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    log_string = term.LOG_STRING</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">    api = api or InternalApi(settings)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    anon_mode = _fixup_anon_mode(settings.anonymous)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    jupyter = settings._jupyter or False</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    app_url = api.app_url</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    choices = [choice for choice in LOGIN_CHOICES]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if anon_mode == "never":</span>
+<span class="line-empty" title="No Anys on this line!">        # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        choices.remove(LOGIN_CHOICE_ANON)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    if jupyter or no_offline:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        choices.remove(LOGIN_CHOICE_DRYRUN)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    if jupyter or no_create:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        choices.remove(LOGIN_CHOICE_NEW)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if jupyter and "google.colab" in sys.modules:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        log_string = term.LOG_STRING_NOCOLOR</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Error (x1)">        key = wandb.jupyter.attempt_colab_login(app_url)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if key is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">            write_key(settings, key, api=api)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            return key</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if anon_mode == "must":</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        result = LOGIN_CHOICE_ANON</span>
+<span class="line-empty" title="No Anys on this line!">    # If we're not in an interactive environment, default to dry-run.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">    elif not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin)):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        result = LOGIN_CHOICE_NOTTY</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    elif local:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        result = LOGIN_CHOICE_EXISTS</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    elif len(choices) == 1:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        result = choices[0]</span>
+<span class="line-empty" title="No Anys on this line!">    else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for i, choice in enumerate(choices):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">            wandb.termlog("(%i) %s" % (i + 1, choice))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        idx = -1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        while idx &lt; 0 or idx &gt; len(choices) - 1:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            idx = _prompt_choice()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            if idx &lt; 0 or idx &gt; len(choices) - 1:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                wandb.termwarn("Invalid choice")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        result = choices[idx]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        wandb.termlog("You chose '%s'" % result)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if result == LOGIN_CHOICE_ANON:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        key = api.create_anonymous_api_key()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        write_key(settings, key, api=api, anonymous=True)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return key</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    elif result == LOGIN_CHOICE_NEW:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        key = browser_callback(signup=True) if browser_callback else None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not key:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            wandb.termlog(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                "Create an account here: {}/authorize?signup=true".format(app_url)</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            key = input_callback(api_ask).strip()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        write_key(settings, key, api=api)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return key</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    elif result == LOGIN_CHOICE_EXISTS:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        key = browser_callback() if browser_callback else None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not key:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            wandb.termlog(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                "You can find your API key in your browser here: {}/authorize".format(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    app_url</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            key = input_callback(api_ask).strip()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        write_key(settings, key, api=api)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return key</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    elif result == LOGIN_CHOICE_NOTTY:</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO: Needs refactor as this needs to be handled by caller</span>
+<span class="line-any" title="No Anys on this line!">        return False</span>
+<span class="line-empty" title="No Anys on this line!">    else:</span>
+<span class="line-empty" title="No Anys on this line!">        # Jupyter environments don't have a tty, but we can still try logging in using</span>
+<span class="line-empty" title="No Anys on this line!">        # the browser callback if one is supplied.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        key, anonymous = (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            browser_callback() if jupyter and browser_callback else (None, False)</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        write_key(settings, key, api=api)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return key</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def write_netrc(host, entity, key):</span>
+<span class="line-empty" title="No Anys on this line!">    """Add our host and key to .netrc"""</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">    key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    if len(key_suffix) != 40:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        wandb.termerror(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            "API-key must be exactly 40 characters long: {} ({} chars)".format(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                key_suffix, len(key_suffix)</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="No Anys on this line!">        return None</span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">        normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        if normalized_host != "localhost" and "." not in normalized_host:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            wandb.termerror("Host must be a url in the form https://some.address.com")</span>
+<span class="line-any" title="No Anys on this line!">            return None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        wandb.termlog(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            "Appending key for {} to your netrc file: {}".format(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                normalized_host, os.path.expanduser("~/.netrc")</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        machine_line = "machine %s" % normalized_host</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        path = os.path.expanduser("~/.netrc")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        orig_lines = None</span>
+<span class="line-empty" title="No Anys on this line!">        try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            with open(path) as f:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                orig_lines = f.read().strip().split("\n")</span>
+<span class="line-precise" title="No Anys on this line!">        except IOError:</span>
+<span class="line-any" title="No Anys on this line!">            pass</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">        with open(path, "w") as f:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if orig_lines:</span>
+<span class="line-empty" title="No Anys on this line!">                # delete this machine from the file if it's already there.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                skip = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                for line in orig_lines:</span>
+<span class="line-empty" title="No Anys on this line!">                    # we fix invalid netrc files with an empty host that we wrote before</span>
+<span class="line-empty" title="No Anys on this line!">                    # verifying host...</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    if line == "machine " or machine_line in line:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        skip = 2</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    elif skip:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        skip -= 1</span>
+<span class="line-empty" title="No Anys on this line!">                    else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                        f.write("%s\n" % line)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            f.write(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                textwrap.dedent(</span>
+<span class="line-any" title="No Anys on this line!">                    """\</span>
+<span class="line-empty" title="No Anys on this line!">            machine {host}</span>
+<span class="line-empty" title="No Anys on this line!">              login {entity}</span>
+<span class="line-empty" title="No Anys on this line!">              password {key}</span>
+<span class="line-empty" title="No Anys on this line!">            """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                ).format(host=normalized_host, entity=entity, key=key)</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)</span>
+<span class="line-any" title="No Anys on this line!">        return True</span>
+<span class="line-precise" title="No Anys on this line!">    except IOError:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        wandb.termerror("Unable to read ~/.netrc")</span>
+<span class="line-any" title="No Anys on this line!">        return None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def write_key(settings, key, api=None, anonymous=False):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if not key:</span>
+<span class="line-empty" title="No Anys on this line!">        return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    api = api or InternalApi()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # Normal API keys are 40-character hex strings. Onprem API keys have a</span>
+<span class="line-empty" title="No Anys on this line!">    # variable-length prefix, a dash, then the 40-char string.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">    prefix, suffix = key.split("-", 1) if "-" in key else ("", key)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    if len(suffix) != 40:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        raise ValueError("API key must be 40 characters long, yours was %s" % len(key))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if anonymous:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        api.set_setting("anonymous", "true", globally=True, persist=True)</span>
+<span class="line-empty" title="No Anys on this line!">    else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        api.clear_setting("anonymous", globally=True, persist=True)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    write_netrc(settings.base_url, "user", key)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def api_key(settings=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if not settings:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Error (x1)">        settings = wandb.setup().settings</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    if settings.api_key:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return settings.api_key</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    auth = requests.utils.get_netrc_auth(settings.base_url)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if auth:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return auth[-1]</span>
+<span class="line-any" title="No Anys on this line!">    return None</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

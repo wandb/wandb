@@ -1,0 +1,230 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.prompt_toolkit.layout.dimension</h2>
+<table>
+<caption>wandb/vendor/prompt_toolkit/layout/dimension.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">Layout dimensions are used to give the minimum, maximum and preferred</span>
+<span class="line-empty" title="No Anys on this line!">dimensions for containers and controls.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import unicode_literals</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">__all__ = (</span>
+<span class="line-precise" title="No Anys on this line!">    'LayoutDimension',</span>
+<span class="line-precise" title="No Anys on this line!">    'sum_layout_dimensions',</span>
+<span class="line-precise" title="No Anys on this line!">    'max_layout_dimensions',</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class LayoutDimension(object):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Specified dimension (width/height) of a user control or window.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The layout engine tries to honor the preferred size. If that is not</span>
+<span class="line-empty" title="No Anys on this line!">    possible, because the terminal is larger or smaller, it tries to keep in</span>
+<span class="line-empty" title="No Anys on this line!">    between min and max.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :param min: Minimum size.</span>
+<span class="line-empty" title="No Anys on this line!">    :param max: Maximum size.</span>
+<span class="line-empty" title="No Anys on this line!">    :param weight: For a VSplit/HSplit, the actual size will be determined</span>
+<span class="line-empty" title="No Anys on this line!">                   by taking the proportion of weights from all the children.</span>
+<span class="line-empty" title="No Anys on this line!">                   E.g. When there are two children, one width a weight of 1,</span>
+<span class="line-empty" title="No Anys on this line!">                   and the other with a weight of 2. The second will always be</span>
+<span class="line-empty" title="No Anys on this line!">                   twice as big as the first, if the min/max values allow it.</span>
+<span class="line-empty" title="No Anys on this line!">    :param preferred: Preferred size.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, min=None, max=None, weight=1, preferred=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">        assert isinstance(weight, int) and weight &gt; 0   # Cannot be a float.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.min_specified = min is not None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.max_specified = max is not None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.preferred_specified = preferred is not None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if min is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            min = 0  # Smallest possible value.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if max is None:  # 0-values are allowed, so use "is None"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            max = 1000 ** 10  # Something huge.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if preferred is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            preferred = min</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.min = min</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.max = max</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.preferred = preferred</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self.weight = weight</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Make sure that the 'preferred' size is always in the min..max range.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if self.preferred &lt; self.min:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            self.preferred = self.min</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if self.preferred &gt; self.max:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            self.preferred = self.max</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def exact(cls, amount):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Return a :class:`.LayoutDimension` with an exact size. (min, max and</span>
+<span class="line-empty" title="No Anys on this line!">        preferred set to ``amount``).</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        return cls(min=amount, max=amount, preferred=amount)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __repr__(self):</span>
+<span class="line-any" title="No Anys on this line!">        return 'LayoutDimension(min=%r, max=%r, preferred=%r, weight=%r)' % (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.min, self.max, self.preferred, self.weight)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __add__(self, other):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        return sum_layout_dimensions([self, other])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def sum_layout_dimensions(dimensions):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Sum a list of :class:`.LayoutDimension` instances.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    min = sum([d.min for d in dimensions if d.min is not None])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    max = sum([d.max for d in dimensions if d.max is not None])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    preferred = sum([d.preferred for d in dimensions])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    return LayoutDimension(min=min, max=max, preferred=preferred)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def max_layout_dimensions(dimensions):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Take the maximum of a list of :class:`.LayoutDimension` instances.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    min_ = max([d.min for d in dimensions if d.min is not None])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    max_ = max([d.max for d in dimensions if d.max is not None])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    preferred = max([d.preferred for d in dimensions])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    return LayoutDimension(min=min_, max=max_, preferred=preferred)</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.prompt_toolkit.filters</h2>
+<table>
+<caption>wandb/vendor/prompt_toolkit/filters/__init__.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">Filters decide whether something is active or not (they decide about a boolean</span>
+<span class="line-empty" title="No Anys on this line!">state). This is used to enable/disable features, like key bindings, parts of</span>
+<span class="line-empty" title="No Anys on this line!">the layout and other stuff. For instance, we could have a `HasSearch` filter</span>
+<span class="line-empty" title="No Anys on this line!">attached to some part of the layout, in order to show that part of the user</span>
+<span class="line-empty" title="No Anys on this line!">interface only while the user is searching.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Filters are made to avoid having to attach callbacks to all event in order to</span>
+<span class="line-empty" title="No Anys on this line!">propagate state. However, they are lazy, they don't automatically propagate the</span>
+<span class="line-empty" title="No Anys on this line!">state of what they are observing. Only when a filter is called (it's actually a</span>
+<span class="line-empty" title="No Anys on this line!">callable), it will calculate its value. So, its not really reactive</span>
+<span class="line-empty" title="No Anys on this line!">programming, but it's made to fit for this framework.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">One class of filters observe a `CommandLineInterface` instance. However, they</span>
+<span class="line-empty" title="No Anys on this line!">are not attached to such an instance. (We have to pass this instance to the</span>
+<span class="line-empty" title="No Anys on this line!">filter when calling it.) The reason for this is to allow declarative</span>
+<span class="line-empty" title="No Anys on this line!">programming: for key bindings, we can attach a filter to a key binding without</span>
+<span class="line-empty" title="No Anys on this line!">knowing yet which `CommandLineInterface` instance it will observe in the end.</span>
+<span class="line-empty" title="No Anys on this line!">Examples are `HasSearch` or `IsExiting`.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Another class of filters doesn't take anything as input. And a third class of</span>
+<span class="line-empty" title="No Anys on this line!">filters are universal, for instance `Always` and `Never`.</span>
+<span class="line-empty" title="No Anys on this line!">It is impossible to mix the first and the second class, because that would mean</span>
+<span class="line-empty" title="No Anys on this line!">mixing filters with a different signature.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Filters can be chained using ``&amp;`` and ``|`` operations, and inverted using the</span>
+<span class="line-empty" title="No Anys on this line!">``~`` operator, for instance::</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    filter = HasFocus('default') &amp; ~ HasSelection()</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import unicode_literals</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from .base import *</span>
+<span class="line-precise" title="No Anys on this line!">from .cli import *</span>
+<span class="line-precise" title="No Anys on this line!">from .types import *</span>
+<span class="line-precise" title="No Anys on this line!">from .utils import *</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

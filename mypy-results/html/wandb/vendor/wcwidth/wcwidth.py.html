@@ -1,0 +1,461 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.wcwidth.wcwidth</h2>
+<table>
+<caption>wandb/vendor/wcwidth/wcwidth.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">This is an implementation of wcwidth() and wcswidth().</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Defined in IEEE Std 1002.1-2001.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">https://github.com/jquast/wcwidth</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">from Markus Kuhn's C code at:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    http://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">This is an implementation of wcwidth() and wcswidth() (defined in</span>
+<span class="line-empty" title="No Anys on this line!">IEEE Std 1002.1-2001) for Unicode.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">http://www.opengroup.org/onlinepubs/007904975/functions/wcwidth.html</span>
+<span class="line-empty" title="No Anys on this line!">http://www.opengroup.org/onlinepubs/007904975/functions/wcswidth.html</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">In fixed-width output devices, Latin characters all occupy a single</span>
+<span class="line-empty" title="No Anys on this line!">"cell" position of equal width, whereas ideographic CJK characters</span>
+<span class="line-empty" title="No Anys on this line!">occupy two such cells. Interoperability between terminal-line</span>
+<span class="line-empty" title="No Anys on this line!">applications and (teletype-style) character terminals using the</span>
+<span class="line-empty" title="No Anys on this line!">UTF-8 encoding requires agreement on which character should advance</span>
+<span class="line-empty" title="No Anys on this line!">the cursor by how many cell positions. No established formal</span>
+<span class="line-empty" title="No Anys on this line!">standards exist at present on which Unicode character shall occupy</span>
+<span class="line-empty" title="No Anys on this line!">how many cell positions on character terminals. These routines are</span>
+<span class="line-empty" title="No Anys on this line!">a first attempt of defining such behavior based on simple rules</span>
+<span class="line-empty" title="No Anys on this line!">applied to data provided by the Unicode Consortium.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">For some graphical characters, the Unicode standard explicitly</span>
+<span class="line-empty" title="No Anys on this line!">defines a character-cell width via the definition of the East Asian</span>
+<span class="line-empty" title="No Anys on this line!">FullWidth (F), Wide (W), Half-width (H), and Narrow (Na) classes.</span>
+<span class="line-empty" title="No Anys on this line!">In all these cases, there is no ambiguity about which width a</span>
+<span class="line-empty" title="No Anys on this line!">terminal shall use. For characters in the East Asian Ambiguous (A)</span>
+<span class="line-empty" title="No Anys on this line!">class, the width choice depends purely on a preference of backward</span>
+<span class="line-empty" title="No Anys on this line!">compatibility with either historic CJK or Western practice.</span>
+<span class="line-empty" title="No Anys on this line!">Choosing single-width for these characters is easy to justify as</span>
+<span class="line-empty" title="No Anys on this line!">the appropriate long-term solution, as the CJK practice of</span>
+<span class="line-empty" title="No Anys on this line!">displaying these characters as double-width comes from historic</span>
+<span class="line-empty" title="No Anys on this line!">implementation simplicity (8-bit encoded characters were displayed</span>
+<span class="line-empty" title="No Anys on this line!">single-width and 16-bit ones double-width, even for Greek,</span>
+<span class="line-empty" title="No Anys on this line!">Cyrillic, etc.) and not any typographic considerations.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Much less clear is the choice of width for the Not East Asian</span>
+<span class="line-empty" title="No Anys on this line!">(Neutral) class. Existing practice does not dictate a width for any</span>
+<span class="line-empty" title="No Anys on this line!">of these characters. It would nevertheless make sense</span>
+<span class="line-empty" title="No Anys on this line!">typographically to allocate two character cells to characters such</span>
+<span class="line-empty" title="No Anys on this line!">as for instance EM SPACE or VOLUME INTEGRAL, which cannot be</span>
+<span class="line-empty" title="No Anys on this line!">represented adequately with a single-width glyph. The following</span>
+<span class="line-empty" title="No Anys on this line!">routines at present merely assign a single-cell width to all</span>
+<span class="line-empty" title="No Anys on this line!">neutral characters, in the interest of simplicity. This is not</span>
+<span class="line-empty" title="No Anys on this line!">entirely satisfactory and should be reconsidered before</span>
+<span class="line-empty" title="No Anys on this line!">establishing a formal standard in this area. At the moment, the</span>
+<span class="line-empty" title="No Anys on this line!">decision which Not East Asian (Neutral) characters should be</span>
+<span class="line-empty" title="No Anys on this line!">represented by double-width glyphs cannot yet be answered by</span>
+<span class="line-empty" title="No Anys on this line!">applying a simple rule from the Unicode database content. Setting</span>
+<span class="line-empty" title="No Anys on this line!">up a proper standard for the behavior of UTF-8 character terminals</span>
+<span class="line-empty" title="No Anys on this line!">will require a careful analysis not only of each Unicode character,</span>
+<span class="line-empty" title="No Anys on this line!">but also of each presentation form, something the author of these</span>
+<span class="line-empty" title="No Anys on this line!">routines has avoided to do so far.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">http://www.unicode.org/unicode/reports/tr11/</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Markus Kuhn -- 2007-05-26 (Unicode 5.0)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Permission to use, copy, modify, and distribute this software</span>
+<span class="line-empty" title="No Anys on this line!">for any purpose and without fee is hereby granted. The author</span>
+<span class="line-empty" title="No Anys on this line!">disclaims all warranties with regard to this software.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Latest version: http://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import division</span>
+<span class="line-precise" title="No Anys on this line!">from .table_wide import WIDE_EASTASIAN</span>
+<span class="line-precise" title="No Anys on this line!">from .table_zero import ZERO_WIDTH</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _bisearch(ucs, table):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Auxiliary function for binary search in interval table.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :arg int ucs: Ordinal value of unicode character.</span>
+<span class="line-empty" title="No Anys on this line!">    :arg list table: List of starting and ending ranges of ordinal values,</span>
+<span class="line-empty" title="No Anys on this line!">        in form of ``[(start, end), ...]``.</span>
+<span class="line-empty" title="No Anys on this line!">    :rtype: int</span>
+<span class="line-empty" title="No Anys on this line!">    :returns: 1 if ordinal value ucs is found within lookup table, else 0.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    lbound = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    ubound = len(table) - 1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">    if ucs &lt; table[0][0] or ucs &gt; table[ubound][1]:</span>
+<span class="line-any" title="No Anys on this line!">        return 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    while ubound &gt;= lbound:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        mid = (lbound + ubound) // 2</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        if ucs &gt; table[mid][1]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            lbound = mid + 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        elif ucs &lt; table[mid][0]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            ubound = mid - 1</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="No Anys on this line!">            return 1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    return 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def wcwidth(wc):</span>
+<span class="line-empty" title="No Anys on this line!">    r"""</span>
+<span class="line-empty" title="No Anys on this line!">    Given one unicode character, return its printable length on a terminal.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The wcwidth() function returns 0 if the wc argument has no printable effect</span>
+<span class="line-empty" title="No Anys on this line!">    on a terminal (such as NUL '\0'), -1 if wc is not printable, or has an</span>
+<span class="line-empty" title="No Anys on this line!">    indeterminate effect on the terminal, such as a control character.</span>
+<span class="line-empty" title="No Anys on this line!">    Otherwise, the number of column positions the character occupies on a</span>
+<span class="line-empty" title="No Anys on this line!">    graphic terminal (1 or 2) is returned.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The following have a column width of -1:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - C0 control characters (U+001 through U+01F).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - C1 control characters and DEL (U+07F through U+0A0).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The following have a column width of 0:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - Non-spacing and enclosing combining characters (general</span>
+<span class="line-empty" title="No Anys on this line!">          category code Mn or Me in the Unicode database).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - NULL (U+0000, 0).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - COMBINING GRAPHEME JOINER (U+034F).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - ZERO WIDTH SPACE (U+200B) through</span>
+<span class="line-empty" title="No Anys on this line!">          RIGHT-TO-LEFT MARK (U+200F).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - LINE SEPERATOR (U+2028) and</span>
+<span class="line-empty" title="No Anys on this line!">          PARAGRAPH SEPERATOR (U+2029).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - LEFT-TO-RIGHT EMBEDDING (U+202A) through</span>
+<span class="line-empty" title="No Anys on this line!">          RIGHT-TO-LEFT OVERRIDE (U+202E).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - WORD JOINER (U+2060) through</span>
+<span class="line-empty" title="No Anys on this line!">          INVISIBLE SEPARATOR (U+2063).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The following have a column width of 1:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - SOFT HYPHEN (U+00AD) has a column width of 1.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - All remaining characters (including all printable</span>
+<span class="line-empty" title="No Anys on this line!">          ISO 8859-1 and WGL4 characters, Unicode control characters,</span>
+<span class="line-empty" title="No Anys on this line!">          etc.) have a column width of 1.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The following have a column width of 2:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        - Spacing characters in the East Asian Wide (W) or East Asian</span>
+<span class="line-empty" title="No Anys on this line!">          Full-width (F) category as defined in Unicode Technical</span>
+<span class="line-empty" title="No Anys on this line!">          Report #11 have a column width of 2.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    # pylint: disable=C0103</span>
+<span class="line-empty" title="No Anys on this line!">    #         Invalid argument name "wc"</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    ucs = ord(wc)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # NOTE: created by hand, there isn't anything identifiable other than</span>
+<span class="line-empty" title="No Anys on this line!">    # general Cf category code to identify these, and some characters in Cf</span>
+<span class="line-empty" title="No Anys on this line!">    # category code are of non-zero width.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # pylint: disable=too-many-boolean-expressions</span>
+<span class="line-empty" title="No Anys on this line!">    #          Too many boolean expressions in if statement (7/5)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    if (ucs == 0 or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            ucs == 0x034F or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            0x200B &lt;= ucs &lt;= 0x200F or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            ucs == 0x2028 or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            ucs == 0x2029 or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            0x202A &lt;= ucs &lt;= 0x202E or</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            0x2060 &lt;= ucs &lt;= 0x2063):</span>
+<span class="line-any" title="No Anys on this line!">        return 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # C0/C1 control characters</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    if ucs &lt; 32 or 0x07F &lt;= ucs &lt; 0x0A0:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return -1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # combining characters with zero width</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    if _bisearch(ucs, ZERO_WIDTH):</span>
+<span class="line-any" title="No Anys on this line!">        return 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">    return 1 + _bisearch(ucs, WIDE_EASTASIAN)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def wcswidth(pwcs, n=None):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Given a unicode string, return its printable length on a terminal.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Return the width, in cells, necessary to display the first ``n``</span>
+<span class="line-empty" title="No Anys on this line!">    characters of the unicode string ``pwcs``.  When ``n`` is None (default),</span>
+<span class="line-empty" title="No Anys on this line!">    return the length of the entire string.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Returns ``-1`` if a non-printable character is encountered.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    # pylint: disable=C0103</span>
+<span class="line-empty" title="No Anys on this line!">    #         Invalid argument name "n"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    end = len(pwcs) if n is None else n</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x4)">    idx = slice(0, end)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    width = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    for char in pwcs[idx]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        wcw = wcwidth(char)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if wcw &lt; 0:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            return -1</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            width += wcw</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    return width</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

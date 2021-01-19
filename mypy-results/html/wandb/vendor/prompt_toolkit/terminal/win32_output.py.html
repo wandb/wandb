@@ -1,0 +1,1376 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.prompt_toolkit.terminal.win32_output</h2>
+<table>
+<caption>wandb/vendor/prompt_toolkit/terminal/win32_output.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+<span id="L375" class="lineno"><a class="lineno" href="#L375">375</a></span>
+<span id="L376" class="lineno"><a class="lineno" href="#L376">376</a></span>
+<span id="L377" class="lineno"><a class="lineno" href="#L377">377</a></span>
+<span id="L378" class="lineno"><a class="lineno" href="#L378">378</a></span>
+<span id="L379" class="lineno"><a class="lineno" href="#L379">379</a></span>
+<span id="L380" class="lineno"><a class="lineno" href="#L380">380</a></span>
+<span id="L381" class="lineno"><a class="lineno" href="#L381">381</a></span>
+<span id="L382" class="lineno"><a class="lineno" href="#L382">382</a></span>
+<span id="L383" class="lineno"><a class="lineno" href="#L383">383</a></span>
+<span id="L384" class="lineno"><a class="lineno" href="#L384">384</a></span>
+<span id="L385" class="lineno"><a class="lineno" href="#L385">385</a></span>
+<span id="L386" class="lineno"><a class="lineno" href="#L386">386</a></span>
+<span id="L387" class="lineno"><a class="lineno" href="#L387">387</a></span>
+<span id="L388" class="lineno"><a class="lineno" href="#L388">388</a></span>
+<span id="L389" class="lineno"><a class="lineno" href="#L389">389</a></span>
+<span id="L390" class="lineno"><a class="lineno" href="#L390">390</a></span>
+<span id="L391" class="lineno"><a class="lineno" href="#L391">391</a></span>
+<span id="L392" class="lineno"><a class="lineno" href="#L392">392</a></span>
+<span id="L393" class="lineno"><a class="lineno" href="#L393">393</a></span>
+<span id="L394" class="lineno"><a class="lineno" href="#L394">394</a></span>
+<span id="L395" class="lineno"><a class="lineno" href="#L395">395</a></span>
+<span id="L396" class="lineno"><a class="lineno" href="#L396">396</a></span>
+<span id="L397" class="lineno"><a class="lineno" href="#L397">397</a></span>
+<span id="L398" class="lineno"><a class="lineno" href="#L398">398</a></span>
+<span id="L399" class="lineno"><a class="lineno" href="#L399">399</a></span>
+<span id="L400" class="lineno"><a class="lineno" href="#L400">400</a></span>
+<span id="L401" class="lineno"><a class="lineno" href="#L401">401</a></span>
+<span id="L402" class="lineno"><a class="lineno" href="#L402">402</a></span>
+<span id="L403" class="lineno"><a class="lineno" href="#L403">403</a></span>
+<span id="L404" class="lineno"><a class="lineno" href="#L404">404</a></span>
+<span id="L405" class="lineno"><a class="lineno" href="#L405">405</a></span>
+<span id="L406" class="lineno"><a class="lineno" href="#L406">406</a></span>
+<span id="L407" class="lineno"><a class="lineno" href="#L407">407</a></span>
+<span id="L408" class="lineno"><a class="lineno" href="#L408">408</a></span>
+<span id="L409" class="lineno"><a class="lineno" href="#L409">409</a></span>
+<span id="L410" class="lineno"><a class="lineno" href="#L410">410</a></span>
+<span id="L411" class="lineno"><a class="lineno" href="#L411">411</a></span>
+<span id="L412" class="lineno"><a class="lineno" href="#L412">412</a></span>
+<span id="L413" class="lineno"><a class="lineno" href="#L413">413</a></span>
+<span id="L414" class="lineno"><a class="lineno" href="#L414">414</a></span>
+<span id="L415" class="lineno"><a class="lineno" href="#L415">415</a></span>
+<span id="L416" class="lineno"><a class="lineno" href="#L416">416</a></span>
+<span id="L417" class="lineno"><a class="lineno" href="#L417">417</a></span>
+<span id="L418" class="lineno"><a class="lineno" href="#L418">418</a></span>
+<span id="L419" class="lineno"><a class="lineno" href="#L419">419</a></span>
+<span id="L420" class="lineno"><a class="lineno" href="#L420">420</a></span>
+<span id="L421" class="lineno"><a class="lineno" href="#L421">421</a></span>
+<span id="L422" class="lineno"><a class="lineno" href="#L422">422</a></span>
+<span id="L423" class="lineno"><a class="lineno" href="#L423">423</a></span>
+<span id="L424" class="lineno"><a class="lineno" href="#L424">424</a></span>
+<span id="L425" class="lineno"><a class="lineno" href="#L425">425</a></span>
+<span id="L426" class="lineno"><a class="lineno" href="#L426">426</a></span>
+<span id="L427" class="lineno"><a class="lineno" href="#L427">427</a></span>
+<span id="L428" class="lineno"><a class="lineno" href="#L428">428</a></span>
+<span id="L429" class="lineno"><a class="lineno" href="#L429">429</a></span>
+<span id="L430" class="lineno"><a class="lineno" href="#L430">430</a></span>
+<span id="L431" class="lineno"><a class="lineno" href="#L431">431</a></span>
+<span id="L432" class="lineno"><a class="lineno" href="#L432">432</a></span>
+<span id="L433" class="lineno"><a class="lineno" href="#L433">433</a></span>
+<span id="L434" class="lineno"><a class="lineno" href="#L434">434</a></span>
+<span id="L435" class="lineno"><a class="lineno" href="#L435">435</a></span>
+<span id="L436" class="lineno"><a class="lineno" href="#L436">436</a></span>
+<span id="L437" class="lineno"><a class="lineno" href="#L437">437</a></span>
+<span id="L438" class="lineno"><a class="lineno" href="#L438">438</a></span>
+<span id="L439" class="lineno"><a class="lineno" href="#L439">439</a></span>
+<span id="L440" class="lineno"><a class="lineno" href="#L440">440</a></span>
+<span id="L441" class="lineno"><a class="lineno" href="#L441">441</a></span>
+<span id="L442" class="lineno"><a class="lineno" href="#L442">442</a></span>
+<span id="L443" class="lineno"><a class="lineno" href="#L443">443</a></span>
+<span id="L444" class="lineno"><a class="lineno" href="#L444">444</a></span>
+<span id="L445" class="lineno"><a class="lineno" href="#L445">445</a></span>
+<span id="L446" class="lineno"><a class="lineno" href="#L446">446</a></span>
+<span id="L447" class="lineno"><a class="lineno" href="#L447">447</a></span>
+<span id="L448" class="lineno"><a class="lineno" href="#L448">448</a></span>
+<span id="L449" class="lineno"><a class="lineno" href="#L449">449</a></span>
+<span id="L450" class="lineno"><a class="lineno" href="#L450">450</a></span>
+<span id="L451" class="lineno"><a class="lineno" href="#L451">451</a></span>
+<span id="L452" class="lineno"><a class="lineno" href="#L452">452</a></span>
+<span id="L453" class="lineno"><a class="lineno" href="#L453">453</a></span>
+<span id="L454" class="lineno"><a class="lineno" href="#L454">454</a></span>
+<span id="L455" class="lineno"><a class="lineno" href="#L455">455</a></span>
+<span id="L456" class="lineno"><a class="lineno" href="#L456">456</a></span>
+<span id="L457" class="lineno"><a class="lineno" href="#L457">457</a></span>
+<span id="L458" class="lineno"><a class="lineno" href="#L458">458</a></span>
+<span id="L459" class="lineno"><a class="lineno" href="#L459">459</a></span>
+<span id="L460" class="lineno"><a class="lineno" href="#L460">460</a></span>
+<span id="L461" class="lineno"><a class="lineno" href="#L461">461</a></span>
+<span id="L462" class="lineno"><a class="lineno" href="#L462">462</a></span>
+<span id="L463" class="lineno"><a class="lineno" href="#L463">463</a></span>
+<span id="L464" class="lineno"><a class="lineno" href="#L464">464</a></span>
+<span id="L465" class="lineno"><a class="lineno" href="#L465">465</a></span>
+<span id="L466" class="lineno"><a class="lineno" href="#L466">466</a></span>
+<span id="L467" class="lineno"><a class="lineno" href="#L467">467</a></span>
+<span id="L468" class="lineno"><a class="lineno" href="#L468">468</a></span>
+<span id="L469" class="lineno"><a class="lineno" href="#L469">469</a></span>
+<span id="L470" class="lineno"><a class="lineno" href="#L470">470</a></span>
+<span id="L471" class="lineno"><a class="lineno" href="#L471">471</a></span>
+<span id="L472" class="lineno"><a class="lineno" href="#L472">472</a></span>
+<span id="L473" class="lineno"><a class="lineno" href="#L473">473</a></span>
+<span id="L474" class="lineno"><a class="lineno" href="#L474">474</a></span>
+<span id="L475" class="lineno"><a class="lineno" href="#L475">475</a></span>
+<span id="L476" class="lineno"><a class="lineno" href="#L476">476</a></span>
+<span id="L477" class="lineno"><a class="lineno" href="#L477">477</a></span>
+<span id="L478" class="lineno"><a class="lineno" href="#L478">478</a></span>
+<span id="L479" class="lineno"><a class="lineno" href="#L479">479</a></span>
+<span id="L480" class="lineno"><a class="lineno" href="#L480">480</a></span>
+<span id="L481" class="lineno"><a class="lineno" href="#L481">481</a></span>
+<span id="L482" class="lineno"><a class="lineno" href="#L482">482</a></span>
+<span id="L483" class="lineno"><a class="lineno" href="#L483">483</a></span>
+<span id="L484" class="lineno"><a class="lineno" href="#L484">484</a></span>
+<span id="L485" class="lineno"><a class="lineno" href="#L485">485</a></span>
+<span id="L486" class="lineno"><a class="lineno" href="#L486">486</a></span>
+<span id="L487" class="lineno"><a class="lineno" href="#L487">487</a></span>
+<span id="L488" class="lineno"><a class="lineno" href="#L488">488</a></span>
+<span id="L489" class="lineno"><a class="lineno" href="#L489">489</a></span>
+<span id="L490" class="lineno"><a class="lineno" href="#L490">490</a></span>
+<span id="L491" class="lineno"><a class="lineno" href="#L491">491</a></span>
+<span id="L492" class="lineno"><a class="lineno" href="#L492">492</a></span>
+<span id="L493" class="lineno"><a class="lineno" href="#L493">493</a></span>
+<span id="L494" class="lineno"><a class="lineno" href="#L494">494</a></span>
+<span id="L495" class="lineno"><a class="lineno" href="#L495">495</a></span>
+<span id="L496" class="lineno"><a class="lineno" href="#L496">496</a></span>
+<span id="L497" class="lineno"><a class="lineno" href="#L497">497</a></span>
+<span id="L498" class="lineno"><a class="lineno" href="#L498">498</a></span>
+<span id="L499" class="lineno"><a class="lineno" href="#L499">499</a></span>
+<span id="L500" class="lineno"><a class="lineno" href="#L500">500</a></span>
+<span id="L501" class="lineno"><a class="lineno" href="#L501">501</a></span>
+<span id="L502" class="lineno"><a class="lineno" href="#L502">502</a></span>
+<span id="L503" class="lineno"><a class="lineno" href="#L503">503</a></span>
+<span id="L504" class="lineno"><a class="lineno" href="#L504">504</a></span>
+<span id="L505" class="lineno"><a class="lineno" href="#L505">505</a></span>
+<span id="L506" class="lineno"><a class="lineno" href="#L506">506</a></span>
+<span id="L507" class="lineno"><a class="lineno" href="#L507">507</a></span>
+<span id="L508" class="lineno"><a class="lineno" href="#L508">508</a></span>
+<span id="L509" class="lineno"><a class="lineno" href="#L509">509</a></span>
+<span id="L510" class="lineno"><a class="lineno" href="#L510">510</a></span>
+<span id="L511" class="lineno"><a class="lineno" href="#L511">511</a></span>
+<span id="L512" class="lineno"><a class="lineno" href="#L512">512</a></span>
+<span id="L513" class="lineno"><a class="lineno" href="#L513">513</a></span>
+<span id="L514" class="lineno"><a class="lineno" href="#L514">514</a></span>
+<span id="L515" class="lineno"><a class="lineno" href="#L515">515</a></span>
+<span id="L516" class="lineno"><a class="lineno" href="#L516">516</a></span>
+<span id="L517" class="lineno"><a class="lineno" href="#L517">517</a></span>
+<span id="L518" class="lineno"><a class="lineno" href="#L518">518</a></span>
+<span id="L519" class="lineno"><a class="lineno" href="#L519">519</a></span>
+<span id="L520" class="lineno"><a class="lineno" href="#L520">520</a></span>
+<span id="L521" class="lineno"><a class="lineno" href="#L521">521</a></span>
+<span id="L522" class="lineno"><a class="lineno" href="#L522">522</a></span>
+<span id="L523" class="lineno"><a class="lineno" href="#L523">523</a></span>
+<span id="L524" class="lineno"><a class="lineno" href="#L524">524</a></span>
+<span id="L525" class="lineno"><a class="lineno" href="#L525">525</a></span>
+<span id="L526" class="lineno"><a class="lineno" href="#L526">526</a></span>
+<span id="L527" class="lineno"><a class="lineno" href="#L527">527</a></span>
+<span id="L528" class="lineno"><a class="lineno" href="#L528">528</a></span>
+<span id="L529" class="lineno"><a class="lineno" href="#L529">529</a></span>
+<span id="L530" class="lineno"><a class="lineno" href="#L530">530</a></span>
+<span id="L531" class="lineno"><a class="lineno" href="#L531">531</a></span>
+<span id="L532" class="lineno"><a class="lineno" href="#L532">532</a></span>
+<span id="L533" class="lineno"><a class="lineno" href="#L533">533</a></span>
+<span id="L534" class="lineno"><a class="lineno" href="#L534">534</a></span>
+<span id="L535" class="lineno"><a class="lineno" href="#L535">535</a></span>
+<span id="L536" class="lineno"><a class="lineno" href="#L536">536</a></span>
+<span id="L537" class="lineno"><a class="lineno" href="#L537">537</a></span>
+<span id="L538" class="lineno"><a class="lineno" href="#L538">538</a></span>
+<span id="L539" class="lineno"><a class="lineno" href="#L539">539</a></span>
+<span id="L540" class="lineno"><a class="lineno" href="#L540">540</a></span>
+<span id="L541" class="lineno"><a class="lineno" href="#L541">541</a></span>
+<span id="L542" class="lineno"><a class="lineno" href="#L542">542</a></span>
+<span id="L543" class="lineno"><a class="lineno" href="#L543">543</a></span>
+<span id="L544" class="lineno"><a class="lineno" href="#L544">544</a></span>
+<span id="L545" class="lineno"><a class="lineno" href="#L545">545</a></span>
+<span id="L546" class="lineno"><a class="lineno" href="#L546">546</a></span>
+<span id="L547" class="lineno"><a class="lineno" href="#L547">547</a></span>
+<span id="L548" class="lineno"><a class="lineno" href="#L548">548</a></span>
+<span id="L549" class="lineno"><a class="lineno" href="#L549">549</a></span>
+<span id="L550" class="lineno"><a class="lineno" href="#L550">550</a></span>
+<span id="L551" class="lineno"><a class="lineno" href="#L551">551</a></span>
+<span id="L552" class="lineno"><a class="lineno" href="#L552">552</a></span>
+<span id="L553" class="lineno"><a class="lineno" href="#L553">553</a></span>
+<span id="L554" class="lineno"><a class="lineno" href="#L554">554</a></span>
+<span id="L555" class="lineno"><a class="lineno" href="#L555">555</a></span>
+<span id="L556" class="lineno"><a class="lineno" href="#L556">556</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-precise" title="No Anys on this line!">from __future__ import unicode_literals</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from ctypes import windll, byref, ArgumentError, c_char, c_long, c_ulong, c_uint, pointer</span>
+<span class="line-precise" title="No Anys on this line!">from ctypes.wintypes import DWORD</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from prompt_toolkit.renderer import Output</span>
+<span class="line-any" title="No Anys on this line!">from prompt_toolkit.styles import ANSI_COLOR_NAMES</span>
+<span class="line-any" title="No Anys on this line!">from prompt_toolkit.win32_types import CONSOLE_SCREEN_BUFFER_INFO, STD_OUTPUT_HANDLE, STD_INPUT_HANDLE, COORD, SMALL_RECT</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import os</span>
+<span class="line-precise" title="No Anys on this line!">import six</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">__all__ = (</span>
+<span class="line-precise" title="No Anys on this line!">    'Win32Output',</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _coord_byval(coord):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Turns a COORD object into a c_long.</span>
+<span class="line-empty" title="No Anys on this line!">    This will cause it to be passed by value instead of by reference. (That is what I think at least.)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    When runing ``ptipython`` is run (only with IPython), we often got the following error::</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">         Error in 'SetConsoleCursorPosition'.</span>
+<span class="line-empty" title="No Anys on this line!">         ArgumentError("argument 2: &lt;class 'TypeError'&gt;: wrong type",)</span>
+<span class="line-empty" title="No Anys on this line!">     argument 2: &lt;class 'TypeError'&gt;: wrong type</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    It was solved by turning ``COORD`` parameters into a ``c_long`` like this.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    More info: http://msdn.microsoft.com/en-us/library/windows/desktop/ms686025(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">    return c_long(coord.Y * 0x10000 | coord.X &amp; 0xFFFF)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">#: If True: write the output of the renderer also to the following file. This</span>
+<span class="line-empty" title="No Anys on this line!">#: is very useful for debugging. (e.g.: to see that we don't write more bytes</span>
+<span class="line-empty" title="No Anys on this line!">#: than required.)</span>
+<span class="line-precise" title="No Anys on this line!">_DEBUG_RENDER_OUTPUT = False</span>
+<span class="line-precise" title="No Anys on this line!">_DEBUG_RENDER_OUTPUT_FILENAME = r'prompt-toolkit-windows-output.log'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class NoConsoleScreenBufferError(Exception):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Raised when the application is not running inside a Windows Console, but</span>
+<span class="line-empty" title="No Anys on this line!">    the user tries to instantiate Win32Output.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self):</span>
+<span class="line-empty" title="No Anys on this line!">        # Are we running in 'xterm' on Windows, like git-bash for instance?</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        xterm = 'xterm' in os.environ.get('TERM', '')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if xterm:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            message = ('Found %s, while expecting a Windows console. '</span>
+<span class="line-empty" title="No Anys on this line!">                       'Maybe try to run this program using "winpty" '</span>
+<span class="line-empty" title="No Anys on this line!">                       'or run it in cmd.exe instead. Or otherwise, '</span>
+<span class="line-empty" title="No Anys on this line!">                       'in case of Cygwin, use the Python executable '</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                       'that is compiled for Cygwin.' % os.environ['TERM'])</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            message = 'No Windows console found. Are you running cmd.exe?'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        super(NoConsoleScreenBufferError, self).__init__(message)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class Win32Output(Output):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    I/O abstraction for rendering to Windows consoles.</span>
+<span class="line-empty" title="No Anys on this line!">    (cmd.exe and similar.)</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, stdout, use_complete_width=False):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.use_complete_width = use_complete_width</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._buffer = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.stdout = stdout</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x2)">        self.hconsole = windll.kernel32.GetStdHandle(STD_OUTPUT_HANDLE)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._in_alternate_screen = False</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.color_lookup_table = ColorLookupTable()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Remember the default console colors.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        info = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.default_attrs = info.wAttributes if info else 15</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">        if _DEBUG_RENDER_OUTPUT:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">            self.LOG = open(_DEBUG_RENDER_OUTPUT_FILENAME, 'ab')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def fileno(self):</span>
+<span class="line-empty" title="No Anys on this line!">        " Return file descriptor. "</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self.stdout.fileno()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def encoding(self):</span>
+<span class="line-empty" title="No Anys on this line!">        " Return encoding used for stdout. "</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return self.stdout.encoding</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def write(self, data):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._buffer.append(data)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def write_raw(self, data):</span>
+<span class="line-empty" title="No Anys on this line!">        " For win32, there is no difference between write and write_raw. "</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self.write(data)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_size(self):</span>
+<span class="line-any" title="No Anys on this line!">        from prompt_toolkit.layout.screen import Size</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        info = self.get_win32_screen_buffer_info()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # We take the width of the *visible* region as the size. Not the width</span>
+<span class="line-empty" title="No Anys on this line!">        # of the complete screen buffer. (Unless use_complete_width has been</span>
+<span class="line-empty" title="No Anys on this line!">        # set.)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.use_complete_width:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            width = info.dwSize.X</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            width = info.srWindow.Right - info.srWindow.Left</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        height = info.srWindow.Bottom - info.srWindow.Top + 1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # We avoid the right margin, windows will wrap otherwise.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        maxwidth = info.dwSize.X - 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        width = min(maxwidth, width)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Create `Size` object.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        return Size(rows=height, columns=width)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _winapi(self, func, *a, **kw):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Flush and call win API function.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.flush()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">        if _DEBUG_RENDER_OUTPUT:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            self.LOG.write(('%r' % func.__name__).encode('utf-8') + b'\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">            self.LOG.write(b'     ' + ', '.join(['%r' % i for i in a]).encode('utf-8') + b'\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x13)
+Explicit (x1)">            self.LOG.write(b'     ' + ', '.join(['%r' % type(i) for i in a]).encode('utf-8') + b'\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.LOG.flush()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            return func(*a, **kw)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        except ArgumentError as e:</span>
+<span class="line-precise" title="No Anys on this line!">            if _DEBUG_RENDER_OUTPUT:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">                self.LOG.write(('    Error in %r %r %s\n' % (func.__name__, e, e)).encode('utf-8'))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_win32_screen_buffer_info(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Return Screen buffer info.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # NOTE: We don't call the `GetConsoleScreenBufferInfo` API through</span>
+<span class="line-empty" title="No Anys on this line!">        #     `self._winapi`. Doing so causes Python to crash on certain 64bit</span>
+<span class="line-empty" title="No Anys on this line!">        #     Python versions. (Reproduced with 64bit Python 2.7.6, on Windows</span>
+<span class="line-empty" title="No Anys on this line!">        #     10). It is not clear why. Possibly, it has to do with passing</span>
+<span class="line-empty" title="No Anys on this line!">        #     these objects as an argument, or through *args.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # The Python documentation contains the following - possibly related - warning:</span>
+<span class="line-empty" title="No Anys on this line!">        #     ctypes does not support passing unions or structures with</span>
+<span class="line-empty" title="No Anys on this line!">        #     bit-fields to functions by value. While this may work on 32-bit</span>
+<span class="line-empty" title="No Anys on this line!">        #     x86, it's not guaranteed by the library to work in the general</span>
+<span class="line-empty" title="No Anys on this line!">        #     case. Unions and structures with bit-fields should always be</span>
+<span class="line-empty" title="No Anys on this line!">        #     passed to functions by pointer.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Also see:</span>
+<span class="line-empty" title="No Anys on this line!">        #    - https://github.com/ipython/ipython/issues/10070</span>
+<span class="line-empty" title="No Anys on this line!">        #    - https://github.com/jonathanslenders/python-prompt-toolkit/issues/406</span>
+<span class="line-empty" title="No Anys on this line!">        #    - https://github.com/jonathanslenders/python-prompt-toolkit/issues/86</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.flush()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">        sbinfo = CONSOLE_SCREEN_BUFFER_INFO()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Unimported (x1)">        success = windll.kernel32.GetConsoleScreenBufferInfo(self.hconsole, byref(sbinfo))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # success = self._winapi(windll.kernel32.GetConsoleScreenBufferInfo,</span>
+<span class="line-empty" title="No Anys on this line!">        #                        self.hconsole, byref(sbinfo))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if success:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            return sbinfo</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-precise" title="No Anys on this line!">            raise NoConsoleScreenBufferError</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def set_title(self, title):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Set terminal title.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">        assert isinstance(title, six.text_type)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleTitleW, title)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def clear_title(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleTitleW, '')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def erase_screen(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">        start = COORD(0, 0)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        sbinfo = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        length = sbinfo.dwSize.X * sbinfo.dwSize.Y</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.cursor_goto(row=0, column=0)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._erase(start, length)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def erase_down(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        sbinfo = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        size = sbinfo.dwSize</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        start = sbinfo.dwCursorPosition</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x16)">        length = ((size.X - size.X) + size.X * (size.Y - sbinfo.dwCursorPosition.Y))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._erase(start, length)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def erase_end_of_line(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        sbinfo = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        start = sbinfo.dwCursorPosition</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        length = sbinfo.dwSize.X - sbinfo.dwCursorPosition.X</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._erase(start, length)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _erase(self, start, length):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        chars_written = c_ulong()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self._winapi(windll.kernel32.FillConsoleOutputCharacterA,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                     self.hconsole, c_char(b' '), DWORD(length), _coord_byval(start),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                     byref(chars_written))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Reset attributes.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        sbinfo = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self._winapi(windll.kernel32.FillConsoleOutputAttribute,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                     self.hconsole, sbinfo.wAttributes, length, _coord_byval(start),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                     byref(chars_written))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def reset_attributes(self):</span>
+<span class="line-empty" title="No Anys on this line!">        " Reset the console foreground/background color. "</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleTextAttribute, self.hconsole,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                     self.default_attrs)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def set_attributes(self, attrs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        fgcolor, bgcolor, bold, underline, italic, blink, reverse = attrs</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Start from the default attributes.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        attrs = self.default_attrs</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Override the last four bits: foreground color.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if fgcolor is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            attrs = attrs &amp; ~0xf</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            attrs |= self.color_lookup_table.lookup_fg_color(fgcolor)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Override the next four bits: background color.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if bgcolor is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            attrs = attrs &amp; ~0xf0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            attrs |= self.color_lookup_table.lookup_bg_color(bgcolor)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Reverse: swap these four bits groups.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if reverse:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">            attrs = (attrs &amp; ~0xff) | ((attrs &amp; 0xf) &lt;&lt; 4) | ((attrs &amp; 0xf0) &gt;&gt; 4)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleTextAttribute, self.hconsole, attrs)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def disable_autowrap(self):</span>
+<span class="line-empty" title="No Anys on this line!">        # Not supported by Windows.</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def enable_autowrap(self):</span>
+<span class="line-empty" title="No Anys on this line!">        # Not supported by Windows.</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def cursor_goto(self, row=0, column=0):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        pos = COORD(x=column, y=row)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleCursorPosition, self.hconsole, _coord_byval(pos))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def cursor_up(self, amount):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        sr = self.get_win32_screen_buffer_info().dwCursorPosition</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)
+Unimported (x1)">        pos = COORD(sr.X, sr.Y - amount)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleCursorPosition, self.hconsole, _coord_byval(pos))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def cursor_down(self, amount):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.cursor_up(-amount)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def cursor_forward(self, amount):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        sr = self.get_win32_screen_buffer_info().dwCursorPosition</span>
+<span class="line-empty" title="No Anys on this line!">#        assert sr.X + amount &gt;= 0, 'Negative cursor position: x=%r amount=%r' % (sr.X, amount)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Unimported (x1)">        pos = COORD(max(0, sr.X + amount), sr.Y)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleCursorPosition, self.hconsole, _coord_byval(pos))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def cursor_backward(self, amount):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.cursor_forward(-amount)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def flush(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Write to output stream and flush.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not self._buffer:</span>
+<span class="line-empty" title="No Anys on this line!">            # Only flush stdout buffer. (It could be that Python still has</span>
+<span class="line-empty" title="No Anys on this line!">            # something in its buffer. -- We want to be sure to print that in</span>
+<span class="line-empty" title="No Anys on this line!">            # the correct color.)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.stdout.flush()</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        data = ''.join(self._buffer)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">        if _DEBUG_RENDER_OUTPUT:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            self.LOG.write(('%r' % data).encode('utf-8') + b'\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.LOG.flush()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Print characters one by one. This appears to be the best soluton</span>
+<span class="line-empty" title="No Anys on this line!">        # in oder to avoid traces of vertical lines when the completion</span>
+<span class="line-empty" title="No Anys on this line!">        # menu disappears.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        for b in data:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            written = DWORD()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)
+Unimported (x1)">            retval = windll.kernel32.WriteConsoleW(self.hconsole, b, 1, byref(written), None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            assert retval != 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._buffer = []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_rows_below_cursor_position(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        info = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        return info.srWindow.Bottom - info.dwCursorPosition.Y + 1</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def scroll_buffer_to_prompt(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        To be called before drawing the prompt. This should scroll the console</span>
+<span class="line-empty" title="No Anys on this line!">        to left, with the cursor at the bottom (if possible).</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # Get current window size</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        info = self.get_win32_screen_buffer_info()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        sr = info.srWindow</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        cursor_pos = info.dwCursorPosition</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">        result = SMALL_RECT()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Scroll to the left.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        result.Left = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        result.Right = sr.Right - sr.Left</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Scroll vertical</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        win_height = sr.Bottom - sr.Top</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        if 0 &lt; sr.Bottom - cursor_pos.Y &lt; win_height - 1:</span>
+<span class="line-empty" title="No Anys on this line!">            # no vertical scroll if cursor already on the screen</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            result.Bottom = sr.Bottom</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            result.Bottom = max(win_height, cursor_pos.Y)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        result.Top = result.Bottom - win_height</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Scroll API</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleWindowInfo, self.hconsole, True, byref(result))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def enter_alternate_screen(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Go to alternate screen buffer.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not self._in_alternate_screen:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            GENERIC_READ = 0x80000000</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            GENERIC_WRITE = 0x40000000</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">            # Create a new console buffer and activate that one.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)
+Unimported (x1)">            handle = self._winapi(windll.kernel32.CreateConsoleScreenBuffer, GENERIC_READ|GENERIC_WRITE,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                                  DWORD(0), None, DWORD(1), None)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x1)">            self._winapi(windll.kernel32.SetConsoleActiveScreenBuffer, handle)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            self.hconsole = handle</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._in_alternate_screen = True</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def quit_alternate_screen(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Make stdout again the active buffer.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self._in_alternate_screen:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x2)">            stdout = self._winapi(windll.kernel32.GetStdHandle, STD_OUTPUT_HANDLE)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x1)">            self._winapi(windll.kernel32.SetConsoleActiveScreenBuffer, stdout)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x1)">            self._winapi(windll.kernel32.CloseHandle, self.hconsole)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            self.hconsole = stdout</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._in_alternate_screen = False</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def enable_mouse_support(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        ENABLE_MOUSE_INPUT = 0x10</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x2)">        handle = windll.kernel32.GetStdHandle(STD_INPUT_HANDLE)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        original_mode = DWORD()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Unimported (x1)">        self._winapi(windll.kernel32.GetConsoleMode, handle, pointer(original_mode))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleMode, handle, original_mode.value | ENABLE_MOUSE_INPUT)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def disable_mouse_support(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        ENABLE_MOUSE_INPUT = 0x10</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x2)">        handle = windll.kernel32.GetStdHandle(STD_INPUT_HANDLE)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        original_mode = DWORD()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Unimported (x1)">        self._winapi(windll.kernel32.GetConsoleMode, handle, pointer(original_mode))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)
+Unimported (x1)">        self._winapi(windll.kernel32.SetConsoleMode, handle, original_mode.value &amp; ~ ENABLE_MOUSE_INPUT)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def hide_cursor(self):</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def show_cursor(self):</span>
+<span class="line-any" title="No Anys on this line!">        pass</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def win32_refresh_window(cls):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Call win32 API to refresh the whole Window.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        This is sometimes necessary when the application paints background</span>
+<span class="line-empty" title="No Anys on this line!">        for completion menus. When the menu disappears, it leaves traces due</span>
+<span class="line-empty" title="No Anys on this line!">        to a bug in the Windows Console. Sending a repaint request solves it.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # Get console handle</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        handle = windll.kernel32.GetConsoleWindow()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        RDW_INVALIDATE = 0x0001</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Unimported (x1)">        windll.user32.RedrawWindow(handle, None, None, c_uint(RDW_INVALIDATE))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class FOREGROUND_COLOR:</span>
+<span class="line-precise" title="No Anys on this line!">    BLACK     = 0x0000</span>
+<span class="line-precise" title="No Anys on this line!">    BLUE      = 0x0001</span>
+<span class="line-precise" title="No Anys on this line!">    GREEN     = 0x0002</span>
+<span class="line-precise" title="No Anys on this line!">    CYAN      = 0x0003</span>
+<span class="line-precise" title="No Anys on this line!">    RED       = 0x0004</span>
+<span class="line-precise" title="No Anys on this line!">    MAGENTA   = 0x0005</span>
+<span class="line-precise" title="No Anys on this line!">    YELLOW    = 0x0006</span>
+<span class="line-precise" title="No Anys on this line!">    GRAY      = 0x0007</span>
+<span class="line-precise" title="No Anys on this line!">    INTENSITY = 0x0008  # Foreground color is intensified.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class BACKROUND_COLOR:</span>
+<span class="line-precise" title="No Anys on this line!">    BLACK     = 0x0000</span>
+<span class="line-precise" title="No Anys on this line!">    BLUE      = 0x0010</span>
+<span class="line-precise" title="No Anys on this line!">    GREEN     = 0x0020</span>
+<span class="line-precise" title="No Anys on this line!">    CYAN      = 0x0030</span>
+<span class="line-precise" title="No Anys on this line!">    RED       = 0x0040</span>
+<span class="line-precise" title="No Anys on this line!">    MAGENTA   = 0x0050</span>
+<span class="line-precise" title="No Anys on this line!">    YELLOW    = 0x0060</span>
+<span class="line-precise" title="No Anys on this line!">    GRAY      = 0x0070</span>
+<span class="line-precise" title="No Anys on this line!">    INTENSITY = 0x0080  # Background color is intensified.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _create_ansi_color_dict(color_cls):</span>
+<span class="line-empty" title="No Anys on this line!">    " Create a table that maps the 16 named ansi colors to their Windows code. "</span>
+<span class="line-empty" title="No Anys on this line!">    return {</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansidefault':   color_cls.BLACK,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansiblack':     color_cls.BLACK,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansidarkgray':  color_cls.BLACK | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansilightgray': color_cls.GRAY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansiwhite':     color_cls.GRAY | color_cls.INTENSITY,</span>
+<span class="line-empty" title="No Anys on this line!">        </span>
+<span class="line-empty" title="No Anys on this line!">        # Low intensity.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansidarkred':     color_cls.RED,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansidarkgreen':   color_cls.GREEN,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansibrown':       color_cls.YELLOW,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansidarkblue':    color_cls.BLUE,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansipurple':      color_cls.MAGENTA,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        'ansiteal':        color_cls.CYAN,</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # High intensity.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansired':        color_cls.RED | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansigreen':      color_cls.GREEN | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansiyellow':     color_cls.YELLOW | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansiblue':       color_cls.BLUE | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansifuchsia':    color_cls.MAGENTA | color_cls.INTENSITY,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        'ansiturquoise':  color_cls.CYAN | color_cls.INTENSITY,</span>
+<span class="line-empty" title="No Anys on this line!">    }</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">FG_ANSI_COLORS = _create_ansi_color_dict(FOREGROUND_COLOR)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">BG_ANSI_COLORS = _create_ansi_color_dict(BACKROUND_COLOR)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x4)">assert set(FG_ANSI_COLORS) == set(ANSI_COLOR_NAMES)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x4)">assert set(BG_ANSI_COLORS) == set(ANSI_COLOR_NAMES)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class ColorLookupTable(object):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Inspired by pygments/formatters/terminal256.py</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self._win32_colors = self._build_color_table()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self.best_match = {}  # Cache</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @staticmethod</span>
+<span class="line-any" title="No Anys on this line!">    def _build_color_table():</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Build an RGB-to-256 color conversion table</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        FG = FOREGROUND_COLOR</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        BG = BACKROUND_COLOR</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        return [</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0x00, 0x00, 0x00, FG.BLACK, BG.BLACK),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0x00, 0x00, 0xaa, FG.BLUE, BG.BLUE),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0x00, 0xaa, 0x00, FG.GREEN, BG.GREEN),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0x00, 0xaa, 0xaa, FG.CYAN, BG.CYAN),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0xaa, 0x00, 0x00, FG.RED, BG.RED),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0xaa, 0x00, 0xaa, FG.MAGENTA, BG.MAGENTA),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0xaa, 0xaa, 0x00, FG.YELLOW, BG.YELLOW),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            (0x88, 0x88, 0x88, FG.GRAY, BG.GRAY),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0x44, 0x44, 0xff, FG.BLUE | FG.INTENSITY, BG.BLUE | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0x44, 0xff, 0x44, FG.GREEN | FG.INTENSITY, BG.GREEN | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0x44, 0xff, 0xff, FG.CYAN | FG.INTENSITY, BG.CYAN | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0xff, 0x44, 0x44, FG.RED | FG.INTENSITY, BG.RED | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0xff, 0x44, 0xff, FG.MAGENTA | FG.INTENSITY, BG.MAGENTA | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0xff, 0xff, 0x44, FG.YELLOW | FG.INTENSITY, BG.YELLOW | BG.INTENSITY),</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0x44, 0x44, 0x44, FG.BLACK | FG.INTENSITY, BG.BLACK | BG.INTENSITY),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            (0xff, 0xff, 0xff, FG.GRAY | FG.INTENSITY, BG.GRAY | BG.INTENSITY),</span>
+<span class="line-empty" title="No Anys on this line!">        ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _closest_color(self, r, g, b):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        distance = 257 * 257 * 3  # "infinity" (&gt;distance from #000000 to #ffffff)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        fg_match = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        bg_match = 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        for r_, g_, b_, fg_, bg_ in self._win32_colors:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            rd = r - r_</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            gd = g - g_</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            bd = b - b_</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">            d = rd * rd + gd * gd + bd * bd</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            if d &lt; distance:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                fg_match = fg_</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                bg_match = bg_</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                distance = d</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return fg_match, bg_match</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _color_indexes(self, color):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        indexes = self.best_match.get(color, None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if indexes is None:</span>
+<span class="line-empty" title="No Anys on this line!">            try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                rgb = int(str(color), 16)</span>
+<span class="line-precise" title="No Anys on this line!">            except ValueError:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                rgb = 0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            r = (rgb &gt;&gt; 16) &amp; 0xff</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            g = (rgb &gt;&gt; 8) &amp; 0xff</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            b = rgb &amp; 0xff</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            indexes = self._closest_color(r, g, b)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.best_match[color] = indexes</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return indexes</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def lookup_fg_color(self, fg_color):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Return the color for use in the</span>
+<span class="line-empty" title="No Anys on this line!">        `windll.kernel32.SetConsoleTextAttribute` API call.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        :param fg_color: Foreground as text. E.g. 'ffffff' or 'red'</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # Foreground.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if fg_color in FG_ANSI_COLORS:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return FG_ANSI_COLORS[fg_color]</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            return self._color_indexes(fg_color)[0]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def lookup_bg_color(self, bg_color):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Return the color for use in the</span>
+<span class="line-empty" title="No Anys on this line!">        `windll.kernel32.SetConsoleTextAttribute` API call.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        :param bg_color: Background as text. E.g. 'ffffff' or 'red'</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # Background.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if bg_color in BG_ANSI_COLORS:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return BG_ANSI_COLORS[bg_color]</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            return self._color_indexes(bg_color)[1]</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,1193 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.pygments.formatters.latex</h2>
+<table>
+<caption>wandb/vendor/pygments/formatters/latex.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+<span id="L375" class="lineno"><a class="lineno" href="#L375">375</a></span>
+<span id="L376" class="lineno"><a class="lineno" href="#L376">376</a></span>
+<span id="L377" class="lineno"><a class="lineno" href="#L377">377</a></span>
+<span id="L378" class="lineno"><a class="lineno" href="#L378">378</a></span>
+<span id="L379" class="lineno"><a class="lineno" href="#L379">379</a></span>
+<span id="L380" class="lineno"><a class="lineno" href="#L380">380</a></span>
+<span id="L381" class="lineno"><a class="lineno" href="#L381">381</a></span>
+<span id="L382" class="lineno"><a class="lineno" href="#L382">382</a></span>
+<span id="L383" class="lineno"><a class="lineno" href="#L383">383</a></span>
+<span id="L384" class="lineno"><a class="lineno" href="#L384">384</a></span>
+<span id="L385" class="lineno"><a class="lineno" href="#L385">385</a></span>
+<span id="L386" class="lineno"><a class="lineno" href="#L386">386</a></span>
+<span id="L387" class="lineno"><a class="lineno" href="#L387">387</a></span>
+<span id="L388" class="lineno"><a class="lineno" href="#L388">388</a></span>
+<span id="L389" class="lineno"><a class="lineno" href="#L389">389</a></span>
+<span id="L390" class="lineno"><a class="lineno" href="#L390">390</a></span>
+<span id="L391" class="lineno"><a class="lineno" href="#L391">391</a></span>
+<span id="L392" class="lineno"><a class="lineno" href="#L392">392</a></span>
+<span id="L393" class="lineno"><a class="lineno" href="#L393">393</a></span>
+<span id="L394" class="lineno"><a class="lineno" href="#L394">394</a></span>
+<span id="L395" class="lineno"><a class="lineno" href="#L395">395</a></span>
+<span id="L396" class="lineno"><a class="lineno" href="#L396">396</a></span>
+<span id="L397" class="lineno"><a class="lineno" href="#L397">397</a></span>
+<span id="L398" class="lineno"><a class="lineno" href="#L398">398</a></span>
+<span id="L399" class="lineno"><a class="lineno" href="#L399">399</a></span>
+<span id="L400" class="lineno"><a class="lineno" href="#L400">400</a></span>
+<span id="L401" class="lineno"><a class="lineno" href="#L401">401</a></span>
+<span id="L402" class="lineno"><a class="lineno" href="#L402">402</a></span>
+<span id="L403" class="lineno"><a class="lineno" href="#L403">403</a></span>
+<span id="L404" class="lineno"><a class="lineno" href="#L404">404</a></span>
+<span id="L405" class="lineno"><a class="lineno" href="#L405">405</a></span>
+<span id="L406" class="lineno"><a class="lineno" href="#L406">406</a></span>
+<span id="L407" class="lineno"><a class="lineno" href="#L407">407</a></span>
+<span id="L408" class="lineno"><a class="lineno" href="#L408">408</a></span>
+<span id="L409" class="lineno"><a class="lineno" href="#L409">409</a></span>
+<span id="L410" class="lineno"><a class="lineno" href="#L410">410</a></span>
+<span id="L411" class="lineno"><a class="lineno" href="#L411">411</a></span>
+<span id="L412" class="lineno"><a class="lineno" href="#L412">412</a></span>
+<span id="L413" class="lineno"><a class="lineno" href="#L413">413</a></span>
+<span id="L414" class="lineno"><a class="lineno" href="#L414">414</a></span>
+<span id="L415" class="lineno"><a class="lineno" href="#L415">415</a></span>
+<span id="L416" class="lineno"><a class="lineno" href="#L416">416</a></span>
+<span id="L417" class="lineno"><a class="lineno" href="#L417">417</a></span>
+<span id="L418" class="lineno"><a class="lineno" href="#L418">418</a></span>
+<span id="L419" class="lineno"><a class="lineno" href="#L419">419</a></span>
+<span id="L420" class="lineno"><a class="lineno" href="#L420">420</a></span>
+<span id="L421" class="lineno"><a class="lineno" href="#L421">421</a></span>
+<span id="L422" class="lineno"><a class="lineno" href="#L422">422</a></span>
+<span id="L423" class="lineno"><a class="lineno" href="#L423">423</a></span>
+<span id="L424" class="lineno"><a class="lineno" href="#L424">424</a></span>
+<span id="L425" class="lineno"><a class="lineno" href="#L425">425</a></span>
+<span id="L426" class="lineno"><a class="lineno" href="#L426">426</a></span>
+<span id="L427" class="lineno"><a class="lineno" href="#L427">427</a></span>
+<span id="L428" class="lineno"><a class="lineno" href="#L428">428</a></span>
+<span id="L429" class="lineno"><a class="lineno" href="#L429">429</a></span>
+<span id="L430" class="lineno"><a class="lineno" href="#L430">430</a></span>
+<span id="L431" class="lineno"><a class="lineno" href="#L431">431</a></span>
+<span id="L432" class="lineno"><a class="lineno" href="#L432">432</a></span>
+<span id="L433" class="lineno"><a class="lineno" href="#L433">433</a></span>
+<span id="L434" class="lineno"><a class="lineno" href="#L434">434</a></span>
+<span id="L435" class="lineno"><a class="lineno" href="#L435">435</a></span>
+<span id="L436" class="lineno"><a class="lineno" href="#L436">436</a></span>
+<span id="L437" class="lineno"><a class="lineno" href="#L437">437</a></span>
+<span id="L438" class="lineno"><a class="lineno" href="#L438">438</a></span>
+<span id="L439" class="lineno"><a class="lineno" href="#L439">439</a></span>
+<span id="L440" class="lineno"><a class="lineno" href="#L440">440</a></span>
+<span id="L441" class="lineno"><a class="lineno" href="#L441">441</a></span>
+<span id="L442" class="lineno"><a class="lineno" href="#L442">442</a></span>
+<span id="L443" class="lineno"><a class="lineno" href="#L443">443</a></span>
+<span id="L444" class="lineno"><a class="lineno" href="#L444">444</a></span>
+<span id="L445" class="lineno"><a class="lineno" href="#L445">445</a></span>
+<span id="L446" class="lineno"><a class="lineno" href="#L446">446</a></span>
+<span id="L447" class="lineno"><a class="lineno" href="#L447">447</a></span>
+<span id="L448" class="lineno"><a class="lineno" href="#L448">448</a></span>
+<span id="L449" class="lineno"><a class="lineno" href="#L449">449</a></span>
+<span id="L450" class="lineno"><a class="lineno" href="#L450">450</a></span>
+<span id="L451" class="lineno"><a class="lineno" href="#L451">451</a></span>
+<span id="L452" class="lineno"><a class="lineno" href="#L452">452</a></span>
+<span id="L453" class="lineno"><a class="lineno" href="#L453">453</a></span>
+<span id="L454" class="lineno"><a class="lineno" href="#L454">454</a></span>
+<span id="L455" class="lineno"><a class="lineno" href="#L455">455</a></span>
+<span id="L456" class="lineno"><a class="lineno" href="#L456">456</a></span>
+<span id="L457" class="lineno"><a class="lineno" href="#L457">457</a></span>
+<span id="L458" class="lineno"><a class="lineno" href="#L458">458</a></span>
+<span id="L459" class="lineno"><a class="lineno" href="#L459">459</a></span>
+<span id="L460" class="lineno"><a class="lineno" href="#L460">460</a></span>
+<span id="L461" class="lineno"><a class="lineno" href="#L461">461</a></span>
+<span id="L462" class="lineno"><a class="lineno" href="#L462">462</a></span>
+<span id="L463" class="lineno"><a class="lineno" href="#L463">463</a></span>
+<span id="L464" class="lineno"><a class="lineno" href="#L464">464</a></span>
+<span id="L465" class="lineno"><a class="lineno" href="#L465">465</a></span>
+<span id="L466" class="lineno"><a class="lineno" href="#L466">466</a></span>
+<span id="L467" class="lineno"><a class="lineno" href="#L467">467</a></span>
+<span id="L468" class="lineno"><a class="lineno" href="#L468">468</a></span>
+<span id="L469" class="lineno"><a class="lineno" href="#L469">469</a></span>
+<span id="L470" class="lineno"><a class="lineno" href="#L470">470</a></span>
+<span id="L471" class="lineno"><a class="lineno" href="#L471">471</a></span>
+<span id="L472" class="lineno"><a class="lineno" href="#L472">472</a></span>
+<span id="L473" class="lineno"><a class="lineno" href="#L473">473</a></span>
+<span id="L474" class="lineno"><a class="lineno" href="#L474">474</a></span>
+<span id="L475" class="lineno"><a class="lineno" href="#L475">475</a></span>
+<span id="L476" class="lineno"><a class="lineno" href="#L476">476</a></span>
+<span id="L477" class="lineno"><a class="lineno" href="#L477">477</a></span>
+<span id="L478" class="lineno"><a class="lineno" href="#L478">478</a></span>
+<span id="L479" class="lineno"><a class="lineno" href="#L479">479</a></span>
+<span id="L480" class="lineno"><a class="lineno" href="#L480">480</a></span>
+<span id="L481" class="lineno"><a class="lineno" href="#L481">481</a></span>
+<span id="L482" class="lineno"><a class="lineno" href="#L482">482</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">    pygments.formatters.latex</span>
+<span class="line-empty" title="No Anys on this line!">    ~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Formatter for LaTeX fancyvrb output.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :copyright: Copyright 2006-2017 by the Pygments team, see AUTHORS.</span>
+<span class="line-empty" title="No Anys on this line!">    :license: BSD, see LICENSE for details.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import division</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from pygments.formatter import Formatter</span>
+<span class="line-any" title="No Anys on this line!">from pygments.lexer import Lexer</span>
+<span class="line-any" title="No Anys on this line!">from pygments.token import Token, STANDARD_TYPES</span>
+<span class="line-any" title="No Anys on this line!">from pygments.util import get_bool_opt, get_int_opt, StringIO, xrange, \</span>
+<span class="line-empty" title="No Anys on this line!">    iteritems</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">__all__ = ['LatexFormatter']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def escape_tex(text, commandprefix):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x37)">    return text.replace('\\', '\x00'). \</span>
+<span class="line-any" title="No Anys on this line!">                replace('{', '\x01'). \</span>
+<span class="line-any" title="No Anys on this line!">                replace('}', '\x02'). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('\x00', r'\%sZbs{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('\x01', r'\%sZob{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('\x02', r'\%sZcb{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('^', r'\%sZca{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('_', r'\%sZus{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('&amp;', r'\%sZam{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('&lt;', r'\%sZlt{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('&gt;', r'\%sZgt{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('#', r'\%sZsh{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('%', r'\%sZpc{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('$', r'\%sZdl{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('-', r'\%sZhy{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace("'", r'\%sZsq{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('"', r'\%sZdq{}' % commandprefix). \</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                replace('~', r'\%sZti{}' % commandprefix)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">DOC_TEMPLATE = r'''</span>
+<span class="line-empty" title="No Anys on this line!">\documentclass{%(docclass)s}</span>
+<span class="line-empty" title="No Anys on this line!">\usepackage{fancyvrb}</span>
+<span class="line-empty" title="No Anys on this line!">\usepackage{color}</span>
+<span class="line-empty" title="No Anys on this line!">\usepackage[%(encoding)s]{inputenc}</span>
+<span class="line-empty" title="No Anys on this line!">%(preamble)s</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">%(styledefs)s</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">\begin{document}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">\section*{%(title)s}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">%(code)s</span>
+<span class="line-empty" title="No Anys on this line!">\end{document}</span>
+<span class="line-empty" title="No Anys on this line!">'''</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">## Small explanation of the mess below :)</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># The previous version of the LaTeX formatter just assigned a command to</span>
+<span class="line-empty" title="No Anys on this line!"># each token type defined in the current style.  That obviously is</span>
+<span class="line-empty" title="No Anys on this line!"># problematic if the highlighted code is produced for a different style</span>
+<span class="line-empty" title="No Anys on this line!"># than the style commands themselves.</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># This version works much like the HTML formatter which assigns multiple</span>
+<span class="line-empty" title="No Anys on this line!"># CSS classes to each &lt;span&gt; tag, from the most specific to the least</span>
+<span class="line-empty" title="No Anys on this line!"># specific token type, thus falling back to the parent token type if one</span>
+<span class="line-empty" title="No Anys on this line!"># is not defined.  Here, the classes are there too and use the same short</span>
+<span class="line-empty" title="No Anys on this line!"># forms given in token.STANDARD_TYPES.</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># Highlighted code now only uses one custom command, which by default is</span>
+<span class="line-empty" title="No Anys on this line!"># \PY and selectable by the commandprefix option (and in addition the</span>
+<span class="line-empty" title="No Anys on this line!"># escapes \PYZat, \PYZlb and \PYZrb which haven't been renamed for</span>
+<span class="line-empty" title="No Anys on this line!"># backwards compatibility purposes).</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># \PY has two arguments: the classes, separated by +, and the text to</span>
+<span class="line-empty" title="No Anys on this line!"># render in that style.  The classes are resolved into the respective</span>
+<span class="line-empty" title="No Anys on this line!"># style commands by magic, which serves to ignore unknown classes.</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># The magic macros are:</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY@it, \PY@bf, etc. are unconditionally wrapped around the text</span>
+<span class="line-empty" title="No Anys on this line!">#   to render in \PY@do.  Their definition determines the style.</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY@reset resets \PY@it etc. to do nothing.</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY@toks parses the list of classes, using magic inspired by the</span>
+<span class="line-empty" title="No Anys on this line!">#   keyval package (but modified to use plusses instead of commas</span>
+<span class="line-empty" title="No Anys on this line!">#   because fancyvrb redefines commas inside its environments).</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY@tok processes one class, calling the \PY@tok@classname command</span>
+<span class="line-empty" title="No Anys on this line!">#   if it exists.</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY@tok@classname sets the \PY@it etc. to reflect the chosen style</span>
+<span class="line-empty" title="No Anys on this line!">#   for its class.</span>
+<span class="line-empty" title="No Anys on this line!"># * \PY resets the style, parses the classnames and then calls \PY@do.</span>
+<span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># Tip: to read this code, print it out in substituted form using e.g.</span>
+<span class="line-empty" title="No Anys on this line!"># &gt;&gt;&gt; print STYLE_TEMPLATE % {'cp': 'PY'}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">STYLE_TEMPLATE = r'''</span>
+<span class="line-empty" title="No Anys on this line!">\makeatletter</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)s@reset{\let\%(cp)s@it=\relax \let\%(cp)s@bf=\relax%%</span>
+<span class="line-empty" title="No Anys on this line!">    \let\%(cp)s@ul=\relax \let\%(cp)s@tc=\relax%%</span>
+<span class="line-empty" title="No Anys on this line!">    \let\%(cp)s@bc=\relax \let\%(cp)s@ff=\relax}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)s@tok#1{\csname %(cp)s@tok@#1\endcsname}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)s@toks#1+{\ifx\relax#1\empty\else%%</span>
+<span class="line-empty" title="No Anys on this line!">    \%(cp)s@tok{#1}\expandafter\%(cp)s@toks\fi}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)s@do#1{\%(cp)s@bc{\%(cp)s@tc{\%(cp)s@ul{%%</span>
+<span class="line-empty" title="No Anys on this line!">    \%(cp)s@it{\%(cp)s@bf{\%(cp)s@ff{#1}}}}}}}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)s#1#2{\%(cp)s@reset\%(cp)s@toks#1+\relax+\%(cp)s@do{#2}}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">%(styles)s</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZbs{\char`\\}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZus{\char`\_}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZob{\char`\{}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZcb{\char`\}}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZca{\char`\^}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZam{\char`\&amp;}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZlt{\char`\&lt;}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZgt{\char`\&gt;}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZsh{\char`\#}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZpc{\char`\%%}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZdl{\char`\$}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZhy{\char`\-}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZsq{\char`\'}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZdq{\char`\"}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZti{\char`\~}</span>
+<span class="line-empty" title="No Anys on this line!">%% for compatibility with earlier versions</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZat{@}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZlb{[}</span>
+<span class="line-empty" title="No Anys on this line!">\def\%(cp)sZrb{]}</span>
+<span class="line-empty" title="No Anys on this line!">\makeatother</span>
+<span class="line-empty" title="No Anys on this line!">'''</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def _get_ttype_name(ttype):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">    fname = STANDARD_TYPES.get(ttype)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if fname:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return fname</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    aname = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    while fname is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        aname = ttype[-1] + aname</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        ttype = ttype.parent</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        fname = STANDARD_TYPES.get(ttype)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    return fname + aname</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class LatexFormatter(Formatter):</span>
+<span class="line-empty" title="No Anys on this line!">    r"""</span>
+<span class="line-empty" title="No Anys on this line!">    Format tokens as LaTeX code. This needs the `fancyvrb` and `color`</span>
+<span class="line-empty" title="No Anys on this line!">    standard packages.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Without the `full` option, code is formatted as one ``Verbatim``</span>
+<span class="line-empty" title="No Anys on this line!">    environment, like this:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    .. sourcecode:: latex</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        \begin{Verbatim}[commandchars=\\\{\}]</span>
+<span class="line-empty" title="No Anys on this line!">        \PY{k}{def }\PY{n+nf}{foo}(\PY{n}{bar}):</span>
+<span class="line-empty" title="No Anys on this line!">            \PY{k}{pass}</span>
+<span class="line-empty" title="No Anys on this line!">        \end{Verbatim}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The special command used here (``\PY``) and all the other macros it needs</span>
+<span class="line-empty" title="No Anys on this line!">    are output by the `get_style_defs` method.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    With the `full` option, a complete LaTeX document is output, including</span>
+<span class="line-empty" title="No Anys on this line!">    the command definitions in the preamble.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    The `get_style_defs()` method of a `LatexFormatter` returns a string</span>
+<span class="line-empty" title="No Anys on this line!">    containing ``\def`` commands defining the macros needed inside the</span>
+<span class="line-empty" title="No Anys on this line!">    ``Verbatim`` environments.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Additional options accepted:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `style`</span>
+<span class="line-empty" title="No Anys on this line!">        The style to use, can be a string or a Style subclass (default:</span>
+<span class="line-empty" title="No Anys on this line!">        ``'default'``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `full`</span>
+<span class="line-empty" title="No Anys on this line!">        Tells the formatter to output a "full" document, i.e. a complete</span>
+<span class="line-empty" title="No Anys on this line!">        self-contained document (default: ``False``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `title`</span>
+<span class="line-empty" title="No Anys on this line!">        If `full` is true, the title that should be used to caption the</span>
+<span class="line-empty" title="No Anys on this line!">        document (default: ``''``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `docclass`</span>
+<span class="line-empty" title="No Anys on this line!">        If the `full` option is enabled, this is the document class to use</span>
+<span class="line-empty" title="No Anys on this line!">        (default: ``'article'``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `preamble`</span>
+<span class="line-empty" title="No Anys on this line!">        If the `full` option is enabled, this can be further preamble commands,</span>
+<span class="line-empty" title="No Anys on this line!">        e.g. ``\usepackage`` (default: ``''``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `linenos`</span>
+<span class="line-empty" title="No Anys on this line!">        If set to ``True``, output line numbers (default: ``False``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `linenostart`</span>
+<span class="line-empty" title="No Anys on this line!">        The line number for the first line (default: ``1``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `linenostep`</span>
+<span class="line-empty" title="No Anys on this line!">        If set to a number n &gt; 1, only every nth line number is printed.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `verboptions`</span>
+<span class="line-empty" title="No Anys on this line!">        Additional options given to the Verbatim environment (see the *fancyvrb*</span>
+<span class="line-empty" title="No Anys on this line!">        docs for possible values) (default: ``''``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `commandprefix`</span>
+<span class="line-empty" title="No Anys on this line!">        The LaTeX commands used to produce colored output are constructed</span>
+<span class="line-empty" title="No Anys on this line!">        using this prefix and some letters (default: ``'PY'``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        .. versionadded:: 0.7</span>
+<span class="line-empty" title="No Anys on this line!">        .. versionchanged:: 0.10</span>
+<span class="line-empty" title="No Anys on this line!">           The default is now ``'PY'`` instead of ``'C'``.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `texcomments`</span>
+<span class="line-empty" title="No Anys on this line!">        If set to ``True``, enables LaTeX comment lines.  That is, LaTex markup</span>
+<span class="line-empty" title="No Anys on this line!">        in comment tokens is not escaped so that LaTeX can render it (default:</span>
+<span class="line-empty" title="No Anys on this line!">        ``False``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        .. versionadded:: 1.2</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `mathescape`</span>
+<span class="line-empty" title="No Anys on this line!">        If set to ``True``, enables LaTeX math mode escape in comments. That</span>
+<span class="line-empty" title="No Anys on this line!">        is, ``'$...$'`` inside a comment will trigger math mode (default:</span>
+<span class="line-empty" title="No Anys on this line!">        ``False``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        .. versionadded:: 1.2</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `escapeinside`</span>
+<span class="line-empty" title="No Anys on this line!">        If set to a string of length 2, enables escaping to LaTeX. Text</span>
+<span class="line-empty" title="No Anys on this line!">        delimited by these 2 characters is read as LaTeX code and</span>
+<span class="line-empty" title="No Anys on this line!">        typeset accordingly. It has no effect in string literals. It has</span>
+<span class="line-empty" title="No Anys on this line!">        no effect in comments if `texcomments` or `mathescape` is</span>
+<span class="line-empty" title="No Anys on this line!">        set. (default: ``''``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        .. versionadded:: 2.0</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    `envname`</span>
+<span class="line-empty" title="No Anys on this line!">        Allows you to pick an alternative environment name replacing Verbatim.</span>
+<span class="line-empty" title="No Anys on this line!">        The alternate environment still has to support Verbatim's option syntax.</span>
+<span class="line-empty" title="No Anys on this line!">        (default: ``'Verbatim'``).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        .. versionadded:: 2.0</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    name = 'LaTeX'</span>
+<span class="line-precise" title="No Anys on this line!">    aliases = ['latex', 'tex']</span>
+<span class="line-precise" title="No Anys on this line!">    filenames = ['*.tex']</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, **options):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        Formatter.__init__(self, **options)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.docclass = options.get('docclass', 'article')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.preamble = options.get('preamble', '')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        self.linenos = get_bool_opt(options, 'linenos', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self.linenostart = abs(get_int_opt(options, 'linenostart', 1))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        self.linenostep = abs(get_int_opt(options, 'linenostep', 1))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.verboptions = options.get('verboptions', '')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        self.nobackground = get_bool_opt(options, 'nobackground', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.commandprefix = options.get('commandprefix', 'PY')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        self.texcomments = get_bool_opt(options, 'texcomments', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        self.mathescape = get_bool_opt(options, 'mathescape', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.escapeinside = options.get('escapeinside', '')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if len(self.escapeinside) == 2:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.left = self.escapeinside[0]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            self.right = self.escapeinside[1]</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self.escapeinside = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self.envname = options.get('envname', u'Verbatim')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._create_stylesheet()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _create_stylesheet(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)
+Unannotated (x2)">        t2n = self.ttype2name = {Token: ''}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        c2d = self.cmd2def = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        cp = self.commandprefix</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def rgbcolor(col):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if col:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x12)">                return ','.join(['%.2f' % (int(col[i] + col[i + 1], 16) / 255.0)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                                 for i in (0, 2, 4)])</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="No Anys on this line!">                return '1,1,1'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        for ttype, ndef in self.style:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            name = _get_ttype_name(ttype)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            cmndef = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['bold']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@bf=\textbf'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['italic']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@it=\textit'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['underline']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@ul=\underline'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['roman']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@ff=\textrm'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['sans']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@ff=\textsf'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['mono']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += r'\let\$$@ff=\textsf'</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['color']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += (r'\def\$$@tc##1{\textcolor[rgb]{%s}{##1}}' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                           rgbcolor(ndef['color']))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if ndef['border']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += (r'\def\$$@bc##1{\setlength{\fboxsep}{0pt}'</span>
+<span class="line-empty" title="No Anys on this line!">                           r'\fcolorbox[rgb]{%s}{%s}{\strut ##1}}' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                           (rgbcolor(ndef['border']),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                            rgbcolor(ndef['bgcolor'])))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            elif ndef['bgcolor']:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                cmndef += (r'\def\$$@bc##1{\setlength{\fboxsep}{0pt}'</span>
+<span class="line-empty" title="No Anys on this line!">                           r'\colorbox[rgb]{%s}{\strut ##1}}' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                           rgbcolor(ndef['bgcolor']))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if cmndef == '':</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            cmndef = cmndef.replace('$$', cp)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            t2n[ttype] = name</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            c2d[name] = cmndef</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_style_defs(self, arg=''):</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        Return the command sequences needed to define the commands</span>
+<span class="line-empty" title="No Anys on this line!">        used to format text in the verbatim environment. ``arg`` is ignored.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        cp = self.commandprefix</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        styles = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">        for name, definition in iteritems(self.cmd2def):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            styles.append(r'\expandafter\def\csname %s@tok@%s\endcsname{%s}' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                          (cp, name, definition))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return STYLE_TEMPLATE % {'cp': self.commandprefix,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                                 'styles': '\n'.join(styles)}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def format_unencoded(self, tokensource, outfile):</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO: add support for background colors</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        t2n = self.ttype2name</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        cp = self.commandprefix</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.full:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            realoutfile = outfile</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">            outfile = StringIO()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        outfile.write(u'\\begin{' + self.envname + u'}[commandchars=\\\\\\{\\}')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.linenos:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            start, step = self.linenostart, self.linenostep</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            outfile.write(u',numbers=left' +</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                          (start and u',firstnumber=%d' % start or u'') +</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                          (step and u',stepnumber=%d' % step or u''))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        if self.mathescape or self.texcomments or self.escapeinside:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            outfile.write(u',codes={\\catcode`\\$=3\\catcode`\\^=7\\catcode`\\_=8}')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.verboptions:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            outfile.write(u',' + self.verboptions)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        outfile.write(u']\n')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        for ttype, value in tokensource:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">            if ttype in Token.Comment:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if self.texcomments:</span>
+<span class="line-empty" title="No Anys on this line!">                    # Try to guess comment starting lexeme and escape it ...</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    start = value[0:1]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Unimported (x1)">                    for i in xrange(1, len(value)):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                        if start[0] != value[i]:</span>
+<span class="line-any" title="No Anys on this line!">                            break</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                        start += value[i]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    value = value[len(start):]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                    start = escape_tex(start, cp)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">                    # ... but do not escape inside comment.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    value = start + value</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                elif self.mathescape:</span>
+<span class="line-empty" title="No Anys on this line!">                    # Only escape parts not inside a math environment.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    parts = value.split('$')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    in_math = False</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    for i, part in enumerate(parts):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        if not in_math:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                            parts[i] = escape_tex(part, cp)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        in_math = not in_math</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    value = '$'.join(parts)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                elif self.escapeinside:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    text = value</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    value = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    while text:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                        a, sep1, text = text.partition(self.left)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        if sep1:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                            b, sep2, text = text.partition(self.right)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                            if sep2:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">                                value += escape_tex(a, cp) + b</span>
+<span class="line-empty" title="No Anys on this line!">                            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">                                value += escape_tex(a + sep1 + b, cp)</span>
+<span class="line-empty" title="No Anys on this line!">                        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                            value += escape_tex(a, cp)</span>
+<span class="line-empty" title="No Anys on this line!">                else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                    value = escape_tex(value, cp)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">            elif ttype not in Token.Escape:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                value = escape_tex(value, cp)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            styles = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)
+Unimported (x1)">            while ttype is not Token:</span>
+<span class="line-empty" title="No Anys on this line!">                try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                    styles.append(t2n[ttype])</span>
+<span class="line-precise" title="No Anys on this line!">                except KeyError:</span>
+<span class="line-empty" title="No Anys on this line!">                    # not in current style</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                    styles.append(_get_ttype_name(ttype))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                ttype = ttype.parent</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            styleval = '+'.join(reversed(styles))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if styleval:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                spl = value.split('\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                for line in spl[:-1]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    if line:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                        outfile.write("\\%s{%s}{%s}" % (cp, styleval, line))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    outfile.write('\n')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                if spl[-1]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                    outfile.write("\\%s{%s}{%s}" % (cp, styleval, spl[-1]))</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                outfile.write(value)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        outfile.write(u'\\end{' + self.envname + u'}\n')</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self.full:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            encoding = self.encoding or 'utf8'</span>
+<span class="line-empty" title="No Anys on this line!">            # map known existings encodings from LaTeX distribution</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            encoding = {</span>
+<span class="line-any" title="No Anys on this line!">                'utf_8': 'utf8',</span>
+<span class="line-any" title="No Anys on this line!">                'latin_1': 'latin1',</span>
+<span class="line-any" title="No Anys on this line!">                'iso_8859_1': 'latin1',</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            }.get(encoding.replace('-', '_'), encoding)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            realoutfile.write(DOC_TEMPLATE %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                dict(docclass  = self.docclass,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                     preamble  = self.preamble,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                     title     = self.title,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                     encoding  = encoding,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                     styledefs = self.get_style_defs(),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                     code      = outfile.getvalue()))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class LatexEmbeddedLexer(Lexer):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    This lexer takes one lexer as argument, the lexer for the language</span>
+<span class="line-empty" title="No Anys on this line!">    being formatted, and the left and right delimiters for escaped text.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    First everything is scanned using the language lexer to obtain</span>
+<span class="line-empty" title="No Anys on this line!">    strings and comments. All other consecutive tokens are merged and</span>
+<span class="line-empty" title="No Anys on this line!">    the resulting text is scanned for escaped segments, which are given</span>
+<span class="line-empty" title="No Anys on this line!">    the Token.Escape type. Finally text that is not escaped is scanned</span>
+<span class="line-empty" title="No Anys on this line!">    again with the language lexer.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, left, right, lang, **options):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.left = left</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.right = right</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self.lang = lang</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">        Lexer.__init__(self, **options)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_tokens_unprocessed(self, text):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        buf = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        idx = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        for i, t, v in self.lang.get_tokens_unprocessed(text):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Unimported (x2)">            if t in Token.Comment or t in Token.String:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if buf:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    for x in self.get_tokens_aux(idx, buf):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        yield x</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    buf = ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                yield i, t, v</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if not buf:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    idx = i</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                buf += v</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if buf:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            for x in self.get_tokens_aux(idx, buf):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                yield x</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_tokens_aux(self, index, text):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        while text:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            a, sep1, text = text.partition(self.left)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if a:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                for i, t, v in self.lang.get_tokens_unprocessed(a):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    yield index + i, t, v</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    index += len(a)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if sep1:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                b, sep2, text = text.partition(self.right)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if sep2:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Unimported (x1)">                    yield index + len(sep1), Token.Escape, b</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">                    index += len(sep1) + len(b) + len(sep2)</span>
+<span class="line-empty" title="No Anys on this line!">                else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Unimported (x1)">                    yield index, Token.Error, sep1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    index += len(sep1)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    text = b</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

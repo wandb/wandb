@@ -1,0 +1,1482 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.wandb_torch</h2>
+<table>
+<caption>wandb/wandb_torch.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+<span id="L181" class="lineno"><a class="lineno" href="#L181">181</a></span>
+<span id="L182" class="lineno"><a class="lineno" href="#L182">182</a></span>
+<span id="L183" class="lineno"><a class="lineno" href="#L183">183</a></span>
+<span id="L184" class="lineno"><a class="lineno" href="#L184">184</a></span>
+<span id="L185" class="lineno"><a class="lineno" href="#L185">185</a></span>
+<span id="L186" class="lineno"><a class="lineno" href="#L186">186</a></span>
+<span id="L187" class="lineno"><a class="lineno" href="#L187">187</a></span>
+<span id="L188" class="lineno"><a class="lineno" href="#L188">188</a></span>
+<span id="L189" class="lineno"><a class="lineno" href="#L189">189</a></span>
+<span id="L190" class="lineno"><a class="lineno" href="#L190">190</a></span>
+<span id="L191" class="lineno"><a class="lineno" href="#L191">191</a></span>
+<span id="L192" class="lineno"><a class="lineno" href="#L192">192</a></span>
+<span id="L193" class="lineno"><a class="lineno" href="#L193">193</a></span>
+<span id="L194" class="lineno"><a class="lineno" href="#L194">194</a></span>
+<span id="L195" class="lineno"><a class="lineno" href="#L195">195</a></span>
+<span id="L196" class="lineno"><a class="lineno" href="#L196">196</a></span>
+<span id="L197" class="lineno"><a class="lineno" href="#L197">197</a></span>
+<span id="L198" class="lineno"><a class="lineno" href="#L198">198</a></span>
+<span id="L199" class="lineno"><a class="lineno" href="#L199">199</a></span>
+<span id="L200" class="lineno"><a class="lineno" href="#L200">200</a></span>
+<span id="L201" class="lineno"><a class="lineno" href="#L201">201</a></span>
+<span id="L202" class="lineno"><a class="lineno" href="#L202">202</a></span>
+<span id="L203" class="lineno"><a class="lineno" href="#L203">203</a></span>
+<span id="L204" class="lineno"><a class="lineno" href="#L204">204</a></span>
+<span id="L205" class="lineno"><a class="lineno" href="#L205">205</a></span>
+<span id="L206" class="lineno"><a class="lineno" href="#L206">206</a></span>
+<span id="L207" class="lineno"><a class="lineno" href="#L207">207</a></span>
+<span id="L208" class="lineno"><a class="lineno" href="#L208">208</a></span>
+<span id="L209" class="lineno"><a class="lineno" href="#L209">209</a></span>
+<span id="L210" class="lineno"><a class="lineno" href="#L210">210</a></span>
+<span id="L211" class="lineno"><a class="lineno" href="#L211">211</a></span>
+<span id="L212" class="lineno"><a class="lineno" href="#L212">212</a></span>
+<span id="L213" class="lineno"><a class="lineno" href="#L213">213</a></span>
+<span id="L214" class="lineno"><a class="lineno" href="#L214">214</a></span>
+<span id="L215" class="lineno"><a class="lineno" href="#L215">215</a></span>
+<span id="L216" class="lineno"><a class="lineno" href="#L216">216</a></span>
+<span id="L217" class="lineno"><a class="lineno" href="#L217">217</a></span>
+<span id="L218" class="lineno"><a class="lineno" href="#L218">218</a></span>
+<span id="L219" class="lineno"><a class="lineno" href="#L219">219</a></span>
+<span id="L220" class="lineno"><a class="lineno" href="#L220">220</a></span>
+<span id="L221" class="lineno"><a class="lineno" href="#L221">221</a></span>
+<span id="L222" class="lineno"><a class="lineno" href="#L222">222</a></span>
+<span id="L223" class="lineno"><a class="lineno" href="#L223">223</a></span>
+<span id="L224" class="lineno"><a class="lineno" href="#L224">224</a></span>
+<span id="L225" class="lineno"><a class="lineno" href="#L225">225</a></span>
+<span id="L226" class="lineno"><a class="lineno" href="#L226">226</a></span>
+<span id="L227" class="lineno"><a class="lineno" href="#L227">227</a></span>
+<span id="L228" class="lineno"><a class="lineno" href="#L228">228</a></span>
+<span id="L229" class="lineno"><a class="lineno" href="#L229">229</a></span>
+<span id="L230" class="lineno"><a class="lineno" href="#L230">230</a></span>
+<span id="L231" class="lineno"><a class="lineno" href="#L231">231</a></span>
+<span id="L232" class="lineno"><a class="lineno" href="#L232">232</a></span>
+<span id="L233" class="lineno"><a class="lineno" href="#L233">233</a></span>
+<span id="L234" class="lineno"><a class="lineno" href="#L234">234</a></span>
+<span id="L235" class="lineno"><a class="lineno" href="#L235">235</a></span>
+<span id="L236" class="lineno"><a class="lineno" href="#L236">236</a></span>
+<span id="L237" class="lineno"><a class="lineno" href="#L237">237</a></span>
+<span id="L238" class="lineno"><a class="lineno" href="#L238">238</a></span>
+<span id="L239" class="lineno"><a class="lineno" href="#L239">239</a></span>
+<span id="L240" class="lineno"><a class="lineno" href="#L240">240</a></span>
+<span id="L241" class="lineno"><a class="lineno" href="#L241">241</a></span>
+<span id="L242" class="lineno"><a class="lineno" href="#L242">242</a></span>
+<span id="L243" class="lineno"><a class="lineno" href="#L243">243</a></span>
+<span id="L244" class="lineno"><a class="lineno" href="#L244">244</a></span>
+<span id="L245" class="lineno"><a class="lineno" href="#L245">245</a></span>
+<span id="L246" class="lineno"><a class="lineno" href="#L246">246</a></span>
+<span id="L247" class="lineno"><a class="lineno" href="#L247">247</a></span>
+<span id="L248" class="lineno"><a class="lineno" href="#L248">248</a></span>
+<span id="L249" class="lineno"><a class="lineno" href="#L249">249</a></span>
+<span id="L250" class="lineno"><a class="lineno" href="#L250">250</a></span>
+<span id="L251" class="lineno"><a class="lineno" href="#L251">251</a></span>
+<span id="L252" class="lineno"><a class="lineno" href="#L252">252</a></span>
+<span id="L253" class="lineno"><a class="lineno" href="#L253">253</a></span>
+<span id="L254" class="lineno"><a class="lineno" href="#L254">254</a></span>
+<span id="L255" class="lineno"><a class="lineno" href="#L255">255</a></span>
+<span id="L256" class="lineno"><a class="lineno" href="#L256">256</a></span>
+<span id="L257" class="lineno"><a class="lineno" href="#L257">257</a></span>
+<span id="L258" class="lineno"><a class="lineno" href="#L258">258</a></span>
+<span id="L259" class="lineno"><a class="lineno" href="#L259">259</a></span>
+<span id="L260" class="lineno"><a class="lineno" href="#L260">260</a></span>
+<span id="L261" class="lineno"><a class="lineno" href="#L261">261</a></span>
+<span id="L262" class="lineno"><a class="lineno" href="#L262">262</a></span>
+<span id="L263" class="lineno"><a class="lineno" href="#L263">263</a></span>
+<span id="L264" class="lineno"><a class="lineno" href="#L264">264</a></span>
+<span id="L265" class="lineno"><a class="lineno" href="#L265">265</a></span>
+<span id="L266" class="lineno"><a class="lineno" href="#L266">266</a></span>
+<span id="L267" class="lineno"><a class="lineno" href="#L267">267</a></span>
+<span id="L268" class="lineno"><a class="lineno" href="#L268">268</a></span>
+<span id="L269" class="lineno"><a class="lineno" href="#L269">269</a></span>
+<span id="L270" class="lineno"><a class="lineno" href="#L270">270</a></span>
+<span id="L271" class="lineno"><a class="lineno" href="#L271">271</a></span>
+<span id="L272" class="lineno"><a class="lineno" href="#L272">272</a></span>
+<span id="L273" class="lineno"><a class="lineno" href="#L273">273</a></span>
+<span id="L274" class="lineno"><a class="lineno" href="#L274">274</a></span>
+<span id="L275" class="lineno"><a class="lineno" href="#L275">275</a></span>
+<span id="L276" class="lineno"><a class="lineno" href="#L276">276</a></span>
+<span id="L277" class="lineno"><a class="lineno" href="#L277">277</a></span>
+<span id="L278" class="lineno"><a class="lineno" href="#L278">278</a></span>
+<span id="L279" class="lineno"><a class="lineno" href="#L279">279</a></span>
+<span id="L280" class="lineno"><a class="lineno" href="#L280">280</a></span>
+<span id="L281" class="lineno"><a class="lineno" href="#L281">281</a></span>
+<span id="L282" class="lineno"><a class="lineno" href="#L282">282</a></span>
+<span id="L283" class="lineno"><a class="lineno" href="#L283">283</a></span>
+<span id="L284" class="lineno"><a class="lineno" href="#L284">284</a></span>
+<span id="L285" class="lineno"><a class="lineno" href="#L285">285</a></span>
+<span id="L286" class="lineno"><a class="lineno" href="#L286">286</a></span>
+<span id="L287" class="lineno"><a class="lineno" href="#L287">287</a></span>
+<span id="L288" class="lineno"><a class="lineno" href="#L288">288</a></span>
+<span id="L289" class="lineno"><a class="lineno" href="#L289">289</a></span>
+<span id="L290" class="lineno"><a class="lineno" href="#L290">290</a></span>
+<span id="L291" class="lineno"><a class="lineno" href="#L291">291</a></span>
+<span id="L292" class="lineno"><a class="lineno" href="#L292">292</a></span>
+<span id="L293" class="lineno"><a class="lineno" href="#L293">293</a></span>
+<span id="L294" class="lineno"><a class="lineno" href="#L294">294</a></span>
+<span id="L295" class="lineno"><a class="lineno" href="#L295">295</a></span>
+<span id="L296" class="lineno"><a class="lineno" href="#L296">296</a></span>
+<span id="L297" class="lineno"><a class="lineno" href="#L297">297</a></span>
+<span id="L298" class="lineno"><a class="lineno" href="#L298">298</a></span>
+<span id="L299" class="lineno"><a class="lineno" href="#L299">299</a></span>
+<span id="L300" class="lineno"><a class="lineno" href="#L300">300</a></span>
+<span id="L301" class="lineno"><a class="lineno" href="#L301">301</a></span>
+<span id="L302" class="lineno"><a class="lineno" href="#L302">302</a></span>
+<span id="L303" class="lineno"><a class="lineno" href="#L303">303</a></span>
+<span id="L304" class="lineno"><a class="lineno" href="#L304">304</a></span>
+<span id="L305" class="lineno"><a class="lineno" href="#L305">305</a></span>
+<span id="L306" class="lineno"><a class="lineno" href="#L306">306</a></span>
+<span id="L307" class="lineno"><a class="lineno" href="#L307">307</a></span>
+<span id="L308" class="lineno"><a class="lineno" href="#L308">308</a></span>
+<span id="L309" class="lineno"><a class="lineno" href="#L309">309</a></span>
+<span id="L310" class="lineno"><a class="lineno" href="#L310">310</a></span>
+<span id="L311" class="lineno"><a class="lineno" href="#L311">311</a></span>
+<span id="L312" class="lineno"><a class="lineno" href="#L312">312</a></span>
+<span id="L313" class="lineno"><a class="lineno" href="#L313">313</a></span>
+<span id="L314" class="lineno"><a class="lineno" href="#L314">314</a></span>
+<span id="L315" class="lineno"><a class="lineno" href="#L315">315</a></span>
+<span id="L316" class="lineno"><a class="lineno" href="#L316">316</a></span>
+<span id="L317" class="lineno"><a class="lineno" href="#L317">317</a></span>
+<span id="L318" class="lineno"><a class="lineno" href="#L318">318</a></span>
+<span id="L319" class="lineno"><a class="lineno" href="#L319">319</a></span>
+<span id="L320" class="lineno"><a class="lineno" href="#L320">320</a></span>
+<span id="L321" class="lineno"><a class="lineno" href="#L321">321</a></span>
+<span id="L322" class="lineno"><a class="lineno" href="#L322">322</a></span>
+<span id="L323" class="lineno"><a class="lineno" href="#L323">323</a></span>
+<span id="L324" class="lineno"><a class="lineno" href="#L324">324</a></span>
+<span id="L325" class="lineno"><a class="lineno" href="#L325">325</a></span>
+<span id="L326" class="lineno"><a class="lineno" href="#L326">326</a></span>
+<span id="L327" class="lineno"><a class="lineno" href="#L327">327</a></span>
+<span id="L328" class="lineno"><a class="lineno" href="#L328">328</a></span>
+<span id="L329" class="lineno"><a class="lineno" href="#L329">329</a></span>
+<span id="L330" class="lineno"><a class="lineno" href="#L330">330</a></span>
+<span id="L331" class="lineno"><a class="lineno" href="#L331">331</a></span>
+<span id="L332" class="lineno"><a class="lineno" href="#L332">332</a></span>
+<span id="L333" class="lineno"><a class="lineno" href="#L333">333</a></span>
+<span id="L334" class="lineno"><a class="lineno" href="#L334">334</a></span>
+<span id="L335" class="lineno"><a class="lineno" href="#L335">335</a></span>
+<span id="L336" class="lineno"><a class="lineno" href="#L336">336</a></span>
+<span id="L337" class="lineno"><a class="lineno" href="#L337">337</a></span>
+<span id="L338" class="lineno"><a class="lineno" href="#L338">338</a></span>
+<span id="L339" class="lineno"><a class="lineno" href="#L339">339</a></span>
+<span id="L340" class="lineno"><a class="lineno" href="#L340">340</a></span>
+<span id="L341" class="lineno"><a class="lineno" href="#L341">341</a></span>
+<span id="L342" class="lineno"><a class="lineno" href="#L342">342</a></span>
+<span id="L343" class="lineno"><a class="lineno" href="#L343">343</a></span>
+<span id="L344" class="lineno"><a class="lineno" href="#L344">344</a></span>
+<span id="L345" class="lineno"><a class="lineno" href="#L345">345</a></span>
+<span id="L346" class="lineno"><a class="lineno" href="#L346">346</a></span>
+<span id="L347" class="lineno"><a class="lineno" href="#L347">347</a></span>
+<span id="L348" class="lineno"><a class="lineno" href="#L348">348</a></span>
+<span id="L349" class="lineno"><a class="lineno" href="#L349">349</a></span>
+<span id="L350" class="lineno"><a class="lineno" href="#L350">350</a></span>
+<span id="L351" class="lineno"><a class="lineno" href="#L351">351</a></span>
+<span id="L352" class="lineno"><a class="lineno" href="#L352">352</a></span>
+<span id="L353" class="lineno"><a class="lineno" href="#L353">353</a></span>
+<span id="L354" class="lineno"><a class="lineno" href="#L354">354</a></span>
+<span id="L355" class="lineno"><a class="lineno" href="#L355">355</a></span>
+<span id="L356" class="lineno"><a class="lineno" href="#L356">356</a></span>
+<span id="L357" class="lineno"><a class="lineno" href="#L357">357</a></span>
+<span id="L358" class="lineno"><a class="lineno" href="#L358">358</a></span>
+<span id="L359" class="lineno"><a class="lineno" href="#L359">359</a></span>
+<span id="L360" class="lineno"><a class="lineno" href="#L360">360</a></span>
+<span id="L361" class="lineno"><a class="lineno" href="#L361">361</a></span>
+<span id="L362" class="lineno"><a class="lineno" href="#L362">362</a></span>
+<span id="L363" class="lineno"><a class="lineno" href="#L363">363</a></span>
+<span id="L364" class="lineno"><a class="lineno" href="#L364">364</a></span>
+<span id="L365" class="lineno"><a class="lineno" href="#L365">365</a></span>
+<span id="L366" class="lineno"><a class="lineno" href="#L366">366</a></span>
+<span id="L367" class="lineno"><a class="lineno" href="#L367">367</a></span>
+<span id="L368" class="lineno"><a class="lineno" href="#L368">368</a></span>
+<span id="L369" class="lineno"><a class="lineno" href="#L369">369</a></span>
+<span id="L370" class="lineno"><a class="lineno" href="#L370">370</a></span>
+<span id="L371" class="lineno"><a class="lineno" href="#L371">371</a></span>
+<span id="L372" class="lineno"><a class="lineno" href="#L372">372</a></span>
+<span id="L373" class="lineno"><a class="lineno" href="#L373">373</a></span>
+<span id="L374" class="lineno"><a class="lineno" href="#L374">374</a></span>
+<span id="L375" class="lineno"><a class="lineno" href="#L375">375</a></span>
+<span id="L376" class="lineno"><a class="lineno" href="#L376">376</a></span>
+<span id="L377" class="lineno"><a class="lineno" href="#L377">377</a></span>
+<span id="L378" class="lineno"><a class="lineno" href="#L378">378</a></span>
+<span id="L379" class="lineno"><a class="lineno" href="#L379">379</a></span>
+<span id="L380" class="lineno"><a class="lineno" href="#L380">380</a></span>
+<span id="L381" class="lineno"><a class="lineno" href="#L381">381</a></span>
+<span id="L382" class="lineno"><a class="lineno" href="#L382">382</a></span>
+<span id="L383" class="lineno"><a class="lineno" href="#L383">383</a></span>
+<span id="L384" class="lineno"><a class="lineno" href="#L384">384</a></span>
+<span id="L385" class="lineno"><a class="lineno" href="#L385">385</a></span>
+<span id="L386" class="lineno"><a class="lineno" href="#L386">386</a></span>
+<span id="L387" class="lineno"><a class="lineno" href="#L387">387</a></span>
+<span id="L388" class="lineno"><a class="lineno" href="#L388">388</a></span>
+<span id="L389" class="lineno"><a class="lineno" href="#L389">389</a></span>
+<span id="L390" class="lineno"><a class="lineno" href="#L390">390</a></span>
+<span id="L391" class="lineno"><a class="lineno" href="#L391">391</a></span>
+<span id="L392" class="lineno"><a class="lineno" href="#L392">392</a></span>
+<span id="L393" class="lineno"><a class="lineno" href="#L393">393</a></span>
+<span id="L394" class="lineno"><a class="lineno" href="#L394">394</a></span>
+<span id="L395" class="lineno"><a class="lineno" href="#L395">395</a></span>
+<span id="L396" class="lineno"><a class="lineno" href="#L396">396</a></span>
+<span id="L397" class="lineno"><a class="lineno" href="#L397">397</a></span>
+<span id="L398" class="lineno"><a class="lineno" href="#L398">398</a></span>
+<span id="L399" class="lineno"><a class="lineno" href="#L399">399</a></span>
+<span id="L400" class="lineno"><a class="lineno" href="#L400">400</a></span>
+<span id="L401" class="lineno"><a class="lineno" href="#L401">401</a></span>
+<span id="L402" class="lineno"><a class="lineno" href="#L402">402</a></span>
+<span id="L403" class="lineno"><a class="lineno" href="#L403">403</a></span>
+<span id="L404" class="lineno"><a class="lineno" href="#L404">404</a></span>
+<span id="L405" class="lineno"><a class="lineno" href="#L405">405</a></span>
+<span id="L406" class="lineno"><a class="lineno" href="#L406">406</a></span>
+<span id="L407" class="lineno"><a class="lineno" href="#L407">407</a></span>
+<span id="L408" class="lineno"><a class="lineno" href="#L408">408</a></span>
+<span id="L409" class="lineno"><a class="lineno" href="#L409">409</a></span>
+<span id="L410" class="lineno"><a class="lineno" href="#L410">410</a></span>
+<span id="L411" class="lineno"><a class="lineno" href="#L411">411</a></span>
+<span id="L412" class="lineno"><a class="lineno" href="#L412">412</a></span>
+<span id="L413" class="lineno"><a class="lineno" href="#L413">413</a></span>
+<span id="L414" class="lineno"><a class="lineno" href="#L414">414</a></span>
+<span id="L415" class="lineno"><a class="lineno" href="#L415">415</a></span>
+<span id="L416" class="lineno"><a class="lineno" href="#L416">416</a></span>
+<span id="L417" class="lineno"><a class="lineno" href="#L417">417</a></span>
+<span id="L418" class="lineno"><a class="lineno" href="#L418">418</a></span>
+<span id="L419" class="lineno"><a class="lineno" href="#L419">419</a></span>
+<span id="L420" class="lineno"><a class="lineno" href="#L420">420</a></span>
+<span id="L421" class="lineno"><a class="lineno" href="#L421">421</a></span>
+<span id="L422" class="lineno"><a class="lineno" href="#L422">422</a></span>
+<span id="L423" class="lineno"><a class="lineno" href="#L423">423</a></span>
+<span id="L424" class="lineno"><a class="lineno" href="#L424">424</a></span>
+<span id="L425" class="lineno"><a class="lineno" href="#L425">425</a></span>
+<span id="L426" class="lineno"><a class="lineno" href="#L426">426</a></span>
+<span id="L427" class="lineno"><a class="lineno" href="#L427">427</a></span>
+<span id="L428" class="lineno"><a class="lineno" href="#L428">428</a></span>
+<span id="L429" class="lineno"><a class="lineno" href="#L429">429</a></span>
+<span id="L430" class="lineno"><a class="lineno" href="#L430">430</a></span>
+<span id="L431" class="lineno"><a class="lineno" href="#L431">431</a></span>
+<span id="L432" class="lineno"><a class="lineno" href="#L432">432</a></span>
+<span id="L433" class="lineno"><a class="lineno" href="#L433">433</a></span>
+<span id="L434" class="lineno"><a class="lineno" href="#L434">434</a></span>
+<span id="L435" class="lineno"><a class="lineno" href="#L435">435</a></span>
+<span id="L436" class="lineno"><a class="lineno" href="#L436">436</a></span>
+<span id="L437" class="lineno"><a class="lineno" href="#L437">437</a></span>
+<span id="L438" class="lineno"><a class="lineno" href="#L438">438</a></span>
+<span id="L439" class="lineno"><a class="lineno" href="#L439">439</a></span>
+<span id="L440" class="lineno"><a class="lineno" href="#L440">440</a></span>
+<span id="L441" class="lineno"><a class="lineno" href="#L441">441</a></span>
+<span id="L442" class="lineno"><a class="lineno" href="#L442">442</a></span>
+<span id="L443" class="lineno"><a class="lineno" href="#L443">443</a></span>
+<span id="L444" class="lineno"><a class="lineno" href="#L444">444</a></span>
+<span id="L445" class="lineno"><a class="lineno" href="#L445">445</a></span>
+<span id="L446" class="lineno"><a class="lineno" href="#L446">446</a></span>
+<span id="L447" class="lineno"><a class="lineno" href="#L447">447</a></span>
+<span id="L448" class="lineno"><a class="lineno" href="#L448">448</a></span>
+<span id="L449" class="lineno"><a class="lineno" href="#L449">449</a></span>
+<span id="L450" class="lineno"><a class="lineno" href="#L450">450</a></span>
+<span id="L451" class="lineno"><a class="lineno" href="#L451">451</a></span>
+<span id="L452" class="lineno"><a class="lineno" href="#L452">452</a></span>
+<span id="L453" class="lineno"><a class="lineno" href="#L453">453</a></span>
+<span id="L454" class="lineno"><a class="lineno" href="#L454">454</a></span>
+<span id="L455" class="lineno"><a class="lineno" href="#L455">455</a></span>
+<span id="L456" class="lineno"><a class="lineno" href="#L456">456</a></span>
+<span id="L457" class="lineno"><a class="lineno" href="#L457">457</a></span>
+<span id="L458" class="lineno"><a class="lineno" href="#L458">458</a></span>
+<span id="L459" class="lineno"><a class="lineno" href="#L459">459</a></span>
+<span id="L460" class="lineno"><a class="lineno" href="#L460">460</a></span>
+<span id="L461" class="lineno"><a class="lineno" href="#L461">461</a></span>
+<span id="L462" class="lineno"><a class="lineno" href="#L462">462</a></span>
+<span id="L463" class="lineno"><a class="lineno" href="#L463">463</a></span>
+<span id="L464" class="lineno"><a class="lineno" href="#L464">464</a></span>
+<span id="L465" class="lineno"><a class="lineno" href="#L465">465</a></span>
+<span id="L466" class="lineno"><a class="lineno" href="#L466">466</a></span>
+<span id="L467" class="lineno"><a class="lineno" href="#L467">467</a></span>
+<span id="L468" class="lineno"><a class="lineno" href="#L468">468</a></span>
+<span id="L469" class="lineno"><a class="lineno" href="#L469">469</a></span>
+<span id="L470" class="lineno"><a class="lineno" href="#L470">470</a></span>
+<span id="L471" class="lineno"><a class="lineno" href="#L471">471</a></span>
+<span id="L472" class="lineno"><a class="lineno" href="#L472">472</a></span>
+<span id="L473" class="lineno"><a class="lineno" href="#L473">473</a></span>
+<span id="L474" class="lineno"><a class="lineno" href="#L474">474</a></span>
+<span id="L475" class="lineno"><a class="lineno" href="#L475">475</a></span>
+<span id="L476" class="lineno"><a class="lineno" href="#L476">476</a></span>
+<span id="L477" class="lineno"><a class="lineno" href="#L477">477</a></span>
+<span id="L478" class="lineno"><a class="lineno" href="#L478">478</a></span>
+<span id="L479" class="lineno"><a class="lineno" href="#L479">479</a></span>
+<span id="L480" class="lineno"><a class="lineno" href="#L480">480</a></span>
+<span id="L481" class="lineno"><a class="lineno" href="#L481">481</a></span>
+<span id="L482" class="lineno"><a class="lineno" href="#L482">482</a></span>
+<span id="L483" class="lineno"><a class="lineno" href="#L483">483</a></span>
+<span id="L484" class="lineno"><a class="lineno" href="#L484">484</a></span>
+<span id="L485" class="lineno"><a class="lineno" href="#L485">485</a></span>
+<span id="L486" class="lineno"><a class="lineno" href="#L486">486</a></span>
+<span id="L487" class="lineno"><a class="lineno" href="#L487">487</a></span>
+<span id="L488" class="lineno"><a class="lineno" href="#L488">488</a></span>
+<span id="L489" class="lineno"><a class="lineno" href="#L489">489</a></span>
+<span id="L490" class="lineno"><a class="lineno" href="#L490">490</a></span>
+<span id="L491" class="lineno"><a class="lineno" href="#L491">491</a></span>
+<span id="L492" class="lineno"><a class="lineno" href="#L492">492</a></span>
+<span id="L493" class="lineno"><a class="lineno" href="#L493">493</a></span>
+<span id="L494" class="lineno"><a class="lineno" href="#L494">494</a></span>
+<span id="L495" class="lineno"><a class="lineno" href="#L495">495</a></span>
+<span id="L496" class="lineno"><a class="lineno" href="#L496">496</a></span>
+<span id="L497" class="lineno"><a class="lineno" href="#L497">497</a></span>
+<span id="L498" class="lineno"><a class="lineno" href="#L498">498</a></span>
+<span id="L499" class="lineno"><a class="lineno" href="#L499">499</a></span>
+<span id="L500" class="lineno"><a class="lineno" href="#L500">500</a></span>
+<span id="L501" class="lineno"><a class="lineno" href="#L501">501</a></span>
+<span id="L502" class="lineno"><a class="lineno" href="#L502">502</a></span>
+<span id="L503" class="lineno"><a class="lineno" href="#L503">503</a></span>
+<span id="L504" class="lineno"><a class="lineno" href="#L504">504</a></span>
+<span id="L505" class="lineno"><a class="lineno" href="#L505">505</a></span>
+<span id="L506" class="lineno"><a class="lineno" href="#L506">506</a></span>
+<span id="L507" class="lineno"><a class="lineno" href="#L507">507</a></span>
+<span id="L508" class="lineno"><a class="lineno" href="#L508">508</a></span>
+<span id="L509" class="lineno"><a class="lineno" href="#L509">509</a></span>
+<span id="L510" class="lineno"><a class="lineno" href="#L510">510</a></span>
+<span id="L511" class="lineno"><a class="lineno" href="#L511">511</a></span>
+<span id="L512" class="lineno"><a class="lineno" href="#L512">512</a></span>
+<span id="L513" class="lineno"><a class="lineno" href="#L513">513</a></span>
+<span id="L514" class="lineno"><a class="lineno" href="#L514">514</a></span>
+<span id="L515" class="lineno"><a class="lineno" href="#L515">515</a></span>
+<span id="L516" class="lineno"><a class="lineno" href="#L516">516</a></span>
+<span id="L517" class="lineno"><a class="lineno" href="#L517">517</a></span>
+<span id="L518" class="lineno"><a class="lineno" href="#L518">518</a></span>
+<span id="L519" class="lineno"><a class="lineno" href="#L519">519</a></span>
+<span id="L520" class="lineno"><a class="lineno" href="#L520">520</a></span>
+<span id="L521" class="lineno"><a class="lineno" href="#L521">521</a></span>
+<span id="L522" class="lineno"><a class="lineno" href="#L522">522</a></span>
+<span id="L523" class="lineno"><a class="lineno" href="#L523">523</a></span>
+<span id="L524" class="lineno"><a class="lineno" href="#L524">524</a></span>
+<span id="L525" class="lineno"><a class="lineno" href="#L525">525</a></span>
+<span id="L526" class="lineno"><a class="lineno" href="#L526">526</a></span>
+<span id="L527" class="lineno"><a class="lineno" href="#L527">527</a></span>
+<span id="L528" class="lineno"><a class="lineno" href="#L528">528</a></span>
+<span id="L529" class="lineno"><a class="lineno" href="#L529">529</a></span>
+<span id="L530" class="lineno"><a class="lineno" href="#L530">530</a></span>
+<span id="L531" class="lineno"><a class="lineno" href="#L531">531</a></span>
+<span id="L532" class="lineno"><a class="lineno" href="#L532">532</a></span>
+<span id="L533" class="lineno"><a class="lineno" href="#L533">533</a></span>
+<span id="L534" class="lineno"><a class="lineno" href="#L534">534</a></span>
+<span id="L535" class="lineno"><a class="lineno" href="#L535">535</a></span>
+<span id="L536" class="lineno"><a class="lineno" href="#L536">536</a></span>
+<span id="L537" class="lineno"><a class="lineno" href="#L537">537</a></span>
+<span id="L538" class="lineno"><a class="lineno" href="#L538">538</a></span>
+<span id="L539" class="lineno"><a class="lineno" href="#L539">539</a></span>
+<span id="L540" class="lineno"><a class="lineno" href="#L540">540</a></span>
+<span id="L541" class="lineno"><a class="lineno" href="#L541">541</a></span>
+<span id="L542" class="lineno"><a class="lineno" href="#L542">542</a></span>
+<span id="L543" class="lineno"><a class="lineno" href="#L543">543</a></span>
+<span id="L544" class="lineno"><a class="lineno" href="#L544">544</a></span>
+<span id="L545" class="lineno"><a class="lineno" href="#L545">545</a></span>
+<span id="L546" class="lineno"><a class="lineno" href="#L546">546</a></span>
+<span id="L547" class="lineno"><a class="lineno" href="#L547">547</a></span>
+<span id="L548" class="lineno"><a class="lineno" href="#L548">548</a></span>
+<span id="L549" class="lineno"><a class="lineno" href="#L549">549</a></span>
+<span id="L550" class="lineno"><a class="lineno" href="#L550">550</a></span>
+<span id="L551" class="lineno"><a class="lineno" href="#L551">551</a></span>
+<span id="L552" class="lineno"><a class="lineno" href="#L552">552</a></span>
+<span id="L553" class="lineno"><a class="lineno" href="#L553">553</a></span>
+<span id="L554" class="lineno"><a class="lineno" href="#L554">554</a></span>
+<span id="L555" class="lineno"><a class="lineno" href="#L555">555</a></span>
+<span id="L556" class="lineno"><a class="lineno" href="#L556">556</a></span>
+<span id="L557" class="lineno"><a class="lineno" href="#L557">557</a></span>
+<span id="L558" class="lineno"><a class="lineno" href="#L558">558</a></span>
+<span id="L559" class="lineno"><a class="lineno" href="#L559">559</a></span>
+<span id="L560" class="lineno"><a class="lineno" href="#L560">560</a></span>
+<span id="L561" class="lineno"><a class="lineno" href="#L561">561</a></span>
+<span id="L562" class="lineno"><a class="lineno" href="#L562">562</a></span>
+<span id="L563" class="lineno"><a class="lineno" href="#L563">563</a></span>
+<span id="L564" class="lineno"><a class="lineno" href="#L564">564</a></span>
+<span id="L565" class="lineno"><a class="lineno" href="#L565">565</a></span>
+<span id="L566" class="lineno"><a class="lineno" href="#L566">566</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">#!/usr/bin/env python</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">"""PyTorch-specific functionality</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from collections import namedtuple</span>
+<span class="line-precise" title="No Anys on this line!">import itertools</span>
+<span class="line-precise" title="No Anys on this line!">import weakref</span>
+<span class="line-precise" title="No Anys on this line!">from six.moves import reduce</span>
+<span class="line-precise" title="No Anys on this line!">from distutils.version import LooseVersion</span>
+<span class="line-precise" title="No Anys on this line!">from operator import mul</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from wandb import util</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.data_types import Node, Edge</span>
+<span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">torch = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def nested_shape(array_or_tuple, seen=None):</span>
+<span class="line-empty" title="No Anys on this line!">    """Figures out the shape of tensors possibly embedded in tuples</span>
+<span class="line-empty" title="No Anys on this line!">     i.e </span>
+<span class="line-empty" title="No Anys on this line!">     [0,0] returns (2)</span>
+<span class="line-empty" title="No Anys on this line!">     ([0,0], [0,0]) returns (2,2)</span>
+<span class="line-empty" title="No Anys on this line!">     (([0,0], [0,0]),[0,0]) returns ((2,2),2)</span>
+<span class="line-empty" title="No Anys on this line!">     """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    if seen is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        seen = set()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">    if hasattr(array_or_tuple, "size"):</span>
+<span class="line-empty" title="No Anys on this line!">        # pytorch tensors use V.size() to get size of tensor</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        return list(array_or_tuple.size())</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">    elif hasattr(array_or_tuple, "get_shape"):</span>
+<span class="line-empty" title="No Anys on this line!">        # tensorflow uses V.get_shape() to get size of tensor</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        return array_or_tuple.get_shape().as_list()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">    elif hasattr(array_or_tuple, "shape"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return array_or_tuple.shape</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    seen.add(id(array_or_tuple))</span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-empty" title="No Anys on this line!">        # treat object as iterable</span>
+<span class="line-empty" title="No Anys on this line!">        return [</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">            nested_shape(item, seen) if id(item) not in seen else 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            for item in list(array_or_tuple)</span>
+<span class="line-empty" title="No Anys on this line!">        ]</span>
+<span class="line-precise" title="No Anys on this line!">    except TypeError:</span>
+<span class="line-empty" title="No Anys on this line!">        # object is not actually iterable</span>
+<span class="line-empty" title="No Anys on this line!">        # LB: Maybe we should throw an error?</span>
+<span class="line-empty" title="No Anys on this line!">        return []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def log_track_init(log_freq):</span>
+<span class="line-empty" title="No Anys on this line!">    """create tracking structure used by log_track_update</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    l = [0] * 2</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    l[LOG_TRACK_THRESHOLD] = log_freq</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    return l</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def log_track_update(log_track):</span>
+<span class="line-empty" title="No Anys on this line!">    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    log_track[LOG_TRACK_COUNT] += 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    if log_track[LOG_TRACK_COUNT] &lt; log_track[LOG_TRACK_THRESHOLD]:</span>
+<span class="line-any" title="No Anys on this line!">        return False</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    log_track[LOG_TRACK_COUNT] = 0</span>
+<span class="line-any" title="No Anys on this line!">    return True</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class TorchHistory(object):</span>
+<span class="line-empty" title="No Anys on this line!">    """History methods specific to PyTorch</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, history):</span>
+<span class="line-empty" title="No Anys on this line!">        global torch</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        torch = wandb.util.get_module("torch", "Could not import torch")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">        self._history = weakref.ref(history)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._hook_handles = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._num_bins = 64</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._is_cuda_histc_supported = None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._jupyter_run = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def add_log_hooks_to_pytorch_module(</span>
+<span class="line-empty" title="No Anys on this line!">        self,</span>
+<span class="line-empty" title="No Anys on this line!">        module,</span>
+<span class="line-any" title="No Anys on this line!">        name=None,</span>
+<span class="line-any" title="No Anys on this line!">        prefix="",</span>
+<span class="line-any" title="No Anys on this line!">        log_parameters=True,</span>
+<span class="line-any" title="No Anys on this line!">        log_gradients=True,</span>
+<span class="line-any" title="No Anys on this line!">        log_freq=0,</span>
+<span class="line-any" title="No Anys on this line!">        jupyter_run=None,</span>
+<span class="line-empty" title="No Anys on this line!">    ):</span>
+<span class="line-empty" title="No Anys on this line!">        """ This instuments hooks into the pytorch module</span>
+<span class="line-empty" title="No Anys on this line!">        log_parameters - log parameters after a forward pass</span>
+<span class="line-empty" title="No Anys on this line!">        log_gradients - log gradients after a backward pass</span>
+<span class="line-empty" title="No Anys on this line!">        log_freq - log gradients/parameters every N batches</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if name is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            prefix = prefix + name</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if jupyter_run:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            self._jupyter_run = weakref.ref(jupyter_run)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        module._wandb_hook_names = []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if log_parameters:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">            def parameter_log_hook(module, input_, output, log_track):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                if not log_track_update(log_track):</span>
+<span class="line-empty" title="No Anys on this line!">                    return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                for name, parameter in module.named_parameters():</span>
+<span class="line-empty" title="No Anys on this line!">                    # for pytorch 0.3 Variables</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">                    if isinstance(parameter, torch.autograd.Variable):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                        data = parameter.data</span>
+<span class="line-empty" title="No Anys on this line!">                    else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        data = parameter</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">                    self.log_tensor_stats(data.cpu(), "parameters/" + prefix + name)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            log_track_params = log_track_init(log_freq)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            hook = module.register_forward_hook(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                lambda mod, inp, outp: parameter_log_hook(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    mod, inp, outp, log_track_params</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self._hook_handles["parameters/" + prefix] = hook</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            module._wandb_hook_names.append("parameters/" + prefix)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if log_gradients:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            for name, parameter in module.named_parameters():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                if parameter.requires_grad:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    log_track_grad = log_track_init(log_freq)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                    module._wandb_hook_names.append("gradients/" + prefix + name)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    self._hook_variable_gradient_stats(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                        parameter, "gradients/" + prefix + name, log_track_grad</span>
+<span class="line-empty" title="No Anys on this line!">                    )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def log_tensor_stats(self, tensor, name):</span>
+<span class="line-empty" title="No Anys on this line!">        """Add distribution statistics on a tensor's elements to the current History entry</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO Handle the case of duplicate names.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x2)">        if isinstance(tensor, tuple) or isinstance(tensor, list):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x2)">            while (isinstance(tensor, tuple) or isinstance(tensor, list)) and (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x2)">                isinstance(tensor[0], tuple) or isinstance(tensor[0], list)</span>
+<span class="line-empty" title="No Anys on this line!">            ):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                tensor = [item for sublist in tensor for item in sublist]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            tensor = torch.cat([t.reshape(-1) for t in tensor])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # checking for inheritance from _TensorBase didn't work for some reason</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">        if not hasattr(tensor, "shape"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            cls = type(tensor)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            raise TypeError(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                "Expected Tensor, not {}.{}".format(cls.__module__, cls.__name__)</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        history = self._history()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # recover history from run if using jupyter</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if history is None and self._jupyter_run:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            jupyter_run = self._jupyter_run()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if jupyter_run:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                history = jupyter_run.history</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        if history is None or not history.compute:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # HalfTensors on cpu do not support view(), upconvert to 32bit</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">        if isinstance(tensor, torch.HalfTensor):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            tensor = tensor.clone().type(torch.FloatTensor).detach()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Sparse tensors have a bunch of implicit zeros. In order to histo them correctly,</span>
+<span class="line-empty" title="No Anys on this line!">        # we have to count them up and add them to the histo ourselves.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        sparse_zeros = None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if tensor.is_sparse:</span>
+<span class="line-empty" title="No Anys on this line!">            # Have to call this on a sparse tensor before most other ops.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            tensor = tensor.cpu().coalesce().clone().detach()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            backing_values = tensor._values()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            non_zero_values = backing_values.numel()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            all_values = tensor.numel()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            sparse_zeros = all_values - non_zero_values</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            tensor = backing_values</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        flat = tensor.reshape(-1)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">        if not hasattr(flat, "detach"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            tensor = flat.cpu().clone().numpy()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">            history._row_update({name: wandb.Histogram(tensor)})</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if flat.is_cuda:</span>
+<span class="line-empty" title="No Anys on this line!">            # TODO(jhr): see if pytorch will accept something upstream to check cuda support for ops</span>
+<span class="line-empty" title="No Anys on this line!">            # until then, we are going to have to catch a specific exception to check for histc support.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if self._is_cuda_histc_supported is None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                self._is_cuda_histc_supported = True</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                check = torch.cuda.FloatTensor(1).fill_(0)</span>
+<span class="line-empty" title="No Anys on this line!">                try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    check = flat.histc(bins=self._num_bins)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                except RuntimeError as e:</span>
+<span class="line-empty" title="No Anys on this line!">                    # Only work around missing support with specific exception</span>
+<span class="line-empty" title="No Anys on this line!">                    # if str(e).startswith("_th_histc is not implemented"):</span>
+<span class="line-empty" title="No Anys on this line!">                    #    self._is_cuda_histc_supported = False</span>
+<span class="line-empty" title="No Anys on this line!">                    # On second thought, 0.4.1 doesnt have support and maybe there are other issues</span>
+<span class="line-empty" title="No Anys on this line!">                    # lets disable more broadly for now</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    self._is_cuda_histc_supported = False</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if not self._is_cuda_histc_supported:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                flat = flat.cpu().clone().detach()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">            # As of torch 1.0.1.post2+nightly, float16 cuda summary ops are not supported (convert to float32)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">            if isinstance(flat, torch.cuda.HalfTensor):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">                flat = flat.clone().type(torch.cuda.FloatTensor).detach()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">        if isinstance(flat, torch.HalfTensor):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">            flat = flat.clone().type(torch.FloatTensor).detach()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Remove nans from tensor. There's no good way to represent that in histograms.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        flat = flat[~torch.isnan(flat)]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        flat = flat[~torch.isinf(flat)]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        if flat.shape == torch.Size([0]):</span>
+<span class="line-empty" title="No Anys on this line!">            # Often the whole tensor is nan or inf. Just don't log it in that case.</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        tmin = flat.min().item()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        tmax = flat.max().item()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if sparse_zeros:</span>
+<span class="line-empty" title="No Anys on this line!">            # If we've got zeros to add in, make sure zero is in the hist range.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            tmin = 0 if tmin &gt; 0 else tmin</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            tmax = 0 if tmax &lt; 0 else tmax</span>
+<span class="line-empty" title="No Anys on this line!">        # Anecdotally, this can somehow happen sometimes. Maybe a precision error</span>
+<span class="line-empty" title="No Anys on this line!">        # in min()/max() above. Swap here to prevent a runtime error.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if tmin &gt; tmax:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            tmin, tmax = tmax, tmin</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        tensor = tensor.cpu().clone().detach()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Add back zeroes from a sparse tensor.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if sparse_zeros:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            bins_np = bins.numpy()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            tensor_np = tensor.numpy()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            bin_idx = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            num_buckets = len(bins_np) - 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            for i in range(num_buckets):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                start = bins_np[i]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                end = bins_np[i + 1]</span>
+<span class="line-empty" title="No Anys on this line!">                # There are 3 cases to consider here, all of which mean we've found the right bucket</span>
+<span class="line-empty" title="No Anys on this line!">                # 1. The bucket range contains zero.</span>
+<span class="line-empty" title="No Anys on this line!">                # 2. The bucket range lower bound *is* zero.</span>
+<span class="line-empty" title="No Anys on this line!">                # 3. This is the last bucket and the bucket range upper bound is zero.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x13)">                if (start &lt;= 0 and end &gt; 0) or (i == num_buckets - 1 and end == 0):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    bin_idx = i</span>
+<span class="line-any" title="No Anys on this line!">                    break</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            tensor_np[bin_idx] += sparse_zeros</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            tensor = torch.Tensor(tensor_np)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            bins = torch.Tensor(bins_np)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        history._row_update(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _hook_variable_gradient_stats(self, var, name, log_track):</span>
+<span class="line-empty" title="No Anys on this line!">        """Logs a Variable's gradient's distribution statistics next time backward()</span>
+<span class="line-empty" title="No Anys on this line!">        is called on it.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">        if not isinstance(var, torch.autograd.Variable):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">            cls = type(var)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            raise TypeError(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                "Expected torch.Variable, not {}.{}".format(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    cls.__module__, cls.__name__</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        handle = self._hook_handles.get(name)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        if handle is not None and self._torch_hook_handle_is_valid(handle):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            raise ValueError('A hook has already been set under name "{}"'.format(name))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def _callback(grad, log_track):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            if not log_track_update(log_track):</span>
+<span class="line-empty" title="No Anys on this line!">                return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            self.log_tensor_stats(grad.data, name)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x9)">        handle = var.register_hook(lambda grad: _callback(grad, log_track))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self._hook_handles[name] = handle</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return handle</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def unhook_all(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for handle in self._hook_handles.values():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            handle.remove()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._hook_handles = []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def unhook(self, name):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        handle = self._hook_handles.pop(name)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        handle.remove()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _torch_hook_handle_is_valid(self, handle):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        d = handle.hooks_dict_ref()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if d is None:</span>
+<span class="line-any" title="No Anys on this line!">            return False</span>
+<span class="line-empty" title="No Anys on this line!">        else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            return handle.id in d</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class TorchGraph(wandb.data_types.Graph):</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        super(TorchGraph, self).__init__("torch")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def hook_torch(cls, model, criterion=None, graph_idx=0):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        graph = TorchGraph()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return graph</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def create_forward_hook(self, name, modules):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        graph = self</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">        def after_forward_hook(module, input, output):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            if id(module) in modules:</span>
+<span class="line-empty" title="No Anys on this line!">                return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            modules.add(id(module))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">            if not isinstance(output, tuple):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                output = (output,)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            parameters = [</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                (pname, list(param.size()))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                for pname, param in module.named_parameters()</span>
+<span class="line-empty" title="No Anys on this line!">            ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">            node = Node(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                id=id(module),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                name=name,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                class_name=str(module),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                output_shape=nested_shape(output),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                parameters=parameters,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x3)">                num_parameters=[reduce(mul, size, 1) for (pname, size) in parameters],</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            graph.nodes_by_id[id(module)] = node</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            for param in module.parameters():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                graph.nodes_by_id[id(param)] = node</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            graph.add_node(node)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if not graph.criterion_passed:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">                if hasattr(output[0], "grad_fn"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    graph.criterion = output[0].grad_fn</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Explicit (x2)">                elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    graph.criterion = output[0][0].grad_fn</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="Any Types on this line: 
+Unannotated (x4)">        return after_forward_hook</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        torch = util.get_module("torch", "Could not import torch")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        hooks = []</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        modules = set()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        layers = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        graph = self</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">        if hasattr(module, "_wandb_watch_called") and module._wandb_watch_called:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            raise ValueError(</span>
+<span class="line-any" title="No Anys on this line!">                "You can only call `wandb.watch` once per model.  Pass a new instance of the model if you need to call wandb.watch again in your code."</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        module._wandb_watch_called = True</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if criterion:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            graph.criterion = criterion</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            graph.criterion_passed = True</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        for name, sub_module in module.named_children():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            name = name or str(layers)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if prefix:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                name = prefix + "." + name</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            layers += 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">            if not isinstance(sub_module, torch.nn.Module):</span>
+<span class="line-empty" title="No Anys on this line!">                # TODO: Why does this happen?</span>
+<span class="line-any" title="No Anys on this line!">                break</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">            # Trying to support torch &gt;0.3 making this code complicated</span>
+<span class="line-empty" title="No Anys on this line!">            # We want a list of types that we should recurse into</span>
+<span class="line-empty" title="No Anys on this line!">            # Torch 0.3   uses containers</span>
+<span class="line-empty" title="No Anys on this line!">            #       0.4   has ModuleList</span>
+<span class="line-empty" title="No Anys on this line!">            #       0.4.1 has ModuleDict</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            module_types = [</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x3)">                getattr(torch.nn, module_classname)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                for module_classname in (</span>
+<span class="line-any" title="No Anys on this line!">                    "Container",</span>
+<span class="line-any" title="No Anys on this line!">                    "Sequential",</span>
+<span class="line-any" title="No Anys on this line!">                    "ModuleList",</span>
+<span class="line-any" title="No Anys on this line!">                    "ModuleDict",</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">                if hasattr(torch.nn, module_classname)</span>
+<span class="line-empty" title="No Anys on this line!">            ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)
+Explicit (x1)">            if isinstance(sub_module, tuple(module_types)):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                self.hook_torch_modules(sub_module, prefix=name)</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">                def backward_hook(module, input, output):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    [hook.remove() for hook in hooks]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    graph.loaded = True</span>
+<span class="line-precise" title="No Anys on this line!">                    if wandb.run:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                        wandb.run.summary["graph_%i" % graph_idx] = graph</span>
+<span class="line-empty" title="No Anys on this line!">                    else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                        wandb.termwarn(</span>
+<span class="line-any" title="No Anys on this line!">                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch",</span>
+<span class="line-any" title="No Anys on this line!">                            repeat=False,</span>
+<span class="line-empty" title="No Anys on this line!">                        )</span>
+<span class="line-empty" title="No Anys on this line!">                    # TODO: Keeping this here as a starting point for adding graph data</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                    if not graph.loaded:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">                        def traverse(node, functions=[]):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">                            if hasattr(node, "grad_fn"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                                node = node.grad_fn</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">                            if hasattr(node, "variable"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">                                node = graph.nodes_by_id.get(id(node.variable))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                                if node:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                                    node.functions = list(functions)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                                    del functions[:]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">                            if hasattr(node, "next_functions"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x1)">                                functions.append(type(node).__name__)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                                for f in node.next_functions:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                                    if f[0]:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Explicit (x1)">                                        functions.append(type(f[0]).__name__)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">                                        traverse(f[0], functions)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">                            if hasattr(node, "saved_tensors"):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                                for t in node.saved_tensors:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                                    traverse(t)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                        traverse(graph.criterion)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                hooks.append(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    sub_module.register_forward_hook(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                        self.create_forward_hook(name, modules)</span>
+<span class="line-empty" title="No Anys on this line!">                    )</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">                hooks.append(sub_module.register_backward_hook(backward_hook))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def from_torch_layers(cls, module_graph, variable):</span>
+<span class="line-empty" title="No Anys on this line!">        """Recover something like neural net layers from PyTorch Module's and the</span>
+<span class="line-empty" title="No Anys on this line!">        compute graph from a Variable.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        Example output for a multi-layer RNN. We confusingly assign shared embedding values</span>
+<span class="line-empty" title="No Anys on this line!">        to the encoder, but ordered next to the decoder.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        rnns.0.linear.module.weight_raw rnns.0</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.0.linear.module.bias rnns.0</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.1.linear.module.weight_raw rnns.1</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.1.linear.module.bias rnns.1</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.2.linear.module.weight_raw rnns.2</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.2.linear.module.bias rnns.2</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.3.linear.module.weight_raw rnns.3</span>
+<span class="line-empty" title="No Anys on this line!">        rnns.3.linear.module.bias rnns.3</span>
+<span class="line-empty" title="No Anys on this line!">        decoder.weight encoder</span>
+<span class="line-empty" title="No Anys on this line!">        decoder.bias decoder</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO: We're currently not using this, but I left it here incase we want to resurrect! - CVP</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        torch = util.get_module("torch", "Could not import torch")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        module_nodes_by_hash = {id(n): n for n in module_graph.nodes}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        module_parameter_nodes = [</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)
+Explicit (x1)">            n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)</span>
+<span class="line-empty" title="No Anys on this line!">        ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        names_by_pid = {id(n.obj): n.name for n in module_parameter_nodes}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        reachable_param_nodes = module_graph[0].reachable_descendents()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        reachable_params = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        module_reachable_params = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        names = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        for pid, reachable_nodes in reachable_param_nodes.items():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            node = module_nodes_by_hash[pid]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x1)">            if not isinstance(node.obj, torch.nn.Module):</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            module = node.obj</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            reachable_params = {}  # by object id</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            module_reachable_params[id(module)] = reachable_params</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            names[node.name] = set()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            for reachable_hash in reachable_nodes:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                reachable = module_nodes_by_hash[reachable_hash]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x1)">                if isinstance(reachable.obj, torch.nn.Parameter):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                    param = reachable.obj</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                    reachable_params[id(param)] = param</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">                    names[node.name].add(names_by_pid[id(param)])</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # we look for correspondences between sets of parameters used in subtrees of the</span>
+<span class="line-empty" title="No Anys on this line!">        # computation graph and sets of parameters contained in subtrees of the module</span>
+<span class="line-empty" title="No Anys on this line!">        # graph</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)">        node_depths = {id(n): d for n, d in module_graph[0].descendent_bfs()}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        parameter_module_names = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        parameter_modules = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        for param_node in (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x10)
+Explicit (x1)">            n for n in module_graph.nodes if isinstance(n.obj, torch.nn.Parameter)</span>
+<span class="line-empty" title="No Anys on this line!">        ):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            pid = id(param_node.obj)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            best_node = None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            best_depth = None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            best_reachable_params = None</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            for node in module_graph.nodes:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)
+Explicit (x1)">                if not isinstance(node.obj, torch.nn.Module):</span>
+<span class="line-any" title="No Anys on this line!">                    continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                module = node.obj</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                reachable_params = module_reachable_params[id(module)]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                if pid in reachable_params:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    depth = node_depths[id(node)]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">                    if best_node is None or (len(reachable_params), depth) &lt;= (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        len(best_reachable_params),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        best_depth,</span>
+<span class="line-empty" title="No Anys on this line!">                    ):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        best_node = node</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        best_depth = depth</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                        best_reachable_params = reachable_params</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            parameter_modules[pid] = best_node</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            parameter_module_names[param_node.name] = best_node.name</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # contains all parameters but only a minimal set of modules necessary</span>
+<span class="line-empty" title="No Anys on this line!">        # to contain them (and which ideally correspond to conceptual layers)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        reduced_module_graph = cls()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        rmg_ids = itertools.count()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x15)">        rmg_root = Node(id=next(rmg_ids), node=module_graph[0])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        reduced_module_graph.add_node(rmg_root)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        reduced_module_graph.root = rmg_root</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        rmg_nodes_by_pid = {}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        module_nodes_by_pid = {id(n.obj): n for n in module_graph.nodes}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        compute_graph, compute_node_vars = cls.from_torch_compute_graph(variable)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        for node, _ in reversed(list(compute_graph[0].ancestor_bfs())):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            param = compute_node_vars.get(node.id)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            pid = id(param)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">            if not isinstance(param, torch.nn.Parameter):</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if pid not in module_nodes_by_pid:</span>
+<span class="line-empty" title="No Anys on this line!">                # not all Parameters that occur in the compute graph come from the Module graph</span>
+<span class="line-any" title="No Anys on this line!">                continue</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">            # add the nodes in the order we want to display them on the frontend</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            mid = id(parameter_modules[pid].obj)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if mid in rmg_nodes_by_pid:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                rmg_module = rmg_nodes_by_pid[mid]</span>
+<span class="line-empty" title="No Anys on this line!">            else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x13)">                rmg_module = rmg_nodes_by_pid[mid] = Node(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                    id=next(rmg_ids), node=module_nodes_by_pid[mid]</span>
+<span class="line-empty" title="No Anys on this line!">                )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                reduced_module_graph.add_node(rmg_module)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                reduced_module_graph.add_edge(rmg_root, rmg_module)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x16)">            rmg_param = Node(id=next(rmg_ids), node=module_nodes_by_pid[pid])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            rmg_nodes_by_pid[pid] = rmg_param</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            reduced_module_graph.add_node(rmg_param)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">            reduced_module_graph.add_edge(rmg_module, rmg_param)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return reduced_module_graph</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    @classmethod</span>
+<span class="line-any" title="No Anys on this line!">    def node_from_module(cls, nid, module):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        numpy = util.get_module("numpy", "Could not import numpy")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        node = wandb.Node()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        node.id = nid</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        node.child_parameters = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        for parameter in module.parameters():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            node.child_parameters += numpy.prod(parameter.size())</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">        node.class_name = type(module).__name__</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return node</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

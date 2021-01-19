@@ -1,0 +1,177 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.sdk.lib.lazyloader</h2>
+<table>
+<caption>wandb/sdk/lib/lazyloader.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">#</span>
+<span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">module lazyloader</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import absolute_import</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import division</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import print_function</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import unicode_literals</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import importlib</span>
+<span class="line-precise" title="No Anys on this line!">import sys</span>
+<span class="line-precise" title="No Anys on this line!">import types</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class LazyLoader(types.ModuleType):</span>
+<span class="line-empty" title="No Anys on this line!">    """Lazily import a module, mainly to avoid pulling in large dependencies.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    We use this for tensorflow and other optional libraries primarily at the</span>
+<span class="line-empty" title="No Anys on this line!">    top module level.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # The lint error here is incorrect.</span>
+<span class="line-any" title="No Anys on this line!">    def __init__(</span>
+<span class="line-empty" title="No Anys on this line!">        self,</span>
+<span class="line-empty" title="No Anys on this line!">        local_name,  # pylint: disable=super-on-old-class</span>
+<span class="line-empty" title="No Anys on this line!">        parent_module_globals,</span>
+<span class="line-empty" title="No Anys on this line!">        name,</span>
+<span class="line-any" title="No Anys on this line!">        warning=None,</span>
+<span class="line-empty" title="No Anys on this line!">    ):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._local_name = local_name</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._parent_module_globals = parent_module_globals</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._warning = warning</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        super(LazyLoader, self).__init__(str(name))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def _load(self):</span>
+<span class="line-empty" title="No Anys on this line!">        """Load the module and insert it into the parent's globals."""</span>
+<span class="line-empty" title="No Anys on this line!">        # Import the target module and insert it into the parent's namespace</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        module = importlib.import_module(self.__name__)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self._parent_module_globals[self._local_name] = module</span>
+<span class="line-empty" title="No Anys on this line!">        # print("import", self.__name__)</span>
+<span class="line-empty" title="No Anys on this line!">        # print("Set global", self._local_name)</span>
+<span class="line-empty" title="No Anys on this line!">        # print("mod", module)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        sys.modules[self._local_name] = module</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Emit a warning if one was specified</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if self._warning:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            print(self._warning)</span>
+<span class="line-empty" title="No Anys on this line!">            # Make sure to only warn once.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._warning = None</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Update this object's dict so that if someone keeps a reference to the</span>
+<span class="line-empty" title="No Anys on this line!">        #   LazyLoader, lookups are efficient (__getattr__ is only called on lookups</span>
+<span class="line-empty" title="No Anys on this line!">        #   that fail).</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        self.__dict__.update(module.__dict__)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return module</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    # def __getattribute__(self, item):</span>
+<span class="line-empty" title="No Anys on this line!">    #     print("getattribute", item)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __getattr__(self, item):</span>
+<span class="line-empty" title="No Anys on this line!">        # print("getattr", item)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        module = self._load()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x3)">        return getattr(module, item)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __dir__(self):</span>
+<span class="line-empty" title="No Anys on this line!">        # print("dir")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        module = self._load()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return dir(module)</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

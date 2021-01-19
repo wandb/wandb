@@ -1,0 +1,96 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.plots.explain_text</h2>
+<table>
+<caption>wandb/plots/explain_text.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-precise" title="No Anys on this line!">from wandb import util</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.plots.utils import (</span>
+<span class="line-empty" title="No Anys on this line!">    test_missing,</span>
+<span class="line-empty" title="No Anys on this line!">    test_types,</span>
+<span class="line-empty" title="No Anys on this line!">    encode_labels,</span>
+<span class="line-empty" title="No Anys on this line!">    deprecation_notice,</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def explain_text(text, probas, target_names=None):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">        ExplainText adds support for eli5's LIME based TextExplainer.</span>
+<span class="line-empty" title="No Anys on this line!">        Arguments:</span>
+<span class="line-empty" title="No Anys on this line!">         text (str): Text to explain</span>
+<span class="line-empty" title="No Anys on this line!">         probas (black-box classification pipeline): A function which</span>
+<span class="line-empty" title="No Anys on this line!">                        takes a list of strings (documents) and returns a matrix</span>
+<span class="line-empty" title="No Anys on this line!">                        of shape (n_samples, n_classes) with probability values,</span>
+<span class="line-empty" title="No Anys on this line!">                        i.e. a row per document and a column per output label.</span>
+<span class="line-empty" title="No Anys on this line!">        Returns:</span>
+<span class="line-empty" title="No Anys on this line!">         Nothing. To see plots, go to your W&amp;B run page.</span>
+<span class="line-empty" title="No Anys on this line!">        Example:</span>
+<span class="line-empty" title="No Anys on this line!">         wandb.log({'roc': wandb.plots.ExplainText(text, probas)})</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    deprecation_notice()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    eli5 = util.get_module(</span>
+<span class="line-any" title="No Anys on this line!">        "eli5",</span>
+<span class="line-any" title="No Anys on this line!">        required="explain_text requires the eli5 library, install with `pip install eli5`",</span>
+<span class="line-empty" title="No Anys on this line!">    )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">    if test_missing(text=text, probas=probas):</span>
+<span class="line-empty" title="No Anys on this line!">        # and test_types(proba=proba)):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        wandb.termlog("Visualizing TextExplainer.")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        te = eli5.lime.TextExplainer(random_state=42)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        te.fit(text, probas)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        html = te.show_prediction(target_names=target_names)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        return wandb.Html(html.data)</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

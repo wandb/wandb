@@ -1,0 +1,336 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.pygments.styles.paraiso_light</h2>
+<table>
+<caption>wandb/vendor/pygments/styles/paraiso_light.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">    pygments.styles.paraiso_light</span>
+<span class="line-empty" title="No Anys on this line!">    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Paraíso (Light) by Jan T. Sott</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    Pygments template by Jan T. Sott (https://github.com/idleberg)</span>
+<span class="line-empty" title="No Anys on this line!">    Created with Base16 Builder by Chris Kempson</span>
+<span class="line-empty" title="No Anys on this line!">    (https://github.com/chriskempson/base16-builder).</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    :copyright: Copyright 2006-2017 by the Pygments team, see AUTHORS.</span>
+<span class="line-empty" title="No Anys on this line!">    :license: BSD, see LICENSE for details.</span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from pygments.style import Style</span>
+<span class="line-any" title="No Anys on this line!">from pygments.token import Keyword, Name, Comment, String, Error, Text, \</span>
+<span class="line-empty" title="No Anys on this line!">    Number, Operator, Generic, Whitespace, Punctuation, Other, Literal</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">BACKGROUND = "#e7e9db"</span>
+<span class="line-precise" title="No Anys on this line!">CURRENT_LINE = "#b9b6b0"</span>
+<span class="line-precise" title="No Anys on this line!">SELECTION = "#a39e9b"</span>
+<span class="line-precise" title="No Anys on this line!">FOREGROUND = "#2f1e2e"</span>
+<span class="line-precise" title="No Anys on this line!">COMMENT = "#8d8687"</span>
+<span class="line-precise" title="No Anys on this line!">RED = "#ef6155"</span>
+<span class="line-precise" title="No Anys on this line!">ORANGE = "#f99b15"</span>
+<span class="line-precise" title="No Anys on this line!">YELLOW = "#fec418"</span>
+<span class="line-precise" title="No Anys on this line!">GREEN = "#48b685"</span>
+<span class="line-precise" title="No Anys on this line!">AQUA = "#5bc4bf"</span>
+<span class="line-precise" title="No Anys on this line!">BLUE = "#06b6ef"</span>
+<span class="line-precise" title="No Anys on this line!">PURPLE = "#815ba4"</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class ParaisoLightStyle(Style):</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    default_style = ''</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    background_color = BACKGROUND</span>
+<span class="line-precise" title="No Anys on this line!">    highlight_color = SELECTION</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    background_color = BACKGROUND</span>
+<span class="line-precise" title="No Anys on this line!">    highlight_color = SELECTION</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-imprecise" title="Any Types on this line: 
+Unimported (x1)">    styles = {</span>
+<span class="line-empty" title="No Anys on this line!">        # No corresponding class for the following:</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Text:                      FOREGROUND,  # class:  ''</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Whitespace:                "",          # class: 'w'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Error:                     RED,         # class: 'err'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Other:                     "",          # class 'x'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Comment:                   COMMENT,   # class: 'c'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Comment.Multiline:         "",        # class: 'cm'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Comment.Preproc:           "",        # class: 'cp'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Comment.Single:            "",        # class: 'c1'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Comment.Special:           "",        # class: 'cs'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Keyword:                   PURPLE,    # class: 'k'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Constant:          "",        # class: 'kc'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Declaration:       "",        # class: 'kd'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Namespace:         AQUA,      # class: 'kn'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Pseudo:            "",        # class: 'kp'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Reserved:          "",        # class: 'kr'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Keyword.Type:              YELLOW,    # class: 'kt'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Operator:                  AQUA,      # class: 'o'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Operator.Word:             "",        # class: 'ow' - like keywords</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Punctuation:               FOREGROUND,  # class: 'p'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Name:                      FOREGROUND,  # class: 'n'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Attribute:            BLUE,        # class: 'na' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Builtin:              "",          # class: 'nb'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">        Name.Builtin.Pseudo:       "",          # class: 'bp'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Class:                YELLOW,      # class: 'nc' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Constant:             RED,         # class: 'no' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Decorator:            AQUA,        # class: 'nd' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Entity:               "",          # class: 'ni'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Exception:            RED,         # class: 'ne'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Function:             BLUE,        # class: 'nf'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Property:             "",          # class: 'py'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Label:                "",          # class: 'nl'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Namespace:            YELLOW,      # class: 'nn' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Other:                BLUE,        # class: 'nx'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Tag:                  AQUA,        # class: 'nt' - like a keyword</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Name.Variable:             RED,         # class: 'nv' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">        Name.Variable.Class:       "",          # class: 'vc' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">        Name.Variable.Global:      "",          # class: 'vg' - to be revised</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">        Name.Variable.Instance:    "",          # class: 'vi' - to be revised</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Number:                    ORANGE,    # class: 'm'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Number.Float:              "",        # class: 'mf'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Number.Hex:                "",        # class: 'mh'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Number.Integer:            "",        # class: 'mi'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x3)">        Number.Integer.Long:       "",        # class: 'il'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Number.Oct:                "",        # class: 'mo'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Literal:                   ORANGE,    # class: 'l'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Literal.Date:              GREEN,     # class: 'ld'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        String:                    GREEN,       # class: 's'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Backtick:           "",          # class: 'sb'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Char:               FOREGROUND,  # class: 'sc'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Doc:                COMMENT,     # class: 'sd' - like a comment</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Double:             "",          # class: 's2'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Escape:             ORANGE,      # class: 'se'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Heredoc:            "",          # class: 'sh'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Interpol:           ORANGE,      # class: 'si'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Other:              "",          # class: 'sx'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Regex:              "",          # class: 'sr'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Single:             "",          # class: 's1'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        String.Symbol:             "",          # class: 'ss'</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x1)">        Generic:                   "",                    # class: 'g'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Deleted:           RED,                   # class: 'gd',</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Emph:              "italic",              # class: 'ge'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Error:             "",                    # class: 'gr'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Heading:           "bold " + FOREGROUND,  # class: 'gh'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Inserted:          GREEN,                 # class: 'gi'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Output:            "",                    # class: 'go'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Prompt:            "bold " + COMMENT,     # class: 'gp'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Strong:            "bold",                # class: 'gs'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Subheading:        "bold " + AQUA,        # class: 'gu'</span>
+<span class="line-any" title="Any Types on this line: 
+Unimported (x2)">        Generic.Traceback:         "",                    # class: 'gt'</span>
+<span class="line-empty" title="No Anys on this line!">    }</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

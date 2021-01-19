@@ -1,0 +1,444 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.sdk_py27.internal.file_pusher</h2>
+<table>
+<caption>wandb/sdk_py27/internal/file_pusher.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+<span id="L156" class="lineno"><a class="lineno" href="#L156">156</a></span>
+<span id="L157" class="lineno"><a class="lineno" href="#L157">157</a></span>
+<span id="L158" class="lineno"><a class="lineno" href="#L158">158</a></span>
+<span id="L159" class="lineno"><a class="lineno" href="#L159">159</a></span>
+<span id="L160" class="lineno"><a class="lineno" href="#L160">160</a></span>
+<span id="L161" class="lineno"><a class="lineno" href="#L161">161</a></span>
+<span id="L162" class="lineno"><a class="lineno" href="#L162">162</a></span>
+<span id="L163" class="lineno"><a class="lineno" href="#L163">163</a></span>
+<span id="L164" class="lineno"><a class="lineno" href="#L164">164</a></span>
+<span id="L165" class="lineno"><a class="lineno" href="#L165">165</a></span>
+<span id="L166" class="lineno"><a class="lineno" href="#L166">166</a></span>
+<span id="L167" class="lineno"><a class="lineno" href="#L167">167</a></span>
+<span id="L168" class="lineno"><a class="lineno" href="#L168">168</a></span>
+<span id="L169" class="lineno"><a class="lineno" href="#L169">169</a></span>
+<span id="L170" class="lineno"><a class="lineno" href="#L170">170</a></span>
+<span id="L171" class="lineno"><a class="lineno" href="#L171">171</a></span>
+<span id="L172" class="lineno"><a class="lineno" href="#L172">172</a></span>
+<span id="L173" class="lineno"><a class="lineno" href="#L173">173</a></span>
+<span id="L174" class="lineno"><a class="lineno" href="#L174">174</a></span>
+<span id="L175" class="lineno"><a class="lineno" href="#L175">175</a></span>
+<span id="L176" class="lineno"><a class="lineno" href="#L176">176</a></span>
+<span id="L177" class="lineno"><a class="lineno" href="#L177">177</a></span>
+<span id="L178" class="lineno"><a class="lineno" href="#L178">178</a></span>
+<span id="L179" class="lineno"><a class="lineno" href="#L179">179</a></span>
+<span id="L180" class="lineno"><a class="lineno" href="#L180">180</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># File is generated by: tox -e codemod</span>
+<span class="line-precise" title="No Anys on this line!">import os</span>
+<span class="line-precise" title="No Anys on this line!">import logging</span>
+<span class="line-precise" title="No Anys on this line!">import tempfile as builtin_tempfile</span>
+<span class="line-precise" title="No Anys on this line!">import time</span>
+<span class="line-precise" title="No Anys on this line!">from six.moves import queue</span>
+<span class="line-precise" title="No Anys on this line!">import warnings</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">import wandb</span>
+<span class="line-precise" title="No Anys on this line!">import wandb.util</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.compat import tempfile</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from wandb.filesync import stats</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.filesync import step_checksum</span>
+<span class="line-precise" title="No Anys on this line!">from wandb.filesync import step_upload</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def resolve_path(path):</span>
+<span class="line-empty" title="No Anys on this line!">    try:</span>
+<span class="line-precise" title="No Anys on this line!">        from pathlib import Path</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)
+Explicit (x1)">        return str(Path(path).resolve())</span>
+<span class="line-empty" title="No Anys on this line!">    except:</span>
+<span class="line-empty" title="No Anys on this line!">        # Pathlib isn't present for python versions earlier than 3.3</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return os.path.realpath(path)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># Get rid of cleanup warnings in Python 2.7.</span>
+<span class="line-precise" title="No Anys on this line!">warnings.filterwarnings(</span>
+<span class="line-precise" title="No Anys on this line!">    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"</span>
+<span class="line-empty" title="No Anys on this line!">)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># Temporary directory for copies we make of some file types to</span>
+<span class="line-empty" title="No Anys on this line!"># reduce the probability that the file gets changed while we're</span>
+<span class="line-empty" title="No Anys on this line!"># uploading it.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">TMP_DIR = tempfile.TemporaryDirectory("wandb")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">logger = logging.getLogger(__file__)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class FilePusher(object):</span>
+<span class="line-empty" title="No Anys on this line!">    """Parallel file upload class.</span>
+<span class="line-empty" title="No Anys on this line!">    This manages uploading multiple files in parallel. It will restart a given file's</span>
+<span class="line-empty" title="No Anys on this line!">    upload job if it receives a notification that that file has been modified.</span>
+<span class="line-empty" title="No Anys on this line!">    The finish() method will block until all events have been processed and all</span>
+<span class="line-empty" title="No Anys on this line!">    uploads are complete.</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">    MAX_UPLOAD_JOBS = 64</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __init__(self, api):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._api = api</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._tempdir = tempfile.TemporaryDirectory("wandb")</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._stats = stats.Stats()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._incoming_queue = queue.Queue()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        self._event_queue = queue.Queue()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        self._step_checksum = step_checksum.StepChecksum(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._api,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._tempdir,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._incoming_queue,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._event_queue,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self._stats,</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self._step_checksum.start()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">        self._step_upload = step_upload.StepUpload(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        self._step_upload.start()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">        # Holds refs to tempfiles if users need to make a temporary file that</span>
+<span class="line-empty" title="No Anys on this line!">        # stays around long enough for file pusher to sync</span>
+<span class="line-empty" title="No Anys on this line!">        # TODO(artifacts): maybe don't do this</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        self._temp_file_refs = []</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def get_status(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        running = self.is_alive()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        summary = self._stats.summary()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        return running, summary</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def print_status(self, prefix=True):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        step = 0</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        spinner_states = ["-", "\\", "|", "/"]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        stop = False</span>
+<span class="line-any" title="No Anys on this line!">        while True:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            if not self.is_alive():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                stop = True</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            summary = self._stats.summary()</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                summary["uploaded_bytes"] / 1048576.0,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                summary["total_bytes"] / 1048576.0,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                summary["deduped_bytes"] / 1048576.0,</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            line = spinner_states[step % 4] + line</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            step += 1</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            wandb.termlog(line, newline=False, prefix=prefix)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if stop:</span>
+<span class="line-any" title="No Anys on this line!">                break</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            time.sleep(0.25)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        dedupe_fraction = (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            summary["deduped_bytes"] / float(summary["total_bytes"])</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            if summary["total_bytes"] &gt; 0</span>
+<span class="line-any" title="No Anys on this line!">            else 0</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        if dedupe_fraction &gt; 0.01:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x6)">            wandb.termlog(</span>
+<span class="line-any" title="No Anys on this line!">                "W&amp;B sync reduced upload amount by %.1f%%             "</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                % (dedupe_fraction * 100),</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                prefix=prefix,</span>
+<span class="line-empty" title="No Anys on this line!">            )</span>
+<span class="line-empty" title="No Anys on this line!">        # clear progress line.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        wandb.termlog(" " * 79, prefix=prefix)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def file_counts_by_category(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        return self._stats.file_counts_by_category()</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def file_changed(</span>
+<span class="line-empty" title="No Anys on this line!">        self,</span>
+<span class="line-empty" title="No Anys on this line!">        save_name,</span>
+<span class="line-empty" title="No Anys on this line!">        path,</span>
+<span class="line-any" title="No Anys on this line!">        artifact_id=None,</span>
+<span class="line-any" title="No Anys on this line!">        copy=True,</span>
+<span class="line-any" title="No Anys on this line!">        use_prepare_flow=False,</span>
+<span class="line-any" title="No Anys on this line!">        save_fn=None,</span>
+<span class="line-any" title="No Anys on this line!">        digest=None,</span>
+<span class="line-empty" title="No Anys on this line!">    ):</span>
+<span class="line-empty" title="No Anys on this line!">        """Tell the file pusher that a file's changed and should be uploaded.</span>
+<span class="line-empty" title="No Anys on this line!">        Arguments:</span>
+<span class="line-empty" title="No Anys on this line!">            save_name: string logical location of the file relative to the run</span>
+<span class="line-empty" title="No Anys on this line!">                directory.</span>
+<span class="line-empty" title="No Anys on this line!">            path: actual string path of the file to upload on the filesystem.</span>
+<span class="line-empty" title="No Anys on this line!">        """</span>
+<span class="line-empty" title="No Anys on this line!">        # Tests in linux were failing because wandb-events.jsonl didn't exist</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        if not os.path.exists(path) or not os.path.isfile(path):</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">        if os.path.getsize(path) == 0:</span>
+<span class="line-empty" title="No Anys on this line!">            return</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">        save_name = wandb.util.to_forward_slash_path(save_name)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x16)">        event = step_checksum.RequestUpload(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">            path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._incoming_queue.put(event)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def store_manifest_files(self, manifest, artifact_id, save_fn):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x11)">        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._incoming_queue.put(event)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def named_temp_file(self, mode="w+b"):</span>
+<span class="line-empty" title="No Anys on this line!">        # get a named temp file that the file pusher with hold a reference to so it</span>
+<span class="line-empty" title="No Anys on this line!">        # doesn't get gc'd. Obviously, we shouldn't do this very much :). It's currently</span>
+<span class="line-empty" title="No Anys on this line!">        # used for artifact metadata.</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)
+Explicit (x1)">        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._temp_file_refs.append(f)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        return f</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def commit_artifact(self, artifact_id, before_commit=None, on_commit=None):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">        event = step_checksum.RequestCommitArtifact(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            artifact_id, before_commit, on_commit</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._incoming_queue.put(event)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def finish(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        logger.info("shutting down file pusher")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">        self._incoming_queue.put(step_checksum.RequestFinish())</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def join(self):</span>
+<span class="line-empty" title="No Anys on this line!">        # NOTE: must have called finish before join</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        logger.info("waiting for file pusher")</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">        while self.is_alive():</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            time.sleep(0.5)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def is_alive(self):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)">        return self._step_checksum.is_alive() or self._step_upload.is_alive()</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

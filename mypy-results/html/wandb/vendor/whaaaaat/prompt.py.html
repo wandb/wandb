@@ -1,0 +1,250 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.whaaaaat.prompt</h2>
+<table>
+<caption>wandb/vendor/whaaaaat/prompt.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!"># -*- coding: utf-8 -*-</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import absolute_import, print_function</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">from prompt_toolkit.shortcuts import run_application</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from . import PromptParameterException, prompts</span>
+<span class="line-precise" title="No Anys on this line!">from .prompts import list, confirm, input, password, checkbox, rawlist, expand</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">def prompt(questions, answers=None, **kwargs):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Explicit (x1)">    if isinstance(questions, dict):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        questions = [questions]</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">    answers = answers or {}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    patch_stdout = kwargs.pop('patch_stdout', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    return_asyncio_coroutine = kwargs.pop('return_asyncio_coroutine', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    true_color = kwargs.pop('true_color', False)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    refresh_interval = kwargs.pop('refresh_interval', 0)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">    eventloop = kwargs.pop('eventloop', None)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">    for question in questions:</span>
+<span class="line-empty" title="No Anys on this line!">        # import the question</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not 'type' in question:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            raise PromptParameterException('type')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not 'name' in question:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            raise PromptParameterException('name')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        if not 'message' in question:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">            raise PromptParameterException('message')</span>
+<span class="line-empty" title="No Anys on this line!">        try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            _kwargs = {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            _kwargs.update(kwargs)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            _kwargs.update(question)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            type = _kwargs.pop('type')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            name = _kwargs.pop('name')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            message = _kwargs.pop('message')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            when = _kwargs.pop('when', None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            filter = _kwargs.pop('filter', None)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if when:</span>
+<span class="line-empty" title="No Anys on this line!">                # at least a little sanity check!</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                if callable(question['when']):</span>
+<span class="line-empty" title="No Anys on this line!">                    try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">                        if not question['when'](answers):</span>
+<span class="line-any" title="No Anys on this line!">                            continue</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    except Exception as e:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        raise ValueError(</span>
+<span class="line-any" title="No Anys on this line!">                            'Problem in \'when\' check of %s question: %s' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                            (name, e))</span>
+<span class="line-empty" title="No Anys on this line!">                else:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    raise ValueError('\'when\' needs to be function that ' \</span>
+<span class="line-empty" title="No Anys on this line!">                                     'accepts a dict argument')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if filter:</span>
+<span class="line-empty" title="No Anys on this line!">                # at least a little sanity check!</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                if not callable(question['filter']):</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    raise ValueError('\'filter\' needs to be function that ' \</span>
+<span class="line-empty" title="No Anys on this line!">                                     'accepts an argument')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x7)
+Explicit (x3)">            application = getattr(prompts, type).question(message, **_kwargs)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)
+Unimported (x1)">            answer = run_application(</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                application,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                patch_stdout=patch_stdout,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                return_asyncio_coroutine=return_asyncio_coroutine,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                true_color=true_color,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                refresh_interval=refresh_interval,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                eventloop=eventloop)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            if answer is not None:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                if filter:</span>
+<span class="line-empty" title="No Anys on this line!">                    try:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x5)">                        answer = question['filter'](answer)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                    except Exception as e:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">                        raise ValueError(</span>
+<span class="line-any" title="No Anys on this line!">                            'Problem processing \'filter\' of %s question: %s' %</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">                            (name, e))</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x3)">                answers[name] = answer</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">        except AttributeError as e:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            print(e)</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x2)">            raise ValueError('No question type \'%s\'' % type)</span>
+<span class="line-precise" title="No Anys on this line!">        except KeyboardInterrupt:</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            print('')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            print('Cancelled by user')</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            print('')</span>
+<span class="line-empty" title="No Anys on this line!">            return {}</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">    return answers</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># TODO:</span>
+<span class="line-empty" title="No Anys on this line!"># Bottom Bar - inquirer.ui.BottomBar</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.prompt_toolkit.layout</h2>
+<table>
+<caption>wandb/vendor/prompt_toolkit/layout/__init__.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-empty" title="No Anys on this line!">Command line layout definitions</span>
+<span class="line-empty" title="No Anys on this line!">-------------------------------</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">The layout of a command line interface is defined by a Container instance.</span>
+<span class="line-empty" title="No Anys on this line!">There are two main groups of classes here. Containers and controls:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">- A container can contain other containers or controls, it can have multiple</span>
+<span class="line-empty" title="No Anys on this line!">  children and it decides about the dimensions.</span>
+<span class="line-empty" title="No Anys on this line!">- A control is responsible for rendering the actual content to a screen.</span>
+<span class="line-empty" title="No Anys on this line!">  A control can propose some dimensions, but it's the container who decides</span>
+<span class="line-empty" title="No Anys on this line!">  about the dimensions -- or when the control consumes more space -- which part</span>
+<span class="line-empty" title="No Anys on this line!">  of the control will be visible.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Container classes::</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    - Container (Abstract base class)</span>
+<span class="line-empty" title="No Anys on this line!">       |- HSplit (Horizontal split)</span>
+<span class="line-empty" title="No Anys on this line!">       |- VSplit (Vertical split)</span>
+<span class="line-empty" title="No Anys on this line!">       |- FloatContainer (Container which can also contain menus and other floats)</span>
+<span class="line-empty" title="No Anys on this line!">       `- Window (Container which contains one actual control</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Control classes::</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">    - UIControl (Abstract base class)</span>
+<span class="line-empty" title="No Anys on this line!">       |- TokenListControl (Renders a simple list of tokens)</span>
+<span class="line-empty" title="No Anys on this line!">       |- FillControl (Fills control with one token/character.)</span>
+<span class="line-empty" title="No Anys on this line!">       `- BufferControl (Renders an input buffer.)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">Usually, you end up wrapping every control inside a `Window` object, because</span>
+<span class="line-empty" title="No Anys on this line!">that's the only way to render it in a layout.</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">There are some prepared toolbars which are ready to use::</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">- SystemToolbar (Shows the 'system' input buffer, for entering system commands.)</span>
+<span class="line-empty" title="No Anys on this line!">- ArgToolbar (Shows the input 'arg', for repetition of input commands.)</span>
+<span class="line-empty" title="No Anys on this line!">- SearchToolbar (Shows the 'search' input buffer, for incremental search.)</span>
+<span class="line-empty" title="No Anys on this line!">- CompletionsToolbar (Shows the completions of the current buffer.)</span>
+<span class="line-empty" title="No Anys on this line!">- ValidationToolbar (Shows validation errors of the current buffer.)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">And one prepared menu:</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">- CompletionsMenu</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!">"""</span>
+<span class="line-precise" title="No Anys on this line!">from __future__ import unicode_literals</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">from .containers import Float, FloatContainer, HSplit, VSplit, Window, ConditionalContainer</span>
+<span class="line-precise" title="No Anys on this line!">from .controls import TokenListControl, FillControl, BufferControl</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,348 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="../../../../mypy-html.css">
+</head>
+<body>
+<h2>wandb.vendor.prompt_toolkit.win32_types</h2>
+<table>
+<caption>wandb/vendor/prompt_toolkit/win32_types.py</caption>
+<tbody><tr>
+<td class="table-lines"><pre><span id="L1" class="lineno"><a class="lineno" href="#L1">1</a></span>
+<span id="L2" class="lineno"><a class="lineno" href="#L2">2</a></span>
+<span id="L3" class="lineno"><a class="lineno" href="#L3">3</a></span>
+<span id="L4" class="lineno"><a class="lineno" href="#L4">4</a></span>
+<span id="L5" class="lineno"><a class="lineno" href="#L5">5</a></span>
+<span id="L6" class="lineno"><a class="lineno" href="#L6">6</a></span>
+<span id="L7" class="lineno"><a class="lineno" href="#L7">7</a></span>
+<span id="L8" class="lineno"><a class="lineno" href="#L8">8</a></span>
+<span id="L9" class="lineno"><a class="lineno" href="#L9">9</a></span>
+<span id="L10" class="lineno"><a class="lineno" href="#L10">10</a></span>
+<span id="L11" class="lineno"><a class="lineno" href="#L11">11</a></span>
+<span id="L12" class="lineno"><a class="lineno" href="#L12">12</a></span>
+<span id="L13" class="lineno"><a class="lineno" href="#L13">13</a></span>
+<span id="L14" class="lineno"><a class="lineno" href="#L14">14</a></span>
+<span id="L15" class="lineno"><a class="lineno" href="#L15">15</a></span>
+<span id="L16" class="lineno"><a class="lineno" href="#L16">16</a></span>
+<span id="L17" class="lineno"><a class="lineno" href="#L17">17</a></span>
+<span id="L18" class="lineno"><a class="lineno" href="#L18">18</a></span>
+<span id="L19" class="lineno"><a class="lineno" href="#L19">19</a></span>
+<span id="L20" class="lineno"><a class="lineno" href="#L20">20</a></span>
+<span id="L21" class="lineno"><a class="lineno" href="#L21">21</a></span>
+<span id="L22" class="lineno"><a class="lineno" href="#L22">22</a></span>
+<span id="L23" class="lineno"><a class="lineno" href="#L23">23</a></span>
+<span id="L24" class="lineno"><a class="lineno" href="#L24">24</a></span>
+<span id="L25" class="lineno"><a class="lineno" href="#L25">25</a></span>
+<span id="L26" class="lineno"><a class="lineno" href="#L26">26</a></span>
+<span id="L27" class="lineno"><a class="lineno" href="#L27">27</a></span>
+<span id="L28" class="lineno"><a class="lineno" href="#L28">28</a></span>
+<span id="L29" class="lineno"><a class="lineno" href="#L29">29</a></span>
+<span id="L30" class="lineno"><a class="lineno" href="#L30">30</a></span>
+<span id="L31" class="lineno"><a class="lineno" href="#L31">31</a></span>
+<span id="L32" class="lineno"><a class="lineno" href="#L32">32</a></span>
+<span id="L33" class="lineno"><a class="lineno" href="#L33">33</a></span>
+<span id="L34" class="lineno"><a class="lineno" href="#L34">34</a></span>
+<span id="L35" class="lineno"><a class="lineno" href="#L35">35</a></span>
+<span id="L36" class="lineno"><a class="lineno" href="#L36">36</a></span>
+<span id="L37" class="lineno"><a class="lineno" href="#L37">37</a></span>
+<span id="L38" class="lineno"><a class="lineno" href="#L38">38</a></span>
+<span id="L39" class="lineno"><a class="lineno" href="#L39">39</a></span>
+<span id="L40" class="lineno"><a class="lineno" href="#L40">40</a></span>
+<span id="L41" class="lineno"><a class="lineno" href="#L41">41</a></span>
+<span id="L42" class="lineno"><a class="lineno" href="#L42">42</a></span>
+<span id="L43" class="lineno"><a class="lineno" href="#L43">43</a></span>
+<span id="L44" class="lineno"><a class="lineno" href="#L44">44</a></span>
+<span id="L45" class="lineno"><a class="lineno" href="#L45">45</a></span>
+<span id="L46" class="lineno"><a class="lineno" href="#L46">46</a></span>
+<span id="L47" class="lineno"><a class="lineno" href="#L47">47</a></span>
+<span id="L48" class="lineno"><a class="lineno" href="#L48">48</a></span>
+<span id="L49" class="lineno"><a class="lineno" href="#L49">49</a></span>
+<span id="L50" class="lineno"><a class="lineno" href="#L50">50</a></span>
+<span id="L51" class="lineno"><a class="lineno" href="#L51">51</a></span>
+<span id="L52" class="lineno"><a class="lineno" href="#L52">52</a></span>
+<span id="L53" class="lineno"><a class="lineno" href="#L53">53</a></span>
+<span id="L54" class="lineno"><a class="lineno" href="#L54">54</a></span>
+<span id="L55" class="lineno"><a class="lineno" href="#L55">55</a></span>
+<span id="L56" class="lineno"><a class="lineno" href="#L56">56</a></span>
+<span id="L57" class="lineno"><a class="lineno" href="#L57">57</a></span>
+<span id="L58" class="lineno"><a class="lineno" href="#L58">58</a></span>
+<span id="L59" class="lineno"><a class="lineno" href="#L59">59</a></span>
+<span id="L60" class="lineno"><a class="lineno" href="#L60">60</a></span>
+<span id="L61" class="lineno"><a class="lineno" href="#L61">61</a></span>
+<span id="L62" class="lineno"><a class="lineno" href="#L62">62</a></span>
+<span id="L63" class="lineno"><a class="lineno" href="#L63">63</a></span>
+<span id="L64" class="lineno"><a class="lineno" href="#L64">64</a></span>
+<span id="L65" class="lineno"><a class="lineno" href="#L65">65</a></span>
+<span id="L66" class="lineno"><a class="lineno" href="#L66">66</a></span>
+<span id="L67" class="lineno"><a class="lineno" href="#L67">67</a></span>
+<span id="L68" class="lineno"><a class="lineno" href="#L68">68</a></span>
+<span id="L69" class="lineno"><a class="lineno" href="#L69">69</a></span>
+<span id="L70" class="lineno"><a class="lineno" href="#L70">70</a></span>
+<span id="L71" class="lineno"><a class="lineno" href="#L71">71</a></span>
+<span id="L72" class="lineno"><a class="lineno" href="#L72">72</a></span>
+<span id="L73" class="lineno"><a class="lineno" href="#L73">73</a></span>
+<span id="L74" class="lineno"><a class="lineno" href="#L74">74</a></span>
+<span id="L75" class="lineno"><a class="lineno" href="#L75">75</a></span>
+<span id="L76" class="lineno"><a class="lineno" href="#L76">76</a></span>
+<span id="L77" class="lineno"><a class="lineno" href="#L77">77</a></span>
+<span id="L78" class="lineno"><a class="lineno" href="#L78">78</a></span>
+<span id="L79" class="lineno"><a class="lineno" href="#L79">79</a></span>
+<span id="L80" class="lineno"><a class="lineno" href="#L80">80</a></span>
+<span id="L81" class="lineno"><a class="lineno" href="#L81">81</a></span>
+<span id="L82" class="lineno"><a class="lineno" href="#L82">82</a></span>
+<span id="L83" class="lineno"><a class="lineno" href="#L83">83</a></span>
+<span id="L84" class="lineno"><a class="lineno" href="#L84">84</a></span>
+<span id="L85" class="lineno"><a class="lineno" href="#L85">85</a></span>
+<span id="L86" class="lineno"><a class="lineno" href="#L86">86</a></span>
+<span id="L87" class="lineno"><a class="lineno" href="#L87">87</a></span>
+<span id="L88" class="lineno"><a class="lineno" href="#L88">88</a></span>
+<span id="L89" class="lineno"><a class="lineno" href="#L89">89</a></span>
+<span id="L90" class="lineno"><a class="lineno" href="#L90">90</a></span>
+<span id="L91" class="lineno"><a class="lineno" href="#L91">91</a></span>
+<span id="L92" class="lineno"><a class="lineno" href="#L92">92</a></span>
+<span id="L93" class="lineno"><a class="lineno" href="#L93">93</a></span>
+<span id="L94" class="lineno"><a class="lineno" href="#L94">94</a></span>
+<span id="L95" class="lineno"><a class="lineno" href="#L95">95</a></span>
+<span id="L96" class="lineno"><a class="lineno" href="#L96">96</a></span>
+<span id="L97" class="lineno"><a class="lineno" href="#L97">97</a></span>
+<span id="L98" class="lineno"><a class="lineno" href="#L98">98</a></span>
+<span id="L99" class="lineno"><a class="lineno" href="#L99">99</a></span>
+<span id="L100" class="lineno"><a class="lineno" href="#L100">100</a></span>
+<span id="L101" class="lineno"><a class="lineno" href="#L101">101</a></span>
+<span id="L102" class="lineno"><a class="lineno" href="#L102">102</a></span>
+<span id="L103" class="lineno"><a class="lineno" href="#L103">103</a></span>
+<span id="L104" class="lineno"><a class="lineno" href="#L104">104</a></span>
+<span id="L105" class="lineno"><a class="lineno" href="#L105">105</a></span>
+<span id="L106" class="lineno"><a class="lineno" href="#L106">106</a></span>
+<span id="L107" class="lineno"><a class="lineno" href="#L107">107</a></span>
+<span id="L108" class="lineno"><a class="lineno" href="#L108">108</a></span>
+<span id="L109" class="lineno"><a class="lineno" href="#L109">109</a></span>
+<span id="L110" class="lineno"><a class="lineno" href="#L110">110</a></span>
+<span id="L111" class="lineno"><a class="lineno" href="#L111">111</a></span>
+<span id="L112" class="lineno"><a class="lineno" href="#L112">112</a></span>
+<span id="L113" class="lineno"><a class="lineno" href="#L113">113</a></span>
+<span id="L114" class="lineno"><a class="lineno" href="#L114">114</a></span>
+<span id="L115" class="lineno"><a class="lineno" href="#L115">115</a></span>
+<span id="L116" class="lineno"><a class="lineno" href="#L116">116</a></span>
+<span id="L117" class="lineno"><a class="lineno" href="#L117">117</a></span>
+<span id="L118" class="lineno"><a class="lineno" href="#L118">118</a></span>
+<span id="L119" class="lineno"><a class="lineno" href="#L119">119</a></span>
+<span id="L120" class="lineno"><a class="lineno" href="#L120">120</a></span>
+<span id="L121" class="lineno"><a class="lineno" href="#L121">121</a></span>
+<span id="L122" class="lineno"><a class="lineno" href="#L122">122</a></span>
+<span id="L123" class="lineno"><a class="lineno" href="#L123">123</a></span>
+<span id="L124" class="lineno"><a class="lineno" href="#L124">124</a></span>
+<span id="L125" class="lineno"><a class="lineno" href="#L125">125</a></span>
+<span id="L126" class="lineno"><a class="lineno" href="#L126">126</a></span>
+<span id="L127" class="lineno"><a class="lineno" href="#L127">127</a></span>
+<span id="L128" class="lineno"><a class="lineno" href="#L128">128</a></span>
+<span id="L129" class="lineno"><a class="lineno" href="#L129">129</a></span>
+<span id="L130" class="lineno"><a class="lineno" href="#L130">130</a></span>
+<span id="L131" class="lineno"><a class="lineno" href="#L131">131</a></span>
+<span id="L132" class="lineno"><a class="lineno" href="#L132">132</a></span>
+<span id="L133" class="lineno"><a class="lineno" href="#L133">133</a></span>
+<span id="L134" class="lineno"><a class="lineno" href="#L134">134</a></span>
+<span id="L135" class="lineno"><a class="lineno" href="#L135">135</a></span>
+<span id="L136" class="lineno"><a class="lineno" href="#L136">136</a></span>
+<span id="L137" class="lineno"><a class="lineno" href="#L137">137</a></span>
+<span id="L138" class="lineno"><a class="lineno" href="#L138">138</a></span>
+<span id="L139" class="lineno"><a class="lineno" href="#L139">139</a></span>
+<span id="L140" class="lineno"><a class="lineno" href="#L140">140</a></span>
+<span id="L141" class="lineno"><a class="lineno" href="#L141">141</a></span>
+<span id="L142" class="lineno"><a class="lineno" href="#L142">142</a></span>
+<span id="L143" class="lineno"><a class="lineno" href="#L143">143</a></span>
+<span id="L144" class="lineno"><a class="lineno" href="#L144">144</a></span>
+<span id="L145" class="lineno"><a class="lineno" href="#L145">145</a></span>
+<span id="L146" class="lineno"><a class="lineno" href="#L146">146</a></span>
+<span id="L147" class="lineno"><a class="lineno" href="#L147">147</a></span>
+<span id="L148" class="lineno"><a class="lineno" href="#L148">148</a></span>
+<span id="L149" class="lineno"><a class="lineno" href="#L149">149</a></span>
+<span id="L150" class="lineno"><a class="lineno" href="#L150">150</a></span>
+<span id="L151" class="lineno"><a class="lineno" href="#L151">151</a></span>
+<span id="L152" class="lineno"><a class="lineno" href="#L152">152</a></span>
+<span id="L153" class="lineno"><a class="lineno" href="#L153">153</a></span>
+<span id="L154" class="lineno"><a class="lineno" href="#L154">154</a></span>
+<span id="L155" class="lineno"><a class="lineno" href="#L155">155</a></span>
+</pre></td>
+<td class="table-code"><pre><span class="line-precise" title="No Anys on this line!">from ctypes import Union, Structure, c_char, c_short, c_long, c_ulong</span>
+<span class="line-precise" title="No Anys on this line!">from ctypes.wintypes import DWORD, BOOL, LPVOID, WORD, WCHAR</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"># Input/Output standard device numbers. Note that these are not handle objects.</span>
+<span class="line-empty" title="No Anys on this line!"># It's the `windll.kernel32.GetStdHandle` system call that turns them into a</span>
+<span class="line-empty" title="No Anys on this line!"># real handle object.</span>
+<span class="line-precise" title="No Anys on this line!">STD_INPUT_HANDLE = c_ulong(-10)</span>
+<span class="line-precise" title="No Anys on this line!">STD_OUTPUT_HANDLE = c_ulong(-11)</span>
+<span class="line-precise" title="No Anys on this line!">STD_ERROR_HANDLE = c_ulong(-12)</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class COORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    Struct in wincon.h</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms682119(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('X', c_short),  # Short</span>
+<span class="line-precise" title="No Anys on this line!">        ('Y', c_short),  # Short</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __repr__(self):</span>
+<span class="line-any" title="No Anys on this line!">        return '%s(X=%r, Y=%r, type_x=%r, type_y=%r)' % (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)
+Explicit (x2)">            self.__class__.__name__, self.X, self.Y, type(self.X), type(self.Y))</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class UNICODE_OR_ASCII(Union):</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('AsciiChar', c_char),</span>
+<span class="line-precise" title="No Anys on this line!">        ('UnicodeChar', WCHAR),</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class KEY_EVENT_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms684166(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('KeyDown', c_long),  # bool</span>
+<span class="line-precise" title="No Anys on this line!">        ('RepeatCount', c_short),  # word</span>
+<span class="line-precise" title="No Anys on this line!">        ('VirtualKeyCode', c_short),  # word</span>
+<span class="line-precise" title="No Anys on this line!">        ('VirtualScanCode', c_short),  # word</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('uChar', UNICODE_OR_ASCII),  # Unicode or ASCII.</span>
+<span class="line-precise" title="No Anys on this line!">        ('ControlKeyState', c_long)  # double word</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class MOUSE_EVENT_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms684239(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('MousePosition', COORD),</span>
+<span class="line-precise" title="No Anys on this line!">        ('ButtonState', c_long),  # dword</span>
+<span class="line-precise" title="No Anys on this line!">        ('ControlKeyState', c_long),  # dword</span>
+<span class="line-precise" title="No Anys on this line!">        ('EventFlags', c_long)  # dword</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class WINDOW_BUFFER_SIZE_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms687093(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">    _fields_ = [</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('Size', COORD)</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class MENU_EVENT_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms684213(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('CommandId', c_long)  # uint</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class FOCUS_EVENT_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms683149(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('SetFocus', c_long)   # bool</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class EVENT_RECORD(Union):</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">    _fields_ = [</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('KeyEvent', KEY_EVENT_RECORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('MouseEvent', MOUSE_EVENT_RECORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('WindowBufferSizeEvent', WINDOW_BUFFER_SIZE_RECORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('MenuEvent', MENU_EVENT_RECORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('FocusEvent', FOCUS_EVENT_RECORD)</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class INPUT_RECORD(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/ms683499(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('EventType', c_short),  # word</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ('Event', EVENT_RECORD)  # Union.</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">EventTypes = {</span>
+<span class="line-precise" title="No Anys on this line!">    1: 'KeyEvent',</span>
+<span class="line-precise" title="No Anys on this line!">    2: 'MouseEvent',</span>
+<span class="line-precise" title="No Anys on this line!">    4: 'WindowBufferSizeEvent',</span>
+<span class="line-precise" title="No Anys on this line!">    8: 'MenuEvent',</span>
+<span class="line-precise" title="No Anys on this line!">    16: 'FocusEvent'</span>
+<span class="line-empty" title="No Anys on this line!">}</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class SMALL_RECT(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """struct in wincon.h."""</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ("Left", c_short),</span>
+<span class="line-precise" title="No Anys on this line!">        ("Top", c_short),</span>
+<span class="line-precise" title="No Anys on this line!">        ("Right", c_short),</span>
+<span class="line-precise" title="No Anys on this line!">        ("Bottom", c_short),</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class CONSOLE_SCREEN_BUFFER_INFO(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """struct in wincon.h."""</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ("dwSize", COORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ("dwCursorPosition", COORD),</span>
+<span class="line-precise" title="No Anys on this line!">        ("wAttributes", WORD),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ("srWindow", SMALL_RECT),</span>
+<span class="line-precise" title="Any Types on this line: 
+Explicit (x2)">        ("dwMaximumWindowSize", COORD),</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-any" title="No Anys on this line!">    def __str__(self):</span>
+<span class="line-any" title="No Anys on this line!">        return '(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)' % (</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.dwSize.Y, self.dwSize.X,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.dwCursorPosition.Y, self.dwCursorPosition.X,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x1)">            self.wAttributes,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x8)">            self.srWindow.Top, self.srWindow.Left, self.srWindow.Bottom, self.srWindow.Right,</span>
+<span class="line-any" title="Any Types on this line: 
+Unannotated (x4)">            self.dwMaximumWindowSize.Y, self.dwMaximumWindowSize.X,</span>
+<span class="line-empty" title="No Anys on this line!">        )</span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-empty" title="No Anys on this line!"></span>
+<span class="line-precise" title="No Anys on this line!">class SECURITY_ATTRIBUTES(Structure):</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-empty" title="No Anys on this line!">    http://msdn.microsoft.com/en-us/library/windows/desktop/aa379560(v=vs.85).aspx</span>
+<span class="line-empty" title="No Anys on this line!">    """</span>
+<span class="line-precise" title="No Anys on this line!">    _fields_ = [</span>
+<span class="line-precise" title="No Anys on this line!">        ('nLength', DWORD),</span>
+<span class="line-precise" title="No Anys on this line!">        ('lpSecurityDescriptor', LPVOID),</span>
+<span class="line-precise" title="No Anys on this line!">        ('bInheritHandle', BOOL),</span>
+<span class="line-empty" title="No Anys on this line!">    ]</span>
+</pre></td>
+</tr></tbody>
+</table>
+</body>
+</html>
