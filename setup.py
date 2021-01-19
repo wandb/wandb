@@ -16,7 +16,7 @@ with open('requirements.txt') as requirements_file:
         if 'git+' in r:
             dependency_links.append(r)
         else:
-            dependency_links.append(r)
+            requirements.append(r)
 
 test_requirements = [
     'mock>=2.0.0',
