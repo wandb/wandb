@@ -204,7 +204,7 @@ class Run(object):
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
-    _output_writer: Optional["WriteSerializingFile"]
+    _output_writer: Optional["CRDedupedFile"]
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -1273,15 +1273,15 @@ class Run(object):
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),
-                    self._output_writer.write,
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.Redirect(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),
-                    self._output_writer.write,
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
                 ],
             )
             if os.name == "nt":
@@ -1305,15 +1305,15 @@ class Run(object):
             out_redir = redirect.StreamWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),
-                    self._output_writer.write,
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),
-                    self._output_writer.write,
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
                 ],
             )
         elif console == self._settings.Console.OFF:
@@ -1421,7 +1421,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2058,13 +2058,13 @@ class WriteSerializingFile(object):
 
 
 class CRDedupedFile(WriteSerializingFile):
-    def __init__(self, f):
+    def __init__(self, f: BinaryIO) -> None:
         super(CRDedupedFile, self).__init__(f=f)
         self._buff = b""
 
-    def write(self, data):
+    def write(self, data) -> None:  # type: ignore
         lines = re.split(b"\r\n|\n", data)
-        ret = []
+        ret = []  # type: ignore
         for line in lines:
             if line[:1] == b"\r":
                 if ret:
@@ -2080,7 +2080,7 @@ class CRDedupedFile(WriteSerializingFile):
             self._buff = ret.pop()
         super(CRDedupedFile, self).write("\n".join(ret) + "\n")
 
-    def close(self):
+    def close(self) -> None:
         if self._buff:
             super(CRDedupedFile, self).write(self._buff)
         super(CRDedupedFile, self).close()

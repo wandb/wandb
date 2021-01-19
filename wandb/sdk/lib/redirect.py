@@ -215,7 +215,7 @@ class TerminalEmulator(object):
 _MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-class BaseRedirect(object):
+class RedirectBase(object):
     def __init__(self, src, cbs=()):
         assert hasattr(sys, src)
         self.src = src
@@ -258,7 +258,7 @@ class _WrappedStream(object):
         return getattr(self._stream, attr)
 
 
-class StreamWrapper(BaseRedirect):
+class StreamWrapper(RedirectBase):
     def __init__(self, src, cbs=()):
         super(StreamWrapper, self).__init__(src=src, cbs=cbs)
         self._installed = False
@@ -280,7 +280,7 @@ class StreamWrapper(BaseRedirect):
                     data = data.decode("utf-8")
                 except UnicodeDecodeError:
                     # TODO(frz)
-                    data = ''
+                    data = ""
             self._emulator.write(data)
             curr_time = time.time()
             if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
@@ -369,7 +369,7 @@ class _WindowSizeChangeHandler(object):
 _WSCH = _WindowSizeChangeHandler()
 
 
-class Redirect(BaseRedirect):
+class Redirect(RedirectBase):
     def __init__(self, src, cbs=()):
         super(Redirect, self).__init__(src=src, cbs=cbs)
         self._installed = False
