@@ -141,7 +141,7 @@ class Config(object):
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
-            self._callback(key=key, val=val, data=self._as_dict())
+            self._callback(key=key, val=val)
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -156,16 +156,20 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
-                del parsed_dict[key]
-        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
+                locked_keys.add(key)
+        sanitized = self._sanitize_dict(
+            parsed_dict, allow_val_change, ignore_keys=locked_keys
+        )
         self._items.update(sanitized)
+        return sanitized
 
     def update(self, d, allow_val_change=None):
-        self._update(d, allow_val_change)
+        sanitized = self._update(d, allow_val_change)
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=sanitized)
 
     def get(self, *args):
         return self._items.get(*args)
@@ -177,11 +181,12 @@ class Config(object):
 
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
+        # strip out keys already configured
+        d = {k: v for k, v in six.iteritems(d) if k not in self._items}
         d = self._sanitize_dict(d)
-        for k, v in six.iteritems(d):
-            self._items.setdefault(k, v)
+        self._items.update(d)
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=d)
 
     def update_locked(self, d, user=None):
         if user not in self._users:
@@ -196,17 +201,23 @@ class Config(object):
             self._locked[k] = num
             self._items[k] = v
 
+        if self._callback:
+            self._callback(data=d)
+
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None):
+    def _sanitize_dict(
+        self, config_dict, allow_val_change=None, ignore_keys = None
+    ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
+            if ignore_keys and k in ignore_keys:
+                continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
-
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
