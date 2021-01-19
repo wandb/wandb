@@ -91,7 +91,7 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config = sagemaker.parse_sm_config()
+        sm_config = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()

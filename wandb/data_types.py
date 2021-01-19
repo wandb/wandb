@@ -22,7 +22,6 @@ import sys
 import warnings
 
 import six
-from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import wandb
 from wandb import util
@@ -355,7 +354,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(urllib.parse.quote_plus(key), step, id_, extension)
+        file_path = wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
@@ -763,6 +762,8 @@ class Audio(BatchableMedia):
         caption (string): Caption to display with audio.
     """
 
+    artifact_type = "audio-file"
+
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
         super(Audio, self).__init__()
@@ -793,11 +794,19 @@ class Audio(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join("media", "audio")
 
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        return cls(
+            source_artifact.get_path(json_obj["path"]).download(),
+            json_obj["sample_rate"],
+            json_obj["caption"],
+        )
+
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
             {
-                "_type": "audio-file",
+                "_type": self.artifact_type,
                 "sample_rate": self._sample_rate,
                 "caption": self._caption,
             }
@@ -846,6 +855,16 @@ class Audio(BatchableMedia):
             return False
         else:
             return ["" if c is None else c for c in captions]
+
+    def __eq__(self, other):
+        return (
+            super(Audio, self).__eq__(other)
+            and self._sample_rate == other._sample_rate
+            and self._caption == other._caption
+        )
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 def is_numpy_array(data):

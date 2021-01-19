@@ -224,3 +224,15 @@ def test_prio_context_over_ignore():
     with s._as_source(s.Source.PROJECT, override=True) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza"
+
+
+def test_preprocess_base_url():
+    s = Settings()
+    s.update(base_url="http://host.com")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com/")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com///")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="//http://host.com//")
+    assert s.base_url == "//http://host.com"

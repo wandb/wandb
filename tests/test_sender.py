@@ -178,7 +178,15 @@ def stop_backend(
     mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
 ):
     def stop_backend_func():
-        sender.communicate_exit(0, timeout=5)
+        sender.publish_exit(0)
+        for _ in range(10):
+            poll_exit_resp = sender.communicate_poll_exit()
+            assert poll_exit_resp, "poll exit timedout"
+            done = poll_exit_resp.done
+            if done:
+                break
+            time.sleep(1)
+        assert done, "backend didnt shutdown"
 
     yield stop_backend_func
 
