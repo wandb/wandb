@@ -1,3 +1,14 @@
+## 0.10.14 (January 15, 2021)
+
+#### :nail_care: Enhancement
+
+- Add wandb.Audio support to Artifacts
+
+#### :bug: Bug Fix
+
+- Fix wandb config regressions introduced in 0.10.13
+- Rollback changes supporting media with slashes in keys
+
 ## 0.10.13 (January 11, 2021)
 
 #### :nail_care: Enhancement
