@@ -136,7 +136,7 @@ class Artifact(object):
             file_name_parts[0] = b64_string_to_hex(digest)[:8]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._write_through(name, local_path, digest=digest)
+        return self._add_local_file(name, local_path, digest=digest)
 
     def add_dir(self, local_path, name=None):
         self._ensure_can_add()
@@ -161,7 +161,7 @@ class Artifact(object):
 
         def add_manifest_file(log_phy_path):
             logical_path, physical_path = log_phy_path
-            self._write_through(logical_path, physical_path)
+            self._add_local_file(logical_path, physical_path)
 
         import multiprocessing.dummy  # this uses threads
 
@@ -276,7 +276,7 @@ class Artifact(object):
         self._final = True
         self._digest = self._manifest.digest()
 
-    def _write_through(self, name, path, digest=None):
+    def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
 
