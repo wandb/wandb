@@ -602,7 +602,6 @@ def test_add_obj_wbimage_image_already_added(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        print(manifest["contents"])
         assert manifest["contents"] == {
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
             "media/cls.classes.json": {
