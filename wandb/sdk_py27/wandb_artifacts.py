@@ -36,9 +36,8 @@ class Artifact(object):
     def __init__(self, name, type, description=None, metadata=None):
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
-                'Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. '
-                'Invalid name: "%s"'
-                % name
+                "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
+                'Invalid name: "%s"' % name
             )
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
@@ -59,6 +58,7 @@ class Artifact(object):
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
+        self._added_local_paths = {}
         # You can write into this directory when creating artifact files
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
@@ -254,7 +254,7 @@ class Artifact(object):
 
     def get_added_local_path_name(self, local_path):
         """If local_path was already added to artifact, return its internal name."""
-        entry = self._manifest.get_entry_by_local_path(local_path)
+        entry = self._added_local_paths.get(local_path, None)
         if entry is None:
             return None
         return entry.path
@@ -289,6 +289,7 @@ class Artifact(object):
         )
 
         self._manifest.add_entry(entry)
+        self._added_local_paths[path] = entry
         return entry
 
 
