@@ -23,12 +23,18 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Union,
     )
 
-    # create Artifact class with add_file method for typing
+    # create dummy Artifact class for type checking
     class Artifact:
         def add_file(self, filename: str) -> None:
             pass
 
         def digest(self):
+            pass
+
+        def verify(self, root: str):
+            pass
+
+        def _load_manifest(self):
             pass
 
     from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
@@ -330,7 +336,7 @@ def check_artifacts() -> None:
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         singular_art, alias, name, sing_art_dir, failed_test_strings, False
     )
-    if not cont_test:
+    if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
         return
     try:
@@ -350,7 +356,7 @@ def check_artifacts() -> None:
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
     )
-    if not cont_test:
+    if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
         return
     if set(os.listdir(multi_art_dir)) != set(
