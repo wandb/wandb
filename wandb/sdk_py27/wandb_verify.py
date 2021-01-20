@@ -136,7 +136,7 @@ def check_run(api):
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
         )
-        print_results(failed_test_strings)
+        print_results(failed_test_strings, False)
         return
     for key, value in prev_run.config.items():
         if config[key] != value:
