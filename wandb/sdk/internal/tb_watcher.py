@@ -222,6 +222,8 @@ class TBDirWatcher(object):
             ) as e:
                 # When listing s3 the directory may not yet exist, or could be empty
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
+                if not self._shutdown:
+                    time.sleep(SHUTDOWN_DELAY)
                 continue
             if self._shutdown:
                 now = time.time()
