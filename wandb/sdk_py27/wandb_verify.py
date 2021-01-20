@@ -15,6 +15,8 @@ import wandb
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
+        Any,
+        Dict,
         List,
         Optional,
         Tuple,
@@ -26,12 +28,15 @@ if wandb.TYPE_CHECKING:  # type: ignore
         def add_file(self, filename):
             pass
 
+        def digest(self):
+            pass
+
     from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
 
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
-WARNING_SIGN = u"\u26A0"
+WARNING_SIGN = u"\u1F7E1"
 
 
 def print_results(
@@ -161,10 +166,19 @@ def check_run(api):
     try:
         read_file = prev_run.file(filepath).download(replace=True)
     except Exception:
+        run = wandb.init(project=PROJECT_NAME, config={"test": "test direct saving"})
+        saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
         if saved:
             failed_test_strings.append(
-                "Unable to download successfully saved file. Check SQS configuration, topic configuration and bucket permissions"
+                "Unable to download file. Check SQS configuration, topic configuration and bucket permissions"
             )
+        else:
+            failed_test_strings.append(
+                "Unable to save file with status code: {}. Check SQS configuration and bucket permissions".format(
+                    status_code
+                )
+            )
+
         print_results(failed_test_strings, False)
         return
     contents = read_file.read()
@@ -175,7 +189,35 @@ def check_run(api):
     print_results(failed_test_strings, False)
 
 
-def verify_manifest(downloaded_manifest, computed_manifest, fails_list):
+def try_manual_save(
+    api, filepath, run_id, entity
+):
+
+    run_id, upload_headers, result = api.api.upload_urls(
+        PROJECT_NAME, [filepath], run_id, entity
+    )
+    extra_headers = {}
+    for upload_header in upload_headers:
+        key, val = upload_header.split(":", 1)
+        extra_headers[key] = val
+
+    for _, file_info in result.items():
+        file_url = file_info["url"]
+        # If the upload URL is relative, fill it in with the base URL,
+        # since its a proxied file store like the on-prem VM.
+        if file_url.startswith("/"):
+            file_url = "{}{}".format(api.api.api_url, file_url)
+        response = requests.put(file_url, open(filepath, "rb"), headers=extra_headers)
+        break
+    if response.status_code != 200:
+        return False, response.status_code, response.request.url
+    else:
+        return True, response.status_code, response.request.url
+
+
+def verify_manifest(
+    downloaded_manifest, computed_manifest, fails_list
+):
     try:
         for key in computed_manifest.keys():
             assert (
@@ -188,7 +230,9 @@ def verify_manifest(downloaded_manifest, computed_manifest, fails_list):
         )
 
 
-def verify_digest(downloaded, computed, fails_list):
+def verify_digest(
+    downloaded, computed, fails_list
+):
     if downloaded.digest != computed.digest:
         fails_list.append(
             "Artifact digest does not appear as expected. Contact W&B for support."
@@ -346,32 +390,17 @@ def check_graphql_put(api, host):
     f.write("test2")
     f.close()
     run = wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"})
+    saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
+    if not saved:
+        print_results(
+            "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
+                status_code
+            ),
+            False,
+        )
 
-    run_id, upload_headers, result = api.api.upload_urls(
-        PROJECT_NAME, [gql_fp], run.id, run.entity
-    )
-    extra_headers = {}
-    for upload_header in upload_headers:
-        key, val = upload_header.split(":", 1)
-        extra_headers[key] = val
-
-    for _, file_info in result.items():
-        file_url = file_info["url"]
-        # If the upload URL is relative, fill it in with the base URL,
-        # since its a proxied file store like the on-prem VM.
-        if file_url.startswith("/"):
-            file_url = "{}{}".format(api.api.api_url, file_url)
-        response = requests.put(file_url, open(gql_fp, "rb"), headers=extra_headers)
-        if response.status_code != 200:
-            print_results(
-                "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
-                    response.status_code
-                ),
-                False,
-            )
-
-            # next test will also fail if this one failed. So terminate this test here.
-            return None
+        # next test will also fail if this one failed. So terminate this test here.
+        return None
     try:
         run.finish()
     except Exception as e:
@@ -407,7 +436,7 @@ def check_graphql_put(api, host):
         )
 
     print_results(failed_test_strings, False)
-    return response.request.url
+    return url
 
 
 def check_large_file(api, host):
@@ -459,25 +488,20 @@ def check_large_file(api, host):
 def check_wandb_version(api):
     print("Checking wandb package version is up to date".ljust(72, "."), end="")
     fail_strings = []
-    response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
-    # use gorilla maximum supported cli and warn if too recent. just warning.
     _, server_info = api.viewer_server_info()
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
-    if version.parse(wandb.__version__) < version.parse(max_cli_version):
+    min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
+    if version.parse(wandb.__version__) < version.parse(min_cli_version):
         fail_strings.append(
             "wandb version out of date, please run pip install --upgrade wandb=={}".format(
                 max_cli_version
             )
         )
+        print_results(fail_strings, False)
     elif version.parse(wandb.__version__) > version.parse(max_cli_version):
         fail_strings.append(
             "wandb version is not supported by your local installation. This could cause some issues. If you're having problems try: please run pip install --upgrade wandb=={}".format(
                 max_cli_version
             )
         )
-
-    if version.parse(response.json()["name"]) > version.parse(max_cli_version):
-        fail_strings.append(
-            "Your local installation only supports an old version of the wandb package. Please update your local installation."
-        )
-    print_results(fail_strings, False)
+        print_results(fail_strings, True)
