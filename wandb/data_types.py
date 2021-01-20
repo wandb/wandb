@@ -694,7 +694,7 @@ class Table(Media):
             data.append(row_data)
 
         enforce_types = False
-        if json_obj.get("enforce_types") == True:
+        if json_obj.get("enforce_types") is True:
             enforce_types = True
 
         new_obj = cls(
