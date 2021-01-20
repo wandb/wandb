@@ -343,13 +343,13 @@ def test_table_type():
 
 
 def test_table_implicit_types():
-    table = wandb.Table(columns=["col"])
+    table = wandb.Table(columns=["col"], enforce_types=True)
     table.add_data(None)
     table.add_data(1)
     with pytest.raises(TypeError):
         table.add_data("a")
 
-    table = wandb.Table(columns=["col"], optional=False)
+    table = wandb.Table(columns=["col"], optional=False, enforce_types=True)
     with pytest.raises(TypeError):
         table.add_data(None)
     table.add_data(1)
@@ -357,21 +357,37 @@ def test_table_implicit_types():
         table.add_data("a")
 
 
+def test_table_type_enforcement():
+    table = wandb.Table(columns=["col"])
+    table.add_data(None)
+    table.add_data(1)
+    table.add_data("a")  # No error unless enforcing types
+
+    table = wandb.Table(columns=["col"], optional=False)
+    table.add_data(None)  # No error unless enforcing types
+    table.add_data(1)
+    table.add_data("a")  # No error unless enforcing types
+
+
 def test_table_explicit_types():
-    table = wandb.Table(columns=["a", "b"], dtype=int)
+    table = wandb.Table(columns=["a", "b"], dtype=int, enforce_types=True)
     table.add_data(None, None)
     table.add_data(1, 2)
     with pytest.raises(TypeError):
         table.add_data(1, "a")
 
-    table = wandb.Table(columns=["a", "b"], optional=False, dtype=[int, str])
+    table = wandb.Table(
+        columns=["a", "b"], optional=False, dtype=[int, str], enforce_types=True
+    )
     with pytest.raises(TypeError):
         table.add_data(None, None)
     table.add_data(1, "a")
     with pytest.raises(TypeError):
         table.add_data("a", "a")
 
-    table = wandb.Table(columns=["a", "b"], optional=[False, True], dtype=[int, str])
+    table = wandb.Table(
+        columns=["a", "b"], optional=[False, True], dtype=[int, str], enforce_types=True
+    )
     with pytest.raises(TypeError):
         table.add_data(None, None)
     with pytest.raises(TypeError):
@@ -384,7 +400,7 @@ def test_table_explicit_types():
 
 def test_table_type_cast():
 
-    table = wandb.Table(columns=["type_col"])
+    table = wandb.Table(columns=["type_col"], enforce_types=True)
     table.add_data(1)
 
     wb_classes = data_types.Classes(
@@ -440,6 +456,7 @@ def test_table_specials():
         columns=["image", "table"],
         optional=False,
         dtype=[data_types.Image, data_types.Table],
+        enforce_types=True,
     )
     with pytest.raises(TypeError):
         table.add_data(None, None)
@@ -483,91 +500,3 @@ def test_table_specials():
         ),
         data_types.Table(data=[[1, True, 1]]),
     )
-
-
-# def test_print():
-#     image_annotated = data_types.Image(
-#         np.random.rand(10, 10),
-#         boxes={
-#             "box_predictions": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#             "box_ground_truth": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#         },
-#         masks={
-#             "mask_predictions": {
-#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-#                 "class_labels": class_labels,
-#             },
-#             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
-#         },
-#     )
-
-#     wb_type = DictType(
-#         {
-#             "InvalidType": InvalidType,
-#             "UnknownType": UnknownType(),
-#             "AnyType": AnyType(),
-#             "NoneType": None,
-#             "StringType": str,
-#             "NumberType": int,
-#             "BooleanType": bool,
-#             "Simple_ListType": ListType(int),
-#             "Nested_ListType": ListType({"key": int}),
-#             "UnionType": UnionType([int, str, bool]),
-#             "ObjectType": ObjectType(np.array([])),
-#             "ConstType": ConstType(5),
-#             "ConstType_Set": ConstType(set([1, 2, 3])),
-#             "OptionalType": OptionalType(int),
-#             "ImageType": data_types.Image,
-#             "Defined_ImageType": data_types._ImageType.from_obj(image_annotated),
-#             "TableType": data_types.Table,
-#             "Defined_TableType": data_types._TableType.from_obj(
-#                 wandb.Table(
-#                     columns=["a", "b", "c"],
-#                     optional=True,
-#                     dtype=[int, bool, str],
-#                 )
-#             ),
-#             "ClassType": data_types._ClassesIdType.from_obj(
-#                 wandb.Classes(
-#                     [
-#                         {"id": 1, "name": "cat"},
-#                         {"id": 2, "name": "dog"},
-#                         {"id": 3, "name": "horse"},
-#                     ]
-#                 )
-#             ),
-#         }
-#     )
-
-#     print(wb_type.to_json())
-#     assert False
