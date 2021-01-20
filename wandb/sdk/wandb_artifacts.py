@@ -239,7 +239,7 @@ class Artifact(object):
 
         obj_id = id(obj)
         if obj_id in self._added_objs:
-            return self._added_objs[obj_id]
+            return self._added_objs[obj_id]['entry']
 
         # If the object is coming from another artifact, save it as a reference
         if obj.artifact_source is not None:
@@ -263,7 +263,7 @@ class Artifact(object):
         # It will be added again later on finalize, but succeed since
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
-        self._added_objs[obj_id] = entry
+        self._added_objs[obj_id] = {'entry': entry, 'obj': obj}
 
         return entry
 
