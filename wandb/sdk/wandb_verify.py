@@ -23,26 +23,15 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Union,
     )
 
-    # create dummy Artifact class for type checking
-    class Artifact:
-        def add_file(self, filename: str) -> None:
-            pass
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.apis.public import Artifact as ArtifactAPI
 
-        def digest(self):
-            pass
-
-        def verify(self, root: str):
-            pass
-
-        def _load_manifest(self):
-            pass
-
-    from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
+    from wandb.apis.internal import Api
 
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
-WARNING_SIGN = u"\u1F7E1"
+WARNING_SIGN = u"\u26A0"
 
 
 def print_results(
@@ -245,7 +234,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: Artifact, computed: Artifact, fails_list: List[str]
+    downloaded: "ArtifactAPI", computed: "ArtifactAPI", fails_list: List[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -255,7 +244,7 @@ def verify_digest(
 
 def artifact_with_path_or_paths(
     name: str, verify_dir: str = None, singular: bool = False
-) -> Artifact:
+) -> "Artifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
     with open("verify_int_test.txt", "w") as f:
@@ -282,13 +271,13 @@ def artifact_with_path_or_paths(
 
 
 def log_use_download_artifact(
-    artifact: Artifact,
+    artifact: "Artifact",
     alias: str,
     name: str,
     download_dir: str,
     failed_test_strings: List[str],
     add_extra_file: bool,
-) -> Tuple[bool, Optional[Artifact], List[str]]:
+) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
     with wandb.init(
         project=PROJECT_NAME, config={"test": "artifact log"}
     ) as log_art_run:

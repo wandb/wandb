@@ -23,26 +23,15 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Union,
     )
 
-    # create dummy Artifact class for type checking
-    class Artifact:
-        def add_file(self, filename):
-            pass
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.apis.public import Artifact as ArtifactAPI
 
-        def digest(self):
-            pass
-
-        def verify(self, root):
-            pass
-
-        def _load_manifest(self):
-            pass
-
-    from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
+    from wandb.apis.internal import Api
 
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
-WARNING_SIGN = u"\u1F7E1"
+WARNING_SIGN = u"\u26A0"
 
 
 def print_results(
