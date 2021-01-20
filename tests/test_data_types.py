@@ -632,3 +632,9 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
+
+def test_partitioned_table():
+    partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    assert partition_table.materialize() == wandb.Table(columns=[], data=[])
+    assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
+    assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")

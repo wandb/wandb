@@ -916,7 +916,7 @@ class PartitionedTable(Media):
                     )
                 )
             data += part.data
-        return wandb.Table(data=data, columns=columns)
+        return wandb.Table(data=data, columns=columns if columns is not None else [])
 
     def _add_part(self, part):
         self._loaded_parts.append(part)
