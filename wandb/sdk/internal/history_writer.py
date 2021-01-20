@@ -56,7 +56,7 @@ class HistoryWriter(object):
         df = pd.DataFrame(records, index=[r["_step"] for r in records])
         fname = self._settings.history_file_template.format(seq_num=self._parq_seq_num)
         fastparquet.write(
-            fname, df, compression="GZIP",
+            fname, df, compression="GZIP", has_nulls=True
         )
         self._artifact.add_file(fname)
         self._parq_seq_num += 1
