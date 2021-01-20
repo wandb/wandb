@@ -216,7 +216,9 @@ def try_manual_save(
 
 
 def verify_manifest(
-    downloaded_manifest, computed_manifest, fails_list
+    downloaded_manifest,
+    computed_manifest,
+    fails_list,
 ):
     try:
         for key in computed_manifest.keys():
@@ -239,86 +241,84 @@ def verify_digest(
         )
 
 
-def check_artifacts():
-    def artifact_with_path_or_paths(
-        name, verify_dir = None, singular = False
-    ):
-        art = wandb.Artifact(type="artsy", name=name)
-        # internal file
-        with open("verify_int_test.txt", "w") as f:
-            f.write("test 1")
-            f.close()
-            art.add_file(f.name)
-        if singular:
-            return art
-        if verify_dir is None:
-            verify_dir = "./"
-        with art.new_file("verify_a.txt") as f:
-            f.write("test 2")
-        os.makedirs(verify_dir, exist_ok=True)
-        with open("{}/verify_1.txt".format(verify_dir), "w") as f:
-            f.write("1")
-        art.add_dir(verify_dir)
-        with open("verify_3.txt", "w") as f:
-            f.write("3")
-
-        # reference to local file
-        art.add_reference("file://verify_3.txt")
-
+def artifact_with_path_or_paths(
+    name, verify_dir = None, singular = False
+):
+    art = wandb.Artifact(type="artsy", name=name)
+    # internal file
+    with open("verify_int_test.txt", "w") as f:
+        f.write("test 1")
+        f.close()
+        art.add_file(f.name)
+    if singular:
         return art
+    if verify_dir is None:
+        verify_dir = "./"
+    with art.new_file("verify_a.txt") as f:
+        f.write("test 2")
+    os.makedirs(verify_dir, exist_ok=True)
+    with open("{}/verify_1.txt".format(verify_dir), "w") as f:
+        f.write("1")
+    art.add_dir(verify_dir)
+    with open("verify_3.txt", "w") as f:
+        f.write("3")
 
-    def log_use_download_artifact(
-        artifact,
-        alias,
-        name,
-        download_dir,
-        failed_test_strings,
-        add_extra_file,
-    ):
-        log_art_run = wandb.init(project=PROJECT_NAME, config={"test": "artifact log"})
+    # reference to local file
+    art.add_reference("file://verify_3.txt")
 
-        if add_extra_file:
-            with open("verify_2.txt", "w") as f:
-                f.write("2")
-                f.close()
-                artifact.add_file(f.name)
+    return art
 
-        try:
-            log_art_run.log_artifact(artifact, aliases=alias)
-        except Exception as e:
-            failed_test_strings.append("Unable to log artifact. {}".format(e))
-            return False, None, failed_test_strings
-        try:
-            log_art_run.finish()
-        except Exception:
-            return False, None, failed_test_strings
 
-        use_art_run = wandb.init(
-            reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
+def log_use_download_artifact(
+    artifact,
+    alias,
+    name,
+    download_dir,
+    failed_test_strings,
+    add_extra_file,
+):
+    log_art_run = wandb.init(project=PROJECT_NAME, config={"test": "artifact log"})
+
+    if add_extra_file:
+        with open("verify_2.txt", "w") as f:
+            f.write("2")
+            f.close()
+            artifact.add_file(f.name)
+
+    try:
+        log_art_run.log_artifact(artifact, aliases=alias)
+    except Exception as e:
+        failed_test_strings.append("Unable to log artifact. {}".format(e))
+        return False, None, failed_test_strings
+    try:
+        log_art_run.finish()
+    except Exception:
+        return False, None, failed_test_strings
+
+    use_art_run = wandb.init(
+        reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
+    )
+    try:
+        used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
+    except Exception as e:
+        failed_test_strings.append("Unable to use artifact. {}".format(e))
+        return False, None, failed_test_strings
+    try:
+        used_art.download(root=download_dir)
+    except Exception:
+        failed_test_strings.append(
+            "Unable to download artifact. Check topic configuration and bucket permissions."
         )
-        try:
-            used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
-        except Exception as e:
-            failed_test_strings.append("Unable to use artifact. {}".format(e))
-            return False, None, failed_test_strings
-        try:
-            used_art.download(root=download_dir)
-        except Exception:
-            failed_test_strings.append(
-                "Unable to download artifact. Check topic configuration and bucket permissions."
-            )
-            return False, None, failed_test_strings
-        try:
-            use_art_run.finish()
-        except Exception:
-            return False, None, failed_test_strings
+        return False, None, failed_test_strings
+    try:
+        use_art_run.finish()
+    except Exception:
+        return False, None, failed_test_strings
 
-        return True, used_art, failed_test_strings
-
-    test_artifacts(artifact_with_path_or_paths, log_use_download_artifact)
+    return True, used_art, failed_test_strings
 
 
-def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact):
+def check_artifacts():
     print("Checking artifact save and download workflows".ljust(72, "."), end="")
     failed_test_strings = []
 
@@ -500,8 +500,8 @@ def check_wandb_version(api):
         print_results(fail_strings, False)
     elif version.parse(wandb.__version__) > version.parse(max_cli_version):
         fail_strings.append(
-            "wandb version is not supported by your local installation. This could cause some issues. If you're having problems try: please run pip install --upgrade wandb=={}".format(
-                max_cli_version
-            )
+            "wandb version is not supported by your local installation. This could "
+            "cause some issues. If you're having problems try: please run pip "
+            "install --upgrade wandb=={}".format(max_cli_version)
         )
         print_results(fail_strings, True)
