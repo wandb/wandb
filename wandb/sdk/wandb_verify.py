@@ -23,7 +23,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
     # create Artifact class with add_file method for typing
     class Artifact:
-        def add_file(self, filename):
+        def add_file(self, filename: str) -> None:
             pass
 
     from wandb.apis.internal import Api  # noqa: F401 pylint: disable=unused-import
@@ -33,7 +33,7 @@ CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
 
 
-def print_results(failed_test_or_tests):
+def print_results(failed_test_or_tests: Optional[Union[str, List[str]]]) -> None:
     if isinstance(failed_test_or_tests, str):
         print(RED_X)
         print(click.style(failed_test_or_tests, fg="red", bold=True))
@@ -48,14 +48,14 @@ def print_results(failed_test_or_tests):
         print(CHECKMARK)
 
 
-def check_host(host):
+def check_host(host: str) -> bool:
     if host == "api.wandb.ai":
         print_results("Cannot run wandb verify against api.wandb.ai")
         return False
     return True
 
 
-def check_logged_in(api):
+def check_logged_in(api: Api) -> bool:
     # check if logged in
     print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/login"
@@ -68,7 +68,7 @@ def check_logged_in(api):
     return fail_string is None
 
 
-def check_secure_requests(url, failure_output):
+def check_secure_requests(url: str, failure_output: str) -> None:
     # check if request is over https
     print("Checking requests are made over a secure connection".ljust(72, "."), end="")
     fail_string = None
@@ -77,7 +77,7 @@ def check_secure_requests(url, failure_output):
     print_results(fail_string)
 
 
-def check_run(api):
+def check_run(api: Api) -> None:
     print(
         "Checking logged metrics, saving and downloading a file".ljust(72, "."), end=""
     )
@@ -186,10 +186,10 @@ def verify_digest(downloaded, computed, fails_list):
         )
 
 
-def check_artifacts():
+def check_artifacts() -> None:
     def artifact_with_path_or_paths(
-        name, verify_dir = None, singular = False
-    ):
+        name: str, verify_dir: str = None, singular: bool = False
+    ) -> Artifact:
         art = wandb.Artifact(type="artsy", name=name)
         # internal file
         with open("verify_int_test.txt", "w") as f:
@@ -215,13 +215,13 @@ def check_artifacts():
         return art
 
     def log_use_download_artifact(
-        artifact,
-        alias,
-        name,
-        download_dir,
-        failed_test_strings,
-        add_extra_file,
-    ):
+        artifact: Artifact,
+        alias: str,
+        name: str,
+        download_dir: str,
+        failed_test_strings: List[str],
+        add_extra_file: bool,
+    ) -> Tuple[bool, Optional[Artifact], List[str]]:
         log_art_run = wandb.init(project=PROJECT_NAME, config={"test": "artifact log"})
 
         if add_extra_file:
@@ -265,9 +265,9 @@ def check_artifacts():
     test_artifacts(artifact_with_path_or_paths, log_use_download_artifact)
 
 
-def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact):
+def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact) -> None:
     print("Checking artifact save and download workflows".ljust(72, "."), end="")
-    failed_test_strings = []
+    failed_test_strings: List[str] = []
 
     # test checksum
     sing_art_dir = "./verify_sing_art"
@@ -328,7 +328,7 @@ def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact):
     print_results(failed_test_strings)
 
 
-def check_graphql_put(api, host):
+def check_graphql_put(api: Api, host: str) -> Optional[str]:
     # check graphql endpoint using an upload
     print("Checking signed URL upload".ljust(72, "."), end="")
     failed_test_strings = []
@@ -400,7 +400,7 @@ def check_graphql_put(api, host):
     return response.request.url
 
 
-def check_large_file(api, host):
+def check_large_file(api: Api, host: str) -> None:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
@@ -446,7 +446,7 @@ def check_large_file(api, host):
     print_results(failed_test_strings)
 
 
-def check_wandb_version(api):
+def check_wandb_version(api: Api) -> None:
     print("Checking wandb package version is up to date".ljust(72, "."), end="")
     fail_strings = []
     response = requests.get("https://api.github.com/repos/wandb/client/releases/latest")
