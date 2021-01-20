@@ -19,7 +19,7 @@ RequestFinish = collections.namedtuple("RequestFinish", ())
 
 
 class StepUpload(object):
-    def __init__(self, api, stats, event_queue, max_jobs, silent=False):
+    def __init__(self, api, stats, event_queue, max_jobs):
         self._api = api
         self._stats = stats
         self._event_queue = event_queue
@@ -35,7 +35,6 @@ class StepUpload(object):
         self._artifacts = {}
 
         self._finished = False
-        self.silent = silent
 
     def _thread_body(self):
         # Wait for event in the queue, and process one by one until a
@@ -122,7 +121,6 @@ class StepUpload(object):
             self._event_queue,
             self._stats,
             self._api,
-            self.silent,
             event.save_name,
             event.path,
             event.artifact_id,

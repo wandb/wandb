@@ -130,7 +130,6 @@ class Backend:
             _kaggle=None,
             _offline=None,
             email=None,
-            silent=None,
         )
 
         mp = multiprocessing
