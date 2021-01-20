@@ -224,7 +224,6 @@ class TBDirWatcher(object):
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
                 if not self._shutdown:
                     time.sleep(SHUTDOWN_DELAY)
-                continue
             if self._shutdown:
                 now = time.time()
                 if not shutdown_time:
