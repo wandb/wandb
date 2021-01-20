@@ -1580,24 +1580,29 @@ def verify(host):
     os.environ["WANDB_SILENT"] = "true"
     api = _get_cling_api()
 
+    if not os.path.exists("./wandb/verify_test"):
+        os.makedirs("./wandb/verify_test")
     if host is None:
         host = api.settings("base_url")
+
     tmp_dir = tempfile.TemporaryDirectory()
     os.chdir(tmp_dir.name)
     os.system("WANDB_BASE_URL={} wandb init".format(host))
     if not wandb_sdk.wandb_verify.check_host(host):
         return
-    wandb_sdk.wandb_verify.check_wandb_version(api)
-    wandb_sdk.wandb_verify.check_run(api)
-    wandb_sdk.wandb_verify.check_artifacts()
     url = wandb_sdk.wandb_verify.check_graphql_put(api, host)
     wandb_sdk.wandb_verify.check_large_file(api, host)
     wandb_sdk.wandb_verify.check_secure_requests(
         api.settings("base_url"),
+        "Checking requests to base url",
         "Connections are not made over https. SSL requied for secure communications.",
     )
     if url is not None:
         wandb_sdk.wandb_verify.check_secure_requests(
             url,
+            "Checking requests made over signed URLs",
             "Signed URL requests not made over https. SSL is required for secure communications.",
         )
+    wandb_sdk.wandb_verify.check_wandb_version(api)
+    wandb_sdk.wandb_verify.check_run(api)
+    wandb_sdk.wandb_verify.check_artifacts()

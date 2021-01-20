@@ -88,9 +88,9 @@ def check_logged_in(api):
     return fail_string is None
 
 
-def check_secure_requests(url, failure_output):
+def check_secure_requests(url, test_url_string, failure_output):
     # check if request is over https
-    print("Checking requests are made over a secure connection".ljust(72, "."), end="")
+    print(test_url_string.ljust(72, "."), end="")
     fail_string = None
     if not url.startswith("https"):
         fail_string = failure_output
@@ -120,29 +120,33 @@ def check_run(api):
     f.write("test")
     f.close()
 
-    run = wandb.init(reinit=True, config=config)
-    for i in range(1, 11):
-        run.log({"loss": 1.0 / i}, step=i)
-    log_dict = {"val1": 1.0, "val2": 2}
-    run.log({"dict": log_dict}, step=i + 1)
-    saved = True
-    try:
-        # this fails silently. Is there an alternative method to testing this?
-        wandb.save(filepath)
-    except Exception:
-        saved = False
-        failed_test_strings.append("There was a problem saving the file.")
-    try:
-        run.finish()
-    except Exception:
-        failed_test_strings.append("Run failed to finish. Contact W&B for support.")
-        print_results(failed_test_strings, False)
-        return
+    with wandb.init(reinit=True, config=config) as run:
+        run_id = run.id
+        entity = run.entity
+        logged = True
+        try:
+            for i in range(1, 11):
+                run.log({"loss": 1.0 / i}, step=i)
+            log_dict = {"val1": 1.0, "val2": 2}
+            run.log({"dict": log_dict}, step=i + 1)
+        except Exception:
+            logged = False
+            failed_test_strings.append(
+                "Failed to log values to run. Contact W&B for support."
+            )
 
-    time.sleep(2)
+        try:
+            run.log({"HT%3ML ": wandb.Html('<a href="https://mysite">Link</a>')})
+        except Exception:
+            failed_test_strings.append(
+                "Failed to log to media. Contact W&B for support."
+            )
+
+        wandb.save(filepath)
+
     public_api = wandb.Api()
     try:
-        prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+        prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
     except Exception:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -155,7 +159,7 @@ def check_run(api):
                 "Read config values don't match run config. Check database encoding."
             )
             break
-    if (
+    if logged and (
         prev_run.history_keys["keys"]["loss"]["previousValue"] != 0.1
         or prev_run.history_keys["lastStep"] != 11
         or prev_run.history_keys["keys"]["dict.val1"]["previousValue"] != 1.0
@@ -165,27 +169,29 @@ def check_run(api):
             "History metrics don't match logged values. Check database encoding."
         )
 
-    if prev_run.summary["loss"] != 1.0 / 10:
+    if logged and prev_run.summary["loss"] != 1.0 / 10:
         failed_test_strings.append(
-            "Read config values don't match run config. Check DB encoding."
+            "Read summary values don't match expected value. Check database encoding, or contact W&B for support."
         )
     try:
         read_file = prev_run.file(filepath).download(replace=True)
     except Exception:
-        run = wandb.init(project=PROJECT_NAME, config={"test": "test direct saving"})
-        saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
-        if saved:
-            failed_test_strings.append(
-                "Unable to download file. Check SQS configuration, topic configuration and bucket permissions"
-            )
-        else:
-            failed_test_strings.append(
-                "Unable to save file with status code: {}. Check SQS configuration and bucket permissions".format(
-                    status_code
+        with wandb.init(
+            project=PROJECT_NAME, config={"test": "test direct saving"}
+        ) as run:
+            saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
+            if saved:
+                failed_test_strings.append(
+                    "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
                 )
-            )
+            else:
+                failed_test_strings.append(
+                    "Unable to save file with status code: {}. Check SQS configuration and bucket permissions.".format(
+                        status_code
+                    )
+                )
 
-        print_results(failed_test_strings, False)
+            print_results(failed_test_strings, False)
         return
     contents = read_file.read()
     if contents != "test":
@@ -283,43 +289,37 @@ def log_use_download_artifact(
     failed_test_strings,
     add_extra_file,
 ):
-    log_art_run = wandb.init(project=PROJECT_NAME, config={"test": "artifact log"})
+    with wandb.init(
+        project=PROJECT_NAME, config={"test": "artifact log"}
+    ) as log_art_run:
 
-    if add_extra_file:
-        with open("verify_2.txt", "w") as f:
-            f.write("2")
-            f.close()
-            artifact.add_file(f.name)
+        if add_extra_file:
+            with open("verify_2.txt", "w") as f:
+                f.write("2")
+                f.close()
+                artifact.add_file(f.name)
 
-    try:
-        log_art_run.log_artifact(artifact, aliases=alias)
-    except Exception as e:
-        failed_test_strings.append("Unable to log artifact. {}".format(e))
-        return False, None, failed_test_strings
-    try:
-        log_art_run.finish()
-    except Exception:
-        return False, None, failed_test_strings
+        try:
+            log_art_run.log_artifact(artifact, aliases=alias)
+        except Exception as e:
+            failed_test_strings.append("Unable to log artifact. {}".format(e))
+            return False, None, failed_test_strings
 
-    use_art_run = wandb.init(
+    with wandb.init(
         reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
-    )
-    try:
-        used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
-    except Exception as e:
-        failed_test_strings.append("Unable to use artifact. {}".format(e))
-        return False, None, failed_test_strings
-    try:
-        used_art.download(root=download_dir)
-    except Exception:
-        failed_test_strings.append(
-            "Unable to download artifact. Check topic configuration and bucket permissions."
-        )
-        return False, None, failed_test_strings
-    try:
-        use_art_run.finish()
-    except Exception:
-        return False, None, failed_test_strings
+    ) as use_art_run:
+        try:
+            used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
+        except Exception as e:
+            failed_test_strings.append("Unable to use artifact. {}".format(e))
+            return False, None, failed_test_strings
+        try:
+            used_art.download(root=download_dir)
+        except Exception:
+            failed_test_strings.append(
+                "Unable to download artifact. Check topic configuration and bucket permissions."
+            )
+            return False, None, failed_test_strings
 
     return True, used_art, failed_test_strings
 
@@ -343,9 +343,7 @@ def check_artifacts():
         download_artifact.verify(root=sing_art_dir)
     except ValueError:
         failed_test_strings.append(
-            "Artifact does not contain expected checksum. See the docs: {}".format(
-                click.style("PLACEHOLDER", underline=True, fg="blue")
-            )
+            "Artifact does not contain expected checksum. Contact W&B for support."
         )
 
     # test manifest and digest
@@ -369,9 +367,7 @@ def check_artifacts():
         ]
     ):
         failed_test_strings.append(
-            "Artifact directory is missing files. See the docs: {}".format(
-                click.style("PLACEHOLDER", underline=True, fg="blue")
-            )
+            "Artifact directory is missing files. Contact W&B for support."
         )
 
     computed = wandb.Artifact("computed", type="dataset")
@@ -395,30 +391,27 @@ def check_graphql_put(api, host):
     f = open(gql_fp, "w")
     f.write("test2")
     f.close()
-    run = wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"})
-    saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
-    if not saved:
-        print_results(
-            "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
-                status_code
-            ),
-            False,
-        )
+    with wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"}) as run:
+        run_id = run.id
+        entity = run.entity
+        saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
+        if not saved:
+            print_results(
+                "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
+                    status_code
+                ),
+                False,
+            )
 
-        # next test will also fail if this one failed. So terminate this test here.
-        return None
-    try:
-        run.finish()
-    except Exception as e:
-        print_results("Client failed to finish run. See the docs: {}".format(e), False)
-        return None
+            # next test will also fail if this one failed. So terminate this test here.
+            return None
 
     # wait for upload to finish before download
     time.sleep(2)
 
     public_api = wandb.Api()
     try:
-        prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+        prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
     except Exception:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -429,7 +422,7 @@ def check_graphql_put(api, host):
         read_file = prev_run.file(gql_fp).download(replace=True)
     except Exception:
         failed_test_strings.append(
-            "Unable to read file successfully saved through a put request. Check SQS configurations, topic configs and SNS configs"
+            "Unable to read file successfully saved through a put request. Check SQS configurations, topic configs and SNS configs."
         )
         print_results(failed_test_strings, False)
         return None
@@ -482,11 +475,11 @@ def check_large_file(api, host):
     except Exception as e:
         if isinstance(e, requests.HTTPError) and e.response.status_code == 413:
             failed_test_strings.append(
-                'Failed to send a large file. Checl nginx.ingress.kubernetes.io/proxy-body-size is "0"'
+                'Failed to send a large payload. Checl nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )
         else:
             failed_test_strings.append(
-                "Failed to send a large file with error: {}".format(e)
+                "Failed to send a large payload with error: {}.".format(e)
             )
     print_results(failed_test_strings, False)
 
