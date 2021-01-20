@@ -1286,14 +1286,14 @@ class Video(BatchableMedia):
         filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
         try:  # older version of moviepy does not support progress_bar argument.
             if self._format == "gif":
-                clip.write_gif(filename, verbose=False, progress_bar=False)
+                clip.write_gif(filename, verbose=False, progress_bar=False, logger=None)
             else:
-                clip.write_videofile(filename, verbose=False, progress_bar=False)
+                clip.write_videofile(filename, progress_bar=False, logger=None)
         except TypeError:
             if self._format == "gif":
-                clip.write_gif(filename, verbose=False)
+                clip.write_gif(filename, verbose=False, logger=None)
             else:
-                clip.write_videofile(filename, verbose=False)
+                clip.write_videofile(filename, verbose=False, logger=None)
         self._set_file(filename, is_tmp=True)
 
     @classmethod
