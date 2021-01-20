@@ -1,6 +1,6 @@
-'''
+"""
 Utilities for wandb verify
-'''
+"""
 
 import getpass
 import os
@@ -31,17 +31,26 @@ if wandb.TYPE_CHECKING:  # type: ignore
 PROJECT_NAME = "verify"
 CHECKMARK = u"\u2705"
 RED_X = u"\u274C"
+WARNING_SIGN = u"\u26A0"
 
 
-def print_results(failed_test_or_tests: Optional[Union[str, List[str]]]) -> None:
+def print_results(
+    failed_test_or_tests: Optional[Union[str, List[str]]], warning: bool
+) -> None:
+    if warning:
+        color = "yellow"
+        sign = WARNING_SIGN
+    else:
+        color = "red"
+        sign = RED_X
     if isinstance(failed_test_or_tests, str):
-        print(RED_X)
-        print(click.style(failed_test_or_tests, fg="red", bold=True))
+        print(sign)
+        print(click.style(failed_test_or_tests, fg=color, bold=True))
     elif isinstance(failed_test_or_tests, list) and len(failed_test_or_tests) > 0:
-        print(RED_X)
+        print(sign)
         print(
             "\n".join(
-                [click.style(f, fg="red", bold=True) for f in failed_test_or_tests]
+                [click.style(f, fg=color, bold=True) for f in failed_test_or_tests]
             )
         )
     else:
@@ -50,7 +59,7 @@ def print_results(failed_test_or_tests: Optional[Union[str, List[str]]]) -> None
 
 def check_host(host: str) -> bool:
     if host == "api.wandb.ai":
-        print_results("Cannot run wandb verify against api.wandb.ai")
+        print_results("Cannot run wandb verify against api.wandb.ai", False)
         return False
     return True
 
@@ -64,7 +73,7 @@ def check_logged_in(api: Api) -> bool:
         fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
             click.style(login_doc_url, underline=True, fg="blue")
         )
-    print_results(fail_string)
+    print_results(fail_string, False)
     return fail_string is None
 
 
@@ -74,7 +83,7 @@ def check_secure_requests(url: str, failure_output: str) -> None:
     fail_string = None
     if not url.startswith("https"):
         fail_string = failure_output
-    print_results(fail_string)
+    print_results(fail_string, True)
 
 
 def check_run(api: Api) -> None:
@@ -116,7 +125,7 @@ def check_run(api: Api) -> None:
         run.finish()
     except Exception:
         failed_test_strings.append("Run failed to finish. Contact W&B for support.")
-        print_results(failed_test_strings)
+        print_results(failed_test_strings, False)
         return
 
     time.sleep(2)
@@ -156,14 +165,14 @@ def check_run(api: Api) -> None:
             failed_test_strings.append(
                 "Unable to download successfully saved file. Check SQS configuration, topic configuration and bucket permissions"
             )
-        print_results(failed_test_strings)
+        print_results(failed_test_strings, False)
         return
     contents = read_file.read()
     if contents != "test":
         failed_test_strings.append(
             "Read config values don't match run config. Contact W&B for support."
         )
-    print_results(failed_test_strings)
+    print_results(failed_test_strings, False)
 
 
 def verify_manifest(downloaded_manifest, computed_manifest, fails_list):
@@ -278,7 +287,7 @@ def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact) -> No
         singular_art, alias, name, sing_art_dir, failed_test_strings, False
     )
     if not cont_test:
-        print_results(failed_test_or_tests=failed_test_strings)
+        print_results(failed_test_strings, False)
         return
     try:
         download_artifact.verify(root=sing_art_dir)
@@ -298,7 +307,7 @@ def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact) -> No
         art1, alias, name, multi_art_dir, failed_test_strings, True
     )
     if not cont_test:
-        print_results(failed_test_or_tests=failed_test_strings)
+        print_results(failed_test_strings, False)
         return
     if set(os.listdir(multi_art_dir)) != set(
         [
@@ -325,7 +334,7 @@ def test_artifacts(artifact_with_path_or_paths, log_use_download_artifact) -> No
     ]
     verify_manifest(downloaded_manifest, computed_manifest, failed_test_strings)
 
-    print_results(failed_test_strings)
+    print_results(failed_test_strings, False)
 
 
 def check_graphql_put(api: Api, host: str) -> Optional[str]:
@@ -357,7 +366,8 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
             print_results(
                 "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
                     response.status_code
-                )
+                ),
+                False,
             )
 
             # next test will also fail if this one failed. So terminate this test here.
@@ -365,7 +375,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     try:
         run.finish()
     except Exception as e:
-        print_results("Client failed to finish run. See the docs: {}".format(e))
+        print_results("Client failed to finish run. See the docs: {}".format(e), False)
         return None
 
     # wait for upload to finish before download
@@ -378,7 +388,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
         )
-        print_results(failed_test_strings)
+        print_results(failed_test_strings, False)
         return None
     try:
         read_file = prev_run.file(gql_fp).download(replace=True)
@@ -386,7 +396,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
         failed_test_strings.append(
             "Unable to read file successfully saved through a put request. Check SQS configurations, topic configs and SNS configs"
         )
-        print_results(failed_test_strings)
+        print_results(failed_test_strings, False)
         return None
     contents = read_file.read()
     try:
@@ -396,7 +406,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
             "Read file contents do not match saved file contents. Contact W&B for support."
         )
 
-    print_results(failed_test_strings)
+    print_results(failed_test_strings, False)
     return response.request.url
 
 
@@ -443,7 +453,7 @@ def check_large_file(api: Api, host: str) -> None:
             failed_test_strings.append(
                 "Failed to send a large file with error: {}".format(e)
             )
-    print_results(failed_test_strings)
+    print_results(failed_test_strings, False)
 
 
 def check_wandb_version(api: Api) -> None:
@@ -470,4 +480,4 @@ def check_wandb_version(api: Api) -> None:
         fail_strings.append(
             "Your local installation only supports an old version of the wandb package. Please update your local installation."
         )
-    print_results(fail_strings)
+    print_results(fail_strings, False)
