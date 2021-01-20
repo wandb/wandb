@@ -215,7 +215,11 @@ class TBDirWatcher(object):
             try:
                 for event in self._generator.Load():
                     self.process_event(event)
-            except (self.directory_watcher.DirectoryDeletedError, StopIteration, RuntimeError) as e:
+            except (
+                self.directory_watcher.DirectoryDeletedError,
+                StopIteration,
+                RuntimeError,
+            ) as e:
                 # When listing s3 the directory may not yet exist, or could be empty
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
                 continue
