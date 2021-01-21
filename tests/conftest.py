@@ -87,15 +87,17 @@ def start_mock_server():
     server.reset_ctx = reset_ctx
 
     started = False
-    for i in range(5):
+    for i in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, timeout=1)
+            res = requests.get("%s/ctx" % server.base_url, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
             print("Attempting to connect but got: %s" % res)
         except requests.exceptions.RequestException:
-            print("Timed out waiting for server to start...")
+            print(
+                "Timed out waiting for server to start...", server.base_url, time.time()
+            )
             if server.poll() is None:
                 time.sleep(1)
             else:
@@ -108,6 +110,14 @@ def start_mock_server():
     else:
         server.terminate()
         print("Server failed to launch, see tests/logs/live_mock_server.log")
+        try:
+            print("=" * 40)
+            with open("tests/logs/live_mock_server.log") as f:
+                for l in f.readlines():
+                    print(l.strip())
+            print("=" * 40)
+        except Exception as e:
+            print("EXCEPTION:", e)
         raise ValueError("Failed to start server!  Exit code %s" % server.returncode)
     return server
 
@@ -117,10 +127,17 @@ atexit.register(test_cleanup)
 
 
 @pytest.fixture
-def test_dir(request):
+def test_name(request):
+    # change "test[1]" to "test__1__"
+    name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
+    return name
+
+
+@pytest.fixture
+def test_dir(test_name):
     orig_dir = os.getcwd()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    test_dir = os.path.join(root, "tests", "logs", request.node.name)
+    test_dir = os.path.join(root, "tests", "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)

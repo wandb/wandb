@@ -104,24 +104,45 @@ class Artifact(object):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
-            raise ValueError('File with name "%s" already exists' % name)
+            raise ValueError(
+                'File with name "%s" already exists at "%s"' % (name, path)
+            )
         util.mkdir_exists_ok(os.path.dirname(path))
         self._added_new = True
         return open(path, mode)
 
-    def add_file(self, local_path, name=None):
+    def add_file(self, local_path, name=None, is_tmp=False):
+        """Adds a local file to the artifact
+
+        Args:
+            local_path (str): path to the file
+            name (str, optional): new path and filename to assign inside artifact. Defaults to None.
+            is_tmp (bool, optional): If true, then the file is renamed deterministically. Defaults to False.
+
+        Returns:
+            ArtifactManifestEntry: the added entry
+        """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
 
         name = name or os.path.basename(local_path)
+        digest = md5_file_b64(local_path)
+
+        if is_tmp:
+            file_path, file_name = os.path.split(name)
+            file_name_parts = file_name.split(".")
+            file_name_parts[0] = b64_string_to_hex(digest)[:8]
+            name = os.path.join(file_path, ".".join(file_name_parts))
+
         entry = ArtifactManifestEntry(
             name,
             None,
-            digest=md5_file_b64(local_path),
+            digest=digest,
             size=os.path.getsize(local_path),
             local_path=local_path,
         )
+
         self._manifest.add_entry(entry)
         return entry
 
@@ -170,12 +191,12 @@ class Artifact(object):
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         """adds `uri` to the artifact via a reference, located at `name`. 
-        You can use Artifact#get_path(`name`) to retrieve this object.
+        You can use `Artifact.get_path(name)` to retrieve this object.
         
         Arguments:
-        - `uri`:str - the URI path of the reference to add. Can be an object returned from
-            Artifact.get_path to store a reference to another artifact's entry.
-        - `name`:str - the path to save
+            uri (str) - the URI path of the reference to add. Can be an object returned from
+                Artifact.get_path to store a reference to another artifact's entry.
+            name (str) - the path to save
         """
 
         # This is a bit of a hack, we want to check if the uri is a of the type
@@ -204,8 +225,8 @@ class Artifact(object):
         return manifest_entries
 
     def add(self, obj, name):
-        """Adds `obj` to the artifact, located at `name`. You can use Artifact#get(`name`) after downloading
-        the artifact to retrieve this object.
+        """Adds `obj` to the artifact, located at `name`. You can
+        use `Artifact.get(name)` after downloading the artifact to retrieve this object.
         
         Arguments:
             obj (wandb.WBValue): The object to save in an artifact
@@ -236,7 +257,7 @@ class Artifact(object):
             import json
 
             # TODO: Do we need to open with utf-8 codec?
-            f.write(json.dumps(obj.to_json(self), sort_keys=True))
+            f.write(json.dumps(val, sort_keys=True))
 
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
@@ -391,7 +412,7 @@ class ArtifactManifestEntry(object):
             raise AssertionError(
                 "programming error, size required when local_path specified"
             )
-        self.path = path
+        self.path = util.to_forward_slash_path(path)
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.birth_artifact_id = birth_artifact_id
@@ -614,7 +635,7 @@ class TrackingHandler(StorageHandler):
         location.
 
         For example, if the data to track is located on an NFS share mounted on
-        /data, then it is sufficient to just track the paths.
+        `/data`, then it is sufficient to just track the paths.
         """
         self._scheme = scheme
 
@@ -653,7 +674,6 @@ DEFAULT_MAX_OBJECTS = 10000
 
 
 class LocalFileHandler(StorageHandler):
-
     """Handles file:// references"""
 
     def __init__(self, scheme=None):
@@ -709,7 +729,7 @@ class LocalFileHandler(StorageHandler):
             i = 0
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i files in "%s"...'
+                'Generating checksum for up to %i files in "%s"...\n'
                 % (max_objects, local_path),
                 newline=False,
             )
@@ -721,11 +741,13 @@ class LocalFileHandler(StorageHandler):
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
                         )
+                    physical_path = os.path.join(root, sub_path)
+                    logical_path = os.path.relpath(physical_path, start=local_path)
                     entry = ArtifactManifestEntry(
-                        os.path.basename(sub_path),
-                        os.path.join(path, sub_path),
-                        size=os.path.getsize(sub_path),
-                        digest=md5_file_b64(sub_path),
+                        logical_path,
+                        os.path.join(path, logical_path),
+                        size=os.path.getsize(physical_path),
+                        digest=md5_file_b64(physical_path),
                     )
                     entries.append(entry)
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
@@ -1153,8 +1175,9 @@ class WBArtifactHandler(StorageHandler):
     @property
     def scheme(self):
         """overrides parent scheme
-        :return: The scheme to which this handler applies.
-        :rtype: str
+
+        Returns:
+            (str): The scheme to which this handler applies.
         """
         return self._scheme
 
@@ -1170,10 +1193,11 @@ class WBArtifactHandler(StorageHandler):
         corresponding entry. In this case, the referenced artifact is downloaded
         and a new symlink is created and returned to the caller.
 
-        :param manifest_entry: The index entry to load
-        :type manifest_entry: ArtifactManifestEntry
-        :return: A path to the file represented by `index_entry`
-        :rtype: os.PathLike
+        Arguments:
+            manifest_entry (ArtifactManifestEntry): The index entry to load
+        
+        Returns:
+            (os.PathLike): A path to the file represented by `index_entry`
         """
         # We don't check for cache hits here. Since we have 0 for size (since this
         # is a cross-artifact reference which and we've made the choice to store 0
@@ -1196,16 +1220,16 @@ class WBArtifactHandler(StorageHandler):
         """
         Stores the file or directory at the given path within the specified artifact. In this
         case we recursively resolve the reference until the result is a concrete asset so that 
-        we don't have multiple hops. TODO: This resolution could be done in the server for
+        we don't have multiple hops. TODO-This resolution could be done in the server for
         performance improvements.
 
-        :param artifact: The artifact doing the storing
-        :param path: The path to store
-        :type path: str
-        :param name: If specified, the logical name that should map to `path`
-        :type name: str
-        :return: A list of manifest entries to store within the artifact
-        :rtype: list(ArtifactManifestEntry)
+        Arguments:
+            artifact: The artifact doing the storing
+            path (str): The path to store
+            name (str): If specified, the logical name that should map to `path`
+        
+        Returns:
+            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
         """
 
         # Recursively resolve the reference until a concrete asset is found

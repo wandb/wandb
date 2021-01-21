@@ -130,17 +130,17 @@ setting. Defaults to true in jupyter and false otherwise.
 - `resume` _bool, str, optional_ - Sets the resuming behavior. Should be one of:
 "allow", "must", "never", "auto" or None. Defaults to None.
 Cases:
-- "auto" (or True): automatically resume the previous run on the same machine.
+  - "auto" (or True): automatically resume the previous run on the same machine.
 if the previous run crashed, otherwise starts a new run.
-- "allow": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+  - "allow": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
 and it is identical to a previous run, wandb will automatically resume the
 run with the id. Otherwise wandb will start a new run.
-- "never": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+  - "never": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
 and it is identical to a previous run, wandb will crash.
-- "must": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
+  - "must": if id is set with init(id="UNIQUE_ID") or WANDB_RUN_ID="UNIQUE_ID"
 and it is identical to a previous run, wandb will automatically resume the
 run with the id. Otherwise wandb will crash.
-- None: never resumes - if a run has a duplicate run_id the previous run is
+  - None: never resumes - if a run has a duplicate run_id the previous run is
 overwritten.
 See https://docs.wandb.com/library/advanced/resuming for more detail.
 - `force` _bool, optional_ - If true, will cause script to crash if user can't or isn't

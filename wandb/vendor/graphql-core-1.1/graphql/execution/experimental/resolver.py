@@ -1,5 +1,5 @@
 import sys
-import collections
+from six.moves.collections_abc import Iterable
 from functools import partial
 
 from promise import Promise, is_thenable
@@ -37,7 +37,7 @@ def complete_list_value(inner_resolver, exe_context, info, on_error, result):
     if result is None:
         return None
 
-    assert isinstance(result, collections.Iterable), \
+    assert isinstance(result, Iterable), \
         ('User Error: expected iterable, but did not find one ' +
          'for field {}.{}.').format(info.parent_type, info.field_name)
 

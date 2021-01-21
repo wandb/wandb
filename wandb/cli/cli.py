@@ -242,19 +242,20 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
+@click.option("--port", default=None, help="The host port to bind grpc service.")
 @display_error
-def grpc_server(project=None, entity=None):
+def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server()
+    grpc_server(port=port)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument("agent_spec", nargs=-1)
 @display_error
@@ -1488,6 +1489,7 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
@@ -1501,6 +1503,7 @@ def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline, running your script from this directory will only write metadata locally."
         )

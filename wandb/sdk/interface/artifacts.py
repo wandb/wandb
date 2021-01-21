@@ -1,4 +1,6 @@
+#
 import base64
+import binascii
 import codecs
 import hashlib
 import os
@@ -11,6 +13,10 @@ def md5_string(string):
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
+
+
+def b64_string_to_hex(string):
+    return binascii.hexlify(base64.standard_b64decode(string)).decode("ascii")
 
 
 def md5_hash_file(path):

@@ -1,3 +1,54 @@
+## 0.10.14 (January 15, 2021)
+
+#### :nail_care: Enhancement
+
+- Add wandb.Audio support to Artifacts
+
+#### :bug: Bug Fix
+
+- Fix wandb config regressions introduced in 0.10.13
+- Rollback changes supporting media with slashes in keys
+
+## 0.10.13 (January 11, 2021)
+
+#### :nail_care: Enhancement
+
+- Add support for Mac M1 GPU monitoring
+- Add support for TPU monitoring
+- Add setting to disable sagemaker integration
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync with tensorboardX and tf1
+- Fix issues logging images with slashes
+- Fix custom charts issues
+- Improve error messages using `wandb pull`
+- Improve error messages with `wandb.Table()`
+- Make sure silent mode is silent
+- Fix `wandb online` to renable logging
+- Multiple artifact fixes
+
+## 0.10.12 (December 3, 2020)
+
+#### :nail_care: Enhancement
+
+- Add Artifact.used_by and Artifact.logged_by
+- Validate type consistency when logging Artifacts
+- Enhance JoinedTable to not require downloaded assets
+- Add ability to recursively download dependent artifacts
+- Enable gradient logging with keras and tf2+
+- Validate pytorch models are passed to wandb.watch()
+- Improved docstrings for public methods / objects
+- Warn when image sequences are logged with different sizes
+
+#### :bug: Bug Fix
+
+- Fix incorrectly generated filenames in summary
+- Fix anonymous mode to include the api key in URLs
+- Fix pickle issue with disabled mode
+- Fix artifact from_id query
+- Fix handling of Tables with different image paths
+
 ## 0.10.11 (November 18, 2020)
 
 #### :nail_care: Enhancement
