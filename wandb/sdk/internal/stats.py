@@ -13,6 +13,7 @@ from wandb import util
 from wandb.vendor.pynvml import pynvml  # type: ignore[import]
 
 from . import tpu
+from ..lib import telemetry
 
 
 psutil = util.get_module("psutil")
@@ -226,6 +227,12 @@ class SystemStats(object):
                 # 0 in my experimentation and requires a frontend change
                 # so leaving it out for now.
                 # stats["gpu.0.cpuWaitMs"] = m1_stats["cpu_wait_ms"]
+
+                telem = telemetry.TelemetryRecord()
+                telem.env.m1_gpu = True
+                if self._interface:
+                    self._interface.publish_telemetry(telem)
+
             except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
                 wandb.termwarn("GPU stats error %s", e)
                 pass
