@@ -1476,6 +1476,7 @@ class Classes(Media):
 
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
+
     Arguments:
         table1 (str, wandb.Table, ArtifactEntry):
             the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
