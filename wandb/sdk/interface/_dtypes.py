@@ -235,7 +235,7 @@ class Type(object):
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "Type":
         return cls()
 
-    def explain(self, other: any, depth=0) -> str:
+    def explain(self, other: t.Any, depth=0) -> str:
         """Explains why an item is not assignable to a type. Assumes that
         the caller has already validated that the assignment fails.
 
@@ -486,7 +486,7 @@ class UnionType(Type):
 
         return self.__class__(resolved_types)
 
-    def explain(self, other: any, depth=0) -> str:
+    def explain(self, other: t.Any, depth=0) -> str:
         exp = super(UnionType, self).explain(other, depth)
         for ndx, subtype in enumerate(self.params["allowed_types"]):
             if ndx > 0:
@@ -584,7 +584,7 @@ class ListType(Type):
 
         return InvalidType()
 
-    def explain(self, other: any, depth=0) -> str:
+    def explain(self, other: t.Any, depth=0) -> str:
         exp = super(ListType, self).explain(other, depth)
         gap = "".join(["\t"] * depth)
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
@@ -668,7 +668,6 @@ class DictType(Type):
         if (
             isinstance(py_obj, dict)
             and len(set(py_obj.keys()) - set(self.params["type_map"].keys())) == 0
-            and len(set(self.params["type_map"].keys()) - set(py_obj.keys())) == 0
         ):
             type_map = {}
             for key in self.params["type_map"]:
@@ -681,7 +680,7 @@ class DictType(Type):
 
         return InvalidType()
 
-    def explain(self, other: any, depth=0) -> str:
+    def explain(self, other: t.Any, depth=0) -> str:
         exp = super(DictType, self).explain(other, depth)
         gap = "".join(["\t"] * depth)
         if isinstance(other, dict):

@@ -668,7 +668,6 @@ class DictType(Type):
         if (
             isinstance(py_obj, dict)
             and len(set(py_obj.keys()) - set(self.params["type_map"].keys())) == 0
-            and len(set(self.params["type_map"].keys()) - set(py_obj.keys())) == 0
         ):
             type_map = {}
             for key in self.params["type_map"]:
