@@ -88,6 +88,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    sagemaker_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -212,6 +213,21 @@ class Settings(object):
     show_info: bool = True
     show_warnings: bool = True
     show_errors: bool = True
+    email: Optional[str] = None
+    save_code: Optional[bool] = None
+    program_relpath: Optional[str] = None
+
+    # Public attributes
+    entity: Optional[str] = None
+    project: Optional[str] = None
+    run_group: Optional[str] = None
+    run_name: Optional[str] = None
+    run_notes: Optional[str] = None
+    sagemaker_disable: Optional[bool] = None
+
+    # TODO(jhr): Audit these attributes
+    run_job_type: Optional[str] = None
+    base_url: Optional[str] = None
 
     # Private attributes
     __start_time: Optional[float]
@@ -309,6 +325,7 @@ class Settings(object):
         username=None,
         email=None,
         docker=None,
+        sagemaker_disable: Optional[bool] = None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
@@ -552,6 +569,11 @@ class Settings(object):
         if val is None:
             return "{} is not a boolean".format(value)
 
+    def _preprocess_base_url(self, value):
+        if value is not None:
+            value = value.rstrip("/")
+        return value
+
     def _start_run(self):
         datetime_now: datetime = datetime.now()
         time_now: float = time.time()
@@ -668,30 +690,39 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
+    def _perform_preprocess(self, k, v):
+        f = getattr(self, "_preprocess_" + k, None)
+        if not f or not callable(f):
+            return v
+        else:
+            return f(v)
+
     def _update(self, __d=None, _source=None, _override=None, **kwargs):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
+        data = {}
         for check in d, kwargs:
             for k in six.viewkeys(check):
                 if k not in self.__dict__:
                     raise KeyError(k)
-                self._check_invalid(k, check[k])
-        for data in d, kwargs:
-            for k, v in six.iteritems(data):
-                if v is None:
-                    continue
-                if self._priority_failed(k, source=_source, override=_override):
-                    continue
-                if isinstance(v, list):
-                    v = tuple(v)
-                self.__dict__[k] = v
-                if _source:
-                    self.__defaults_dict[k] = _source
-                    self.__defaults_dict_set.setdefault(k, set()).add(_source)
-                if _override:
-                    self.__override_dict[k] = _override
-                    self.__override_dict_set.setdefault(k, set()).add(_override)
+                v = self._perform_preprocess(k, check[k])
+                self._check_invalid(k, v)
+                data[k] = v
+        for k, v in six.iteritems(data):
+            if v is None:
+                continue
+            if self._priority_failed(k, source=_source, override=_override):
+                continue
+            if isinstance(v, list):
+                v = tuple(v)
+            self.__dict__[k] = v
+            if _source:
+                self.__defaults_dict[k] = _source
+                self.__defaults_dict_set.setdefault(k, set()).add(_source)
+            if _override:
+                self.__override_dict[k] = _override
+                self.__override_dict_set.setdefault(k, set()).add(_override)
 
     def update(self, __d=None, **kwargs):
         self._update(__d, **kwargs)
@@ -804,6 +835,7 @@ class Settings(object):
             raise AttributeError(name)
         if self.__frozen:
             raise TypeError("Settings object is frozen")
+        value = self._perform_preprocess(name, value)
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 

@@ -1,0 +1,342 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		34F9FADA257C80A700C49DD9 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAD9257C80A700C49DD9 /* main.m */; };
+		34F9FAE2257C820D00C49DD9 /* GPUMiner.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAE1257C820D00C49DD9 /* GPUMiner.m */; };
+		34F9FAE7257C866A00C49DD9 /* DataSet.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAE4257C866A00C49DD9 /* DataSet.m */; };
+		34F9FAEC257D630500C49DD9 /* TemperatureMiner.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAE9257D630500C49DD9 /* TemperatureMiner.m */; };
+		34F9FAF7257D67A300C49DD9 /* SMCSensors.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAF4257D67A300C49DD9 /* SMCSensors.m */; };
+		34F9FAF8257D67A300C49DD9 /* SMCInterface.m in Sources */ = {isa = PBXBuildFile; fileRef = 34F9FAF6257D67A300C49DD9 /* SMCInterface.m */; };
+		34F9FB10257D75B900C49DD9 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34F9FB0F257D75B900C49DD9 /* Accelerate.framework */; };
+		34F9FB12257D75C800C49DD9 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34F9FB11257D75C800C49DD9 /* IOKit.framework */; };
+		34F9FB14257D75CF00C49DD9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34F9FB13257D75CF00C49DD9 /* Cocoa.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		34F9FAD4257C80A700C49DD9 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		34F9FAD6257C80A700C49DD9 /* apple_gpu_stats */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = apple_gpu_stats; sourceTree = BUILT_PRODUCTS_DIR; };
+		34F9FAD9257C80A700C49DD9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		34F9FAE1257C820D00C49DD9 /* GPUMiner.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GPUMiner.m; sourceTree = "<group>"; };
+		34F9FAE4257C866A00C49DD9 /* DataSet.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DataSet.m; sourceTree = "<group>"; };
+		34F9FAE5257C866A00C49DD9 /* DataSet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DataSet.h; sourceTree = "<group>"; };
+		34F9FAE6257C866A00C49DD9 /* GPUMiner.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GPUMiner.h; sourceTree = "<group>"; };
+		34F9FAE9257D630500C49DD9 /* TemperatureMiner.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TemperatureMiner.m; sourceTree = "<group>"; };
+		34F9FAEB257D630500C49DD9 /* TemperatureMiner.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TemperatureMiner.h; sourceTree = "<group>"; };
+		34F9FAEE257D63D800C49DD9 /* definitions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = definitions.h; sourceTree = "<group>"; };
+		34F9FAF3257D67A300C49DD9 /* SMCSensors.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SMCSensors.h; sourceTree = "<group>"; };
+		34F9FAF4257D67A300C49DD9 /* SMCSensors.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SMCSensors.m; sourceTree = "<group>"; };
+		34F9FAF5257D67A300C49DD9 /* SMCInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SMCInterface.h; sourceTree = "<group>"; };
+		34F9FAF6257D67A300C49DD9 /* SMCInterface.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SMCInterface.m; sourceTree = "<group>"; };
+		34F9FB0F257D75B900C49DD9 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		34F9FB11257D75C800C49DD9 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		34F9FB13257D75CF00C49DD9 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		34F9FAD3257C80A700C49DD9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34F9FB14257D75CF00C49DD9 /* Cocoa.framework in Frameworks */,
+				34F9FB12257D75C800C49DD9 /* IOKit.framework in Frameworks */,
+				34F9FB10257D75B900C49DD9 /* Accelerate.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		34F9FACD257C80A700C49DD9 = {
+			isa = PBXGroup;
+			children = (
+				34F9FAD8257C80A700C49DD9 /* apple_gpu_stats */,
+				34F9FAD7257C80A700C49DD9 /* Products */,
+				34F9FB0E257D75B900C49DD9 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		34F9FAD7257C80A700C49DD9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				34F9FAD6257C80A700C49DD9 /* apple_gpu_stats */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		34F9FAD8257C80A700C49DD9 /* apple_gpu_stats */ = {
+			isa = PBXGroup;
+			children = (
+				34F9FAF5257D67A300C49DD9 /* SMCInterface.h */,
+				34F9FAF6257D67A300C49DD9 /* SMCInterface.m */,
+				34F9FAF3257D67A300C49DD9 /* SMCSensors.h */,
+				34F9FAF4257D67A300C49DD9 /* SMCSensors.m */,
+				34F9FAEE257D63D800C49DD9 /* definitions.h */,
+				34F9FAEB257D630500C49DD9 /* TemperatureMiner.h */,
+				34F9FAE9257D630500C49DD9 /* TemperatureMiner.m */,
+				34F9FAE5257C866A00C49DD9 /* DataSet.h */,
+				34F9FAE4257C866A00C49DD9 /* DataSet.m */,
+				34F9FAE6257C866A00C49DD9 /* GPUMiner.h */,
+				34F9FAD9257C80A700C49DD9 /* main.m */,
+				34F9FAE1257C820D00C49DD9 /* GPUMiner.m */,
+			);
+			path = "apple_gpu_stats";
+			sourceTree = "<group>";
+		};
+		34F9FB0E257D75B900C49DD9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				34F9FB13257D75CF00C49DD9 /* Cocoa.framework */,
+				34F9FB11257D75C800C49DD9 /* IOKit.framework */,
+				34F9FB0F257D75B900C49DD9 /* Accelerate.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		34F9FAD5257C80A700C49DD9 /* apple_gpu_stats */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 34F9FADD257C80A700C49DD9 /* Build configuration list for PBXNativeTarget "apple_gpu_stats" */;
+			buildPhases = (
+				34F9FAD2257C80A700C49DD9 /* Sources */,
+				34F9FAD3257C80A700C49DD9 /* Frameworks */,
+				34F9FAD4257C80A700C49DD9 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = apple_gpu_stats;
+			productName = "apple_gpu_stats";
+			productReference = 34F9FAD6257C80A700C49DD9 /* apple_gpu_stats */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		34F9FACE257C80A700C49DD9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				KnownAssetTags = (
+					New,
+				);
+				LastUpgradeCheck = 1220;
+				TargetAttributes = {
+					34F9FAD5257C80A700C49DD9 = {
+						CreatedOnToolsVersion = 12.2;
+					};
+				};
+			};
+			buildConfigurationList = 34F9FAD1257C80A700C49DD9 /* Build configuration list for PBXProject "apple_gpu_stats" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 34F9FACD257C80A700C49DD9;
+			productRefGroup = 34F9FAD7257C80A700C49DD9 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				34F9FAD5257C80A700C49DD9 /* apple_gpu_stats */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		34F9FAD2257C80A700C49DD9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34F9FAE2257C820D00C49DD9 /* GPUMiner.m in Sources */,
+				34F9FAF8257D67A300C49DD9 /* SMCInterface.m in Sources */,
+				34F9FADA257C80A700C49DD9 /* main.m in Sources */,
+				34F9FAEC257D630500C49DD9 /* TemperatureMiner.m in Sources */,
+				34F9FAE7257C866A00C49DD9 /* DataSet.m in Sources */,
+				34F9FAF7257D67A300C49DD9 /* SMCSensors.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		34F9FADB257C80A700C49DD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		34F9FADC257C80A700C49DD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		34F9FADE257C80A700C49DD9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = 5DTHBP38WM;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.wandb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		34F9FADF257C80A700C49DD9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = 5DTHBP38WM;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.wandb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		34F9FAD1257C80A700C49DD9 /* Build configuration list for PBXProject "apple_gpu_stats" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34F9FADB257C80A700C49DD9 /* Debug */,
+				34F9FADC257C80A700C49DD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		34F9FADD257C80A700C49DD9 /* Build configuration list for PBXNativeTarget "apple_gpu_stats" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34F9FADE257C80A700C49DD9 /* Debug */,
+				34F9FADF257C80A700C49DD9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 34F9FACE257C80A700C49DD9 /* Project object */;
+}
