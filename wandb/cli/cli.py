@@ -225,7 +225,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         # force relogin if host is specified
         _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
-    if host or cloud or key:
+    if key:
         relogin = True
 
     wandb.setup(

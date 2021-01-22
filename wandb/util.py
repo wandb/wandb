@@ -15,6 +15,7 @@ import math
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import threading
@@ -1162,6 +1163,16 @@ def uri_from_path(path):
     """returns the URI of the path"""
     url = urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+def _has_internet():
+    """Attempts to open a DNS connection to Googles root servers"""
+    try:
+        s = socket.create_connection(("8.8.8.8", 53), 0.5)
+        s.close()
+        return True
+    except OSError:
+        return False
 
 
 def _is_kaggle():

@@ -76,6 +76,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         PollExitResponse,
     )
     from .wandb_setup import _WandbSetup
+    from .wandb_artifacts import Artifact
     from wandb.apis.public import Api as PublicApi
 
 logger = logging.getLogger("wandb")
@@ -593,6 +594,63 @@ class Run(object):
             (str): name of W&B project associated with run.
         """
         return self.project_name()
+
+    def commit_code(
+        self,
+        root = ".",
+        include = lambda path: path.endswith(".py"),
+        exclude = lambda path: False,
+    ):
+        """
+        commit_code() saves the current state of your code to a W&B artifact.  By
+        default it walks the current directory and logs all files that end with ".py".
+
+        Arguments:
+            row (str, optional): The relative (to os.getcwd()) or absolute path to
+                recursively find code from.
+            include (callable, optional): A callable that accepts a file path and
+                returns True when it should be included and False otherwise.  This
+                defaults to: `lambda path: path.endswith(".py")`
+            exclude (callable, optional): A callable that accepts a file path and
+                returns True when it should be excluded and False otherwise.  This
+                defaults to: `lambda path: False`
+
+        Examples:
+            Basic usage
+            ```
+            run.commit_code()
+            ```
+
+            Advanced usage
+            ```
+            run.commit_code("../", include=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        # TODO: should this type be a special wandb type?
+        art = wandb.Artifact("{}-{}".format("source", self.id), "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for dirpath, _, files in os.walk(root):
+                for fname in files:
+                    file_path = os.path.join(dirpath, fname)
+                    if include(file_path) and not exclude(file_path):
+                        save_name = os.path.relpath(file_path, root)
+                        files_added = True
+                        art.add_file(file_path, name=save_name)
+        # Add any manually staged files such is ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings.code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings.code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            return None
+        return self.log_artifact(art)
 
     def get_url(self):
         """

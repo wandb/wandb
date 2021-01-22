@@ -1,7 +1,9 @@
 from base64 import b64encode
+import json
 import logging
 import os
 import re
+import shutil
 import sys
 
 import requests
@@ -83,15 +85,26 @@ def notebook_metadata(silent):
         "the WANDB_NOTEBOOK_NAME environment variable"
     )
     try:
-        import ipykernel
-        from notebook.notebookapp import list_running_servers
+        # In colab we can request the most recent contents
+        ipynb = attempt_colab_load_ipynb()
+        if ipynb:
+            return {
+                "root": "/content",
+                "path": ipynb["metadata"]["name"],
+                "name": ipynb["metadata"]["name"],
+            }
 
-        kernel_id = re.search(
-            "kernel-(.*).json", ipykernel.connect.get_connection_file()
-        ).group(1)
-        servers = list(
-            list_running_servers()
-        )  # TODO: sometimes there are invalid JSON files and this blows up
+        if wandb.util._is_kaggle():
+            # In kaggle we can request the most recent contents
+            ipynb = attempt_kaggle_load_ipynb()
+            if ipynb:
+                return {
+                    "root": "/kaggle/working",
+                    "path": ipynb["metadata"]["name"],
+                    "name": ipynb["metadata"]["name"],
+                }
+
+        servers, kernel_id = jupyter_servers_and_kernel_id()
     except Exception:
         # TODO: Fix issue this is not the logger initialized in in wandb.init()
         # since logger is not attached, outputs to notebook
@@ -115,11 +128,54 @@ def notebook_metadata(silent):
             if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
                 if nn["kernel"]["id"] == kernel_id:
                     return {
-                        "root": s["notebook_dir"],
+                        "root": s.get("root_dir", s.get("notebook_dir", ".")),
                         "path": nn["notebook"]["path"],
                         "name": nn["notebook"]["name"],
                     }
     return {}
+
+
+def jupyter_servers_and_kernel_id():
+    import ipykernel
+
+    kernel_id = re.search(
+        "kernel-(.*).json", ipykernel.connect.get_connection_file()
+    ).group(1)
+    # We're either in jupyterlab or a notebook, lets prefer the newer jupyter_server package
+    serverapp = wandb.util.get_module("jupyter_server.serverapp")
+    notebookapp = wandb.util.get_module("notebook.notebookapp")
+    servers = []
+    if serverapp is not None:
+        try:
+            servers.extend(list(serverapp.list_running_servers()))
+        except ValueError:
+            pass
+    if notebookapp is not None:
+        try:
+            servers.extend(list(notebookapp.list_running_servers()))
+        except ValueError:
+            pass
+    return servers, kernel_id
+
+
+def attempt_colab_load_ipynb():
+    colab = wandb.util.get_module("google.colab")
+    if colab:
+        # This isn't thread safe, never call in a thread
+        response = colab._message.blocking_request("get_ipynb", timeout_sec=5)
+        if response:
+            return response["ipynb"]
+
+
+def attempt_kaggle_load_ipynb():
+    kaggle = wandb.util.get_module("kaggle_session")
+    if kaggle:
+        try:
+            client = kaggle.UserSessionClient()
+            return client.get_exportable_ipynb()
+        except Exception:
+            logger.exception("Unable to load kaggle notebook")
+            return None
 
 
 def attempt_colab_login(app_url):
@@ -192,6 +248,30 @@ class Notebook(object):
             {"data": b64_data, "metadata": data_with_metadata["metadata"]}
         )
 
+    def save_ipynb(self):
+        if not self.settings.save_code:
+            logger.info("not saving jupyter notebook")
+            return False
+        relpath = self.settings._jupyter_path
+        logger.info("looking for notebook: %s", relpath)
+        if relpath:
+            if os.path.exists(relpath):
+                shutil.copy(
+                    relpath,
+                    os.path.join(self.settings.code_dir, os.path.basename(relpath)),
+                )
+                return True
+        colab_ipynb = attempt_colab_load_ipynb()
+        if colab_ipynb:
+            with open(
+                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["name"]),
+                "w",
+                encoding="uft-8",
+            ) as f:
+                f.write(json.dumps(colab_ipynb))
+            return True
+        return False
+
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
         try:
@@ -250,6 +330,12 @@ class Notebook(object):
             wandb.run.config["_wandb"]["session_history"] = state_path
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            with open(
+                os.path.join(self.settings.code_dir, "_session_history.ipynb"),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                write(nb, f, version=4)
             with open(
                 os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
             ) as f:

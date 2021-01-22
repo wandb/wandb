@@ -204,6 +204,8 @@ class Settings(object):
     sync_file_spec: Optional[str] = None
     sync_dir_spec: Optional[str] = None
     files_dir_spec: Optional[str] = None
+    tmp_dir_spec: Optional[str] = None
+    code_dir_spec: Optional[str] = None
     log_symlink_user_spec: Optional[str] = None
     log_symlink_internal_spec: Optional[str] = None
     sync_symlink_latest_spec: Optional[str] = None
@@ -305,9 +307,12 @@ class Settings(object):
         log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
         resume_fname_spec="{wandb_dir}/wandb-resume.json",
         files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
+        tmp_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
+        code_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp/code",
         symlink=None,  # probed
         # where files are temporary stored when saving
         # files_dir=None,
+        # code_dir=None,
         # data_base_dir="wandb",
         # data_dir="",
         # data_spec="wandb-{timespec}-{pid}-data.bin",
@@ -492,6 +497,14 @@ class Settings(object):
     @property
     def files_dir(self) -> str:
         return self._path_convert(self.files_dir_spec)
+
+    @property
+    def tmp_dir(self) -> str:
+        return self._path_convert(self.tmp_dir_spec)
+
+    @property
+    def code_dir(self) -> str:
+        return self._path_convert(self.code_dir_spec)
 
     @property
     def log_symlink_user(self) -> str:

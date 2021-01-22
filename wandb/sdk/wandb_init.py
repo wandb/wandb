@@ -165,10 +165,10 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
+        self._log_setup(settings)
+
         if settings._jupyter:
             self._jupyter_setup(settings)
-
-        self._log_setup(settings)
 
         self.settings = settings.freeze()
 
@@ -237,6 +237,10 @@ class _WandbInit(object):
     def _pause_backend(self):
         if self.backend is not None:
             logger.info("pausing backend")
+            # Attempt to save the code on every execution
+            if self.notebook.save_ipynb():
+                res = self.run.commit_code(root=None)
+                logger.info("saved code: %s", res)
             self.backend.interface.publish_pause()
 
     def _resume_backend(self):
@@ -246,9 +250,12 @@ class _WandbInit(object):
 
     def _jupyter_teardown(self):
         """Teardown hooks and display saving, called with wandb.finish"""
-        logger.info("cleaning up jupyter logic")
         ipython = self.notebook.shell
         self.notebook.save_history()
+        if self.notebook.save_ipynb():
+            self.run.commit_code(root=None)
+            logger.info("saved code and history")
+        logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:
             if "_resume_backend" in hook.__name__:
@@ -290,6 +297,7 @@ class _WandbInit(object):
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
         filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
         filesystem._safe_makedirs(settings.files_dir)
+        filesystem._safe_makedirs(settings.code_dir)
 
         if settings.symlink:
             self._safe_symlink(
