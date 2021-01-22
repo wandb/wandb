@@ -90,8 +90,8 @@ def notebook_metadata(silent):
         if ipynb:
             return {
                 "root": "/content",
-                "path": ipynb["metadata"]["name"],
-                "name": ipynb["metadata"]["name"],
+                "path": ipynb["metadata"]["colab"]["name"],
+                "name": ipynb["metadata"]["colab"]["name"],
             }
 
         if wandb.util._is_kaggle():
