@@ -266,7 +266,7 @@ class Notebook(object):
             with open(
                 os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["colab"]["name"]),
                 "w",
-                encoding="uft-8",
+                encoding="utf-8",
             ) as f:
                 f.write(json.dumps(colab_ipynb))
             return True
@@ -276,7 +276,7 @@ class Notebook(object):
             with open(
                 os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["name"]),
                 "w",
-                encoding="uft-8"
+                encoding="utf-8"
             ) as f:
                 f.write(json.dumps(kaggle_ipynb))
             return True
