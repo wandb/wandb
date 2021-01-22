@@ -645,8 +645,8 @@ class Table(Media):
         result_type = current_type.assign(incoming_data_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
-                "Data column contained incompatible types. Expected type {}, found data {}".format(
-                    current_type, incoming_data_dict
+                "Data row contained incompatible types:\n{}".format(
+                    current_type.explain(incoming_data_dict)
                 )
             )
         self._column_types = result_type

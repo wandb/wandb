@@ -15,5 +15,5 @@ if [ "x$1" == "x--loop-num" ]; then
 fi
 for n in `seq $NUM`; do
   echo "Running: $n"
-  $* 2>&1 | tee $RESULTS/$DATE/out-$n.txt
+  $* > >(tee -a $RESULTS/$DATE/out-$n.txt) 2>&1
 done
