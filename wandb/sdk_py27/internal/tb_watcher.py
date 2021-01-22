@@ -19,6 +19,7 @@ from . import run as internal_run
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
+ERROR_DELAY = 5
 REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,7 @@ class TBDirWatcher(object):
                 # When listing s3 the directory may not yet exist, or could be empty
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
                 if not self._shutdown:
-                    time.sleep(SHUTDOWN_DELAY)
+                    time.sleep(ERROR_DELAY)
             if self._shutdown:
                 now = time.time()
                 if not shutdown_time:
