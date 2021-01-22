@@ -1152,6 +1152,11 @@ def hex_to_b64_id(encoded_string):
     return base64.standard_b64encode(binascii.unhexlify(encoded_string)).decode("utf-8")
 
 
+def this_func_is_never_called():
+    print("i am a cat")
+    return "dog eat dog"
+
+
 def host_from_path(path):
     """returns the host of the path"""
     url = urlparse(path)
