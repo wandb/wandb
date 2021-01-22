@@ -343,13 +343,13 @@ def test_table_type():
 
 
 def test_table_implicit_types():
-    table = wandb.Table(columns=["col"], enforce_types=True)
+    table = wandb.Table(columns=["col"])
     table.add_data(None)
     table.add_data(1)
     with pytest.raises(TypeError):
         table.add_data("a")
 
-    table = wandb.Table(columns=["col"], optional=False, enforce_types=True)
+    table = wandb.Table(columns=["col"], optional=False)
     with pytest.raises(TypeError):
         table.add_data(None)
     table.add_data(1)
@@ -357,37 +357,107 @@ def test_table_implicit_types():
         table.add_data("a")
 
 
-def test_table_type_enforcement():
-    table = wandb.Table(columns=["col"])
+def test_table_allow_mixed_types():
+    table = wandb.Table(columns=["col"], allow_mixed_types=True)
     table.add_data(None)
     table.add_data(1)
-    table.add_data("a")  # No error unless enforcing types
+    table.add_data("a")  # No error with allow_mixed_types
 
-    table = wandb.Table(columns=["col"], optional=False)
-    table.add_data(None)  # No error unless enforcing types
+    table = wandb.Table(columns=["col"], optional=False, allow_mixed_types=True)
+    with pytest.raises(TypeError):
+        table.add_data(None)  # Still errors since optional is false
     table.add_data(1)
-    table.add_data("a")  # No error unless enforcing types
+    table.add_data("a")  # No error with allow_mixed_types
+
+
+def test_tables_with_dicts():
+    good_data = [
+        [None],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+    ]
+    bad_data = [
+        [None],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+        [{"a": [{"b": 1, "c": [[{"d": 1,}]]}]}],
+    ]
+
+    table = wandb.Table(columns=["A"], data=good_data, allow_mixed_types=True)
+    table = wandb.Table(columns=["A"], data=bad_data, allow_mixed_types=True)
+    table = wandb.Table(columns=["A"], data=good_data)
+    with pytest.raises(TypeError):
+        table = wandb.Table(columns=["A"], data=bad_data)
 
 
 def test_table_explicit_types():
-    table = wandb.Table(columns=["a", "b"], dtype=int, enforce_types=True)
+    table = wandb.Table(columns=["a", "b"], dtype=int)
     table.add_data(None, None)
     table.add_data(1, 2)
     with pytest.raises(TypeError):
         table.add_data(1, "a")
 
-    table = wandb.Table(
-        columns=["a", "b"], optional=False, dtype=[int, str], enforce_types=True
-    )
+    table = wandb.Table(columns=["a", "b"], optional=False, dtype=[int, str])
     with pytest.raises(TypeError):
         table.add_data(None, None)
     table.add_data(1, "a")
     with pytest.raises(TypeError):
         table.add_data("a", "a")
 
-    table = wandb.Table(
-        columns=["a", "b"], optional=[False, True], dtype=[int, str], enforce_types=True
-    )
+    table = wandb.Table(columns=["a", "b"], optional=[False, True], dtype=[int, str])
     with pytest.raises(TypeError):
         table.add_data(None, None)
     with pytest.raises(TypeError):
@@ -400,7 +470,7 @@ def test_table_explicit_types():
 
 def test_table_type_cast():
 
-    table = wandb.Table(columns=["type_col"], enforce_types=True)
+    table = wandb.Table(columns=["type_col"])
     table.add_data(1)
 
     wb_classes = data_types.Classes(
@@ -456,7 +526,6 @@ def test_table_specials():
         columns=["image", "table"],
         optional=False,
         dtype=[data_types.Image, data_types.Table],
-        enforce_types=True,
     )
     with pytest.raises(TypeError):
         table.add_data(None, None)

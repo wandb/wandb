@@ -490,7 +490,7 @@ class Table(Media):
         optional (Union[bool,List[bool]]): If None values are allowed. Singular bool
             applies to all columns. A list of bool values applies to each respective column.
             Default to True.
-        enforce_types (bool): Determines if the user code should error on mismatch types.
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
     """
 
     MAX_ROWS = 10000
@@ -505,11 +505,12 @@ class Table(Media):
         dataframe=None,
         dtype=None,
         optional=True,
-        enforce_types=False,
+        allow_mixed_types=False,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
-        self._enforce_types = enforce_types
+        if allow_mixed_types:
+            dtype = _dtypes.AnyType
 
         # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
@@ -601,7 +602,7 @@ class Table(Media):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
-                        self._column_types.params["type_map"][col_name],
+                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
                         wbtype,
                     )
                 )
@@ -618,7 +619,6 @@ class Table(Media):
             or len(self.data) != len(other.data)
             or self.columns != other.columns
             or self._column_types != other._column_types
-            or self._enforce_types != other._enforce_types
         ):
             return False
 
@@ -650,7 +650,7 @@ class Table(Media):
         }
         current_type = self._column_types
         result_type = current_type.assign(incoming_data_dict)
-        if self._enforce_types and isinstance(result_type, _dtypes.InvalidType):
+        if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
                 "Data row contained incompatible types:\n{}".format(
                     current_type.explain(incoming_data_dict)
@@ -692,13 +692,7 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        enforce_types = False
-        if json_obj.get("enforce_types") is True:
-            enforce_types = True
-
-        new_obj = cls(
-            columns=json_obj["columns"], data=data, enforce_types=enforce_types
-        )
+        new_obj = cls(columns=json_obj["columns"], data=data)
 
         if json_obj.get("column_types") is not None:
             new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
@@ -756,7 +750,6 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
-                    "enforce_types": self._enforce_types,
                 }
             )
         else:

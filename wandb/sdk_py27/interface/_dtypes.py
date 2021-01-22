@@ -545,12 +545,14 @@ class ListType(Type):
             )
             for ndx, item in enumerate(py_list):
                 _elm_type = elm_type.assign(item)
-                if isinstance(_elm_type, InvalidType):
-                    raise TypeError(
-                        "List contained incompatible types. Item at index {}: \n{}".format(
-                            ndx, elm_type.explain(item, 1)
-                        )
-                    )
+                # Commenting this out since we don't want to crash user code at this point, but rather
+                # retain an invalid internal list type.
+                # if isinstance(_elm_type, InvalidType):
+                #     raise TypeError(
+                #         "List contained incompatible types. Item at index {}: \n{}".format(
+                #             ndx, elm_type.explain(item, 1)
+                #         )
+                #     )
 
                 elm_type = _elm_type
 
