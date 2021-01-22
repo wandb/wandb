@@ -264,12 +264,23 @@ class Notebook(object):
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
             with open(
-                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["name"]),
+                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["colab"]["name"]),
                 "w",
                 encoding="uft-8",
             ) as f:
                 f.write(json.dumps(colab_ipynb))
             return True
+
+        kaggle_ipynb = attempt_kaggle_load_ipynb()
+        if kaggle_ipynb:
+            with open(
+                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["name"]),
+                "w",
+                encoding="uft-8"
+            ) as f:
+                f.write(json.dumps(kaggle_ipynb))
+            return True
+        
         return False
 
     def save_history(self):
