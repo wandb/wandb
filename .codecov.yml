@@ -13,16 +13,12 @@ coverage:
       sdk:
         target: auto
         paths:
-          - "wandb/sdk/__init__.py"
-          - "wandb/sdk/wandb_[u-w]*.py"
-          - "wandb/sdk/wandb_[x-z]*.py"
+          - wandb/sdk/*.py
       other:
         informational: true
         target: auto
         paths:
-          - "!wandb/sdk/__init__.py"
-          - "!wandb/sdk/wandb_[u-w]*.py"
-          - "!wandb/sdk/wandb_[x-z]*.py"
+          - "!wandb/sdk/*.py"
           - wandb/
       tests:
         target: 100%
