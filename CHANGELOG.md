@@ -1,3 +1,13 @@
+## 0.10.15 (January 22, 2021)
+
+#### :nail_care: Enhancement
+
+-
+
+#### :bug: Bug Fix
+
+-
+
 ## 0.10.14 (January 15, 2021)
 
 #### :nail_care: Enhancement
