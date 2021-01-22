@@ -1284,16 +1284,28 @@ class Video(BatchableMedia):
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
         filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
-        try:  # older version of moviepy does not support progress_bar argument.
+
+        try:  # older versions of moviepy do not support logger argument
+            kwargs = {"logger": None}
             if self._format == "gif":
-                clip.write_gif(filename, verbose=False, progress_bar=False)
+                clip.write_gif(filename, **kwargs)
             else:
-                clip.write_videofile(filename, verbose=False, progress_bar=False)
+                clip.write_videofile(filename, **kwargs)
         except TypeError:
-            if self._format == "gif":
-                clip.write_gif(filename, verbose=False)
-            else:
-                clip.write_videofile(filename, verbose=False)
+            try:  # even older versions of moviepy do not support progress_bar argument
+                kwargs = {"verbose": False, "progress_bar": False}
+                if self._format == "gif":
+                    clip.write_gif(filename, **kwargs)
+                else:
+                    clip.write_videofile(filename, **kwargs)
+            except TypeError:
+                kwargs = {
+                    "verbose": False,
+                }
+                if self._format == "gif":
+                    clip.write_gif(filename, **kwargs)
+                else:
+                    clip.write_videofile(filename, **kwargs)
         self._set_file(filename, is_tmp=True)
 
     @classmethod
