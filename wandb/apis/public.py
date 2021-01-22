@@ -337,7 +337,7 @@ class Api(object):
     def projects(self, entity=None, per_page=200):
         """
         Get projects for a given entity.
-        
+
         Arguments:
             entity: (str) Name of the entity requested.  If None will fallback to
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.

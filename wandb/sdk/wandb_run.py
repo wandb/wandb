@@ -2042,7 +2042,7 @@ class WriteSerializingFile(object):
 def finish(exit_code: int = None) -> None:
     """
     Marks a run as finished, and finishes uploading all data.
-    
+
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.
     """

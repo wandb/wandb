@@ -523,16 +523,16 @@ def init(
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, Dummy, None]:
     """
-    Start a new tracked run with `wandb.init()`. 
-    
-    In an ML training pipeline, you could add `wandb.init()` 
+    Start a new tracked run with `wandb.init()`.
+
+    In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
     script, and each piece would be tracked as a run in W&B.
-    
+
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
     Call `wandb.init()` to start a run before logging data with `wandb.log()`.
-    
+
     `wandb.init()` returns a run object, and you can also access the run object
     with wandb.run.
 
