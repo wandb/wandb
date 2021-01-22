@@ -1,6 +1,17 @@
 codecov:
   require_ci_to_pass: yes
 
+flags:
+  sdk:
+    paths:
+      - wandb/sdk/*.py
+  other:
+    paths:
+      - "!wandb/sdk/*.py"
+      - wandb/
+  tests:
+    paths:
+      - tests/
 coverage:
   precision: 2
   round: down
@@ -11,16 +22,17 @@ coverage:
         target: auto
         paths:
           - wandb/sdk/*.py
+        flags:
+          - sdk
       other:
         informational: true
         target: auto
-        paths:
-          - "!wandb/sdk/*.py"
-          - wandb/
+        flags:
+          - other
       tests:
         target: 100%
-        paths:
-          - tests/
+        flags:
+          - tests
 
 parsers:
   gcov:

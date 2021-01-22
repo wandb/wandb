@@ -40,13 +40,13 @@ def test_resume_allow_success(live_mock_server, test_settings):
     res = live_mock_server.set_ctx({"resume": True})
     print("CTX AFTER UPDATE", res)
     print("GET RIGHT AWAY", live_mock_server.get_ctx())
-    wandb.init(reinit=True, resume="allow", settings=test_settings)
+    run = wandb.init(reinit=True, resume="allow", settings=test_settings)
     wandb.log({"acc": 10})
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
     dog = True
     cat = "watch"
-    if False:
+    if run is None:
         print("this line wont be covered")
         pizza = cat
         if pizza == "watch":
