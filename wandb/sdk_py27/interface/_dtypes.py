@@ -235,8 +235,36 @@ class Type(object):
     def from_obj(cls, py_obj = None):
         return cls()
 
+    def explain(self, other, depth=0):
+        """Explains why an item is not assignable to a type. Assumes that
+        the caller has already validated that the assignment fails.
+
+        Args:
+            other (any): Any object
+            depth (int, optional): depth of the type checking. Defaults to 0.
+
+        Returns:
+            str: human readable explanation
+        """
+        wbtype = TypeRegistry.type_of(other)
+        gap = "".join(["\t"] * depth)
+        if depth > 0:
+            return "{}{} not assignable to {}".format(gap, wbtype, self)
+        else:
+            return "{}{} of type {} is not assignable to {}".format(
+                gap, other, wbtype, self
+            )
+
     def __repr__(self):
-        return "<WBType:{} | {}>".format(self.name, self.params)
+        rep = self.name.capitalize()
+        if len(self.params.keys()) > 0:
+            rep += "("
+            for ndx, key in enumerate(self.params.keys()):
+                if ndx > 0:
+                    rep += ", "
+                rep += key + ":" + str(self.params[key])
+            rep += ")"
+        return rep
 
     def __eq__(self, other):
         return self is other or (
@@ -348,6 +376,9 @@ class ConstType(Type):
     def from_obj(cls, py_obj = None):
         return cls(py_obj)
 
+    def __repr__(self):
+        return str(self.params["val"])
+
 
 def _flatten_union_types(wb_types):
     final_types = []
@@ -455,6 +486,17 @@ class UnionType(Type):
 
         return self.__class__(resolved_types)
 
+    def explain(self, other, depth=0):
+        exp = super(UnionType, self).explain(other, depth)
+        for ndx, subtype in enumerate(self.params["allowed_types"]):
+            if ndx > 0:
+                exp += "\n{}and".format("".join(["\t"] * depth))
+            exp += "\n" + subtype.explain(other, depth=depth + 1)
+        return exp
+
+    def __repr__(self):
+        return "{}".format(" or ".join([str(t) for t in self.params["allowed_types"]]))
+
 
 def OptionalType(dtype):  # noqa: N802
     """Function that mimics the Type class API for constructing an "Optional Type"
@@ -501,12 +543,12 @@ class ListType(Type):
             elm_type = (
                 UnknownType() if None not in py_list else OptionalType(UnknownType())
             )
-            for item in py_list:
+            for ndx, item in enumerate(py_list):
                 _elm_type = elm_type.assign(item)
                 if isinstance(_elm_type, InvalidType):
                     raise TypeError(
-                        "List contained incompatible types. Expected type {} found item {}".format(
-                            elm_type, item
+                        "List contained incompatible types. Item at index {}: \n{}".format(
+                            ndx, elm_type.explain(item, 1)
                         )
                     )
 
@@ -541,6 +583,29 @@ class ListType(Type):
             return ListType(new_element_type)
 
         return InvalidType()
+
+    def explain(self, other, depth=0):
+        exp = super(ListType, self).explain(other, depth)
+        gap = "".join(["\t"] * depth)
+        if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
+            isinstance(other, list)
+            or isinstance(other, tuple)
+            or isinstance(other, set)
+            or isinstance(other, frozenset)
+        ):
+            new_element_type = self.params["element_type"]
+            for ndx, obj in enumerate(list(other)):
+                _new_element_type = new_element_type.assign(obj)
+                if isinstance(_new_element_type, InvalidType):
+                    exp += "\n{}Index {}:\n{}".format(
+                        gap, ndx, new_element_type.explain(obj, depth + 1)
+                    )
+                    break
+                new_element_type = _new_element_type
+        return exp
+
+    def __repr__(self):
+        return "{}[]".format(self.params["element_type"])
 
 
 # class KeyPolicy:
@@ -614,6 +679,29 @@ class DictType(Type):
             return DictType(type_map)
 
         return InvalidType()
+
+    def explain(self, other, depth=0):
+        exp = super(DictType, self).explain(other, depth)
+        gap = "".join(["\t"] * depth)
+        if isinstance(other, dict):
+            extra_keys = set(other.keys()) - set(self.params["type_map"].keys())
+            if len(extra_keys) > 0:
+                exp += "\n{}Found extra keys: {}".format(
+                    gap, ",".join(list(extra_keys))
+                )
+
+            for key in self.params["type_map"]:
+                val = other.get(key, None)
+                if isinstance(self.params["type_map"][key].assign(val), InvalidType):
+                    exp += "\n{}Key '{}':\n{}".format(
+                        gap,
+                        key,
+                        self.params["type_map"][key].explain(val, depth=depth + 1),
+                    )
+        return exp
+
+    def __repr__(self):
+        return "{}".format(self.params["type_map"])
 
 
 # Special Types

@@ -22,19 +22,20 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config(object):
-    """Config object
+    """
+    Config object
 
     Config objects are intended to hold all of the hyperparameters associated with
-    a wandb run and are saved with the run object when wandb.init is called.
+    a wandb run and are saved with the run object when `wandb.init` is called.
 
-    We recommend setting wandb.config once at the top of your training experiment or
-    setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
+    We recommend setting `wandb.config` once at the top of your training experiment or
+    setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
-    You can create a file called config-defaults.yaml, and it will automatically be
-    loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
+    You can create a file called `config-defaults.yaml`, and it will automatically be
+    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
-    into wandb.init(config="special_config.yaml").
+    into `wandb.init(config="special_config.yaml")`.
     See https://docs.wandb.com/library/config#file-based-configs.
 
     Examples:
@@ -62,7 +63,6 @@ class Config(object):
         ```
 
         Using absl flags
-
         ```
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
