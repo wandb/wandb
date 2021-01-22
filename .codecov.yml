@@ -8,17 +8,21 @@ coverage:
   status:
     project:
       default:
-        threshold: 0.5%
+        threshold: 0.75%
     patch:
       sdk:
         target: auto
         paths:
-          - wandb/sdk/*.py
+          - "wandb/sdk/__init__.py"
+          - "wandb/sdk/wandb_[u-w]*.py"
+          - "wandb/sdk/wandb_[x-z]*.py"
       other:
         informational: true
         target: auto
         paths:
-          - "!wandb/sdk/*.py"
+          - "!wandb/sdk/__init__.py"
+          - "!wandb/sdk/wandb_[u-w]*.py"
+          - "!wandb/sdk/wandb_[x-z]*.py"
           - wandb/
       tests:
         target: 100%
