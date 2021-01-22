@@ -44,12 +44,28 @@ def test_resume_allow_success(live_mock_server, test_settings):
     wandb.log({"acc": 10})
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
+    dog = True
+    cat = "watch"
     if False:
         print("this line wont be covered")
-        print("nor this one")
+        pizza = cat
+        if pizza == "watch":
+            pizza = 1
+            pizza = 2
+            pizza = 3
+            dog = False
+            pizza = dog
+            print("nor this one")
+            print("nor this one")
+            print("nor this one")
+            print("nor this one")
+            print("nor this one")
+            print("pizza", pizza, dog, cat)
     else:
         print("but this one will")
     print("and this one")
+    if dog:
+        print("dogcat", dog, cat)
     print("CTX", server_ctx)
     first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
