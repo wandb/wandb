@@ -29,8 +29,9 @@ LIB_ROOT = os.path.join(os.path.dirname(__file__), '..')
 IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 
-def wandb_dir():
-    root_dir = env.get_dir(os.getcwd())
+def wandb_dir(root_dir=None):
+    if root_dir is None or root_dir == "":
+        root_dir = env.get_dir(os.getcwd())
     path = os.path.join(root_dir, __stage_dir__ or ("wandb" + os.sep))
     if not os.access(root_dir, os.W_OK):
         termwarn("Path %s wasn't writable, using system temp directory" % path)
@@ -72,10 +73,10 @@ PRINTED_MESSAGES = set()
 def termlog(string='', newline=True, repeat=True):
     """Log to standard error with formatting.
 
-    Args:
-            string (str, optional): The string to print
-            newline (bool, optional): Print a newline at the end of the string
-            repeat (bool, optional): If set to False only prints the string once per process
+    Arguments:
+        string (str, optional): The string to print
+        newline (bool, optional): Print a newline at the end of the string
+        repeat (bool, optional): If set to False only prints the string once per process
     """
     if string:
         line = '\n'.join(['{}: {}'.format(LOG_STRING, s)

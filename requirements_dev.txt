@@ -1,12 +1,11 @@
 pytest
 coverage
-coveralls
 tox==3.7
 pip
 Pillow
 pandas
 numpy
-matplotlib
+matplotlib<3.3.3
 soundfile
 boto3
 google-cloud-storage
@@ -17,10 +16,11 @@ ipython==5.4.1; python_version < '3.5'
 ipykernel
 nbclient; python_version >= '3.5'
 sklearn
-tensorflow>=1.15.2
+tensorflow>=1.15.2; python_version < '3.9'
 pydoc-markdown
-torch; python_version >= '3.5' and sys_platform == 'darwin'
-torchvision; python_version >= '3.5' and sys_platform == 'darwin'
-torch==1.5.1+cpu; python_version >= '3.5' and sys_platform != 'darwin'
-torchvision==0.6.1+cpu; python_version >= '3.5' and sys_platform != 'darwin'
-plotly
+torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
+torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
+torch==1.5.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
+torchvision==0.6.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
+plotly; python_version < '3.9'
+bokeh

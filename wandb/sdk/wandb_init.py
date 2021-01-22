@@ -1,7 +1,9 @@
 #
 # -*- coding: utf-8 -*-
 """
-init.
+wandb.init() indicates the beginning of a new run. In an ML training pipeline,
+you could add wandb.init() to the beginning of your training script as well as
+your evaluation script, and each piece steps would be tracked as a run in W&B.
 """
 
 from __future__ import print_function
@@ -9,22 +11,26 @@ from __future__ import print_function
 import datetime
 import logging
 import os
+import platform
+import sys
 import time
 import traceback
 
+import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.backend.backend import Backend
+from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.lib import filesystem, module, reporting
 from wandb.util import sentry_exc
 
-from . import wandb_setup
+from . import wandb_login, wandb_setup
+from .backend.backend import Backend
+from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
-from .wandb_run import Run, RunBase, RunDummy
+from .wandb_run import Run
 from .wandb_settings import Settings
 
 if wandb.TYPE_CHECKING:  # type: ignore
@@ -43,10 +49,19 @@ def online_status(*args, **kwargs):
     pass
 
 
+def _huggingface_version():
+    if "transformers" in sys.modules:
+        trans = wandb.util.get_module("transformers")
+        if hasattr(trans, "__version__"):
+            return trans.__version__
+    return None
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
         self.settings = None
+        self.sweep_config = None
         self.config = None
         self.run = None
         self.backend = None
@@ -55,12 +70,10 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
 
-    def setup(self, kwargs):
-        """Complete setup for wandb.init().
-
-        This includes parsing all arguments, applying them with settings and enabling
-        logging.
-
+    def setup(self, kwargs) -> None:
+        """
+        Complete setup for wandb.init(). This includes parsing all arguments,
+        applying them with settings and enabling logging.
         """
         self.kwargs = kwargs
 
@@ -78,7 +91,7 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config = sagemaker.parse_sm_config()
+        sm_config: Dict = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
@@ -108,9 +121,13 @@ class _WandbInit(object):
         )
 
         # merge config with sweep or sm (or config file)
-        self.config = sm_config or self._wl._config or dict()
-        for k, v in init_config.items():
-            self.config.setdefault(k, v)
+        self.sweep_config = self._wl._sweep_config or dict()
+        self.config = dict()
+        for config_data in sm_config, self._wl._config, init_config:
+            if not config_data:
+                continue
+            for k, v in config_data.items():
+                self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -128,14 +145,21 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         anonymous = kwargs.pop("anonymous", None)
         force = kwargs.pop("force", None)
-        login_key = wandb.login(anonymous=anonymous, force=force)
-        if not login_key:
-            settings.mode = "offline"
+
+        # TODO: move above parameters into apply_init_login
+        settings._apply_init_login(kwargs)
+
+        if not settings._offline and not settings._noop:
+            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
 
         settings._apply_init(kwargs)
+
+        if not settings._offline and not settings._noop:
+            user_settings = self._wl._load_user_settings()
+            settings._apply_user(user_settings)
 
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
@@ -156,10 +180,10 @@ class _WandbInit(object):
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
-        """Enable logging to the global debug log.  This adds a run_id to the log,
+        """
+        Enable logging to the global debug log.  This adds a run_id to the log,
         in case of muliple processes on the same machine.
-
-        Currently no way to disable logging after it's enabled.
+        Currently there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
@@ -196,18 +220,19 @@ class _WandbInit(object):
             return
 
         pid = os.getpid()
-        tmp_name = "%s.%d" % (name, pid)
-        owd = os.getcwd()
-        os.chdir(base)
+        tmp_name = os.path.join(base, "%s.%d" % (name, pid))
+
         if delete:
             try:
-                os.remove(name)
+                os.remove(os.path.join(base, name))
             except OSError:
                 pass
         target = os.path.relpath(target, base)
-        os.symlink(target, tmp_name)
-        os.rename(tmp_name, name)
-        os.chdir(owd)
+        try:
+            os.symlink(target, tmp_name)
+            os.rename(tmp_name, os.path.join(base, name))
+        except OSError:
+            pass
 
     def _pause_backend(self):
         if self.backend is not None:
@@ -259,7 +284,7 @@ class _WandbInit(object):
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings):
-        """Setup logging from settings."""
+        """Set up logging from settings."""
 
         filesystem._safe_makedirs(os.path.dirname(settings.log_user))
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
@@ -289,39 +314,70 @@ class _WandbInit(object):
         _set_logger(logging.getLogger("wandb"))
         self._enable_logging(settings.log_user)
 
+        self._wl._early_logger_flush(logger)
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-        self._wl._early_logger_flush(logger)
-
-    def init(self):
+    def init(self) -> Union[Run, Dummy, None]:  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
+        sweep_config = self.sweep_config
         config = self.config
-
         if s._noop:
-            run = RunDummy()
+            drun = Dummy()
+            drun.config = wandb.wandb_sdk.wandb_config.Config()
+            drun.config.update(sweep_config)
+            drun.config.update(config)
+            drun.summary = DummyDict()
+            drun.log = lambda data, *_, **__: drun.summary.update(data)
+            drun.finish = lambda *_, **__: module.unset_globals()
+            drun.step = 0
+            drun.resumed = False
+            drun.disabled = True
+            drun.id = shortuuid.uuid()
+            drun.name = "dummy-" + drun.id
+            drun.dir = "/"
             module.set_global(
-                run=run,
-                config=run.config,
-                log=run.log,
-                summary=run.summary,
-                save=run.save,
-                restore=run.restore,
-                use_artifact=run.use_artifact,
-                log_artifact=run.log_artifact,
-                plot_table=run.plot_table,
+                run=drun,
+                config=drun.config,
+                log=drun.log,
+                summary=drun.summary,
+                save=drun.save,
+                use_artifact=drun.use_artifact,
+                log_artifact=drun.log_artifact,
+                plot_table=drun.plot_table,
+                alert=drun.alert,
             )
-            return run
-
+            return drun
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
                         "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
                     )
+
+                last_id = self._wl._global_run_stack[-1]._run_id
+                jupyter = (
+                    s._jupyter
+                    and not s._silent
+                    and ipython._get_python_type() == "jupyter"
+                )
+                if jupyter:
+                    ipython.display_html(
+                        "Finishing last run (ID:{}) before initializing another...".format(
+                            last_id
+                        )
+                    )
+
                 self._wl._global_run_stack[-1].finish()
-        elif wandb.run:
+
+                if jupyter:
+                    ipython.display_html(
+                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                            last_id
+                        )
+                    )
+        elif isinstance(wandb.run, Run):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
@@ -342,7 +398,23 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config, settings=s)
+        run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # Populate intial telemetry
+        with telemetry.context(run=run) as tel:
+            tel.cli_version = wandb.__version__
+            tel.python_version = platform.python_version()
+            hf_version = _huggingface_version()
+            if hf_version:
+                tel.huggingface_version = hf_version
+            if s._jupyter:
+                tel.env.jupyter = True
+            if s._kaggle:
+                tel.env.kaggle = True
+            if s._windows:
+                tel.env.windows = True
+            run._telemetry_imports(tel.imports_init)
+
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,
@@ -359,13 +431,23 @@ class _WandbInit(object):
         backend.interface.publish_header()
 
         if s._offline:
+            with telemetry.context(run=run) as tel:
+                tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
         else:
-            ret = backend.interface.communicate_check_version()
-            if ret and ret.message:
-                wandb.termlog(ret.message)
+            ret = backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
+            if ret:
+                if ret.upgrade_message:
+                    run._set_upgraded_version_message(ret.upgrade_message)
+                if ret.delete_message:
+                    run._set_deleted_version_message(ret.delete_message)
+                if ret.yank_message:
+                    run._set_yanked_version_message(ret.yank_message)
+            run._on_init()
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:
@@ -378,6 +460,9 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            if ret.run.resumed:
+                with telemetry.context(run=run) as tel:
+                    tel.feature.resumed = True
             run._set_run_obj(ret.run)
 
         # initiate run (stats and metadata probing)
@@ -392,10 +477,10 @@ class _WandbInit(object):
             log=run.log,
             summary=run.summary,
             save=run.save,
-            restore=run.restore,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
             plot_table=run.plot_table,
+            alert=run.alert,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -414,7 +499,7 @@ def getcaller():
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, None] = None,  # TODO(jhr): type is a union for argparse/absl
+    config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -422,7 +507,7 @@ def init(
     group: Optional[str] = None,
     name: Optional[str] = None,
     notes: Optional[str] = None,
-    magic: Union[dict, str, bool] = None,  # TODO(jhr): type is union
+    magic: Union[dict, str, bool] = None,
     config_exclude_keys=None,
     config_include_keys=None,
     anonymous: Optional[str] = None,
@@ -436,23 +521,164 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> RunBase:
-    """Initialize a wandb Run.
+) -> Union[Run, Dummy, None]:
+    """
+    Start a new tracked run with `wandb.init()`.
 
-    Args:
-        entity: alias for team.
-        team: personal user or team to use for Run.
-        project: project name for the Run.
+    In an ML training pipeline, you could add `wandb.init()`
+    to the beginning of your training script as well as your evaluation
+    script, and each piece would be tracked as a run in W&B.
+
+    `wandb.init()` spawns a new background process to log data to a run, and it
+    also syncs data to wandb.ai by default so you can see live visualizations.
+    Call `wandb.init()` to start a run before logging data with `wandb.log()`.
+
+    `wandb.init()` returns a run object, and you can also access the run object
+    with wandb.run.
+
+    Arguments:
+        project: (str, optional) The name of the project where you're sending
+            the new run. If the project is not specified, the run is put in an
+            "Uncategorized" project.
+        entity: (str, optional) An entity is a username or team name where
+            you're sending runs. This entity must exist before you can send runs
+            there, so make sure to create your account or team in the UI before
+            starting to log runs.
+            If you don't specify an entity, the run will be sent to your default
+            entity, which is usually your username. Change your default entity
+            in [Settings](wandb.ai/settings) under "default location to create
+            new projects".
+        config: (dict, argparse, absl.flags, str, optional)
+            This sets wandb.config, a dictionary-like object for saving inputs
+            to your job, like hyperparameters for a model or settings for a data
+            preprocessing job. The config will show up in a table in the UI that
+            you can use to group, filter, and sort runs. Keys should not contain
+            `.` in their names, and values should be under 10 MB.
+            If dict, argparse or absl.flags: will load the key value pairs into
+                the wandb.config object.
+            If str: will look for a yaml file by that name, and load config from
+                that file into the wandb.config object.
+        save_code: (bool, optional) Turn this on to save the main script or
+            notebook to W&B. This is valuable for improving experiment
+            reproducibility and to diff code across experiments in the UI. By
+            default this is off, but you can flip the default behavior to "on"
+            in [Settings](wandb.ai/settings).
+        group: (str, optional) Specify a group to organize individual runs into
+            a larger experiment. For example, you might be doing cross
+            validation, or you might have multiple jobs that train and evaluate
+            a model against different test sets. Group gives you a way to
+            organize runs together into a larger whole, and you can toggle this
+            on and off in the UI. For more details, see
+            [Grouping](docs.wandb.com/library/grouping).
+        job_type: (str, optional) Specify the type of run, which is useful when
+            you're grouping runs together into larger experiments using group.
+            For example, you might have multiple jobs in a group, with job types
+            like train and eval. Setting this makes it easy to filter and group
+            similar runs together in the UI so you can compare apples to apples.
+        tags: (list, optional) A list of strings, which will populate the list
+            of tags on this run in the UI. Tags are useful for organizing runs
+            together, or applying temporary labels like "baseline" or
+            "production". It's easy to add and remove tags in the UI, or filter
+            down to just runs with a specific tag.
+        name: (str, optional) A short display name for this run, which is how
+            you'll identify this run in the UI. By default we generate a random
+            two-word name that lets you easily cross-reference runs from the
+            table to charts. Keeping these run names short makes the chart
+            legends and tables easier to read. If you're looking for a place to
+            save your hyperparameters, we recommend saving those in config.
+        notes: (str, optional) A longer description of the run, like a -m commit
+            message in git. This helps you remember what you were doing when you
+            ran this run.
+        dir: (str, optional) An absolute path to a directory where metadata will
+            be stored. When you call download() on an artifact, this is the
+            directory where downloaded files will be saved. By default this is
+            the ./wandb directory.
+        sync_tensorboard: (bool, optional) Whether to copy all TensorBoard logs
+            to W&B (default: False).
+            [Tensorboard](https://docs.wandb.com/integrations/tensorboard)
+        resume (bool, str, optional): Sets the resuming behavior. Options:
+            "allow", "must", "never", "auto" or None. Defaults to None.
+            Cases:
+            - None (default): If the new run has the same ID as a previous run,
+                this run overwrites that data.
+            - "auto" (or True): if the preivous run on this machine crashed,
+                automatically resume it. Otherwise, start a new run.
+            - "allow": if id is set with init(id="UNIQUE_ID") or
+                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+                wandb will automatically resume the run with that id. Otherwise,
+                wandb will start a new run.
+            - "never": if id is set with init(id="UNIQUE_ID") or
+                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+                wandb will crash.
+            - "must": if id is set with init(id="UNIQUE_ID") or
+                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+                wandb will automatically resume the run with the id. Otherwise
+                wandb will crash.
+            See https://docs.wandb.com/library/advanced/resuming for more.
+        reinit: (bool, optional) Allow multiple wandb.init() calls in the same
+            process. (default: False)
+        magic: (bool, dict, or str, optional) The bool controls whether we try to
+            auto-instrument your script, capturing basic details of your run
+            without you having to add more wandb code. (default: False)
+            You can also pass a dict, json string, or yaml filename.
+        config_exclude_keys: (list, optional) string keys to exclude from
+            `wandb.config`.
+        config_include_keys: (list, optional) string keys to include in
+            wandb.config.
+        anonymous: (str, optional) Controls anonymous data logging. Options:
+            - "never" (default): requires you to link your W&B account before
+                tracking the run so you don't accidentally create an anonymous
+                run.
+            - "allow": lets a logged-in user track runs with their account, but
+                lets someone who is running the script without a W&B account see
+                the charts in the UI.
+            - "must": sends the run to an anonymous account instead of to a
+                signed-up user account.
+        mode: (str, optional) Can be "online", "offline" or "disabled". Defaults to
+            online.
+        allow_val_change: (bool, optional) Whether to allow config values to
+            change after setting the keys once. By default we throw an exception
+            if a config value is overwritten. If you want to track something
+            like a varying learning_rate at multiple times during training, use
+            wandb.log() instead. (default: False in scripts, True in Jupyter)
+        force: (bool, optional) If True, this crashes the script if a user isn't
+            logged in to W&B. If False, this will let the script run in offline
+            mode if a user isn't logged in to W&B. (default: False)
+        sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
+            tensorboardX and saves the relevant events file. Defaults to false.
+        monitor_gym: (bool, optional) automatically logs videos of environment when
+            using OpenAI Gym. (default: False)
+            See https://docs.wandb.com/library/integrations/openai-gym
+        id: (str, optional) A unique ID for this run, used for Resuming. It must
+            be unique in the project, and if you delete a run you can't reuse
+            the ID. Use the name field for a short descriptive name, or config
+            for saving hyperparameters to compare across runs. The ID cannot
+            contain special characters.
+            See https://docs.wandb.com/library/resuming
+
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+        ```
+
+        Launch multiple runs from the same script
+        ```
+        for x in range(10):
+            with wandb.init(project="my-projo") as run:
+                for y in range(100):
+                    run.log({"metric": x+y})
+        ```
 
     Raises:
         Exception: if problem.
 
     Returns:
-        wandb Run object
-
+        A `Run` object.
     """
     assert not wandb._IS_INTERNAL_PROCESS
-    kwargs = locals()
+    kwargs = dict(locals())
     error_seen = None
     except_exit = None
     try:

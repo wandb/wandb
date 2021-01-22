@@ -1,10 +1,18 @@
-import wandb
 import json
-from wandb.interface import interface
+import sys
+
+import wandb
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from pytest_mock import _get_mock_module  # type: ignore
 from wandb.proto import wandb_internal_pb2  # type: ignore
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import interface
+else:
+    from wandb.sdk_py27.interface import interface
 
 
 class ProcessMock(Process):
@@ -93,9 +101,7 @@ class BackendMock(object):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
         self.interface = interface.BackendSender(
-            process=wandb_process,
-            record_q=self.record_q,
-            result_q=self.result_q,
+            process=wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
         self.interface._communicate = self._communicate
         self.interface._orig_publish = self.interface._publish

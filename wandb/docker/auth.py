@@ -145,7 +145,7 @@ class AuthConfig(dict):
     def parse_auth(cls, entries, raise_on_error=False):
         """
         Parses authentication entries
-        Args:
+        Arguments:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
                           InvalidConfigFile
@@ -311,9 +311,7 @@ class AuthConfig(dict):
             if data["Username"] == TOKEN_USERNAME:
                 res["IdentityToken"] = data["Secret"]
             else:
-                res.update(
-                    {"Username": data["Username"], "Password": data["Secret"]}
-                )
+                res.update({"Username": data["Username"], "Password": data["Secret"]})
             return res
         except (dockerpycreds.CredentialsNotFound, ValueError):
             log.debug("No entry found")
@@ -373,7 +371,7 @@ def decode_auth(auth):
 def parse_auth(entries, raise_on_error=False):
     """
     Parses authentication entries
-    Args:
+    Arguments:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise
                       InvalidConfigFile

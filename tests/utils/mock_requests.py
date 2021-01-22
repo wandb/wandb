@@ -1,4 +1,5 @@
 import json
+import threading
 import requests
 
 
@@ -26,7 +27,7 @@ class ResponseMock(object):
 
     @property
     def text(self):
-        return self.response.data.decode('utf-8')
+        return self.response.data.decode("utf-8")
 
     @property
     def headers(self):
@@ -36,7 +37,7 @@ class ResponseMock(object):
         yield self.response.data
 
     def json(self):
-        str_data = self.response.data.decode('utf-8')
+        str_data = self.response.data.decode("utf-8")
         return json.loads(str_data) if str_data else {}
 
 
@@ -45,9 +46,11 @@ class RequestsMock(object):
         self.app = app
         self.client = app.test_client()
         self.ctx = ctx
+        self._lock = threading.Lock()
 
     def set_context(self, key, value):
-        self.ctx[key] = value
+        with self._lock:
+            self.ctx[key] = value
 
     def Session(self):
         return self
@@ -110,8 +113,9 @@ class RequestsMock(object):
         if len(parts) > 1:
             # To make assertions easier, we remove the run from storage requests
             key = key + "?" + parts[1].split("&run=")[0]
-        self.ctx[key] = self.ctx.get(key, [])
-        self.ctx[key].append(body)
+        with self._lock:
+            self.ctx[key] = self.ctx.get(key, [])
+            self.ctx[key].append(body)
 
     def post(self, url, **kwargs):
         self._store_request(url, kwargs.get("json"))

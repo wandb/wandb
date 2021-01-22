@@ -19,14 +19,13 @@ import sys
 import threading
 
 import wandb
-from wandb.lib import config_util, server
 
 from . import wandb_settings
+from .lib import config_util, server
 
 
-logger = (
-    None  # will be configured to be either a standard logger instance or _EarlyLogger
-)
+# logger will be configured to be either a standard logger instance or _EarlyLogger
+logger = None
 
 
 def _set_logger(log_object):
@@ -41,6 +40,8 @@ class _EarlyLogger(object):
     def __init__(self):
         self._log = []
         self._exception = []
+        # support old warn() as alias of warning()
+        self.warn = self.warning
 
     def debug(self, msg, *args, **kwargs):
         self._log.append((logging.DEBUG, msg, args, kwargs))
@@ -78,6 +79,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
+        self._sweep_config = None
         self._config = None
         self._server = None
 
@@ -103,8 +105,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s._apply_configfiles(_logger=early_logger)
         s._apply_environ(self._environ, _logger=early_logger)
 
-        user_settings = self._load_user_settings(settings=settings)
-        s._apply_user(user_settings, _logger=early_logger)
+        # NOTE: Do not update user settings until wandb.init() time
+        # if not s._offline:
+        #    user_settings = self._load_user_settings(settings=settings)
+        #    s._apply_user(user_settings, _logger=early_logger)
 
         if settings:
             s._apply_settings(settings, _logger=early_logger)
@@ -113,7 +117,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         s.setdefaults()
         s._infer_settings_from_env()
         if not s._cli_only_mode:
-            s._infer_run_settings_from_env()
+            s._infer_run_settings_from_env(_logger=early_logger)
 
         # move freeze to later
         # TODO(jhr): is this ok?
@@ -155,12 +159,16 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         return s
 
     def _get_entity(self):
+        if self._settings and self._settings._offline:
+            return None
         if self._server is None:
             self._load_viewer()
         entity = self._server._viewer.get("entity")
         return entity
 
     def _load_viewer(self, settings=None):
+        if self._settings and self._settings._offline:
+            return
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
@@ -206,6 +214,12 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             ctx = multiprocessing
         self._multiprocessing = ctx
         # print("t3b", self._multiprocessing.get_start_method())
+
+        sweep_path = self._settings.sweep_param_path
+        if sweep_path:
+            self._sweep_config = config_util.dict_from_config_file(
+                sweep_path, must_exist=True
+            )
 
         # if config_paths was set, read in config dict
         if self._settings.config_paths:

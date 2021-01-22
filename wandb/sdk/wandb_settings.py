@@ -1,7 +1,6 @@
 #
-"""Settings.
-
-This module configures settings which impact wandb runs.
+"""
+This module configures settings for wandb runs.
 
 Order of loading settings: (differs from priority)
     defaults
@@ -30,7 +29,6 @@ import enum
 import getpass
 import itertools
 import json
-import logging
 import os
 import platform
 import socket
@@ -40,9 +38,11 @@ import time
 
 import six
 import wandb
-from wandb.lib.git import GitRepo
-from wandb.lib.ipython import _get_python_type
-from wandb.lib.runid import generate_id
+from wandb import util
+
+from .lib.git import GitRepo
+from .lib.ipython import _get_python_type
+from .lib.runid import generate_id
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (  # noqa: F401 pylint: disable=unused-import
@@ -56,8 +56,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Type,
         Sequence,
     )
-
-logger = logging.getLogger("wandb")
 
 defaults: Dict[str, Union[str, int, Tuple]] = dict(
     base_url="https://api.wandb.ai",
@@ -80,6 +78,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     problem=None,
     console=None,
     config_paths=None,
+    sweep_param_path=None,
     run_id=None,
     notebook_name=None,
     host=None,
@@ -89,6 +88,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    sagemaker_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -109,13 +109,6 @@ def _build_inverse_map(prefix: str, d: Dict[str, str]) -> Dict[str, str]:
     return inv_map
 
 
-def _is_kaggle() -> bool:
-    return (
-        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules  # noqa: W503
-    )
-
-
 def _error_choices(value: str, choices: Set[str]) -> str:
     return "{} not in {}".format(value, ",".join(list(choices)))
 
@@ -133,7 +126,7 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(program):
+def _get_program_relpath_from_gitrepo(program, _logger=None):
     repo = GitRepo()
     root = repo.root
     if not root:
@@ -144,11 +137,13 @@ def _get_program_relpath_from_gitrepo(program):
     if os.path.exists(full_path_to_program):
         relative_path = os.path.relpath(full_path_to_program, start=root)
         if "../" in relative_path:
-            logger.warning("could not save program above cwd: %s" % program)
+            if _logger:
+                _logger.warning("could not save program above cwd: %s" % program)
             return None
         return relative_path
 
-    logger.warning("could not find program at %s" % program)
+    if _logger:
+        _logger.warning("could not find program at %s" % program)
     return None
 
 
@@ -188,13 +183,12 @@ class SettingsConsole(enum.Enum):
 class Settings(object):
     """Settings Constructor
 
-    Args:
+    Arguments:
         entity: personal user or team to use for Run.
         project: project name for the Run.
 
     Raises:
         Exception: if problem.
-
     """
 
     mode: str = "online"
@@ -219,6 +213,21 @@ class Settings(object):
     show_info: bool = True
     show_warnings: bool = True
     show_errors: bool = True
+    email: Optional[str] = None
+    save_code: Optional[bool] = None
+    program_relpath: Optional[str] = None
+
+    # Public attributes
+    entity: Optional[str] = None
+    project: Optional[str] = None
+    run_group: Optional[str] = None
+    run_name: Optional[str] = None
+    run_notes: Optional[str] = None
+    sagemaker_disable: Optional[bool] = None
+
+    # TODO(jhr): Audit these attributes
+    run_job_type: Optional[str] = None
+    base_url: Optional[str] = None
 
     # Private attributes
     __start_time: Optional[float]
@@ -278,6 +287,7 @@ class Settings(object):
         system_samples=15,
         heartbeat_seconds=30,
         config_paths=None,
+        sweep_param_path=None,
         _config_dict=None,
         # directories and files
         root_dir=None,
@@ -315,6 +325,7 @@ class Settings(object):
         username=None,
         email=None,
         docker=None,
+        sagemaker_disable: Optional[bool] = None,
         _start_time=None,
         _start_datetime=None,
         _cli_only_mode=None,  # avoid running any code specific for runs
@@ -347,7 +358,7 @@ class Settings(object):
         _kaggle=None,
         _except_exit=None,
     ):
-        kwargs = locals()
+        kwargs = dict(locals())
         kwargs.pop("self")
         # Set up entries for all possible parameters
         self.__dict__.update({k: None for k in kwargs})
@@ -363,6 +374,8 @@ class Settings(object):
         self._apply_defaults(class_defaults)
         self._apply_defaults(defaults)
         self._update(kwargs, _source=self.Source.SETTINGS)
+        if os.environ.get(wandb.env.DIR) is None:
+            self.root_dir = os.path.abspath(os.getcwd())
 
     @property
     def _offline(self) -> bool:
@@ -399,7 +412,7 @@ class Settings(object):
 
     @property
     def _noop(self) -> bool:
-        return self.mode == "noop"
+        return self.mode == "disabled"
 
     @property
     def _jupyter(self) -> bool:
@@ -407,7 +420,7 @@ class Settings(object):
 
     @property
     def _kaggle(self) -> bool:
-        return _is_kaggle()
+        return util._is_kaggle()
 
     @property
     def _windows(self) -> bool:
@@ -506,7 +519,7 @@ class Settings(object):
             "run",
             "offline",
             "online",
-            "noop",
+            "disabled",
         }
         if value in choices:
             return
@@ -556,6 +569,11 @@ class Settings(object):
         if val is None:
             return "{} is not a boolean".format(value)
 
+    def _preprocess_base_url(self, value):
+        if value is not None:
+            value = value.rstrip("/")
+        return value
+
     def _start_run(self):
         datetime_now: datetime = datetime.now()
         time_now: float = time.time()
@@ -578,7 +596,6 @@ class Settings(object):
         self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)
 
     def _apply_environ(self, environ, _logger=None):
-        _logger = _logger or logger
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
         for k, v in six.iteritems(environ):
@@ -591,19 +608,21 @@ class Settings(object):
                     v = conv(v)
                 env_dict[setting_key] = v
             else:
-                _logger.info("Unhandled environment var: {}".format(k))
+                if _logger:
+                    _logger.info("Unhandled environment var: {}".format(k))
 
-        _logger.info("setting env: {}".format(env_dict))
+        if _logger:
+            _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(self, user_settings, _logger=None):
-        _logger = _logger or logger
-        _logger.info("setting user settings: {}".format(user_settings))
+        if _logger:
+            _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
 
     def _apply_source_login(self, login_settings, _logger=None):
-        _logger = _logger or logger
-        _logger.info("setting login settings: {}".format(login_settings))
+        if _logger:
+            _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
     def _path_convert_part(self, path_part, format_dict):
@@ -671,30 +690,39 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
+    def _perform_preprocess(self, k, v):
+        f = getattr(self, "_preprocess_" + k, None)
+        if not f or not callable(f):
+            return v
+        else:
+            return f(v)
+
     def _update(self, __d=None, _source=None, _override=None, **kwargs):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
+        data = {}
         for check in d, kwargs:
             for k in six.viewkeys(check):
                 if k not in self.__dict__:
                     raise KeyError(k)
-                self._check_invalid(k, check[k])
-        for data in d, kwargs:
-            for k, v in six.iteritems(data):
-                if v is None:
-                    continue
-                if self._priority_failed(k, source=_source, override=_override):
-                    continue
-                if isinstance(v, list):
-                    v = tuple(v)
-                self.__dict__[k] = v
-                if _source:
-                    self.__defaults_dict[k] = _source
-                    self.__defaults_dict_set.setdefault(k, set()).add(_source)
-                if _override:
-                    self.__override_dict[k] = _override
-                    self.__override_dict_set.setdefault(k, set()).add(_override)
+                v = self._perform_preprocess(k, check[k])
+                self._check_invalid(k, v)
+                data[k] = v
+        for k, v in six.iteritems(data):
+            if v is None:
+                continue
+            if self._priority_failed(k, source=_source, override=_override):
+                continue
+            if isinstance(v, list):
+                v = tuple(v)
+            self.__dict__[k] = v
+            if _source:
+                self.__defaults_dict[k] = _source
+                self.__defaults_dict_set.setdefault(k, set()).add(_source)
+            if _override:
+                self.__override_dict[k] = _override
+                self.__override_dict_set.setdefault(k, set()).add(_override)
 
     def update(self, __d=None, **kwargs):
         self._update(__d, **kwargs)
@@ -734,8 +762,9 @@ class Settings(object):
         ) is not None:
             u["save_code"] = wandb.env.should_save_code()
 
-        if self._jupyter:
-            meta = wandb.jupyter.notebook_metadata()
+        # Attempt to get notebook information if not already set by the user
+        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
+            meta = wandb.jupyter.notebook_metadata(self._silent)
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
             u["_jupyter_root"] = meta.get("root")
@@ -770,7 +799,7 @@ class Settings(object):
 
         self.update(u)
 
-    def _infer_run_settings_from_env(self):
+    def _infer_run_settings_from_env(self, _logger=None):
         """Modify settings based on environment (for runs only)."""
         if self.disable_code:
             self.update(dict(program="<code saving explicitly disabled>"))
@@ -780,7 +809,7 @@ class Settings(object):
         program = self.program or _get_program()
         if program:
             program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
-                program
+                program, _logger=_logger
             )
             self.update(dict(program=program, program_relpath=program_relpath))
         else:
@@ -806,6 +835,7 @@ class Settings(object):
             raise AttributeError(name)
         if self.__frozen:
             raise TypeError("Settings object is frozen")
+        value = self._perform_preprocess(name, value)
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 
@@ -860,10 +890,16 @@ class Settings(object):
                 d[k] = d[k].split(",")
         return d
 
-    def _apply_login(self, args):
+    def _apply_login(self, args, _logger=None):
         param_map = dict(key="api_key", host="base_url",)
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
-        self._apply_source_login(args)
+        self._apply_source_login(args, _logger=_logger)
+
+    def _apply_init_login(self, args):
+        # apply some init parameters dealing with login
+        keys = {"mode"}
+        args = {k: v for k, v in six.iteritems(args) if k in keys and v is not None}
+        self._update(args, _source=self.Source.INIT)
 
     def _apply_init(self, args):
         # prevent setting project, entity if in sweep
@@ -908,7 +944,7 @@ class Settings(object):
                     resume_run_id = json.load(f)["run_id"]
                 if self.run_id is None:
                     self.run_id = resume_run_id
-                else:
+                elif self.run_id != resume_run_id:
                     wandb.termwarn(
                         "Tried to auto resume run with id %s but id %s is set."
                         % (resume_run_id, self.run_id)

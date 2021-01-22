@@ -14,12 +14,21 @@ import time
 from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
-from wandb.interface import interface
-from wandb.internal import datastore
-from wandb.internal import sender
-from wandb.internal import settings_static
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.util import check_and_warn_old
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import interface
+    from wandb.sdk.internal import datastore
+    from wandb.sdk.internal import sender
+    from wandb.sdk.internal import settings_static
+else:
+    from wandb.sdk_py27.interface import interface
+    from wandb.sdk_py27.internal import datastore
+    from wandb.sdk_py27.internal import sender
+    from wandb.sdk_py27.internal import settings_static
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -89,6 +98,7 @@ class SyncThread(threading.Thread):
                 run_name=None,
                 run_notes=None,
                 save_code=None,
+                email=None,
             )
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()
@@ -206,7 +216,7 @@ class SyncManager:
         self._thread.start()
 
     def is_done(self):
-        return not self._thread.isAlive()
+        return not self._thread.is_alive()
 
     def poll(self):
         time.sleep(1)

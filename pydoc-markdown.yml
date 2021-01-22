@@ -5,12 +5,23 @@ loaders:
       - wandb
       - wandb.apis.public
       - wandb.cli.cli
-      - wandb.sdk.wandb_run
+      - wandb.sdk.wandb_alerts
+      - wandb.sdk.wandb_artifacts
+      - wandb.sdk.wandb_config
+      - wandb.sdk.wandb_history
       - wandb.sdk.wandb_init
-      - wandb.framework.keras.keras
-      - wandb.framework.fastai
+      - wandb.sdk.wandb_login
+      - wandb.sdk.wandb_run
+      - wandb.sdk.wandb_save
+      - wandb.sdk.wandb_settings
+      - wandb.sdk.wandb_summary
+      - wandb.sdk.wandb_watch
+      - wandb.data_types
+      - wandb.integration.keras.keras
 processors:
   - type: filter
+    exclude_private: true
+    documented_only: false
   - type: smart
   - type: google
   - type: crossref
@@ -22,19 +33,52 @@ renderer:
   # The "book" theme only renders pages in "content/docs" into the nav.
   content_directory: .
   build_directory: docs
-  default_preamble: {menu: main}
   markdown:
     source_linker:
       type: github
       repo: wandb/client
   pages:
+    - title: Artifacts
+      contents:
+        - 'wandb.sdk.wandb_artifacts.*'
+    - title: Data Types
+      contents:
+        - 'wandb.data_types.*'
+    - title: Config
+      contents:
+        - 'wandb.sdk.wandb_config.*'
+    - title: History
+      contents:
+        - 'wandb.sdk.wandb_history.*'
+    - title: Init
+      contents:
+        - 'wandb.sdk.wandb_init.*'
+    - title: Login
+      contents:
+        - 'wandb.sdk.wandb_login.*'
+    - title: Run
+      contents:
+        - 'wandb.sdk.wandb_run.Run.*'
+    - title: Save
+      contents:
+        - 'wandb.sdk.wandb_save.*'
+    - title: Settings
+      contents:
+        - 'wandb.sdk.wandb_settings.*'
+    - title: Summary
+      contents:
+        - 'wandb.sdk.wandb_summary.*'
+    - title: Watch
+      contents:
+        - 'wandb.sdk.wandb_watch.*'
+    - title: Log
+      contents:
+        - 'wandb.sdk.wandb_run.Run.log'
+    ## TODO Plots
+    ## TODO Frameworks
     - title: Developer Documentation
       name: index
       source: CONTRIBUTING.md
-    - title: SDK Documentation
-      contents:
-        - 'wandb'
-        - 'wandb.sdk.*'
     - title: API Documentation
       contents:
         - 'wandb.apis.public.*'
