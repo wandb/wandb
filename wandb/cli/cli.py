@@ -1591,7 +1591,7 @@ def verify(host):
     if not wandb_sdk.wandb_verify.check_host(host):
         return
     url = wandb_sdk.wandb_verify.check_graphql_put(api, host)
-    wandb_sdk.wandb_verify.check_large_file(api, host)
+    wandb_sdk.wandb_verify.check_large_post(api, host)
     wandb_sdk.wandb_verify.check_secure_requests(
         api.settings("base_url"),
         "Checking requests to base url",

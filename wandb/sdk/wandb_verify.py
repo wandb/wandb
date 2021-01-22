@@ -1,6 +1,7 @@
 """
 Utilities for wandb verify
 """
+from __future__ import print_function
 
 import getpass
 import os
@@ -8,7 +9,7 @@ import time
 
 import click
 from gql import gql  # type: ignore
-from packaging import version  # type: ignore
+from pkg_resources import parse_version  # type: ignore
 import requests
 import wandb
 
@@ -29,9 +30,9 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from wandb.apis.internal import Api
 
 PROJECT_NAME = "verify"
-CHECKMARK = u"\u2705"
-RED_X = u"\u274C"
-WARNING_SIGN = u"\u26A0"
+CHECKMARK = u"\u2705".encode("utf8")
+RED_X = u"\u274C".encode("utf8")
+WARNING_SIGN = u"\u26A0".encode("utf8")
 
 
 def print_results(
@@ -65,7 +66,6 @@ def check_host(host: str) -> bool:
 
 
 def check_logged_in(api: Api) -> bool:
-    # check if logged in
     print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
@@ -145,7 +145,7 @@ def check_run(api: Api) -> None:
     for key, value in prev_run.config.items():
         if config[key] != value:
             failed_test_strings.append(
-                "Read config values don't match run config. Check database encoding."
+                "Read config values don't match run config. Contact W&B for support."
             )
             break
     if logged and (
@@ -185,7 +185,7 @@ def check_run(api: Api) -> None:
     contents = read_file.read()
     if contents != "test":
         failed_test_strings.append(
-            "Read config values don't match run config. Contact W&B for support."
+            "Contents of downloaded file do not match uploaded contents. Contact W&B for support."
         )
     print_results(failed_test_strings, False)
 
@@ -257,7 +257,8 @@ def artifact_with_path_or_paths(
         verify_dir = "./"
     with art.new_file("verify_a.txt") as f:
         f.write("test 2")
-    os.makedirs(verify_dir, exist_ok=True)
+    if not os.path.exists(verify_dir):
+        os.makedirs(verify_dir)
     with open("{}/verify_1.txt".format(verify_dir), "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
@@ -381,8 +382,6 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     f.write("test2")
     f.close()
     with wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"}) as run:
-        run_id = run.id
-        entity = run.entity
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
             print_results(
@@ -397,10 +396,9 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
 
     # wait for upload to finish before download
     time.sleep(2)
-
     public_api = wandb.Api()
     try:
-        prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+        prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
     except Exception:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -427,7 +425,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     return url
 
 
-def check_large_file(api: Api, host: str) -> None:
+def check_large_post(api: Api, host: str) -> None:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
@@ -464,7 +462,7 @@ def check_large_file(api: Api, host: str) -> None:
     except Exception as e:
         if isinstance(e, requests.HTTPError) and e.response.status_code == 413:
             failed_test_strings.append(
-                'Failed to send a large payload. Checl nginx.ingress.kubernetes.io/proxy-body-size is "0".'
+                'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )
         else:
             failed_test_strings.append(
@@ -479,14 +477,14 @@ def check_wandb_version(api: Api) -> None:
     _, server_info = api.viewer_server_info()
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
     min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
-    if version.parse(wandb.__version__) < version.parse(min_cli_version):
+    if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_strings.append(
             "wandb version out of date, please run pip install --upgrade wandb=={}".format(
                 max_cli_version
             )
         )
         print_results(fail_strings, False)
-    elif version.parse(wandb.__version__) > version.parse(max_cli_version):
+    elif parse_version(wandb.__version__) > parse_version(max_cli_version):
         fail_strings.append(
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run pip "
