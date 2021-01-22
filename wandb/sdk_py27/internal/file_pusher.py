@@ -70,7 +70,11 @@ class FilePusher(object):
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
-            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS, silent
+            self._api,
+            self._stats,
+            self._event_queue,
+            self.MAX_UPLOAD_JOBS,
+            silent=silent,
         )
         self._step_upload.start()
 
