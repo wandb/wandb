@@ -616,11 +616,6 @@ def init(
         except_exit = wi.settings._except_exit
         try:
             run = wi.init()
-            if run is None:
-                print("this isnt real, does nothing")
-                noflag = True
-                if noflag:
-                    print("dog")
             except_exit = wi.settings._except_exit
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
