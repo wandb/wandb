@@ -43,4 +43,5 @@ message Env {
   bool jupyter = 1;
   bool kaggle = 2;
   bool windows = 3;
+  bool m1_gpu = 4;
 }
