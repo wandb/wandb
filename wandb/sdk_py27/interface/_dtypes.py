@@ -1,5 +1,8 @@
 import sys
 import typing as t
+from wandb.util import get_module
+
+np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
     from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
@@ -329,9 +332,49 @@ class NumberType(Type):
     types = [int, float]
 
 
+if np:
+    NumberType.types.append(np.byte)
+    NumberType.types.append(np.short)
+    NumberType.types.append(np.ushort)
+    NumberType.types.append(np.intc)
+    NumberType.types.append(np.uintc)
+    NumberType.types.append(np.int_)
+    NumberType.types.append(np.uint)
+    NumberType.types.append(np.longlong)
+    NumberType.types.append(np.ulonglong)
+    NumberType.types.append(np.half)
+    NumberType.types.append(np.float16)
+    NumberType.types.append(np.single)
+    NumberType.types.append(np.double)
+    NumberType.types.append(np.longdouble)
+    NumberType.types.append(np.csingle)
+    NumberType.types.append(np.cdouble)
+    NumberType.types.append(np.clongdouble)
+    NumberType.types.append(np.int8)
+    NumberType.types.append(np.int16)
+    NumberType.types.append(np.int32)
+    NumberType.types.append(np.int64)
+    NumberType.types.append(np.uint8)
+    NumberType.types.append(np.uint16)
+    NumberType.types.append(np.uint32)
+    NumberType.types.append(np.uint64)
+    NumberType.types.append(np.intp)
+    NumberType.types.append(np.uintp)
+    NumberType.types.append(np.float32)
+    NumberType.types.append(np.float64)
+    NumberType.types.append(np.float_)
+    NumberType.types.append(np.complex64)
+    NumberType.types.append(np.complex128)
+    NumberType.types.append(np.complex_)
+
+
 class BooleanType(Type):
     name = "boolean"
     types = [bool]
+
+
+if np:
+    BooleanType.types.append(np.bool_)
 
 
 class ObjectType(Type):
@@ -528,18 +571,13 @@ class ListType(Type):
 
     @classmethod
     def from_obj(cls, py_obj = None):
-        if (
-            py_obj is None
-            or not (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
-                isinstance(py_obj, list)
-                or isinstance(py_obj, tuple)
-                or isinstance(py_obj, set)
-                or isinstance(py_obj, frozenset)
-            )
-        ):
+        if py_obj is None or not hasattr(py_obj, "__iter__"):
             raise TypeError("ListType.from_obj expects py_obj to by list-like")
         else:
-            py_list = list(py_obj)
+            if hasattr(py_obj, "tolist"):
+                py_list = py_obj.tolist()
+            else:
+                py_list = list(py_obj)
             elm_type = (
                 UnknownType() if None not in py_list else OptionalType(UnknownType())
             )
@@ -571,12 +609,7 @@ class ListType(Type):
     def assign(
         self, py_obj = None
     ):
-        if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
-            isinstance(py_obj, list)
-            or isinstance(py_obj, tuple)
-            or isinstance(py_obj, set)
-            or isinstance(py_obj, frozenset)
-        ):
+        if hasattr(py_obj, "__iter__"):
             new_element_type = self.params["element_type"]
             for obj in list(py_obj):
                 new_element_type = new_element_type.assign(obj)
@@ -609,6 +642,9 @@ class ListType(Type):
     def __repr__(self):
         return "{}[]".format(self.params["element_type"])
 
+
+if np:
+    ListType.types.append(np.ndarray)
 
 # class KeyPolicy:
 #     EXACT = "E"  # require exact key match
