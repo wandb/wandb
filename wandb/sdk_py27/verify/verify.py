@@ -311,7 +311,7 @@ def log_use_download_artifact(
             used_art.download(root=download_dir)
         except Exception:
             failed_test_strings.append(
-                "Unable to download artifact. Check topic configuration and bucket permissions."
+                "Unable to download artifact. Check bucket permissions."
             )
             return False, None, failed_test_strings
 
@@ -411,7 +411,7 @@ def check_graphql_put(api, host):
         read_file = prev_run.file(gql_fp).download(replace=True)
     except Exception:
         failed_test_strings.append(
-            "Unable to read file successfully saved through a put request. Check SQS configurations, topic configs and SNS configs."
+            "Unable to read file successfully saved through a put request. Check SQS configurations, bucket permissions and topic configs."
         )
         print_results(failed_test_strings, False)
         return None
