@@ -1,5 +1,6 @@
 import sys
 import typing as t
+
 from wandb.util import get_module
 
 np = get_module("numpy")  # intentionally not required
@@ -611,7 +612,10 @@ class ListType(Type):
     ) -> t.Union["ListType", InvalidType]:
         if hasattr(py_obj, "__iter__"):
             new_element_type = self.params["element_type"]
-            for obj in list(py_obj):
+            # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
+            for obj in list(
+                py_obj
+            ):  # mypy: ignore - error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
