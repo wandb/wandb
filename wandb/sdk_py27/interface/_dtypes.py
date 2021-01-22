@@ -614,7 +614,7 @@ class ListType(Type):
             new_element_type = self.params["element_type"]
             # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
             # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
-            for obj in list(py_obj):  # mypy: ignore
+            for obj in list(py_obj):  # type: ignore
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
