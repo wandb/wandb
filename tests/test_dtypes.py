@@ -1,6 +1,7 @@
 import wandb
 from wandb import data_types
 import numpy as np
+import pandas as pd
 import pytest
 import os
 import sys
@@ -571,7 +572,7 @@ def test_table_specials():
     )
 
 
-def test_table_with_mixed_numerics():
+def test_table_typing_numpy():
     # Pulled from https://numpy.org/devdocs/user/basics.types.html
 
     # Numerics
@@ -669,5 +670,57 @@ def test_table_with_mixed_numerics():
     table.add_data([[[[1, 2, 3]]]])
     table.add_data(np.array([[[[1, 2, 3]]]]))
 
+def test_table_typing_pandas():
     # TODO: Pandas https://pandas.pydata.org/pandas-docs/stable/user_guide/basics.html#basics-dtypes
-    # TODO: Tensors
+
+    # Numerics
+    table = wandb.Table(dataframe=pd.DataFrame([[1], [0]]).astype(np.byte)); table.add_data(1)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.short)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.ushort)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.intc)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uintc)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.int_)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uint)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.longlong)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.ulonglong)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.half)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.float16)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.single)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.double)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.longdouble)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.csingle)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.cdouble)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.clongdouble)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.int8)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.int16)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.int32)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.int64)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uint8)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uint16)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uint32)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uint64)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.intp)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.uintp)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.float32)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.float64)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.float_)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.complex64)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.complex128)); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype(np.complex_)); table.add_data(42)
+
+    # Boolean
+    table = wandb.Table(dataframe=pd.DataFrame([[True],[False]]).astype(np.bool_)); table.add_data(True)
+
+    # String aliased
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('Int8')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('Int16')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('Int32')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('Int64')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('UInt8')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('UInt16')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('UInt32')); table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42],[42]]).astype('UInt64')); table.add_data(42)
+
+    table = wandb.Table(dataframe=pd.DataFrame([["42"],["42"]]).astype('string')); table.add_data("42")
+
+    table = wandb.Table(dataframe=pd.DataFrame([[True],[False]]).astype('boolean')); table.add_data(True)

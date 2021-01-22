@@ -581,7 +581,7 @@ class ListType(Type):
             elm_type = (
                 UnknownType() if None not in py_list else OptionalType(UnknownType())
             )
-            for ndx, item in enumerate(py_list):
+            for item in py_list:
                 _elm_type = elm_type.assign(item)
                 # Commenting this out since we don't want to crash user code at this point, but rather
                 # retain an invalid internal list type.
