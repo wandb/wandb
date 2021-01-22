@@ -44,6 +44,12 @@ def test_resume_allow_success(live_mock_server, test_settings):
     wandb.log({"acc": 10})
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
+    if False:
+        print("this line wont be covered")
+        print("nor this one")
+    else:
+        print("but this one will")
+    print("and this one")
     print("CTX", server_ctx)
     first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
