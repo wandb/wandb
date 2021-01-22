@@ -9,14 +9,7 @@ with open('package_readme.md') as readme_file:
     readme = readme_file.read()
 
 with open('requirements.txt') as requirements_file:
-    all_requirements = requirements_file.read().splitlines()
-    requirements = []
-    dependency_links = []
-    for r in all_requirements:
-        if 'git+' in r:
-            dependency_links.append(r)
-        else:
-            requirements.append(r)
+    requirements = requirements_file.read().splitlines()
 
 test_requirements = [
     'mock>=2.0.0',

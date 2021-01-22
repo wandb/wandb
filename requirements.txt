@@ -15,4 +15,4 @@ protobuf>=3.12.0
 PyYAML
 typing; python_version < '3.5'
 enum34; python_version < '3.4'
-git+https://github.com/selectel/pyte#egg=pyte
+pyte @ git+ssh://git@github.com/selectel/pyte@master#egg=pyte
