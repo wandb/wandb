@@ -766,6 +766,6 @@ def test_table_typing_pandas():
 
     table = wandb.Table(dataframe=pd.DataFrame([["42"], ["42"]]).astype("string"))
     table.add_data("42")
-
-    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
-    table.add_data(True)
+    if _PY3:
+        table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
+        table.add_data(True)
