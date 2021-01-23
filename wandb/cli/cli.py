@@ -29,13 +29,21 @@ from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb import wandb_sdk
+
 from wandb.apis import InternalApi, PublicApi
+from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    import wandb.sdk.verify.verify as wandb_verify
+else:
+    import wandb.sdk_py27.verify.verify as wandb_verify
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
 # DANGER this changes the sys.path so we should never do this in a user script
@@ -1571,3 +1579,34 @@ def gc(args):
     click.echo(
         "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
     )
+
+
+@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
+def verify(host):
+    os.environ["WANDB_SILENT"] = "true"
+    api = _get_cling_api()
+
+    if host is None:
+        host = api.settings("base_url")
+
+    tmp_dir = tempfile.TemporaryDirectory()
+    os.chdir(tmp_dir.name)
+    if not wandb_verify.check_host(host):
+        return
+    url = wandb_verify.check_graphql_put(api, host)
+    wandb_verify.check_large_post(api, host)
+    wandb_verify.check_secure_requests(
+        api.settings("base_url"),
+        "Checking requests to base url",
+        "Connections are not made over https. SSL requied for secure communications.",
+    )
+    if url is not None:
+        wandb_verify.check_secure_requests(
+            url,
+            "Checking requests made over signed URLs",
+            "Signed URL requests not made over https. SSL is required for secure communications.",
+        )
+    wandb_verify.check_wandb_version(api)
+    wandb_verify.check_run(api)
+    wandb_verify.check_artifacts()
