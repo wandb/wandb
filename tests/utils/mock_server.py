@@ -79,6 +79,7 @@ def run(ctx):
             "sizeBytes": 20,
             "md5": "XXX",
             "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": request.url_root + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
     return {
@@ -280,6 +281,7 @@ def create_app(user_ctx=None):
                                             "node": {
                                                 "name": ctx["requested_file"],
                                                 "url": url,
+                                                "directUrl": url + "&direct=true"
                                             }
                                         }
                                     ],
