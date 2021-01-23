@@ -1,4 +1,5 @@
 from base64 import b64encode
+import glob
 import json
 import logging
 import os
@@ -79,7 +80,16 @@ class WandBMagics(Magics):
 
 
 def notebook_metadata(silent):
-    """Attempts to query jupyter for the path and name of the notebook file"""
+    """Attempts to query jupyter for the path and name of the notebook file.
+
+    This can handle many different jupyter environments, specifically:
+
+    1. Colab
+    2. Kaggle
+    3. JupyterLab
+    4. Notebooks
+    5. Other?
+    """
     error_message = (
         "Failed to query for notebook name, you can set it manually with "
         "the WANDB_NOTEBOOK_NAME environment variable"
@@ -105,57 +115,77 @@ def notebook_metadata(silent):
                 }
 
         servers, kernel_id = jupyter_servers_and_kernel_id()
-    except Exception:
-        # TODO: Fix issue this is not the logger initialized in in wandb.init()
-        # since logger is not attached, outputs to notebook
-        if not silent:
-            logger.error(error_message)
-        return {}
-    for s in servers:
-        try:
+        for s in servers:
             if s["password"]:
                 raise ValueError("Can't query password protected kernel")
             res = requests.get(
                 urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
             ).json()
-        except (requests.RequestException, ValueError):
-            if not silent:
-                logger.error(error_message)
-            return {}
-        for nn in res:
-            # TODO: wandb/client#400 found a case where res returned an array of
-            # strings...
-            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
-                if nn["kernel"]["id"] == kernel_id:
-                    return {
-                        "root": s.get("root_dir", s.get("notebook_dir", ".")),
-                        "path": nn["notebook"]["path"],
-                        "name": nn["notebook"]["name"],
-                    }
-    return {}
+            for nn in res:
+                # TODO: wandb/client#400 found a case where res returned an array of
+                # strings...
+                if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
+                    if nn["kernel"]["id"] == kernel_id:
+                        return {
+                            "root": s.get(
+                                "root_dir", s.get("notebook_dir", os.getcwd())
+                            ),
+                            "path": nn["notebook"]["path"],
+                            "name": nn["notebook"]["name"],
+                        }
+        return {}
+    except Exception:
+        # TODO: report this exception
+        # TODO: Fix issue this is not the logger initialized in in wandb.init()
+        # since logger is not attached, outputs to notebook
+        if not silent:
+            logger.error(error_message)
+        return {}
+
+
+def best_guess_notebook_metadata():
+    """This is our last ditch effort to find the notebook.  We look for all ipynb
+    files in the current directory sorted by modified time, and choose the first
+    notebook with `wandb` in the source.
+
+    Raises:
+        ValueError if no notebooks found
+
+    Returns:
+        notebook metadata with root, path, and name keys
+    """
+    files = list(filter(os.path.isfile, glob.glob("*.ipynb")))
+    files.sort(key=lambda x: -os.path.getmtime(x))
+    for file in files:
+        with open(file) as f:
+            for cell in json.load(f)["cells"]:
+                if cell["cell_type"] == "code":
+                    for source in cell["source"]:
+                        if "wandb" in source:
+                            return {"root": os.getcwd(), "path": file, "name": file}
+    raise ValueError("No notebooks found")
 
 
 def jupyter_servers_and_kernel_id():
-    import ipykernel
+    """Returns a list of servers and the current kernel_id so we can query for
+    the name of the notebook"""
+    try:
+        import ipykernel
 
-    kernel_id = re.search(
-        "kernel-(.*).json", ipykernel.connect.get_connection_file()
-    ).group(1)
-    # We're either in jupyterlab or a notebook, lets prefer the newer jupyter_server package
-    serverapp = wandb.util.get_module("jupyter_server.serverapp")
-    notebookapp = wandb.util.get_module("notebook.notebookapp")
-    servers = []
-    if serverapp is not None:
-        try:
+        kernel_id = re.search(
+            "kernel-(.*).json", ipykernel.connect.get_connection_file()
+        ).group(1)
+        # We're either in jupyterlab or a notebook, lets prefer the newer jupyter_server package
+        serverapp = wandb.util.get_module("jupyter_server.serverapp")
+        notebookapp = wandb.util.get_module("notebook.notebookapp")
+        servers = []
+        if serverapp is not None:
             servers.extend(list(serverapp.list_running_servers()))
-        except ValueError:
-            pass
-    if notebookapp is not None:
-        try:
+        if notebookapp is not None:
             servers.extend(list(notebookapp.list_running_servers()))
-        except ValueError:
-            pass
-    return servers, kernel_id
+        return servers, kernel_id
+    except (ValueError, ImportError):
+        return [], None
 
 
 def attempt_colab_load_ipynb():
@@ -261,10 +291,14 @@ class Notebook(object):
                     os.path.join(self.settings.code_dir, os.path.basename(relpath)),
                 )
                 return True
+
+        # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
             with open(
-                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["colab"]["name"]),
+                os.path.join(
+                    self.settings.code_dir, colab_ipynb["metadata"]["colab"]["name"]
+                ),
                 "w",
                 encoding="utf-8",
             ) as f:
@@ -272,15 +306,15 @@ class Notebook(object):
             return True
 
         kaggle_ipynb = attempt_kaggle_load_ipynb()
-        if kaggle_ipynb:
+        if kaggle_ipynb and len(kaggle_ipynb["cells"]) > 0:
             with open(
-                os.path.join(self.settings.code_dir, colab_ipynb["metadata"]["name"]),
+                os.path.join(self.settings.code_dir, kaggle_ipynb["metadata"]["name"]),
                 "w",
-                encoding="utf-8"
+                encoding="utf-8",
             ) as f:
                 f.write(json.dumps(kaggle_ipynb))
             return True
-        
+
         return False
 
     def save_history(self):
