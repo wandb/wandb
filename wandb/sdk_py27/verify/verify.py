@@ -63,7 +63,7 @@ def print_results(
 
 
 def check_host(host):
-    if "api.wandb.ai" in host:
+    if host in ['api.wandb.ai', 'http://api.wandb.ai', 'https://api.wandb.ai']:
         print_results("Cannot run wandb verify against api.wandb.ai", False)
         return False
     return True
