@@ -78,6 +78,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -184,12 +185,10 @@ class Api(object):
 
     Examples:
         Most common way to initialize
-        ```
-            wandb.Api()
-        ```
+        >>> wandb.Api()
 
     Arguments:
-        overrides (dict): You can set `base_url` if you are using a wandb server
+        overrides: (dict) You can set `base_url` if you are using a wandb server
             other than https://api.wandb.ai.
             You can also set defaults for `entity`, `project`, and `run`.
     """
@@ -276,8 +275,9 @@ class Api(object):
     def flush(self):
         """
         The api object keeps a local cache of runs, so if the state of the run may
-            change while executing your script you must clear the local cache with `api.flush()`
-            to get the latest values associated with the run."""
+        change while executing your script you must clear the local cache with `api.flush()`
+        to get the latest values associated with the run.
+        """
         self._runs = {}
 
     def _parse_project_path(self, path):
@@ -336,11 +336,13 @@ class Api(object):
         return parts
 
     def projects(self, entity=None, per_page=200):
-        """Get projects for a given entity.
+        """
+        Get projects for a given entity.
+
         Arguments:
-            entity (str): Name of the entity requested.  If None will fallback to
+            entity: (str) Name of the entity requested.  If None will fallback to
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page (int): Sets the page size for query pagination.  None will use the default size.
+            per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
@@ -363,9 +365,9 @@ class Api(object):
         WARNING: This api is in beta and will likely change in a future release
 
         Arguments:
-            path (str): path to project the report resides in, should be in the form: "entity/project"
-            name (str): optional name of the report requested.
-            per_page (int): Sets the page size for query pagination.  None will use the default size.
+            path: (str) path to project the report resides in, should be in the form: "entity/project"
+            name: (str) optional name of the report requested.
+            per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
@@ -391,7 +393,9 @@ class Api(object):
         return self._reports[key]
 
     def runs(self, path="", filters={}, order="-created_at", per_page=50):
-        """Return a set of runs from a project that match the filters provided.
+        """
+        Return a set of runs from a project that match the filters provided.
+
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
@@ -413,14 +417,14 @@ class Api(object):
 
 
         Arguments:
-            path (str): path to project, should be in the form: "entity/project"
-            filters (dict): queries for specific runs using the MongoDB query language.
+            path: (str) path to project, should be in the form: "entity/project"
+            filters: (dict) queries for specific runs using the MongoDB query language.
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
                 For example: {"config.experiment_name": "foo"} would find runs with a config entry
                     of experiment name set to "foo"
                 You can compose operations to make more complicated queries,
                     see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
-            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
@@ -443,12 +447,13 @@ class Api(object):
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a single run by parsing path in the form entity/project/run_id.
+        """
+        Returns a single run by parsing path in the form entity/project/run_id.
 
         Arguments:
-            path (str): path to run in the form entity/project/run_id.
-                If api.entity is set, this can be in the form project/run_id
-                and if api.project is set this can just be the run_id.
+            path: (str) path to run in the form `entity/project/run_id`.
+                If api.entity is set, this can be in the form `project/run_id`
+                and if `api.project` is set this can just be the run_id.
 
         Returns:
             A `Run` object.
@@ -461,11 +466,11 @@ class Api(object):
     @normalize_exceptions
     def sweep(self, path=""):
         """
-        Returns a sweep by parsing path in the form entity/project/sweep_id.
+        Returns a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Arguments:
-            path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
-                is set, this can be in the form project/sweep_id and if api.project is set
+            path: (str, optional) path to sweep in the form entity/project/sweep_id.  If api.entity
+                is set, this can be in the form project/sweep_id and if `api.project` is set
                 this can just be the sweep_id.
 
         Returns:
@@ -494,15 +499,16 @@ class Api(object):
 
     @normalize_exceptions
     def artifact(self, name, type=None):
-        """Returns a single artifact by parsing path in the form entity/project/run_id.
+        """
+        Returns a single artifact by parsing path in the form `entity/project/run_id`.
 
         Arguments:
-            name (str): An artifact name. May be prefixed with entity/project. Valid names
+            name: (str) An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
                     name:version
                     name:alias
                     digest
-            type (str, optional): The type of artifact to fetch.
+            type: (str, optional) The type of artifact to fetch.
         Returns:
             A `Artifact` object.
         """
@@ -1564,6 +1570,7 @@ class File(object):
     Attributes:
         name (string): filename
         url (string): path to file
+        direct_url (string): path to file in the bucket
         md5 (string): md5 of file
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
@@ -1585,6 +1592,10 @@ class File(object):
     @property
     def url(self):
         return self._attrs["url"]
+
+    @property
+    def direct_url(self):
+        return self._attrs["directUrl"]
 
     @property
     def md5(self):

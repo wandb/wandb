@@ -84,10 +84,10 @@ class Summary(SummaryDict):
     Summary tracks single values for each run. By default, summary is set to the
     last value of History.
 
-    For example, wandb.log({'accuracy': 0.9}) will add a new step to History and
+    For example, `wandb.log({'accuracy': 0.9})` will add a new step to History and
     update Summary to the latest value. In some cases, it's more useful to have
     the maximum or minimum of a metric instead of the final value. You can set
-    history manually (wandb.summary['accuracy'] = best_acc).
+    history manually `(wandb.summary['accuracy'] = best_acc)`.
 
     In the UI, summary metrics appear in the table to compare across runs.
     Summary metrics are also used in visualizations like the scatter plot and
