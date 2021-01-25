@@ -13,6 +13,5 @@ docker-pycreds>=0.4.0
 configparser>=3.8.1
 protobuf>=3.12.0
 PyYAML
-ray
 typing; python_version < '3.5'
 enum34; python_version < '3.4'

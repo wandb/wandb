@@ -29,6 +29,7 @@ from collections import defaultdict
 from datetime import datetime
 import random
 import multiprocessing
+import multiprocessing.dummy
 import os
 import queue
 import string
@@ -60,7 +61,7 @@ parser.add_argument('--num_writers', type=int, required=True)
 parser.add_argument('--files_per_version_min', type=int, required=True)
 parser.add_argument('--files_per_version_max', type=int, required=True)
 parser.add_argument('--non_overlapping_writers', default=True, action='store_true')
-parser.add_argument('--distributed_fanout', default=1)
+parser.add_argument('--distributed_fanout', type=int, default=1)
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
@@ -128,11 +129,10 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
             pass
         print('Writer initing run')
         group_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
-        ray.init()
 
         files_in_version = random.randrange(files_per_version_min, files_per_version_max)
         version_fnames = random.sample(fnames, files_in_version)
-        chunks = numpy.split(version_fnames, fanout)
+        chunks = [version_fnames[i:i + len(version_fnames)] for i in range(len(version_fnames))]
 
         def train(i):
             with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
@@ -142,10 +142,10 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
                 run.upsert_artifact(art)
                 run.finish()
 
-        jobs = []
-        for i in range(fanout):
-            jobs.append(train(i))
-        ray.get(jobs)
+        pool = multiprocessing.dummy.Pool(fanout)
+        pool.map(train, range(fanout))
+        pool.close()
+        pool.join()
 
         with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
             art = wandb.Artifact(artifact_name, type='dataset')
@@ -302,7 +302,7 @@ def main(argv):
             file_names = source_file_names[i * chunk_size: (i+1) * chunk_size]
         if args.distributed_fanout > 1:
             p = multiprocessing.Process(
-                target=proc_version_writer_distributed(),
+                target=proc_version_writer_distributed,
                 args=(
                     stop_queue,
                     stats_queue,
@@ -311,10 +311,11 @@ def main(argv):
                     artifact_name,
                     args.files_per_version_min,
                     args.files_per_version_max,
-                    args.distributed_fanout))
+                    args.distributed_fanout)
+            )
         else:
             p = multiprocessing.Process(
-                target=proc_version_writer(),
+                target=proc_version_writer,
                 args=(
                     stop_queue,
                     stats_queue,
@@ -322,7 +323,8 @@ def main(argv):
                     file_names,
                     artifact_name,
                     args.files_per_version_min,
-                    args.files_per_version_max))
+                    args.files_per_version_max)
+            )
         p.start()
         procs.append(p)
 
