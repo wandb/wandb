@@ -63,6 +63,10 @@ def _get_char(code):
 
 
 class Char(object):
+    """
+    Class encapsulating a single character, its foreground, background and style attributes
+    """
+
     __slots__ = (
         "data",
         "fg",
@@ -129,9 +133,17 @@ _defchar = Char()
 
 
 class Cursor(object):
+    """
+    2D cursor
+    """
+
     __slots__ = ("x", "y", "char")
 
     def __init__(self, x=0, y=0, char=None):
+        """
+        x, y - 2D coordinates
+        char - Next character to be written will inherit colors and styles from this character
+        """
         if char is None:
             char = Char()
         self.x = x
@@ -140,9 +152,16 @@ class Cursor(object):
 
 
 class TerminalEmulator(object):
+    """
+    An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
+    """
+
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
+        self._num_lines = None  # Cache
+
+        # For diffing:
         self._prev_num_lines = None
         self._prev_last_line = None
 
@@ -191,13 +210,17 @@ class TerminalEmulator(object):
 
     @property
     def num_lines(self):
-        if not self.buffer:
-            return 0
-        n = max(self.buffer.keys())
-        for i in range(n, -1, -1):
-            if self._get_line_len(i):
-                return i + 1
-        return 0
+        if self._num_lines is not None:
+            return self._num_lines
+        ret = 0
+        if self.buffer:
+            n = max(self.buffer.keys())
+            for i in range(n, -1, -1):
+                if self._get_line_len(i):
+                    ret = i + 1
+                    break
+        self._num_lines = ret
+        return ret
 
     def display(self):
         return [
@@ -259,6 +282,7 @@ class TerminalEmulator(object):
         return re.sub(ANSI_OSC_RE, "", text)
 
     def write(self, data):
+        self._num_lines = None  # invalidate cache
         data = self._remove_osc(data)
         prev_end = 0
         for match in ANSI_CSI_RE.finditer(data):
@@ -383,6 +407,13 @@ _MIN_CALLBACK_INTERVAL = 2  # seconds
 
 class RedirectBase(object):
     def __init__(self, src, cbs=()):
+        """
+        # Arguments
+
+        `src`: Source stream to be redirected. "stdout" or "stderr".
+        `cbs`: tuple/list of callbacks. Each callback should take exactly 1 argument (bytes).
+
+        """
         assert hasattr(sys, src)
         self.src = src
         self.cbs = cbs
@@ -425,6 +456,10 @@ class _WrappedStream(object):
 
 
 class StreamWrapper(RedirectBase):
+    """
+    Patches the write method of current sys.stdout/sys.stderr
+    """
+
     def __init__(self, src, cbs=()):
         super(StreamWrapper, self).__init__(src=src, cbs=cbs)
         self._installed = False
@@ -536,6 +571,10 @@ _WSCH = _WindowSizeChangeHandler()
 
 
 class Redirect(RedirectBase):
+    """
+    Redirects low level file descriptors.
+    """
+
     def __init__(self, src, cbs=()):
         super(Redirect, self).__init__(src=src, cbs=cbs)
         self._installed = False
@@ -560,7 +599,6 @@ class Redirect(RedirectBase):
         os.dup2(self._pipe_write_fd, self.src_fd)
         self._installed = True
         self._stopped = threading.Event()
-        # self._prev_callback_timestamp = time.time()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
@@ -595,12 +633,8 @@ class Redirect(RedirectBase):
 
     def _callback(self):
         while not self._stopped.is_set():
-            # if time.time() - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-            #     time.sleep(0.1)
-            #     continue
             self.flush()
             time.sleep(_MIN_CALLBACK_INTERVAL)
-            # self._prev_callback_timestamp = time.time()
 
     def _pipe_relay(self):
         while True:
