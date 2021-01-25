@@ -76,21 +76,7 @@ boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 def test_image_logged_with_slash(wandb_init_run):
     wandb.log({"bad_key / simple": wandb.Image(np.random.rand(10, 10))})
-    wandb.log(
-        {
-            "bad_key / ! @ # $ % ^ & * ( ) - _ = + , . / ; ' [ ] \ < > ? : { } | ` ~ COOL": wandb.Image(
-                np.random.rand(10, 10)
-            )
-        }
-    )
     wandb.log({"bad_key / array": [wandb.Image(np.random.rand(10, 10))]})
-    wandb.log(
-        {
-            "bad_key / ! @ # $ % ^ & * ( ) - _ = + , . / ; ' [ ] \ < > ? : { } | ` ~ TEST": [wandb.Image(
-                np.random.rand(10, 10)]
-            )
-        }
-    )
 
 
 def test_image_accepts_other_images(mocked_run):
