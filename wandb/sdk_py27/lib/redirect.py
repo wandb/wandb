@@ -336,7 +336,7 @@ class TerminalEmulator(object):
                     out += _get_char(c.fg)
                 if c.bg != prev_char.bg:
                     out += _get_char(c.bg)
-                for k in c.__slots__[1:]:
+                for k in c.__slots__[3:]:
                     ck = c[k]
                     if ck != prev_char[k]:
                         if not ck:
