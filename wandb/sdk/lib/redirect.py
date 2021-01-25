@@ -184,7 +184,7 @@ class TerminalEmulator(object):
         if not line:
             return 0
         n = max(line.keys())
-        for i in range(n - 1, -1, -1):
+        for i in range(n, -1, -1):
             if line[i] != _defchar:
                 return i + 1
         return 0
@@ -194,7 +194,7 @@ class TerminalEmulator(object):
         if not self.buffer:
             return 0
         n = max(self.buffer.keys())
-        for i in range(n - 1, -1, -1):
+        for i in range(n, -1, -1):
             if self._get_line_len(i):
                 return i + 1
         return 0
