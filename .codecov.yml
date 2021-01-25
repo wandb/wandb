@@ -8,7 +8,7 @@ coverage:
   status:
     project:
       default:
-        threshold: 0.5%
+        threshold: 0.75%
     patch:
       sdk:
         target: auto
