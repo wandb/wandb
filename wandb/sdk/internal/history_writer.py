@@ -38,7 +38,7 @@ class HistoryWriter(object):
 
         self.flush()
         # TODO Move this to sender so it can be part of the shutdown state machine.
-        self._interface._publish_artifact(self._run_proto, self._artifact, ["latest"])
+        self._interface._publish_artifact(self._run_proto, self._artifact, ["latest", self._run_proto.run_id])
 
     def flush(self):
         records = []
