@@ -954,7 +954,7 @@ class Run(object):
             else:
                 result_dict[sanitized_key] = input_dict[key]
         return result_dict
-    
+
     @staticmethod
     def _sanitize_history_key(key: str) -> str:
         return "/".join([part.strip() for part in key.split("/")])

@@ -75,6 +75,7 @@ def test_nice_log_error():
     with pytest.raises(wandb.Error):
         wandb.log({"no": "init"})
 
+
 def test_log_sanitize(wandb_init_run):
     wandb.log({"a": 1})
     assert set(wandb.run.history._data.keys()) == set("a")
@@ -88,7 +89,7 @@ def test_log_sanitize(wandb_init_run):
     assert set(wandb.run.history._data.keys()) == set("a/b")
     wandb.log({"a / b  /   c": 1})
     assert set(wandb.run.history._data.keys()) == set("a/b/c")
-    wandb.log({"a  / b": {"c  / d / e": {"f  / g ":1}}})
+    wandb.log({"a  / b": {"c  / d / e": {"f  / g ": 1}}})
     assert set(wandb.run.history._data.keys()) == set("a/b")
     assert set(wandb.run.history._data["a/b"].keys()) == set("c/d/e")
     assert set(wandb.run.history._data["c/d/e"].keys()) == set("f/g")

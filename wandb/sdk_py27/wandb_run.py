@@ -921,6 +921,8 @@ class Run(object):
         if any(not isinstance(key, string_types) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
+        data = Run._sanitize_history_dict(data)
+
         if step is not None:
             if self.history._step > step:
                 wandb.termwarn(
@@ -941,6 +943,21 @@ class Run(object):
             self.history._row_add(data)
         else:
             self.history._row_update(data)
+
+    @staticmethod
+    def _sanitize_history_dict(input_dict):
+        result_dict = {}
+        for key in input_dict:
+            sanitized_key = Run._sanitize_history_key(key)
+            if isinstance(input_dict[key], Mapping):
+                result_dict[sanitized_key] = Run._sanitize_history_dict(input_dict[key])
+            else:
+                result_dict[sanitized_key] = input_dict[key]
+        return result_dict
+
+    @staticmethod
+    def _sanitize_history_key(key):
+        return "/".join([part.strip() for part in key.split("/")])
 
     def save(
         self,
