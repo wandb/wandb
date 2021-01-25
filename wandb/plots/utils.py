@@ -2,13 +2,7 @@ import logging
 import wandb
 from wandb import util
 
-try:
-    from collections.abc import Sequence, Iterable
-except ImportError:
-    from collections import Sequence, Iterable
-collections = util.get_module(
-    "collections", required="Logging python iterables requires collections"
-)
+from six.moves.collections_abc import Sequence, Iterable
 
 
 def deprecation_notice():
@@ -24,9 +18,7 @@ def test_missing(**kwargs):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
     scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
-    scikit = util.get_module(
-        "sklearn", required="Logging plots matrices requires scikit-learn"
-    )
+
     test_passed = True
     for k, v in kwargs.items():
         # Missing/empty params/datapoint arrays
@@ -81,18 +73,24 @@ def test_fitted(model):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
     scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
-    scikit = util.get_module(
-        "sklearn", required="Logging plots matrices requires scikit-learn"
+    scikit_utils = util.get_module(
+        "sklearn.utils",
+        required="roc requires the scikit utils submodule, install with `pip install scikit-learn`",
     )
+    scikit_exceptions = util.get_module(
+        "sklearn.exceptions",
+        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
+    )
+
     try:
         model.predict(np.zeros((7, 3)))
-    except scikit.exceptions.NotFittedError:
+    except scikit_exceptions.NotFittedError:
         wandb.termerror("Please fit the model before passing it in.")
         return False
     except AttributeError:
         # Some clustering models (LDA, PCA, Agglomerative) don't implement ``predict``
         try:
-            scikit.utils.validation.check_is_fitted(
+            scikit_utils.validation.check_is_fitted(
                 model,
                 [
                     "coef_",
@@ -111,7 +109,7 @@ def test_fitted(model):
                 all_or_any=any,
             )
             return True
-        except scikit.exceptions.NotFittedError:
+        except scikit_exceptions.NotFittedError:
             wandb.termerror("Please fit the model before passing it in.")
             return False
     except Exception:
@@ -121,10 +119,12 @@ def test_fitted(model):
 
 def encode_labels(df):
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
-    scikit = util.get_module(
-        "sklearn", required="Logging plots matrices requires scikit-learn"
+    preprocessing = util.get_module(
+        "sklearn.preprocessing",
+        "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
     )
-    le = scikit.preprocessing.LabelEncoder()
+
+    le = preprocessing.LabelEncoder()
     # apply le on categorical feature columns
     categorical_cols = df.select_dtypes(
         exclude=["int", "float", "float64", "float32", "int32", "int64"]
@@ -136,9 +136,12 @@ def test_types(**kwargs):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
     scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
-    scikit = util.get_module(
-        "sklearn", required="Logging plots matrices requires scikit-learn"
+
+    base = util.get_module(
+        "sklearn.base",
+        "roc requires the scikit base submodule, install with `pip install scikit-learn`",
     )
+
     test_passed = True
     for k, v in kwargs.items():
         # check for incorrect types
@@ -170,17 +173,17 @@ def test_types(**kwargs):
                 test_passed = False
         # check for classifier types
         if k == "model":
-            if (not scikit.base.is_classifier(v)) and (not scikit.base.is_regressor(v)):
+            if (not base.is_classifier(v)) and (not base.is_regressor(v)):
                 wandb.termerror(
                     "%s is not a classifier or regressor. Please try again." % (k)
                 )
                 test_passed = False
         elif k == "clf" or k == "binary_clf":
-            if not (scikit.base.is_classifier(v)):
+            if not (base.is_classifier(v)):
                 wandb.termerror("%s is not a classifier. Please try again." % (k))
                 test_passed = False
         elif k == "regressor":
-            if not scikit.base.is_regressor(v):
+            if not base.is_regressor(v):
                 wandb.termerror("%s is not a regressor. Please try again." % (k))
                 test_passed = False
         elif k == "clusterer":

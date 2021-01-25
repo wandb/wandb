@@ -82,3 +82,9 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/
+
+bumpversion-to-dev:
+	tox -e bumpversion-to-dev
+
+bumpversion-from-dev:
+	tox -e bumpversion-from-dev

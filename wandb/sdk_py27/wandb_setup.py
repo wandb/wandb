@@ -40,6 +40,8 @@ class _EarlyLogger(object):
     def __init__(self):
         self._log = []
         self._exception = []
+        # support old warn() as alias of warning()
+        self.warn = self.warning
 
     def debug(self, msg, *args, **kwargs):
         self._log.append((logging.DEBUG, msg, args, kwargs))
@@ -77,6 +79,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
+        self._sweep_config = None
         self._config = None
         self._server = None
 
@@ -211,6 +214,12 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             ctx = multiprocessing
         self._multiprocessing = ctx
         # print("t3b", self._multiprocessing.get_start_method())
+
+        sweep_path = self._settings.sweep_param_path
+        if sweep_path:
+            self._sweep_config = config_util.dict_from_config_file(
+                sweep_path, must_exist=True
+            )
 
         # if config_paths was set, read in config dict
         if self._settings.config_paths:

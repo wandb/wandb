@@ -29,13 +29,21 @@ from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb import wandb_sdk
+
 from wandb.apis import InternalApi, PublicApi
+from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager
 import yaml
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    import wandb.sdk.verify.verify as wandb_verify
+else:
+    import wandb.sdk_py27.verify.verify as wandb_verify
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
 # DANGER this changes the sys.path so we should never do this in a user script
@@ -242,19 +250,20 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
+@click.option("--port", default=None, help="The host port to bind grpc service.")
 @display_error
-def grpc_server(project=None, entity=None):
+def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server()
+    grpc_server(port=port)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument("agent_spec", nargs=-1)
 @display_error
@@ -1488,10 +1497,11 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
-        "W&B enabled, running your script from this directory will now sync to the cloud."
+        "W&B online, running your script from this directory will now sync to the cloud."
     )
 
 
@@ -1501,8 +1511,9 @@ def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B disabled, running your script from this directory will only write metadata locally."
+            "W&B offline, running your script from this directory will only write metadata locally."
         )
     except configparser.Error:
         click.echo(
@@ -1560,3 +1571,42 @@ def enabled():
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
         )
+
+
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )
+
+
+@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
+def verify(host):
+    os.environ["WANDB_SILENT"] = "true"
+    api = _get_cling_api()
+
+    if host is None:
+        host = api.settings("base_url")
+
+    tmp_dir = tempfile.TemporaryDirectory()
+    os.chdir(tmp_dir.name)
+    if not wandb_verify.check_host(host):
+        return
+    url = wandb_verify.check_graphql_put(api, host)
+    wandb_verify.check_large_post(api, host)
+    wandb_verify.check_secure_requests(
+        api.settings("base_url"),
+        "Checking requests to base url",
+        "Connections are not made over https. SSL requied for secure communications.",
+    )
+    if url is not None:
+        wandb_verify.check_secure_requests(
+            url,
+            "Checking requests made over signed URLs",
+            "Signed URL requests not made over https. SSL is required for secure communications.",
+        )
+    wandb_verify.check_wandb_version(api)
+    wandb_verify.check_run(api)
+    wandb_verify.check_artifacts()

@@ -55,7 +55,7 @@ class WandbCallback(TrackerCallback):
     Automatically saves model topology, losses & metrics.
     Optionally logs weights, gradients, sample predictions and best trained model.
 
-    Args:
+    Arguments:
         learn (fastai.basic_train.Learner): the fast.ai learner to hook.
         log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
         save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.

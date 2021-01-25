@@ -1,3 +1,4 @@
+#
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -52,8 +53,8 @@ class Api(object):
         directory.  If none can be found, we look in the current users home
         directory.
 
-    Args:
-        default_settings(:obj:`dict`, optional): If you aren't using a settings
+    Arguments:
+        default_settings(dict, optional): If you aren't using a settings
         file or you wish to override the section to use in the settings file
         Override the settings here.
     """
@@ -185,7 +186,7 @@ class Api(object):
         Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
         <out_dir>/upstream_diff_<commit_id>.patch.
 
-        Args:
+        Arguments:
             out_dir (str): Directory to write the patch files.
         """
         if not self.git.enabled:
@@ -274,7 +275,7 @@ class Api(object):
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
 
-        Args:
+        Arguments:
             key (str, optional): If provided only this setting is returned
             section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
@@ -428,7 +429,7 @@ class Api(object):
     def list_projects(self, entity=None):
         """Lists projects in W&B scoped by entity.
 
-        Args:
+        Arguments:
             entity (str, optional): The entity to scope this project to.
 
         Returns:
@@ -459,7 +460,7 @@ class Api(object):
     def project(self, project, entity=None):
         """Retrive project
 
-        Args:
+        Arguments:
             project (str): The project to get details for
             entity (str, optional): The entity to scope this project to.
 
@@ -487,7 +488,7 @@ class Api(object):
     def sweep(self, sweep, specs, project=None, entity=None):
         """Retrieve sweep.
 
-        Args:
+        Arguments:
             sweep (str): The sweep to get details for
             specs (str): history specs
             project (str, optional): The project to scope this sweep to.
@@ -558,7 +559,7 @@ class Api(object):
     def list_runs(self, project, entity=None):
         """Lists runs in W&B scoped by project.
 
-        Args:
+        Arguments:
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
@@ -597,7 +598,7 @@ class Api(object):
     def launch_run(self, command, project=None, entity=None, run_id=None):
         """Launch a run in the cloud.
 
-        Args:
+        Arguments:
             command (str): The command to run
             program (str): The file to run
             project (str): The project to scope the runs to
@@ -651,7 +652,7 @@ class Api(object):
     def run_config(self, project, run=None, entity=None):
         """Get the relevant configs for a run
 
-        Args:
+        Arguments:
             project (str): The project to download, (can include bucket)
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
@@ -703,7 +704,7 @@ class Api(object):
     def run_resume_status(self, entity, project_name, name):
         """Check if a run exists and get resume information.
 
-        Args:
+        Arguments:
             entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
             run (str): The run to download
@@ -790,7 +791,7 @@ class Api(object):
     def upsert_project(self, project, id=None, description=None, entity=None):
         """Create a new project
 
-        Args:
+        Arguments:
             project (str): The project to create
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
@@ -862,7 +863,7 @@ class Api(object):
     ):
         """Update a run
 
-        Args:
+        Arguments:
             id (str, optional): The existing run to update
             name (str, optional): The name of the run to create
             group (str, optional): Name of the group this run is a part of
@@ -989,7 +990,7 @@ class Api(object):
     def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumeable upload urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
@@ -1052,7 +1053,7 @@ class Api(object):
     def download_urls(self, project, run=None, entity=None):
         """Generate download urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -1087,14 +1088,12 @@ class Api(object):
         )
         run = run or self.current_run_id
         assert run, "run must be specified"
+        entity = entity or self.settings("entity")
         query_result = self.gql(
-            query,
-            variable_values={
-                "name": project,
-                "run": run,
-                "entity": entity or self.settings("entity"),
-            },
+            query, variable_values={"name": project, "run": run, "entity": entity,},
         )
+        if query_result["model"] is None:
+            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
         files = self._flatten_edges(query_result["model"]["bucket"]["files"])
         return {file["name"]: file for file in files if file}
 
@@ -1102,7 +1101,7 @@ class Api(object):
     def download_url(self, project, file_name, run=None, entity=None):
         """Generate download urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             file_name (str): The name of the file to download
             run (str): The run to upload to
@@ -1155,7 +1154,7 @@ class Api(object):
     def download_file(self, url):
         """Initiate a streaming download
 
-        Args:
+        Arguments:
             url (str): The url to download
 
         Returns:
@@ -1169,7 +1168,7 @@ class Api(object):
     def download_write_file(self, metadata, out_dir=None):
         """Download a file from a run and write it to wandb/
 
-        Args:
+        Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
 
         Returns:
@@ -1191,10 +1190,10 @@ class Api(object):
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
-        Args:
+        Arguments:
             url (str): The url to download
             file (str): The path to the file you want to upload
-            callback (:obj:`func`, optional): A callback which is passed the number of
+            callback (func, optional): A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
@@ -1227,7 +1226,7 @@ class Api(object):
     def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
-        Args:
+        Arguments:
             host (str): hostname
             persistent (bool): long running or oneoff
             sweep (str): sweep id
@@ -1286,7 +1285,7 @@ class Api(object):
     def agent_heartbeat(self, agent_id, metrics, run_states):
         """Notify server about agent state, receive commands.
 
-        Args:
+        Arguments:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
@@ -1343,7 +1342,7 @@ class Api(object):
     ):
         """Upsert a sweep object.
 
-        Args:
+        Arguments:
             config (str): sweep config (will be converted to yaml)
         """
         project_query = """
@@ -1462,7 +1461,7 @@ class Api(object):
     def pull(self, project, run=None, entity=None):
         """Download files from W&B
 
-        Args:
+        Arguments:
             project (str): The project to download
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -1496,7 +1495,7 @@ class Api(object):
     ):
         """Uploads multiple files to W&B
 
-        Args:
+        Arguments:
             files (list or dict): The filenames to upload, when dict the values are open files
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models

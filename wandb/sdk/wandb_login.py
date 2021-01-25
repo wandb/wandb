@@ -1,7 +1,8 @@
 #
 # -*- coding: utf-8 -*-
 """
-login.
+Log in to Weights & Biases, authenticating your machine to log data to your
+account.
 """
 
 from __future__ import print_function
@@ -19,16 +20,17 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
 
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):
-    """Log in to W&B.
+    """
+    Log in to W&B.
 
-    Args:
-        anonymous (string, optional): Can be "must", "allow", or "never".
+    Arguments:
+        anonymous: (string, optional) Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
-        key (string, optional): authentication key.
-        relogin (bool, optional): If true, will re-prompt for API key.
-        host (string, optional): The host to connect to.
+        key: (string, optional) authentication key.
+        relogin: (bool, optional) If true, will re-prompt for API key.
+        host: (string, optional) The host to connect to.
 
     Returns:
         bool: if key is configured
@@ -107,7 +109,7 @@ class _WandbLogin(object):
             )
 
     def configure_api_key(self, key):
-        if self._settings._jupyter:
+        if self._settings._jupyter and not self._settings._silent:
             wandb.termwarn(
                 (
                     "If you're specifying your api key in code, ensure this "
@@ -132,7 +134,7 @@ class _WandbLogin(object):
             self._wl._update_user_settings()
 
     def prompt_api_key(self):
-        api = Api()
+        api = Api(self._settings)
         key = apikey.prompt_api_key(
             self._settings,
             api=api,

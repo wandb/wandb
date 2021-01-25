@@ -1,3 +1,4 @@
+#
 # -*- coding: utf-8 -*-
 """Backend Sender - Send to internal process
 
@@ -23,6 +24,12 @@ from wandb.util import (
     maybe_compress_summary,
     WandBJSONEncoderOld,
 )
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    import typing as t
+    from . import summary_record as sr
+    from typing import Optional
+    from wandb.proto.wandb_internal_pb2 import PollExitResponse
 
 logger = logging.getLogger("wandb")
 
@@ -54,7 +61,7 @@ class MessageRouter(object):
             self._object_ready = threading.Event()
             self._lock = threading.Lock()
 
-        def get(self, timeout=None):
+        def get(self, timeout=None) -> Optional[object]:
             is_set = self._object_ready.wait(timeout)
             if is_set and self._object:
                 return self._object
@@ -150,10 +157,11 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(self, log_dir, save):
+    def publish_tbdata(self, log_dir, save, root_logdir):
         tbrecord = wandb_internal_pb2.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
+        tbrecord.root_dir = root_logdir or ""
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
@@ -171,13 +179,19 @@ class BackendSender(object):
             item.value_json = json_dumps_safer_history(v)
         self._publish_history(history)
 
+    def publish_telemetry(self, telem):
+        rec = self._make_record(telemetry=telem)
+        self._publish(rec)
+
     def _make_run(self, run):
         proto_run = wandb_internal_pb2.RunRecord()
         run._make_proto_run(proto_run)
         proto_run.host = run._settings.host
         if run._config is not None:
             config_dict = run._config._as_dict()
-            self._make_config(config_dict, obj=proto_run.config)
+            self._make_config(data=config_dict, obj=proto_run.config)
+        if run._telemetry_obj:
+            proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
     def _make_artifact(self, artifact):
@@ -224,13 +238,20 @@ class BackendSender(object):
         exit.exit_code = exit_code
         return exit
 
-    def _make_config(self, config_dict, obj=None):
+    def _make_config(self, data=None, key=None, val=None, obj=None):
         config = obj or wandb_internal_pb2.ConfigRecord()
-        for k, v in six.iteritems(config_dict):
+        if data:
+            for k, v in six.iteritems(data):
+                update = config.update.add()
+                update.key = k
+                update.value_json = json_dumps_safer(json_friendly(v)[0])
+        if key:
             update = config.update.add()
-            update.key = k
-            update.value_json = json_dumps_safer(json_friendly(v)[0])
-
+            if isinstance(key, tuple):
+                update.nested_key = key
+            else:
+                update.key = key
+            update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
     def _make_stats(self, stats_dict):
@@ -243,11 +264,11 @@ class BackendSender(object):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _summary_encode(self, value, path_from_root):
+    def _summary_encode(self, value: t.Any, path_from_root: str):
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
-        path_from_root: `tuple` of key strings from the top-level summary to the
+        path_from_root: `str` dot separated string from the top-level summary to the
             current `value`.
 
         Returns:
@@ -266,9 +287,10 @@ class BackendSender(object):
                 )
             return json_value
         else:
-            path = ".".join(path_from_root)
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(self._run, path, value, namespace="summary")
+                data_types.val_to_json(
+                    self._run, path_from_root, value, namespace="summary"
+                )
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -288,7 +310,7 @@ class BackendSender(object):
             update.value_json = json.dumps(v)
         return summary
 
-    def _make_summary(self, summary_record):
+    def _make_summary(self, summary_record: sr.SummaryRecord):
         pb_summary_record = wandb_internal_pb2.SummaryRecord()
 
         for item in summary_record.update:
@@ -393,6 +415,7 @@ class BackendSender(object):
         header=None,
         footer=None,
         request=None,
+        telemetry=None,
     ):
         record = wandb_internal_pb2.Record()
         if run:
@@ -423,6 +446,8 @@ class BackendSender(object):
             record.footer.CopyFrom(footer)
         elif request:
             record.request.CopyFrom(request)
+        elif telemetry:
+            record.telemetry.CopyFrom(telemetry)
         else:
             raise Exception("Invalid record")
         return record
@@ -437,7 +462,8 @@ class BackendSender(object):
     def _communicate(self, rec, timeout=5, local=None):
         assert self._router
         future = self._router.send_and_receive(rec, local=local)
-        return future.get(timeout)
+        f = future.get(timeout)
+        return f
 
     def communicate_login(self, api_key=None, anonymous=None, timeout=15):
         login = self._make_login(api_key, anonymous)
@@ -495,16 +521,15 @@ class BackendSender(object):
         run = self._make_run(run_obj)
         self._publish_run(run)
 
-    def publish_config(self, config_dict):
-        cfg = self._make_config(config_dict)
+    def publish_config(self, data=None, key=None, val=None):
+        cfg = self._make_config(data=data, key=key, val=val)
         self._publish_config(cfg)
 
     def _publish_config(self, cfg):
         rec = self._make_record(config=cfg)
         self._publish(rec)
 
-    # def send_summary(self, summary_record: summary_record.SummaryRecord):
-    def publish_summary(self, summary_record):
+    def publish_summary(self, summary_record: sr.SummaryRecord):
         pb_summary_record = self._make_summary(summary_record)
         self._publish_summary(pb_summary_record)
 
@@ -515,7 +540,7 @@ class BackendSender(object):
     def _communicate_run(self, run, timeout=None):
         """Send synchronous run object waiting for a response.
 
-        Args:
+        Arguments:
             run: RunRecord object
             timeout: number of seconds to wait
 
@@ -607,11 +632,15 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def communicate_poll_exit(self, timeout=None):
+    def communicate_poll_exit(self, timeout=None) -> Optional[PollExitResponse]:
         poll_request = wandb_internal_pb2.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
         result = self._communicate(rec, timeout=timeout)
-        return result
+        if result is None:
+            return None
+        poll_exit_response = result.response.poll_exit_response
+        assert poll_exit_response
+        return poll_exit_response
 
     def communicate_check_version(self, current_version=None):
         check_version = wandb_internal_pb2.CheckVersionRequest()
@@ -637,7 +666,7 @@ class BackendSender(object):
 
     def communicate_summary(self):
         record = self._make_request(get_summary=wandb_internal_pb2.GetSummaryRequest())
-        result = self._communicate(record)
+        result = self._communicate(record, timeout=10)
         get_summary_response = result.response.get_summary_response
         assert get_summary_response
         return get_summary_response

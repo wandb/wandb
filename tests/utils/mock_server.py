@@ -79,6 +79,8 @@ def run(ctx):
             "sizeBytes": 20,
             "md5": "XXX",
             "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": request.url_root
+            + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
     return {
@@ -280,6 +282,7 @@ def create_app(user_ctx=None):
                                             "node": {
                                                 "name": ctx["requested_file"],
                                                 "url": url,
+                                                "directUrl": url + "&direct=true",
                                             }
                                         }
                                     ],
@@ -642,7 +645,7 @@ def create_app(user_ctx=None):
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return """
+            return r"""
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt

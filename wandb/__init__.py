@@ -11,7 +11,7 @@ The most commonly used functions/objects are:
 - wandb.save — save files in association with your run, like model weights
 - wandb.restore — restore the state of your code when you ran a given run
 
-For examples usage, see https://docs.wandb.com/library/example-projects
+For examples usage, see github.com/wandb/examples
 """
 
 from __future__ import absolute_import
@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.11.dev1"
+__version__ = "0.10.16.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -32,11 +32,11 @@ from wandb.errors import Error
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+TYPE_CHECKING = False  # type: bool
 if PY3:
     TYPE_CHECKING = True
     from wandb import sdk as wandb_sdk
 else:
-    TYPE_CHECKING = False
     from wandb import sdk_py27 as wandb_sdk
 
 import wandb
@@ -69,6 +69,8 @@ from wandb import util
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
+
+# from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table

@@ -1,3 +1,4 @@
+#
 # -*- coding: utf-8 -*-
 """
 sender.
@@ -17,9 +18,6 @@ from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2  # type: ignore
 
-
-# from wandb.stuff import io_wrap
-
 from . import artifacts
 from . import file_stream
 from . import internal_api
@@ -27,14 +25,39 @@ from . import update
 from .file_pusher import FilePusher
 from .history_writer import HistoryWriter
 from ..interface import interface
-from ..lib import config_util, filenames, proto_util
+from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
 
+if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+    from typing import NewType, Optional, Dict, Any, Tuple, Generator
+
+    DictWithValues = NewType("DictWithValues", Dict[str, Any])
+    DictNoValues = NewType("DictNoValues", Dict[str, Any])
+
+
+def _framework_priority(
+    imp: telemetry.TelemetryImports,
+) -> Generator[Tuple[bool, str], None, None]:
+    yield imp.lightgbm, "lightgbm"
+    yield imp.catboost, "catboost"
+    yield imp.xgboost, "xgboost"
+    yield imp.transformers, "huggingface"
+    yield imp.pytorch_ignite, "ignite"
+    yield imp.pytorch_lightning, "lightning"
+    yield imp.fastai, "fastai"
+    yield imp.torch, "torch"
+    yield imp.keras, "keras"
+    yield imp.tensorflow, "tensorflow"
+    yield imp.sklearn, "sklearn"
+
 
 class SendManager(object):
+
+    _telemetry_obj: telemetry.TelemetryRecord
+
     def __init__(
         self, settings, record_q, result_q, interface,
     ):
@@ -55,6 +78,10 @@ class SendManager(object):
         # State updated by wandb.init
         self._run = None
         self._project = None
+
+        # keep track of config from key/val updates
+        self._consolidated_config: DictNoValues = dict()
+        self._telemetry_obj = telemetry.TelemetryRecord()
 
         # State updated by resuming
         self._resume_state = {
@@ -274,11 +301,11 @@ class SendManager(object):
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
-    def _maybe_setup_resume(self, run):
+    def _maybe_setup_resume(self, run) -> "Optional[wandb_internal_pb2.ErrorInfo]":
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
         if not self._settings.resume:
-            return
+            return None
 
         # TODO: This causes a race, we need to make the upsert atomically
         # only create or update depending on the resume config
@@ -297,7 +324,7 @@ class SendManager(object):
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
                 error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
                 return error
-            return
+            return None
 
         #
         # handle cases where we have resume_status
@@ -344,19 +371,88 @@ class SendManager(object):
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
         logger.info("configured resuming with: %s" % self._resume_state)
-        return
+        return None
 
-    def send_run(self, data):
+    def _telemetry_format(self) -> Dict[int, Any]:
+        data: Dict[int, Any] = dict()
+        fields = self._telemetry_obj.ListFields()
+        for desc, value in fields:
+            if desc.type == desc.TYPE_STRING:
+                data[desc.number] = value
+            elif desc.type == desc.TYPE_MESSAGE:
+                nested = value.ListFields()
+                bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
+                if bool_msg:
+                    items = [d.number for d, v in nested if v]
+                    data[desc.number] = items
+        return data
+
+    def _telemetry_get_framework(self) -> str:
+        """Get telemetry data for internal config structure."""
+        # detect framework by checking what is loaded
+        imp: telemetry.TelemetryImports
+        if self._telemetry_obj.HasField("imports_finish"):
+            imp = self._telemetry_obj.imports_finish
+        elif self._telemetry_obj.HasField("imports_init"):
+            imp = self._telemetry_obj.imports_init
+        else:
+            return ""
+        priority = _framework_priority(imp)
+        framework = next((f for b, f in priority if b), "")
+        return framework
+
+    def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
+        """Add legacy telemetry to config object."""
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        s: str
+        b: bool
+        s = self._telemetry_obj.python_version
+        if s:
+            config_dict[wandb_key]["python_version"] = s
+        s = self._telemetry_obj.cli_version
+        if s:
+            config_dict[wandb_key]["cli_version"] = s
+        s = self._telemetry_get_framework()
+        if s:
+            config_dict[wandb_key]["framework"] = s
+        s = self._telemetry_obj.huggingface_version
+        if s:
+            config_dict[wandb_key]["huggingface_version"] = s
+        b = self._telemetry_obj.env.jupyter
+        config_dict[wandb_key]["is_jupyter_run"] = b
+        b = self._telemetry_obj.env.kaggle
+        config_dict[wandb_key]["is_kaggle_kernel"] = b
+
+        t: Dict[int, Any] = self._telemetry_format()
+        config_dict[wandb_key]["t"] = t
+
+    def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
+        """Format dict into value dict with telemetry info."""
+        config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
+        self._config_telemetry_update(config_dict)
+        config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
+        return config_value_dict
+
+    def _config_save(self, config_value_dict: DictWithValues) -> None:
+        config_path = os.path.join(self._settings.files_dir, "config.yaml")
+        config_util.save_config_file_from_dict(config_path, config_value_dict)
+
+    def send_run(self, data) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
 
+        # update telemetry
+        if run.telemetry:
+            self._telemetry_obj.MergeFrom(run.telemetry)
+
         # build config dict
-        config_dict = None
-        config_path = os.path.join(self._settings.files_dir, filenames.CONFIG_FNAME)
+        config_value_dict: Optional[DictWithValues] = None
         if run.config:
-            config_dict = config_util.dict_from_proto_list(run.config.update)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            config_util.update_from_proto(self._consolidated_config, run.config)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
@@ -378,12 +474,22 @@ class SendManager(object):
         # Save the resumed config
         if self._resume_state["config"] is not None:
             # TODO: should we merge this with resumed config?
-            config_override = config_dict or {}
+            config_override = self._consolidated_config
             config_dict = self._resume_state["config"]
+            config_dict = config_util.dict_strip_value_dict(config_dict)
             config_dict.update(config_override)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            self._consolidated_config.update(config_dict)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
-        self._init_run(run, config_dict)
+        # handle empty config
+        # TODO(jhr): consolidate the 4 ways config is built:
+        #            (passed config, empty config, resume config, send_config)
+        if not config_value_dict:
+            config_value_dict = self._config_format(None)
+            self._config_save(config_value_dict)
+
+        self._init_run(run, config_value_dict)
 
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)
@@ -483,7 +589,7 @@ class SendManager(object):
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api)
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         self._history_writer = HistoryWriter(self._settings, self._interface, self._run)
         util.sentry_set_scope(
@@ -564,15 +670,23 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
+    def _update_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        # TODO(jhr): check result of upsert_run?
+
     def send_config(self, data):
         cfg = data.config
-        config_dict = config_util.dict_from_proto_list(cfg.update)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_dict, **self._api_settings
-        )
-        config_path = os.path.join(self._settings.files_dir, "config.yaml")
-        config_util.save_config_file_from_dict(config_path, config_dict)
-        # TODO(jhr): check result of upsert_run?
+        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._update_config()
+
+    def send_telemetry(self, data):
+        telem = data.telemetry
+        self._telemetry_obj.MergeFrom(telem)
+        self._update_config()
 
     def _save_file(self, fname, policy="end"):
         logger.info("saving file %s with policy %s", fname, policy)
@@ -606,14 +720,21 @@ class SendManager(object):
         )
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        saver.save(
-            type=artifact.type,
-            name=artifact.name,
-            metadata=metadata,
-            description=artifact.description,
-            aliases=artifact.aliases,
-            use_after_commit=artifact.use_after_commit,
-        )
+        try:
+            saver.save(
+                type=artifact.type,
+                name=artifact.name,
+                metadata=metadata,
+                description=artifact.description,
+                aliases=artifact.aliases,
+                use_after_commit=artifact.use_after_commit,
+            )
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
 
     def send_alert(self, data):
         alert = data.alert
@@ -629,12 +750,17 @@ class SendManager(object):
                 "have your administrator install wandb/local >= 0.9.31"
             )
         else:
-            self._api.notify_scriptable_run_alert(
-                title=alert.title,
-                text=alert.text,
-                level=alert.level,
-                wait_duration=alert.wait_duration,
-            )
+            try:
+                self._api.notify_scriptable_run_alert(
+                    title=alert.title,
+                    text=alert.text,
+                    level=alert.level,
+                    wait_duration=alert.wait_duration,
+                )
+            except Exception as e:
+                logger.error(
+                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
+                )
 
     def finish(self):
         logger.info("shutting down sender")
