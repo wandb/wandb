@@ -99,6 +99,7 @@ class SyncThread(threading.Thread):
                 run_notes=None,
                 save_code=None,
                 email=None,
+                silent=None,
             )
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()
