@@ -28,8 +28,8 @@ ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
 
-ANSI_FG = map(str, itertools.chain(range(30, 40), range(90, 98)))
-ANSI_BG = map(str, itertools.chain(range(40, 50), range(100, 108)))
+ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
+ANSI_BG = list(map(str, itertools.chain(range(40, 50), range(100, 108))))
 
 ANSI_FG_DEFAULT = "39"
 ANSI_BG_DEFAULT = "49"
