@@ -78,6 +78,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -1569,6 +1570,7 @@ class File(object):
     Attributes:
         name (string): filename
         url (string): path to file
+        direct_url (string): path to file in the bucket
         md5 (string): md5 of file
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
@@ -1590,6 +1592,10 @@ class File(object):
     @property
     def url(self):
         return self._attrs["url"]
+
+    @property
+    def direct_url(self):
+        return self._attrs["directUrl"]
 
     @property
     def md5(self):
