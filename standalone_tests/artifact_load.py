@@ -39,6 +39,9 @@ from tqdm import tqdm
 import wandb
 from wandb.compat import tempfile
 
+import ray
+import numpy
+
 parser = argparse.ArgumentParser(description='artifacts load test')
 
 # if unspecified, we create a new project for testdata
@@ -57,6 +60,7 @@ parser.add_argument('--num_writers', type=int, required=True)
 parser.add_argument('--files_per_version_min', type=int, required=True)
 parser.add_argument('--files_per_version_max', type=int, required=True)
 parser.add_argument('--non_overlapping_writers', default=True, action='store_true')
+parser.add_argument('--distributed_fanout', default=1)
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
@@ -94,6 +98,7 @@ def gen_files(n_files, max_small_size, max_large_size):
 
     return fnames
 
+
 def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max):
     while True:
         try:
@@ -111,6 +116,43 @@ def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_
                 art.add_file(version_fname)
             run.log_artifact(art)
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
+
+
+def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, fanout):
+    while True:
+        try:
+            stop_queue.get_nowait()
+            print('Writer stopping')
+            return
+        except queue.Empty:
+            pass
+        print('Writer initing run')
+        group_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
+        ray.init()
+
+        files_in_version = random.randrange(files_per_version_min, files_per_version_max)
+        version_fnames = random.sample(fnames, files_in_version)
+        chunks = numpy.split(version_fnames, fanout)
+
+        def train(i):
+            with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
+                art = wandb.Artifact(artifact_name, type='dataset')
+                for file in chunks[i]:
+                    art.add_file(file)
+                run.upsert_artifact(art)
+                run.finish()
+
+        jobs = []
+        for i in range(fanout):
+            jobs.append(train(i))
+        ray.get(jobs)
+
+        with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
+            art = wandb.Artifact(artifact_name, type='dataset')
+            run.finish_artifact(art)
+            run.finish()
+            stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
+
 
 def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, reader_id):
     api = wandb.Api()
@@ -156,6 +198,7 @@ def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, re
             version.verify('read-%s' % reader_id)
             print('Reader verified: ', version)
 
+
 def proc_version_deleter(stop_queue, stats_queue, artifact_name, min_versions, delete_period_max):
     api = wandb.Api()
     # initial sleep to ensure we've created the sequence. Public API fails
@@ -181,6 +224,7 @@ def proc_version_deleter(stop_queue, stats_queue, artifact_name, min_versions, d
             print('Delete version complete', version)
         time.sleep(random.randrange(delete_period_max))
 
+
 def proc_cache_garbage_collector(stop_queue, cache_gc_period_max):
     while True:
         try:
@@ -193,11 +237,13 @@ def proc_cache_garbage_collector(stop_queue, cache_gc_period_max):
         print('Cache GC')
         os.system('rm -rf ~/.cache/wandb/artifacts')
 
+
 def proc_bucket_garbage_collector(stop_queue, bucket_gc_period_max):
     while True:
         time.sleep(random.randrange(cache_gc_period_max))
         print('Bucket GC')
         # TODO: implement bucket gc
+
 
 def main(argv):
     args = parser.parse_args()
@@ -254,16 +300,29 @@ def main(argv):
         if args.non_overlapping_writers:
             chunk_size = int(len(source_file_names) / args.num_writers)
             file_names = source_file_names[i * chunk_size: (i+1) * chunk_size]
-        p = multiprocessing.Process(
-            target=proc_version_writer,
-            args=(
-                stop_queue,
-                stats_queue,
-                project_name,
-                file_names,
-                artifact_name,
-                args.files_per_version_min,
-                args.files_per_version_max))
+        if args.distributed_fanout > 1:
+            p = multiprocessing.Process(
+                target=proc_version_writer_distributed(),
+                args=(
+                    stop_queue,
+                    stats_queue,
+                    project_name,
+                    file_names,
+                    artifact_name,
+                    args.files_per_version_min,
+                    args.files_per_version_max,
+                    args.distributed_fanout))
+        else:
+            p = multiprocessing.Process(
+                target=proc_version_writer(),
+                args=(
+                    stop_queue,
+                    stats_queue,
+                    project_name,
+                    file_names,
+                    artifact_name,
+                    args.files_per_version_min,
+                    args.files_per_version_max))
         p.start()
         procs.append(p)
 
