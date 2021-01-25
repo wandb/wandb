@@ -15,4 +15,3 @@ PyYAML
 typing; python_version < '3.5'
 enum34; python_version < '3.4'
 pathtools # supports vendored version of watchdog 0.9.0
-argh # supports vendored version of watchdog 0.9.0
