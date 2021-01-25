@@ -6,18 +6,17 @@ try:
 except ImportError:  # windows
     pty = tty = termios = fcntl = None  # type: ignore
 
+from collections import defaultdict
 import itertools
 import logging
 import os
+import re
 import signal
 import struct
 import sys
 import threading
 import time
 
-import pyte  # type: ignore
-from pyte.control import CSI  # type: ignore
-from pyte.escape import SGR  # type: ignore
 import wandb
 
 logger = logging.getLogger("wandb")
@@ -25,141 +24,330 @@ logger = logging.getLogger("wandb")
 _redirects = {"stdout": None, "stderr": None}
 
 
-# Reverse graphic maps
-FG = {
-    v: str(k)
-    for k, v in itertools.chain(
-        pyte.graphics.FG.items(), pyte.graphics.FG_AIXTERM.items()
-    )
+ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
+ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
+
+
+ANSI_FG = map(str, itertools.chain(range(30, 40), range(90, 98)))
+ANSI_BG = map(str, itertools.chain(range(40, 50), range(100, 108)))
+
+ANSI_FG_DEFAULT = "39"
+ANSI_BG_DEFAULT = "49"
+
+ANSI_RESET = "0"
+
+ANSI_STYLES = {
+    "1": "bold",
+    "2": "/bold",
+    "3": "italics",
+    "4": "underscore",
+    "5": "blink",
+    "7": "reverse",
+    "9": "strikethrough",
+    "22": "/bold",
+    "23": "/italics",
+    "24": "/underscore",
+    "25": "/blink",
+    "27": "/reverse",
+    "29": "/strikethrough",
 }
-BG = {
-    v: str(k)
-    for k, v in itertools.chain(
-        pyte.graphics.BG.items(), pyte.graphics.BG_AIXTERM.items()
+
+ANSI_STYLES_REV = {v: k for k, v in ANSI_STYLES.items()}
+
+
+CSI = "\033["
+
+
+def _get_char(code):
+    return "\033[" + str(code) + "m"
+
+
+class Char(object):
+    __slots__ = (
+        "data",
+        "fg",
+        "bg",
+        "bold",
+        "italics",
+        "underscore",
+        "blink",
+        "strikethrough",
+        "reverse",
     )
-}
-FG_256 = str(pyte.graphics.FG_256)  # 38
-BG_256 = str(pyte.graphics.BG_256)  # 48
-FG_BG_256 = {x: str(i) for (i, x) in enumerate(pyte.graphics.FG_BG_256)}
-TEXT = {v: str(k) for k, v in pyte.graphics.TEXT.items()}
-BIT_256 = ";5;"
-BIT_24 = ";2;"
 
-
-def _hex_string_to_int_string(h):
-    return ";".join(str(int(h[i : i + 2], 16)) for i in range(0, len(h), 2))
-
-
-class InfiniteScreen(pyte.Screen):
-    def __init__(self):
-        super(InfiniteScreen, self).__init__(columns=5, lines=5)
-        self._prev_num_lines = None
-        self._prev_last_line = None
-        self.set_mode(pyte.modes.LNM)
+    def __init__(
+        self,
+        data=" ",
+        fg=ANSI_FG_DEFAULT,
+        bg=ANSI_BG_DEFAULT,
+        bold=False,
+        italics=False,
+        underscore=False,
+        blink=False,
+        strikethrough=False,
+        reverse=False,
+    ):
+        self.data = data
+        self.fg = fg
+        self.bg = bg
+        self.bold = bold
+        self.italics = italics
+        self.underscore = underscore
+        self.blink = blink
+        self.strikethrough = strikethrough
+        self.reverse = reverse
 
     def reset(self):
-        super(InfiniteScreen, self).reset()
+        # Reset everything other than data to defaults
+        default = self.__class__()
+        for k in self.__slots__[1:]:
+            self[k] = default[k]
+
+    def __getitem__(self, k):
+        return getattr(self, k)
+
+    def __setitem__(self, k, v):
+        setattr(self, k, v)
+
+    def copy(self, **kwargs):
+        attrs = {}
+        for k in self.__slots__:
+            if k in kwargs:
+                attrs[k] = kwargs[k]
+            else:
+                attrs[k] = self[k]
+        return self.__class__(**attrs)
+
+    def __eq__(self, other):
+        for k in self.__slots__:
+            if self[k] != other[k]:
+                return False
+        return True
+
+
+_defchar = Char()
+
+
+class Cursor(object):
+    __slots__ = ("x", "y", "char")
+
+    def __init__(self, x=0, y=0, char=None):
+        if char is None:
+            char = Char()
+        self.x = x
+        self.y = y
+        self.char = char
+
+
+class TerminalEmulator(object):
+    def __init__(self):
+        self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
+        self.cursor = Cursor()
         self._prev_num_lines = None
         self._prev_last_line = None
 
-    @property
-    def _lines(self):
-        for i in range(self.lines - 1, -1, -1):
-            if i in self.buffer and self._len(i):
-                return i + 1
-        return 1
+    def cursor_up(self, n=1):
+        n = min(n, self.cursor.y)
+        self.cursor.y -= n
 
-    def _len(self, line):
-        line = self.buffer[line]
-        for i in range(self.columns - 1, -1, -1):
-            if line[i] != self.default_char:
+    def cursor_down(self, n=1):
+        self.cursor.y += n
+
+    def cursor_left(self, n=1):
+        n = min(n, self.cursor.x)
+        self.cursor.x -= n
+
+    def cursor_right(self, n=1):
+        self.cursor.x += n
+
+    def carriage_return(self):
+        self.cursor.x = 0
+
+    def cursor_postion(self, line, column):
+        self.cursor.x = min(column, 1) - 1
+        self.cursor.y = min(line, 1) - 1
+
+    def cursor_column(self, column):
+        self.cursor.x = min(column, 1) - 1
+
+    def cursor_line(self, line):
+        self.cursor.y = min(line, 1) - 1
+
+    def linefeed(self):
+        self.cursor_down()
+        self.carriage_return()
+
+    def _get_line_len(self, n):
+        if n not in self.buffer:
+            return 0
+        line = self.buffer[n]
+        if not line:
+            return 0
+        n = max(line.keys())
+        for i in range(n - 1, -1, -1):
+            if line[i] != _defchar:
                 return i + 1
         return 0
 
     @property
+    def num_lines(self):
+        if not self.buffer:
+            return 0
+        n = max(self.buffer.keys())
+        for i in range(n - 1, -1, -1):
+            if self._get_line_len(i):
+                return i + 1
+        return 0
+
     def display(self):
         return [
-            "".join(self.buffer[i][j].data for j in range(self._len(i)))
-            for i in range(self._lines)
+            [self.buffer[i][j].data for j in range(self._get_line_len(i))]
+            for i in range(self.num_lines)
         ]
 
-    def _get_line(self, line, formatting=True):
-        if not formatting:
-            return "".join([self.buffer[line][i].data for i in range(self._len(line))])
-        ret = ""
-        prev_char = self.default_char
-        for i in range(self._len(line)):
-            c = self.buffer[line][i]
-            if c.fg != prev_char.fg:
-                fg_code = FG.get(c.fg)
-                if fg_code:
-                    ret += CSI + fg_code + SGR
-                else:
-                    fg_code = FG_BG_256.get(c.fg)
-                    if fg_code:
-                        ret += CSI + FG_256 + BIT_256 + fg_code + SGR
-                    else:
-                        ret += (
-                            CSI
-                            + FG_256
-                            + BIT_24
-                            + _hex_string_to_int_string(c.fg)
-                            + SGR
-                        )
-            if c.bg != prev_char.bg:
-                bg_code = BG.get(c.bg)
-                if bg_code:
-                    ret += CSI + bg_code + SGR
-                else:
-                    bg_code = FG_BG_256.get(c.bg)
-                    if bg_code:
-                        ret += CSI + BG_256 + BIT_256 + bg_code + SGR
-                    else:
-                        ret += (
-                            CSI
-                            + BG_256
-                            + BIT_24
-                            + _hex_string_to_int_string(c.bg)
-                            + SGR
-                        )
-            for i, attr in list(enumerate(c._fields))[3:]:  # skip data, fg, bg
-                if c[i] != prev_char[i]:
-                    ret += CSI + TEXT[("-", "+")[c[i]] + attr] + SGR
-            ret += c.data
-            prev_char = c
-        return ret
+    def erase_screen(self, mode=0):
+        if mode == 0:
+            for i in range(self.cursor.y + 1, self.num_lines):
+                if i in self.buffer:
+                    del self.buffer[i]
+            self.erase_line(mode)
+        if mode == 1:
+            for i in range(self.cursor.y):
+                if i in self.buffer:
+                    del self.buffer[i]
+            self.erase_line(mode)
+        elif mode == 2 or mode == 3:
+            self.buffer.clear()
 
-    def index(self):
-        if self.cursor.y == self.lines - 1:
-            self.lines += 1
-        self.cursor_down()
-
-    def draw(self, data):
-        columns_remaining = self.columns - self.cursor.x
-        if columns_remaining < len(data):
-            self.columns += len(data) - columns_remaining
-        super(InfiniteScreen, self).draw(data)
-
-    def insert_characters(self, count=None):
-        count = count or 1
-        n = self._len(self.cursor.y)
-        if self.cursor.x >= n:
-            columns_remaining = self.columns - self.cursor.x
+    def erase_line(self, mode=0):
+        curr_line = self.buffer[self.cursor.y]
+        if mode == 0:
+            for i in range(self.cursor.x, self._get_line_len(self.cursor.y)):
+                if i in curr_line:
+                    del curr_line[i]
+        elif mode == 1:
+            for i in range(self.cursor.x + 1):
+                if i in curr_line:
+                    del curr_line[i]
         else:
-            columns_remaining = self.columns - n
-        if columns_remaining < count:
-            self.columns += count - columns_remaining
-        super(InfiniteScreen, self).insert_characters(count=count)
+            curr_line.clear()
 
-    def insert_lines(self, count=None):
-        count = count or 1
-        lines_remaining = self.lines - self._lines
-        if lines_remaining < count:
-            self.lines += count - lines_remaining
-        super(InfiniteScreen, self).insert_lines(count=count)
+    def insert_lines(self, n=1):
+        for i in range(self.num_lines - 1, self.cursor.y, -1):
+            self.buffer[i + n] = self.buffer[i]
+        for i in range(self.cursor.y + 1, self.cursor.y + 1 + n):
+            if i in self.buffer:
+                del self.buffer[i]
 
-    def pop_diff(self):
-        num_lines = self._lines
+    def _write_text(self, text):
+        for c in text:
+            if c == "\n":
+                self.linefeed()
+            elif c == "\r":
+                self.carriage_return()
+            elif c == "\b":
+                self.cursor_left()
+            elif repr(c)[1:3] == "\\x":
+                continue
+            else:
+                self.buffer[self.cursor.y][self.cursor.x] = self.cursor.char.copy(
+                    data=c
+                )
+                self.cursor.x += 1
+
+    def _remove_osc(self, text):
+        return re.sub(ANSI_OSC_RE, "", text)
+
+    def write(self, data):
+        data = self._remove_osc(data)
+        prev_end = 0
+        for match in ANSI_CSI_RE.finditer(data):
+            start, end = match.span()
+            text = data[prev_end:start]
+            csi = data[start:end]
+            prev_end = end
+            self._write_text(text)
+            self._handle_csi(csi, *match.groups())
+        self._write_text(data[prev_end:])
+
+    def _handle_csi(self, csi, params, command):
+        try:
+            if command == "m":
+                p = params.split(";")[0]
+                if not p:
+                    p = "0"
+                if p in ANSI_FG:
+                    self.cursor.char.fg = p
+                elif p in ANSI_BG:
+                    self.cursor.char.bg = p
+                elif p == ANSI_RESET:
+                    self.cursor.char.reset()
+                elif p in ANSI_STYLES:
+                    style = ANSI_STYLES[p]
+                    off = style.startswith("/")
+                    if off:
+                        style = style[1:]
+                    self.cursor.char[style] = not off
+            else:
+                abcd = {
+                    "A": "cursor_up",
+                    "B": "cursor_down",
+                    "C": "cursor_right",
+                    "D": "cursor_left",
+                }
+                cursor_fn = abcd.get(command)
+                if cursor_fn:
+                    getattr(self, cursor_fn)(int(params) if params else 1)
+                elif command == "J":
+                    p = params.split(";")[0]
+                    p = int(p) if p else 0
+                    self.erase_screen(p)
+                elif command == "K":
+                    p = params.split(";")[0]
+                    p = int(p) if p else 0
+                    self.erase_line(p)
+                elif command == "L":
+                    p = int(params) if params else 1
+                    self.insert_lines(p)
+                elif command in "Hf":
+                    p = params.split(";")
+                    if len(p) == 2:
+                        p = (int(p[0]), int(p[1]))
+                    elif len(p) == 1:
+                        p = (int(p[0]), 1)
+                    else:
+                        p = (1, 1)
+                    self.cursor_postion(*p)
+        except Exception:
+            pass
+
+    def _get_line(self, n, formatting=True):
+        line = self.buffer[n]
+        if not formatting:
+            return "".join(
+                [self.buffer[line][j] for j in range(self._get_line_len(line))]
+            )
+        else:
+            out = ""
+            prev_char = _defchar
+            for i in range(self._get_line_len(n)):
+                c = line[i]
+                if c.fg != prev_char.fg:
+                    out += _get_char(c.fg)
+                if c.bg != prev_char.bg:
+                    out += _get_char(c.bg)
+                for k in c.__slots__[1:]:
+                    ck = c[k]
+                    if ck != prev_char[k]:
+                        if not ck:
+                            k = "/" + k
+                        out += _get_char(ANSI_STYLES_REV[k])
+                out += c.data
+                prev_char = c
+            return out
+
+    def read(self):
+        num_lines = self.num_lines
         if self._prev_num_lines is None:
             ret = os.linesep.join(map(self._get_line, range(num_lines)))
             if ret:
@@ -188,28 +376,6 @@ class InfiniteScreen(pyte.Screen):
         self._prev_num_lines = num_lines
         self._prev_last_line = self._get_line(num_lines - 1)
         return ret
-
-
-class TerminalEmulator(object):
-    def __init__(self):
-        self._screen = InfiniteScreen()
-        self._stream = pyte.Stream(self._screen)
-
-    def write(self, data):
-        self._stream.feed(data)
-
-    def read(self, min_lines=0):
-        screen = self._screen
-        if min_lines:
-            new_lines = screen._lines
-            if screen._prev_num_lines:
-                new_lines -= screen._prev_num_lines
-            if new_lines < min_lines:
-                return ""
-        return screen.pop_diff()
-
-    def reset(self):
-        self._screen.reset()
 
 
 _MIN_CALLBACK_INTERVAL = 2  # seconds
