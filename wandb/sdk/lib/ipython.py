@@ -1,5 +1,6 @@
 #
 import logging
+import sys
 
 import wandb
 
@@ -19,7 +20,7 @@ def _get_python_type():
         return "python"
     if get_ipython() is None:
         return "python"
-    elif "terminal" in get_ipython().__module__:
+    elif "terminal" in get_ipython().__module__ or "spyder" in sys.modules:
         return "ipython"
     else:
         return "jupyter"

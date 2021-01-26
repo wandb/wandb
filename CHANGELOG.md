@@ -1,3 +1,28 @@
+## 0.10.15 (January 24, 2021)
+
+#### :nail_care: Enhancement
+
+- Add `wandb verify` to troubleshoot local installs
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync issue writing to s3
+- Prevent git secrets from being stored
+- Disable verbose console messages when using moviepy
+- Fix artifacts with checkpoints to be more robust when overwriting files
+- Fix artifacts recycled id issue
+
+## 0.10.14 (January 15, 2021)
+
+#### :nail_care: Enhancement
+
+- Add wandb.Audio support to Artifacts
+
+#### :bug: Bug Fix
+
+- Fix wandb config regressions introduced in 0.10.13
+- Rollback changes supporting media with slashes in keys
+
 ## 0.10.13 (January 11, 2021)
 
 #### :nail_care: Enhancement

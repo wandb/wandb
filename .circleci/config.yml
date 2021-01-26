@@ -70,6 +70,8 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: test-results
+            - store_artifacts:
+                path: mypy-results
 
 workflows:
   main:
@@ -105,11 +107,6 @@ workflows:
       - mac:
          name: "MacOS (Python 3.7)"
          toxenv: "py37"
-      - final:
-         name: "Upload Coverage"
-         requires:
-            - "Python 2.7"
-            - "Python 3.6"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
@@ -204,11 +201,3 @@ jobs:
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
-    final:
-        docker:
-            - image: python:3.7
-        steps:
-            - run:
-                  name: Call coveralls webhook
-                  command: |
-                      curl -k https://coveralls.io/webhook?repo_token=$COVERALLS_REPO_TOKEN -d "payload[build_num]=$CIRCLE_WORKFLOW_ID&payload[status]=done"

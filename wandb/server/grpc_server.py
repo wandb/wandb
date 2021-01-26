@@ -9,6 +9,7 @@ import os
 import time
 
 import grpc
+import wandb
 from wandb import wandb_sdk
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
@@ -27,6 +28,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
             run_data.run_id = wandb_sdk.lib.runid.generate_id()
         # Record telemetry info about grpc server
         run_data.telemetry.feature.grpc = True
+        run_data.telemetry.cli_version = wandb.__version__
         result = self._backend._interface._communicate_run(run_data)
 
         # initiate run (stats and metadata probing)
@@ -128,6 +130,7 @@ class Backend:
             _kaggle=None,
             _offline=None,
             email=None,
+            silent=None,
         )
 
         mp = multiprocessing
