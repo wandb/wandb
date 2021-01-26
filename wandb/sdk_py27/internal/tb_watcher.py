@@ -16,6 +16,12 @@ from wandb import util
 
 from . import run as internal_run
 
+if wandb.TYPE_CHECKING:
+    from typing import Any, Dict, Optional
+    from .settings_static import SettingsStatic
+    from ..interface.interface import BackendSender
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from six.moves.queue import PriorityQueue
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -24,7 +30,9 @@ REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
 
 
-def _link_and_save_file(path, base_path, interface, settings):
+def _link_and_save_file(
+    path, base_path, interface, settings
+):
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
     file_name = os.path.relpath(path, base_path)
@@ -80,7 +88,12 @@ def is_tfevents_file_created_by(path, hostname, start_time):
 
 
 class TBWatcher(object):
-    def __init__(self, settings, run_proto, interface):
+    # _logdirs: Dict[str, "TBDirWatcher"]
+    # _watcher_queue: "PriorityQueue"
+
+    def __init__(
+        self, settings, run_proto, interface
+    ):
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
@@ -91,6 +104,7 @@ class TBWatcher(object):
         wandb.tensorboard.reset_state()
 
     def _calculate_namespace(self, logdir, rootdir):
+        # namespace: Optional[str]
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -143,7 +157,14 @@ class TBWatcher(object):
 
 
 class TBDirWatcher(object):
-    def __init__(self, tbwatcher, logdir, save, namespace, queue):
+    def __init__(
+        self,
+        tbwatcher,
+        logdir,
+        save,
+        namespace,
+        queue,
+    ):
         self.directory_watcher = util.get_module(
             "tensorboard.backend.event_processing.directory_watcher",
             required="Please install tensorboard package",
@@ -180,7 +201,7 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(self, save=True, namespace=None):
+    def _loader(self, save = True, namespace = None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings

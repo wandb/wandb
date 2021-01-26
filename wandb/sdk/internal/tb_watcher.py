@@ -16,6 +16,12 @@ from wandb import util
 
 from . import run as internal_run
 
+if wandb.TYPE_CHECKING:
+    from typing import Any, Dict, Optional
+    from .settings_static import SettingsStatic
+    from ..interface.interface import BackendSender
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from six.moves.queue import PriorityQueue
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -24,7 +30,9 @@ REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
 
 
-def _link_and_save_file(path, base_path, interface, settings):
+def _link_and_save_file(
+    path: str, base_path: str, interface: BackendSender, settings: SettingsStatic
+) -> None:
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
     file_name = os.path.relpath(path, base_path)
@@ -41,7 +49,7 @@ def _link_and_save_file(path, base_path, interface, settings):
     interface.publish_files(dict(files=[(file_name, "live")]))
 
 
-def is_tfevents_file_created_by(path, hostname, start_time):
+def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
     """Checks if a path is a tfevents file created by hostname.
 
     tensorboard tfevents filename format:
@@ -80,7 +88,12 @@ def is_tfevents_file_created_by(path, hostname, start_time):
 
 
 class TBWatcher(object):
-    def __init__(self, settings, run_proto, interface):
+    _logdirs: Dict[str, "TBDirWatcher"]
+    _watcher_queue: "PriorityQueue"
+
+    def __init__(
+        self, settings: SettingsStatic, run_proto: RunRecord, interface: BackendSender
+    ) -> None:
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
@@ -90,7 +103,8 @@ class TBWatcher(object):
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir, rootdir):
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
+        namespace: Optional[str]
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -116,7 +130,7 @@ class TBWatcher(object):
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
         return namespace
 
-    def add(self, logdir, save, root_dir):
+    def add(self, logdir: str, save: bool, root_dir: str) -> None:
         logdir = util.to_forward_slash_path(logdir)
         if logdir in self._logdirs:
             return
@@ -133,7 +147,7 @@ class TBWatcher(object):
         self._logdirs[logdir] = tbdir_watcher
         tbdir_watcher.start()
 
-    def finish(self):
+    def finish(self) -> None:
         for tbdirwatcher in six.itervalues(self._logdirs):
             tbdirwatcher.shutdown()
         for tbdirwatcher in six.itervalues(self._logdirs):
@@ -143,7 +157,14 @@ class TBWatcher(object):
 
 
 class TBDirWatcher(object):
-    def __init__(self, tbwatcher, logdir, save, namespace, queue):
+    def __init__(
+        self,
+        tbwatcher: "TBWatcher",
+        logdir: str,
+        save: bool,
+        namespace: Optional[str],
+        queue: "PriorityQueue",
+    ) -> None:
         self.directory_watcher = util.get_module(
             "tensorboard.backend.event_processing.directory_watcher",
             required="Please install tensorboard package",
@@ -168,10 +189,10 @@ class TBDirWatcher(object):
         self._logdir = logdir
         self._hostname = socket.gethostname()
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def _is_our_tfevents_file(self, path):
+    def _is_our_tfevents_file(self, path: str) -> bool:
         """Checks if a path has been modified since launch and contains tfevents"""
         if not path:
             raise ValueError("Path must be a nonempty string")
@@ -180,7 +201,7 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(self, save=True, namespace=None):
+    def _loader(self, save: bool = True, namespace: str = None) -> Any:
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
@@ -209,7 +230,7 @@ class TBDirWatcher(object):
 
         return EventFileLoader
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
         """Check for new events every second"""
         shutdown_time = None
         while True:
