@@ -43,11 +43,11 @@ class HandleManager(object):
     # _consolidated_summary: SummaryDict
     # _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     # _settings: SettingsStatic
-    # _record_q: Queue[Record]
-    # _result_q: Queue[Result]
+    # _record_q: "Queue[Record]"
+    # _result_q: "Queue[Result]"
     # _stopped: Event
-    # _sender_q: Queue[Record]
-    # _writer_q: Queue[Record]
+    # _sender_q: "Queue[Record]"
+    # _writer_q: "Queue[Record]"
     # _interface: BackendSender
     # _system_stats: Optional[stats.SystemStats]
     # _tb_watcher: Optional[tb_watcher.TBWatcher]
