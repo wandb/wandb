@@ -1814,7 +1814,13 @@ class Run(object):
                 )
 
     # TODO(jhr): annotate this
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):  # type: ignore
+    def log_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> wandb_artifacts.Artifact:
         """ Declare an artifact as output of a run.
 
         Arguments:
@@ -1842,8 +1848,13 @@ class Run(object):
         return self._log_artifact(artifact_or_path, name, type, aliases)
 
     def upsert_artifact(
-        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
-    ):
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
         """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
         run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
         need to all contribute to the same artifact.
@@ -1888,8 +1899,13 @@ class Run(object):
         )
 
     def finish_artifact(
-        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
-    ):
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
         """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
         the same distributed ID will result in a new version
 
