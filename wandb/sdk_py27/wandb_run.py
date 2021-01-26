@@ -35,6 +35,7 @@ from wandb.viz import (
     Visualize,
 )
 
+from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
@@ -1813,7 +1814,13 @@ class Run(object):
                 )
 
     # TODO(jhr): annotate this
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):  # type: ignore
+    def log_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+    ):
         """ Declare an artifact as output of a run.
 
         Arguments:
@@ -1841,7 +1848,12 @@ class Run(object):
         return self._log_artifact(artifact_or_path, name, type, aliases)
 
     def upsert_artifact(
-        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
     ):
         """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
         run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
@@ -1887,7 +1899,12 @@ class Run(object):
         )
 
     def finish_artifact(
-        self, artifact_or_path, name=None, type=None, aliases=None, distributed_id=None
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
     ):
         """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
         the same distributed ID will result in a new version
@@ -1935,11 +1952,11 @@ class Run(object):
     def _log_artifact(
         self,
         artifact_or_path,
-        name=None,
-        type=None,
-        aliases=None,
-        distributed_id=None,
-        finalize=True,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
+        finalize = True,
     ):
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -1948,9 +1965,10 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(
-            self, artifact, aliases, finalize=finalize
-        )
+        if self._backend:
+            self._backend.interface.publish_artifact(
+                self, artifact, aliases, finalize=finalize
+            )
         return artifact
 
     def _public_api(self):
@@ -1978,7 +1996,13 @@ class Run(object):
                     )
                 )
 
-    def _prepare_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+    def _prepare_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+    ):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
