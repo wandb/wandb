@@ -170,6 +170,16 @@ def test_run_file(runner, mock_server, api):
         assert os.path.exists("weights.h5")
 
 
+def test_run_file_direct(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        file = run.file("weights.h5")
+        assert (
+            file.direct_url
+            == "https://api.wandb.ai//storage?file=weights.h5&direct=true"
+        )
+
+
 def test_run_upload_file(runner, mock_server, api):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")

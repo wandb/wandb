@@ -171,10 +171,10 @@ class Run(object):
     two objects will be merged.
 
     Attributes:
-        history (History): Time series values, created with `wandb.log()`.
+        history: (History) Time series values, created with `wandb.log()`.
             History can contain scalar values, rich media, or even custom plots
             across multiple steps.
-        summary (Summary): Single values set for each `wandb.log()` key. By
+        summary: (Summary) Single values set for each `wandb.log()` key. By
             default, summary is set to the last value logged. You can manually
             set summary to the best value, like max accuracy, instead of the
             final value.
@@ -2087,5 +2087,11 @@ class CRDedupedFile(WriteSerializingFile):
 
 
 def finish(exit_code = None):
+    """
+    Marks a run as finished, and finishes uploading all data.
+
+    This is used when creating multiple runs in the same process.
+    We automatically call this method when your script exits.
+    """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
