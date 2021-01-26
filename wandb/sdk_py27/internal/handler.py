@@ -18,17 +18,21 @@ from . import tb_watcher
 from ..lib import proto_util
 
 
-if wandb.TYPE_CHECKING:  # type: ignore
+if wandb.TYPE_CHECKING:
     from typing import (
         Any,
+        Callable,
         Dict,
+        Iterable,
         Optional,
     )
     from .settings_static import SettingsStatic
     from six.moves.queue import Queue
     from threading import Event
     from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import Record
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    SummaryDict = Dict[str, Any]
 
 
 logger = logging.getLogger(__name__)
@@ -36,14 +40,14 @@ logger = logging.getLogger(__name__)
 
 class HandleManager(object):
 
-    # _consolidated_summary: Dict[str, Any]
+    # _consolidated_summary: SummaryDict
     # _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     # _settings: SettingsStatic
-    # _record_q: Queue
-    # _result_q: Queue
+    # _record_q: Queue[Record]
+    # _result_q: Queue[Result]
     # _stopped: Event
-    # _sender_q: Queue
-    # _writer_q: Queue
+    # _sender_q: Queue[Record]
+    # _writer_q: Queue[Record]
     # _interface: BackendSender
     # _system_stats: Optional[stats.SystemStats]
     # _tb_watcher: Optional[tb_watcher.TBWatcher]

@@ -18,17 +18,21 @@ from . import tb_watcher
 from ..lib import proto_util
 
 
-if wandb.TYPE_CHECKING:  # type: ignore
+if wandb.TYPE_CHECKING:
     from typing import (
         Any,
+        Callable,
         Dict,
+        Iterable,
         Optional,
     )
     from .settings_static import SettingsStatic
     from six.moves.queue import Queue
     from threading import Event
     from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import Record
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    SummaryDict = Dict[str, Any]
 
 
 logger = logging.getLogger(__name__)
@@ -36,14 +40,14 @@ logger = logging.getLogger(__name__)
 
 class HandleManager(object):
 
-    _consolidated_summary: Dict[str, Any]
+    _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _settings: SettingsStatic
-    _record_q: Queue
-    _result_q: Queue
+    _record_q: Queue[Record]
+    _result_q: Queue[Result]
     _stopped: Event
-    _sender_q: Queue
-    _writer_q: Queue
+    _sender_q: Queue[Record]
+    _writer_q: Queue[Record]
     _interface: BackendSender
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
@@ -51,11 +55,11 @@ class HandleManager(object):
     def __init__(
         self,
         settings: SettingsStatic,
-        record_q: Queue,
-        result_q: Queue,
+        record_q: Queue[Record],
+        result_q: Queue[Result],
         stopped: Event,
-        sender_q: Queue,
-        writer_q: Queue,
+        sender_q: Queue[Record],
+        writer_q: Queue[Record],
         interface: BackendSender,
     ) -> None:
         self._settings = settings
@@ -77,7 +81,7 @@ class HandleManager(object):
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
-        handler = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
@@ -85,7 +89,7 @@ class HandleManager(object):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "handle_request_" + request_type
-        handler = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)
         logger.debug("handle_request: {}".format(request_type))
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
@@ -142,7 +146,7 @@ class HandleManager(object):
     def handle_alert(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def _save_summary(self, summary_dict: Dict[str, Any], flush: bool = False) -> None:
+    def _save_summary(self, summary_dict: SummaryDict, flush: bool = False) -> None:
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
@@ -290,7 +294,7 @@ class HandleManager(object):
         for key, sampled in six.iteritems(self._sampled_history):
             item = wandb_internal_pb2.SampledHistoryItem()
             item.key = key
-            values = sampled.get()
+            values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
                 item.values_int.extend(values)
             elif all(isinstance(i, numbers.Real) for i in values):
