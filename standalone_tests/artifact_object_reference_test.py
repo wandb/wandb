@@ -746,27 +746,28 @@ def test_distributed_artifact_simple():
     # for image, path in zip(images, image_paths):
     #     assert image == artifact.get(path)
 
+
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
-        # test_artifact_add_reference_via_url,
-        # test_add_reference_via_artifact_entry,
-        # test_adding_artifact_by_object,
-        # test_get_artifact_obj_by_name,
-        # test_image_reference_artifact,
-        # test_nested_reference_artifact,
-        # test_table_slice_reference_artifact,
-        # test_image_refs,
-        # test_point_cloud_refs,
-        # test_bokeh_refs,
-        # test_html_refs,
-        # test_video_refs,
-        # test_table_refs,
-        # test_joined_table_refs,
-        # test_audio_refs,
-        # test_joined_table_referential,
-        # test_joined_table_add_by_path,
-        # test_image_reference_with_preferred_path,
+        test_artifact_add_reference_via_url,
+        test_add_reference_via_artifact_entry,
+        test_adding_artifact_by_object,
+        test_get_artifact_obj_by_name,
+        test_image_reference_artifact,
+        test_nested_reference_artifact,
+        test_table_slice_reference_artifact,
+        test_image_refs,
+        test_point_cloud_refs,
+        test_bokeh_refs,
+        test_html_refs,
+        test_video_refs,
+        test_table_refs,
+        test_joined_table_refs,
+        test_audio_refs,
+        test_joined_table_referential,
+        test_joined_table_add_by_path,
+        test_image_reference_with_preferred_path,
         test_distributed_artifact_simple,
     ]
     for ndx, test_fn in enumerate(test_fns):
