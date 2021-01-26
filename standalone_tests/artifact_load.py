@@ -29,7 +29,6 @@ from collections import defaultdict
 from datetime import datetime
 import random
 import multiprocessing
-import multiprocessing.dummy
 import os
 import queue
 import string
@@ -70,7 +69,6 @@ parser.add_argument('--delete_period_max', type=int, default=10)
 
 # cache garbage collector args
 parser.add_argument('--cache_gc_period_max', type=int)
-
 
 def gen_files(n_files, max_small_size, max_large_size):
     bufsize = max_large_size * 100
@@ -116,6 +114,14 @@ def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
 
 
+def _train(chunk, artifact_name, project_name, group_name):
+    with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
+        art = wandb.Artifact(artifact_name, type='dataset')
+        for file in chunk:
+            art.add_file(file)
+        run.upsert_artifact(art)
+
+
 def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, fanout):
     while True:
         try:
@@ -129,22 +135,20 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
 
         files_in_version = random.randrange(files_per_version_min, files_per_version_max)
         version_fnames = random.sample(fnames, files_in_version)
-        chunk_size = max(len(version_fnames) / fanout, 1)
+        chunk_size = max(int(len(version_fnames) / fanout), 1)
         chunks = [version_fnames[i:i + chunk_size] for i in range(0, len(version_fnames), chunk_size)]
 
-        def train(i):
-            with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
-                art = wandb.Artifact(artifact_name, type='dataset')
-                for file in chunks[i]:
-                    art.add_file(file)
-                run.upsert_artifact(art)
+        procs = []
+        for i in range(fanout):
+            p = multiprocessing.Process(target=_train, args=(chunks[i], artifact_name, project_name, group_name))
+            p.start()
+            procs.append(p)
 
-        pool = multiprocessing.dummy.Pool(fanout)
-        pool.map(train, range(fanout))
-        pool.close()
-        pool.join()
+        for p in procs:
+            p.join()
 
-        with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
+        with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
+            print('Committing {}'.format(group_name))
             art = wandb.Artifact(artifact_name, type='dataset')
             run.finish_artifact(art)
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
