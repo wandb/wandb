@@ -512,7 +512,7 @@ class StreamWrapper(RedirectBase):
         try:
             data = self._emulator.read().encode("utf-8")
         except Exception:
-            data = b''
+            data = b""
         if data:
             for cb in self.cbs:
                 try:
@@ -632,7 +632,10 @@ class Redirect(RedirectBase):
         super(Redirect, self).uninstall()
 
     def flush(self):
-        data = self._emulator.read().encode("utf-8")
+        try:
+            data = self._emulator.read().encode("utf-8")
+        except Exception:
+            data = b""
         if data:
             for cb in self.cbs:
                 try:
