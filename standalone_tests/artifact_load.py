@@ -40,9 +40,6 @@ from tqdm import tqdm
 import wandb
 from wandb.compat import tempfile
 
-import ray
-import numpy
-
 parser = argparse.ArgumentParser(description='artifacts load test')
 
 # if unspecified, we create a new project for testdata
