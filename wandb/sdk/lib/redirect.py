@@ -482,11 +482,17 @@ class StreamWrapper(RedirectBase):
                 except UnicodeDecodeError:
                     # TODO(frz)
                     data = ""
-            self._emulator.write(data)
+            try:
+                self._emulator.write(data)
+            except Exception:
+                pass
             curr_time = time.time()
             if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
                 return
-            data = self._emulator.read().encode("utf-8")
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                data = b""
             if data:
                 self._prev_callback_timestamp = curr_time
                 for cb in self.cbs:
@@ -503,7 +509,10 @@ class StreamWrapper(RedirectBase):
         self._installed = True
 
     def flush(self):
-        data = self._emulator.read().encode("utf-8")
+        try:
+            data = self._emulator.read().encode("utf-8")
+        except Exception:
+            data = b''
         if data:
             for cb in self.cbs:
                 try:
