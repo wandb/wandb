@@ -138,14 +138,10 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
         chunk_size = max(int(len(version_fnames) / fanout), 1)
         chunks = [version_fnames[i:i + chunk_size] for i in range(0, len(version_fnames), chunk_size)]
 
-        procs = []
+        # TODO: Once we resolve issues with spawn or switch to fork, we can run these in separate processes
+        # instead of running them serially.
         for i in range(fanout):
-            p = multiprocessing.Process(target=_train, args=(chunks[i], artifact_name, project_name, group_name))
-            p.start()
-            procs.append(p)
-
-        for p in procs:
-            p.join()
+            _train(chunks[i], artifact_name, project_name, group_name)
 
         with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
             print('Committing {}'.format(group_name))
