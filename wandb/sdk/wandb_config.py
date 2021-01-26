@@ -22,19 +22,20 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config(object):
-    """Config object
+    """
+    Config object
 
     Config objects are intended to hold all of the hyperparameters associated with
-    a wandb run and are saved with the run object when wandb.init is called.
+    a wandb run and are saved with the run object when `wandb.init` is called.
 
-    We recommend setting wandb.config once at the top of your training experiment or
-    setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
+    We recommend setting `wandb.config` once at the top of your training experiment or
+    setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
-    You can create a file called config-defaults.yaml, and it will automatically be
-    loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
+    You can create a file called `config-defaults.yaml`, and it will automatically be
+    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
-    into wandb.init(config="special_config.yaml").
+    into `wandb.init(config="special_config.yaml")`.
     See https://docs.wandb.com/library/config#file-based-configs.
 
     Examples:
@@ -62,7 +63,6 @@ class Config(object):
         ```
 
         Using absl flags
-
         ```
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
@@ -156,10 +156,13 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
-                del parsed_dict[key]
-        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
+                locked_keys.add(key)
+        sanitized = self._sanitize_dict(
+            parsed_dict, allow_val_change, ignore_keys=locked_keys
+        )
         self._items.update(sanitized)
         return sanitized
 
@@ -178,9 +181,10 @@ class Config(object):
 
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
-        d = self._sanitize_dict(d)
         # strip out keys already configured
         d = {k: v for k, v in six.iteritems(d) if k not in self._items}
+        d = self._sanitize_dict(d)
+        self._items.update(d)
         if self._callback:
             self._callback(data=d)
 
@@ -205,9 +209,13 @@ class Config(object):
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None):
+    def _sanitize_dict(
+        self, config_dict, allow_val_change=None, ignore_keys: set = None
+    ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
+            if ignore_keys and k in ignore_keys:
+                continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized

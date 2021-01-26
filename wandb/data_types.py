@@ -22,7 +22,6 @@ import sys
 import warnings
 
 import six
-from six.moves import urllib
 from six.moves.collections_abc import Sequence
 import wandb
 from wandb import util
@@ -85,7 +84,7 @@ def wb_filename(key, step, id, extension):
 
 class WBValue(object):
     """
-    Abstract parent class for things that can be logged by wandb.log() and
+    Abstract parent class for things that can be logged by `wandb.log()` and
     visualized by wandb.
 
     The objects will be serialized as JSON and always have a _type attribute
@@ -217,8 +216,7 @@ class WBValue(object):
 
 
 class Histogram(WBValue):
-    """
-    wandb class for histograms
+    """wandb class for histograms.
 
     This object works just like numpy's histogram function
     https://docs.scipy.org/doc/numpy/reference/generated/numpy.histogram.html
@@ -236,14 +234,14 @@ class Histogram(WBValue):
         ```
 
     Arguments:
-        sequence (array_like): input data for histogram
-        np_histogram (numpy histogram): alternative input of a precoomputed histogram
-        num_bins (int): Number of bins for the histogram.  The default number of bins
+        sequence: (array_like) input data for histogram
+        np_histogram: (numpy histogram) alternative input of a precoomputed histogram
+        num_bins: (int) Number of bins for the histogram.  The default number of bins
             is 64.  The maximum number of bins is 512
 
     Attributes:
-        bins ([float]): edges of bins
-        histogram ([int]): number of elements falling in each bin
+        bins: ([float]) edges of bins
+        histogram: ([int]) number of elements falling in each bin
     """
 
     MAX_LENGTH = 512
@@ -355,7 +353,7 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:8]
 
-        file_path = wb_filename(urllib.parse.quote_plus(key), step, id_, extension)
+        file_path = wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(base_path, file_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
@@ -484,10 +482,10 @@ class Table(Media):
     """This is a table designed to display sets of records.
 
     Arguments:
-        columns ([str]): Names of the columns in the table.
+        columns: ([str]) Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
-        data (array): 2D Array of values that will be displayed as strings.
-        dataframe (pandas.DataFrame): DataFrame object used to create the table.
+        data: (array) 2D Array of values that will be displayed as strings.
+        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
             When set, the other arguments are ignored.
     """
 
@@ -646,8 +644,8 @@ class Table(Media):
         result_type = current_type.assign(incoming_data_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
-                "Data column contained incompatible types. Expected type {}, found data {}".format(
-                    current_type, incoming_data_dict
+                "Data row contained incompatible types:\n{}".format(
+                    current_type.explain(incoming_data_dict)
                 )
             )
         self._column_types = result_type
@@ -756,11 +754,11 @@ class Audio(BatchableMedia):
     Wandb class for audio clips.
 
     Arguments:
-        data_or_path (string or numpy array): A path to an audio file
+        data_or_path: (string or numpy array) A path to an audio file
             or a numpy array of audio data.
-        sample_rate (int): Sample rate, required when passing in raw
+        sample_rate: (int) Sample rate, required when passing in raw
             numpy array of audio data.
-        caption (string): Caption to display with audio.
+        caption: (string) Caption to display with audio.
     """
 
     artifact_type = "audio-file"
@@ -880,19 +878,18 @@ class Object3D(BatchableMedia):
     Wandb class for 3D point clouds.
 
     Arguments:
-        data_or_path (numpy array, string, io):
+        data_or_path: (numpy array, string, io)
             Object3D can be initialized from a file or a numpy array.
 
             The file types supported are obj, gltf, babylon, stl.  You can pass a path to
                 a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
-            The shape of the numpy array must be one of either:
-            ```
-            [[x y z],       ...] nx3
-            [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-            [x y z r g b], ...] nx4 where is rgb is color
-            ```
-
+    The shape of the numpy array must be one of either:
+    ```
+    [[x y z],       ...] nx3
+    [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+    [x y z r g b], ...] nx4 where is rgb is color
+    ```
     """
 
     SUPPORTED_TYPES = set(["obj", "gltf", "babylon", "stl", "pts.json"])
@@ -1046,7 +1043,7 @@ class Molecule(BatchableMedia):
     Wandb class for Molecular data
 
     Arguments:
-        data_or_path (string, io):
+        data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
     """
 
@@ -1135,8 +1132,8 @@ class Html(BatchableMedia):
     Wandb class for arbitrary html
 
     Arguments:
-        data (string or io object): HTML to display in wandb
-        inject (boolean): Add a stylesheet to the HTML object.  If set
+        data: (string or io object) HTML to display in wandb
+        inject: (boolean) Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
     """
 
@@ -1218,17 +1215,17 @@ class Video(BatchableMedia):
     Wandb representation of video.
 
     Arguments:
-        data_or_path (numpy array, string, io):
+        data_or_path: (numpy array, string, io)
             Video can be initialized with a path to a file or an io object.
-                The format must be "gif", "mp4", "webm" or "ogg".
-                The format must be specified with the format argument.
+            The format must be "gif", "mp4", "webm" or "ogg".
+            The format must be specified with the format argument.
             Video can be initialized with a numpy tensor.
-                The numpy tensor must be either 4 dimensional or 5 dimensional.
-                Channels should be (time, channel, height, width) or
-                    (batch, time, channel, height width)
-        caption (string): caption associated with the video for display
-        fps (int): frames per second for video. Default is 4.
-        format (string): format of video, necessary if initializing with path or io object.
+            The numpy tensor must be either 4 dimensional or 5 dimensional.
+            Channels should be (time, channel, height, width) or
+            (batch, time, channel, height width)
+        caption: (string) caption associated with the video for display
+        fps: (int) frames per second for video. Default is 4.
+        format: (string) format of video, necessary if initializing with path or io object.
     """
 
     artifact_type = "video-file"
@@ -1285,16 +1282,28 @@ class Video(BatchableMedia):
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
         filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
-        try:  # older version of moviepy does not support progress_bar argument.
+
+        try:  # older versions of moviepy do not support logger argument
+            kwargs = {"logger": None}
             if self._format == "gif":
-                clip.write_gif(filename, verbose=False, progress_bar=False)
+                clip.write_gif(filename, **kwargs)
             else:
-                clip.write_videofile(filename, verbose=False, progress_bar=False)
+                clip.write_videofile(filename, **kwargs)
         except TypeError:
-            if self._format == "gif":
-                clip.write_gif(filename, verbose=False)
-            else:
-                clip.write_videofile(filename, verbose=False)
+            try:  # even older versions of moviepy do not support progress_bar argument
+                kwargs = {"verbose": False, "progress_bar": False}
+                if self._format == "gif":
+                    clip.write_gif(filename, **kwargs)
+                else:
+                    clip.write_videofile(filename, **kwargs)
+            except TypeError:
+                kwargs = {
+                    "verbose": False,
+                }
+                if self._format == "gif":
+                    clip.write_gif(filename, **kwargs)
+                else:
+                    clip.write_videofile(filename, **kwargs)
         self._set_file(filename, is_tmp=True)
 
     @classmethod
@@ -1529,12 +1538,12 @@ class Image(BatchableMedia):
     Wandb class for images.
 
     Arguments:
-        data_or_path (numpy array, string, io): Accepts numpy array of
+        data_or_path: (numpy array, string, io) Accepts numpy array of
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
-        mode (string): The PIL mode for an image. Most common are "L", "RGB",
+        mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
-        caption (string): Label for display of image.
+        caption: (string) Label for display of image.
     """
 
     MAX_ITEMS = 108

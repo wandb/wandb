@@ -582,7 +582,7 @@ class SendManager(object):
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api)
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",

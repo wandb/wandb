@@ -59,7 +59,6 @@ class ArtifactManifest(object):
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}
-        self._entries_by_local_path = {}
 
     def to_manifest_json(self):
         raise NotImplementedError()
@@ -74,11 +73,6 @@ class ArtifactManifest(object):
         ):
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
-        if entry.local_path is not None:
-            self._entries_by_local_path[entry.local_path] = entry
-
-    def get_entry_by_local_path(self, local_path):
-        return self._entries_by_local_path.get(local_path)
 
     def get_entry_by_path(self, path):
         return self.entries.get(path)
