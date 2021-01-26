@@ -1540,12 +1540,13 @@ class JoinedTable(Media):
         return (
             (type(table) == str and table.endswith(".table.json"))
             or isinstance(table, Table)
+            or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path"""
-        if isinstance(table, Table):
+        if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
                 table.artifact_source is not None
@@ -1561,7 +1562,7 @@ class JoinedTable(Media):
                 base64.standard_b64decode(table.entry.digest)
             ).decode("ascii")[:8]
             entry = artifact.add_reference(
-                table.ref_url(), "{}.table.json".format(name)
+                table.ref_url(), "{}.{}.json".format(name, table.artifact_type)
             )[0]
             table = entry.path
 
