@@ -4,8 +4,18 @@
 static settings.
 """
 
+import wandb
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
+
 
 class SettingsStatic(object):
+    # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
+    # _offline: Optional[bool]
+    # _disable_stats: Optional[bool]
+    # _disable_meta: Optional[bool]
+
     def __init__(self, config):
         object.__setattr__(self, "__dict__", dict(config))
 
