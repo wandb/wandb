@@ -74,17 +74,6 @@ optional_keys = ["box_caption", "scores"]
 boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
 
-def test_image_logged_with_slash(wandb_init_run):
-    wandb.log(
-        {
-            "bad_key / ! @ # $ % ^ & * ( ) - _ = + , . / ; ' [ ] \ < > ? : { } | ` ~ COOL": wandb.Image(
-                np.random.rand(10, 10)
-            )
-        }
-    )
-    wandb.log({"bad_key / simple": wandb.Image(np.random.rand(10, 10))})
-
-
 def test_image_accepts_other_images(mocked_run):
     image_a = wandb.Image(np.random.random((300, 300, 3)))
     image_b = wandb.Image(image_a)
@@ -355,11 +344,19 @@ def test_create_bokeh_plot(mocked_run):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
-def test_video_numpy(mocked_run):
+def test_video_numpy_gif(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
-    vid = wandb.Video(video)
+    vid = wandb.Video(video, format="gif")
     vid.bind_to_run(mocked_run, "videos", 0)
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
+def test_video_numpy_mp4(mocked_run):
+    video = np.random.randint(255, size=(10, 3, 28, 28))
+    vid = wandb.Video(video, format="mp4")
+    vid.bind_to_run(mocked_run, "videos", 0)
+    assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")

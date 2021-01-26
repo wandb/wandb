@@ -48,6 +48,7 @@ def mock_boto(artifact, path=False):
     handler = artifact._storage_policy._handler._handlers["s3"]
     handler._s3 = mock
     handler._botocore = util.get_module("botocore")
+    handler._botocore.exceptions = util.get_module("botocore.exceptions")
     return mock
 
 
@@ -232,6 +233,37 @@ def test_add_reference_local_dir(runner):
         assert manifest["contents"]["nest/nest/file3.txt"] == {
             "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
             "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "size": 4,
+        }
+
+
+def test_add_reference_local_dir_with_name(runner):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        os.mkdir("nest")
+        open("nest/file2.txt", "w").write("my")
+        os.mkdir("nest/nest")
+        open("nest/nest/file3.txt", "w").write("dude")
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_reference("file://" + os.getcwd(), name="top")
+
+        assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["top/file1.txt"] == {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": "file://" + os.path.join(os.getcwd(), "top", "file1.txt"),
+            "size": 5,
+        }
+        assert manifest["contents"]["top/nest/file2.txt"] == {
+            "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+            "ref": "file://" + os.path.join(os.getcwd(), "top", "nest", "file2.txt"),
+            "size": 2,
+        }
+        assert manifest["contents"]["top/nest/nest/file3.txt"] == {
+            "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+            "ref": "file://"
+            + os.path.join(os.getcwd(), "top", "nest", "nest", "file3.txt"),
             "size": 4,
         }
 
