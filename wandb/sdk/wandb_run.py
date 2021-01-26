@@ -11,7 +11,6 @@ import logging
 import numbers
 import os
 import platform
-import re
 import sys
 import threading
 import time
@@ -43,6 +42,7 @@ from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -60,7 +60,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         NoReturn,
@@ -204,7 +203,7 @@ class Run(object):
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
-    _output_writer: Optional["CRDedupedFile"]
+    _output_writer: Optional["filesystem.CRDedupedFile"]
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -1421,7 +1420,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = CRDedupedFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2030,60 +2029,6 @@ try:
 # py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
-
-
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f: BinaryIO) -> None:
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs) -> None:  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self) -> None:
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
-
-
-class CRDedupedFile(WriteSerializingFile):
-    def __init__(self, f: BinaryIO) -> None:
-        super(CRDedupedFile, self).__init__(f=f)
-        self._buff = b""
-
-    def write(self, data) -> None:  # type: ignore
-        lines = re.split(b"\r\n|\n", data)
-        ret = []  # type: ignore
-        for line in lines:
-            if line[:1] == b"\r":
-                if ret:
-                    ret.pop()
-                elif self._buff:
-                    self._buff = b""
-            line = line.split(b"\r")[-1]
-            if line:
-                ret.append(line)
-        if self._buff:
-            ret.insert(0, self._buff)
-        if ret:
-            self._buff = ret.pop()
-        super(CRDedupedFile, self).write("\n".join(ret) + "\n")
-
-    def close(self) -> None:
-        if self._buff:
-            super(CRDedupedFile, self).write(self._buff)
-        super(CRDedupedFile, self).close()
 
 
 def finish(exit_code: int = None) -> None:
