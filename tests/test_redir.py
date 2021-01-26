@@ -83,9 +83,64 @@ def test_formatting(cls, capfd):
         o = CapList()
         r = cls("stdout", cbs=[o.append])
         r.install()
-        print("\x1b[31mHello\x1b[39m")  # [red]Hello[default]
+        print("\x1b[31m\x1b[40m\x1b[1mHello\x1b[22m\x1b[39m")
         r.uninstall()
-        assert o == [b"\x1b[31mHello"]
+        assert o == [b"\x1b[31m\x1b[40m\x1b[1mHello"]
+
+
+@pytest.mark.parametrize("cls", impls)
+def test_cursor(cls, capfd):
+    with capfd.disabled():
+        o = CapList()
+        r = cls("stdout", cbs=[o.append])
+        r.install()
+        s = "ABCD\nEFGH\nIJKX\nMNOP"
+        s += "\x1b[1A"
+        s += "\x1b[1D"
+        s += "L"
+        s += "\x1b[1B"
+        s += "\r"
+        s += "\x1b[K"
+        s += "QRSD"
+        s += "\x1b[1D"
+        s += "\x1b[1C"
+        s += "\x1b[1D"
+        s += "T"
+        s += "\x1b[4A"
+        s += "\x1b[1K"
+        s += "\r"
+        s += "1234"
+        s += "\x1b[4B"
+        s += "\r"
+        s += "WXYZ"
+        s += "\x1b[2K"
+        print(s)
+        r.uninstall()
+        assert o == [b"1234", b"EFGH", b"IJKL", b"QRST"]
+
+
+@pytest.mark.parametrize("cls", impls)
+def test_erase_screen(cls, capfd):
+    with capfd.disabled():
+        o = CapList()
+        r = cls("stdout", cbs=[o.append])
+        r.install()
+        s = "QWERT\nYUIOP\n12345"
+        s += "\r"
+        s += "\x1b[J"
+        s += "\x1b[A"
+        s += "\r"
+        s += "\x1b[1J"
+        print(s)
+        r.uninstall()
+        assert o == [b" UIOP"]
+        o = CapList()
+        r = cls("stdout", cbs=[o.append])
+        r.install()
+        print("QWERT\nYUIOP\n12345")
+        print("\x1b[2J")
+        r.uninstall()
+        assert o == []
 
 
 @pytest.mark.parametrize("cls", impls)
