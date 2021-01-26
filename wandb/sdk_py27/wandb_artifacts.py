@@ -17,7 +17,7 @@ from wandb import util
 from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
-if wandb.TYPE_CHECKING:  # type: ignore
+if False:  # TYPECHECKING
     from typing import Optional
 
 # This makes the first sleep 1s, and then doubles it up to total times,
