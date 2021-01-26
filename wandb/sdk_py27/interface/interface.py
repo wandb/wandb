@@ -197,7 +197,8 @@ class BackendSender(object):
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
         proto_artifact.digest = artifact.digest
-        proto_artifact.distributed_id = artifact.distributed_id
+        if artifact.distributed_id:
+            proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:

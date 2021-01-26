@@ -35,6 +35,7 @@ from wandb.viz import (
     Visualize,
 )
 
+from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
@@ -1835,11 +1836,11 @@ class Run(object):
     def _log_artifact(
         self,
         artifact_or_path,
-        name=None,
-        type=None,
-        aliases=None,
-        distributed_id=None,
-        finalize=True,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
+        finalize = True,
     ):
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -1848,9 +1849,10 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(
-            self, artifact, aliases, finalize=finalize
-        )
+        if self._backend:
+            self._backend.interface.publish_artifact(
+                self, artifact, aliases, finalize=finalize
+            )
         return artifact
 
     def _public_api(self):
@@ -1877,7 +1879,13 @@ class Run(object):
                     )
                 )
 
-    def _prepare_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+    def _prepare_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+    ):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
