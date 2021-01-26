@@ -129,7 +129,8 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
 
         files_in_version = random.randrange(files_per_version_min, files_per_version_max)
         version_fnames = random.sample(fnames, files_in_version)
-        chunks = [version_fnames[i:i + len(version_fnames)] for i in range(len(version_fnames))]
+        chunk_size = max(len(version_fnames) / fanout, 1)
+        chunks = [version_fnames[i:i + chunk_size] for i in range(0, len(version_fnames), chunk_size)]
 
         def train(i):
             with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
@@ -137,7 +138,6 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
                 for file in chunks[i]:
                     art.add_file(file)
                 run.upsert_artifact(art)
-                run.finish()
 
         pool = multiprocessing.dummy.Pool(fanout)
         pool.map(train, range(fanout))
@@ -147,7 +147,6 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
         with wandb.init(project=project_name, group=group_name, job_type='writer') as run:
             art = wandb.Artifact(artifact_name, type='dataset')
             run.finish_artifact(art)
-            run.finish()
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
 
 
