@@ -1883,7 +1883,7 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        if self.group is None and distributed_id is None:
+        if self.group == "" and distributed_id is None:
             raise TypeError(
                 "Cannot upsert artifact unless run is in a group or distributed_id is provided"
             )

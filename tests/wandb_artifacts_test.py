@@ -7,6 +7,7 @@ import shutil
 import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
+import time
 
 
 def mock_boto(artifact, path=False):
@@ -702,3 +703,43 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
             },
             "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }
+
+
+def test_artifact_partial(runner, mock_server):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Upsert without a group or id should fail
+    run = wandb.init()
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_1")
+    with pytest.raises(TypeError):
+        print("G:", run.group)
+        run.upsert_artifact(artifact)
+    run.finish()
+
+    # Upsert with a group should succeed
+    run = wandb.init(group=group_name)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_1")
+    run.upsert_artifact(artifact)
+    run.finish()
+
+    # Upsert with a distributed_id should succeed
+    run = wandb.init()
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_2")
+    run.upsert_artifact(artifact, distributed_id=group_name)
+    run.finish()
+
+    # Finish with a distributed_id should succeed
+    run = wandb.init()
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact, distributed_id=group_name)
+    run.finish()
