@@ -808,7 +808,7 @@ class PartitionedTable(Media):
             json_obj["parts_path"]
         )
         for entry in entries:
-            instance._add_part_entry(entry)
+            instance._add_part_entry(entry, source_artifact)
         return instance
 
     def iterrows(self):
@@ -1598,7 +1598,7 @@ class JoinedTable(Media):
                 base64.standard_b64decode(table.entry.digest)
             ).decode("ascii")[:8]
             entry = artifact.add_reference(
-                table.ref_url(), "{}.{}.json".format(name, table.artifact_type)
+                table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
             table = entry.path
 
