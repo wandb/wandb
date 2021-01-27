@@ -705,7 +705,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
         }
 
 
-def test_artifact_partial(runner, live_mock_server, test_settings):
+def test_artifact_upsert_no_id(runner, live_mock_server, test_settings):
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = "distributed_artifact_{}".format(round(time.time()))
@@ -721,6 +721,14 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
         run.upsert_artifact(artifact)
     run.finish()
 
+
+def test_artifact_upsert_group_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
     # Upsert with a group should succeed
     run = wandb.init(group=group_name, settings=test_settings)
     artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
@@ -728,6 +736,14 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
     artifact.add(image, "image_1")
     run.upsert_artifact(artifact)
     run.finish()
+
+
+def test_artifact_upsert_distributed_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
 
     # Upsert with a distributed_id should succeed
     run = wandb.init(settings=test_settings)
@@ -737,12 +753,42 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
     run.upsert_artifact(artifact, distributed_id=group_name)
     run.finish()
 
+
+def test_artifact_finish_no_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
     # Finish without a distributed_id should fail
     run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     with pytest.raises(TypeError):
         run.finish_artifact(artifact)
     run.finish()
+
+
+def test_artifact_finish_group_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Finish with a distributed_id should succeed
+    run = wandb.init(group=group_name, settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact)
+    run.finish()
+
+
+def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
 
     # Finish with a distributed_id should succeed
     run = wandb.init(settings=test_settings)
