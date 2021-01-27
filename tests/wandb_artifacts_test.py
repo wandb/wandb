@@ -8,6 +8,7 @@ import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
 import time
+import platform
 
 
 def mock_boto(artifact, path=False):
