@@ -1586,16 +1586,28 @@ def gc(args):
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
     api = _get_cling_api()
-
+    reinit = False
+    print(host, api.settings("base_url"))
     if host is None:
         host = api.settings("base_url")
+    # if the given host does not match the default host, re run init
+    elif host != api.settings("base_url"):
+        reinit = True
 
     tmp_dir = tempfile.TemporaryDirectory()
     os.chdir(tmp_dir.name)
+    if reinit:
+        print(
+            "Given host does not match default, reinitializing directory with host: {}".format(
+                host
+            )
+        )
+        os.system("WANDB_BASE_URL={} wandb init".format(host))
+        api = _get_cling_api(reset=True)
     if not wandb_verify.check_host(host):
         return
     url = wandb_verify.check_graphql_put(api, host)
-    wandb_verify.check_large_post(api, host)
+    wandb_verify.check_large_post()
     wandb_verify.check_secure_requests(
         api.settings("base_url"),
         "Checking requests to base url",

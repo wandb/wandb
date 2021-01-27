@@ -385,7 +385,11 @@ def check_graphql_put(api, host):
     f = open(gql_fp, "w")
     f.write("test2")
     f.close()
-    with wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"}) as run:
+    with wandb.init(
+        project=PROJECT_NAME,
+        config={"test": "put to graphql"},
+        settings=wandb.Settings(base_url=host),
+    ) as run:
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
             print_results(
@@ -427,7 +431,7 @@ def check_graphql_put(api, host):
     return url
 
 
-def check_large_post(api, host):
+def check_large_post():
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
