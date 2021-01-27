@@ -659,11 +659,13 @@ def test_numpy_arrays_to_list():
 
 
 def test_partitioned_table_from_json(runner, mock_server, api):
-    # This is mocked and expected to not contain any parts
+    # This is mocked to return some data
     art = api.artifact("entity/project/mnist:v0", type="dataset")
-    pt = wandb.data_types.PartitionedTable.from_json({"parts_path": "parts"}, art)
-    for ndx, row in pt.iterrows():
-        assert False
+    ptable = art.get("parts/1")
+    ptable = art.get("dataset")
+    data = [[0, 0, 1]]
+    for ndx, row in ptable.iterrows():
+        assert row == data[ndx]
 
 
 def test_partitioned_table():

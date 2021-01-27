@@ -633,6 +633,14 @@ def create_app(user_ctx=None):
                 "storagePolicyConfig": {},
                 "contents": {
                     "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299},
+                    "dataset.partitioned-table.json": {
+                        "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                        "size": 81299,
+                    },
+                    "parts/1.table.json": {
+                        "digest": "1aaaaaaaaaaaaaaaaaaaaa==",
+                        "size": 81299,
+                    },
                 },
             }
         elif file == "wandb-metadata.json":
@@ -660,6 +668,62 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
+        if entity == "entity":
+            if (
+                digest == "d1a69a69a69a69a69a69a69a69a69a69"
+            ):  # "dataset.partitioned-table.json"
+                return (
+                    json.dumps({"_type": "partitioned-table", "parts_path": "parts"}),
+                    200,
+                )
+            elif digest == "d5a69a69a69a69a69a69a69a69a69a69":  # "parts/1.table.json"
+                return (
+                    json.dumps(
+                        {
+                            "_type": "table",
+                            "column_types": {
+                                "params": {
+                                    "type_map": {
+                                        "A": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                        "B": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                        "C": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                    }
+                                },
+                                "wb_type": "dictionary",
+                            },
+                            "columns": ["A", "B", "C"],
+                            "data": [[0, 0, 1]],
+                            "ncols": 3,
+                            "nrows": 1,
+                        }
+                    ),
+                    200,
+                )
+
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
