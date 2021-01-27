@@ -113,7 +113,7 @@ def check_run(api: Api) -> None:
     f.write("test")
     f.close()
 
-    with wandb.init(reinit=True, config=config) as run:
+    with wandb.init(config=config, project=PROJECT_NAME) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -344,7 +344,7 @@ def check_artifacts() -> None:
     multi_art_dir = "./verify_art"
     alias = "art1"
     name = "my-artys"
-    art1 = artifact_with_path_or_paths(alias, "./verify_art_dir", singular=False)
+    art1 = artifact_with_path_or_paths(name, "./verify_art_dir", singular=False)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
     )
@@ -475,21 +475,20 @@ def check_large_post(api: Api, host: str) -> None:
 
 def check_wandb_version(api: Api) -> None:
     print("Checking wandb package version is up to date".ljust(72, "."), end="")
-    fail_strings = []
     _, server_info = api.viewer_server_info()
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
     min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
-        fail_strings.append(
-            "wandb version out of date, please run pip install --upgrade wandb=={}".format(
-                max_cli_version
-            )
+        fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
+            max_cli_version
         )
-        print_results(fail_strings, False)
+        print_results(fail_string, False)
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
-        fail_strings.append(
+        fail_string = (
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run pip "
             "install --upgrade wandb=={}".format(max_cli_version)
         )
-        print_results(fail_strings, True)
+        print_results(fail_string, True)
+    else:
+        print_results()
