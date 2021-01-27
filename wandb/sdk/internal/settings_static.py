@@ -17,6 +17,11 @@ class SettingsStatic(object):
     _disable_meta: Optional[bool]
     _start_time: float
     files_dir: str
+    log_internal: str
+    _internal_check_process: bool
+
+    # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
+    _log_level: int
 
     def __init__(self, config):
         object.__setattr__(self, "__dict__", dict(config))
