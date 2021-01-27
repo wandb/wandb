@@ -718,7 +718,6 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
     artifact.add(image, "image_1")
     with pytest.raises(TypeError):
-        print("G:", run.group)
         run.upsert_artifact(artifact)
     run.finish()
 
@@ -736,6 +735,13 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
     artifact.add(image, "image_2")
     run.upsert_artifact(artifact, distributed_id=group_name)
+    run.finish()
+
+    # Finish without a distributed_id should fail
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    with pytest.raises(TypeError):
+        run.finish_artifact(artifact)
     run.finish()
 
     # Finish with a distributed_id should succeed
