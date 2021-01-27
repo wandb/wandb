@@ -16,20 +16,18 @@ from wandb import util
 
 from . import run as internal_run
 
-try:
-    from tensorboard.backend.event_processing import event_file_loader
-except ImportError:
-    raise Exception("Please install tensorboard package")
-
 if wandb.TYPE_CHECKING:
-    from typing import Dict, List, Optional
-    from .settings_static import SettingsStatic
-    from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+    import typing
+    if typing.TYPE_CHECKING:
+        from typing import Any, Dict, List, Optional
+        from .settings_static import SettingsStatic
+        from ..interface.interface import BackendSender
+        from wandb.proto.wandb_internal_pb2 import RunRecord
+        from six.moves.queue import PriorityQueue
+        from tensorboard.compat.proto.event_pb2 import ProtoEvent
+        from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
-    HistoryDict = Dict[str, object]
+        HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -211,10 +209,15 @@ class TBDirWatcher(object):
 
     def _loader(
         self, save: bool = True, namespace: str = None
-    ) -> event_file_loader.EventFileLoader:
+    ) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
+        try:
+            from tensorboard.backend.event_processing import event_file_loader
+        except ImportError:
+            raise Exception("Please install tensorboard package")
+
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
