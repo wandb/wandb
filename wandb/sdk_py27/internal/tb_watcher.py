@@ -16,20 +16,21 @@ from wandb import util
 
 from . import run as internal_run
 
-try:
-    from tensorboard.backend.event_processing import event_file_loader
-except ImportError:
-    raise Exception("Please install tensorboard package")
-
 if wandb.TYPE_CHECKING:
-    from typing import Dict, List, Optional
-    from .settings_static import SettingsStatic
-    from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+    from typing import TYPE_CHECKING
 
-    HistoryDict = Dict[str, object]
+    if TYPE_CHECKING:
+        from ..interface.interface import BackendSender
+        from .settings_static import SettingsStatic
+        from typing import Dict, List, Optional
+        from wandb.proto.wandb_internal_pb2 import RunRecord
+        from six.moves.queue import PriorityQueue
+        from tensorboard.compat.proto.event_pb2 import ProtoEvent
+        from tensorboard.backend.event_processing.event_file_loader import (
+            EventFileLoader,
+        )
+
+        HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -96,11 +97,14 @@ def is_tfevents_file_created_by(path, hostname, start_time):
 
 
 class TBWatcher(object):
-    # _logdirs: Dict[str, "TBDirWatcher"]
+    # _logdirs: "Dict[str, TBDirWatcher]"
     # _watcher_queue: "PriorityQueue"
 
     def __init__(
-        self, settings, run_proto, interface
+        self,
+        settings,
+        run_proto,
+        interface,
     ):
         self._logdirs = {}
         self._consumer = None
@@ -112,7 +116,7 @@ class TBWatcher(object):
         wandb.tensorboard.reset_state()
 
     def _calculate_namespace(self, logdir, rootdir):
-        # namespace: Optional[str]
+        # namespace: "Optional[str]"
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -209,12 +213,14 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(
-        self, save = True, namespace = None
-    ):
+    def _loader(self, save = True, namespace = None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
+        try:
+            from tensorboard.backend.event_processing import event_file_loader
+        except ImportError:
+            raise Exception("Please install tensorboard package")
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path):
@@ -377,8 +383,8 @@ class TBEventConsumer(object):
 
 
 class TBHistory(object):
-    # _data: HistoryDict
-    # _added: List[HistoryDict]
+    # _data: "HistoryDict"
+    # _added: "List[HistoryDict]"
 
     def __init__(self):
         self._step = 0

@@ -17,15 +17,18 @@ from wandb import util
 from . import run as internal_run
 
 if wandb.TYPE_CHECKING:
-    import typing
-    if typing.TYPE_CHECKING:
-        from typing import Any, Dict, List, Optional
-        from .settings_static import SettingsStatic
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
         from ..interface.interface import BackendSender
+        from .settings_static import SettingsStatic
+        from typing import Dict, List, Optional
         from wandb.proto.wandb_internal_pb2 import RunRecord
         from six.moves.queue import PriorityQueue
         from tensorboard.compat.proto.event_pb2 import ProtoEvent
-        from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+        from tensorboard.backend.event_processing.event_file_loader import (
+            EventFileLoader,
+        )
 
         HistoryDict = Dict[str, object]
 
@@ -37,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def _link_and_save_file(
-    path: str, base_path: str, interface: BackendSender, settings: SettingsStatic
+    path: str, base_path: str, interface: "BackendSender", settings: "SettingsStatic"
 ) -> None:
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
@@ -94,11 +97,14 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
 
 
 class TBWatcher(object):
-    _logdirs: Dict[str, "TBDirWatcher"]
+    _logdirs: "Dict[str, TBDirWatcher]"
     _watcher_queue: "PriorityQueue"
 
     def __init__(
-        self, settings: SettingsStatic, run_proto: RunRecord, interface: BackendSender
+        self,
+        settings: "SettingsStatic",
+        run_proto: "RunRecord",
+        interface: "BackendSender",
     ) -> None:
         self._logdirs = {}
         self._consumer = None
@@ -109,8 +115,8 @@ class TBWatcher(object):
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
-        namespace: Optional[str]
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
+        namespace: "Optional[str]"
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -168,7 +174,7 @@ class TBDirWatcher(object):
         tbwatcher: "TBWatcher",
         logdir: str,
         save: bool,
-        namespace: Optional[str],
+        namespace: "Optional[str]",
         queue: "PriorityQueue",
     ) -> None:
         self.directory_watcher = util.get_module(
@@ -207,9 +213,7 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(
-        self, save: bool = True, namespace: str = None
-    ) -> "EventFileLoader":
+    def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
@@ -217,7 +221,6 @@ class TBDirWatcher(object):
             from tensorboard.backend.event_processing import event_file_loader
         except ImportError:
             raise Exception("Please install tensorboard package")
-
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
@@ -245,7 +248,7 @@ class TBDirWatcher(object):
 
     def _thread_body(self) -> None:
         """Check for new events every second"""
-        shutdown_time: Optional[float] = None
+        shutdown_time: "Optional[float]" = None
         while True:
             try:
                 for event in self._generator.Load():
@@ -267,7 +270,7 @@ class TBDirWatcher(object):
                     break
             time.sleep(1)
 
-    def process_event(self, event: ProtoEvent) -> None:
+    def process_event(self, event: "ProtoEvent") -> None:
         # print("\nEVENT:::", self._logdir, self._namespace, event, "\n")
         if self._first_event_timestamp is None:
             self._first_event_timestamp = event.wall_time
@@ -289,7 +292,7 @@ class TBDirWatcher(object):
 class Event(object):
     """An event wrapper to enable priority queueing"""
 
-    def __init__(self, event: ProtoEvent, namespace: Optional[str]):
+    def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
@@ -311,8 +314,8 @@ class TBEventConsumer(object):
         self,
         tbwatcher: TBWatcher,
         queue: "PriorityQueue",
-        run_proto: RunRecord,
-        settings: SettingsStatic,
+        run_proto: "RunRecord",
+        settings: "SettingsStatic",
         delay: int = 10,
     ) -> None:
         self._tbwatcher = tbwatcher
@@ -367,7 +370,7 @@ class TBEventConsumer(object):
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event: ProtoEvent, history: "TBHistory" = None) -> None:
+    def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
@@ -375,13 +378,13 @@ class TBEventConsumer(object):
             history=history,
         )
 
-    def _save_row(self, row: HistoryDict) -> None:
+    def _save_row(self, row: "HistoryDict") -> None:
         self._tbwatcher._interface.publish_history(row, run=self._internal_run)
 
 
 class TBHistory(object):
-    _data: HistoryDict
-    _added: List[HistoryDict]
+    _data: "HistoryDict"
+    _added: "List[HistoryDict]"
 
     def __init__(self) -> None:
         self._step = 0
@@ -395,15 +398,15 @@ class TBHistory(object):
         self._added.append(self._data)
         self._step += 1
 
-    def add(self, d: HistoryDict) -> None:
+    def add(self, d: "HistoryDict") -> None:
         self._flush()
         self._data = dict()
         self._data.update(d)
 
-    def _row_update(self, d: HistoryDict) -> None:
+    def _row_update(self, d: "HistoryDict") -> None:
         self._data.update(d)
 
-    def _get_and_reset(self) -> List[HistoryDict]:
+    def _get_and_reset(self) -> "List[HistoryDict]":
         added = self._added[:]
         self._added = []
         return added
