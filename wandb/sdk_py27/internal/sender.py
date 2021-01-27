@@ -711,9 +711,9 @@ class SendManager(object):
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
-            if max_cli_version is None or parse_version(max_cli_version) < parse_version(
-                "0.10.16"
-            ):
+            if max_cli_version is None or parse_version(
+                max_cli_version
+            ) < parse_version("0.10.16"):
                 logger.warning(
                     "This W&B server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"

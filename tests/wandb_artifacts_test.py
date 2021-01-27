@@ -721,23 +721,21 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
         run.upsert_artifact(artifact)
     run.finish()
 
-    # TODO: Uncomment once core is updated
     # Upsert with a group should succeed
-    # run = wandb.init(group=group_name, settings=test_settings)
-    # artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    # image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    # artifact.add(image, "image_1")
-    # run.upsert_artifact(artifact)
-    # run.finish()
+    run = wandb.init(group=group_name, settings=test_settings)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_1")
+    run.upsert_artifact(artifact)
+    run.finish()
 
-    # TODO: Uncomment once core is updated
     # Upsert with a distributed_id should succeed
-    # run = wandb.init(settings=test_settings)
-    # artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    # image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    # artifact.add(image, "image_2")
-    # run.upsert_artifact(artifact, distributed_id=group_name)
-    # run.finish()
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_2")
+    run.upsert_artifact(artifact, distributed_id=group_name)
+    run.finish()
 
     # Finish without a distributed_id should fail
     run = wandb.init(settings=test_settings)
@@ -746,9 +744,8 @@ def test_artifact_partial(runner, live_mock_server, test_settings):
         run.finish_artifact(artifact)
     run.finish()
 
-    # TODO: Uncomment once core is updated
     # Finish with a distributed_id should succeed
-    # run = wandb.init(settings=test_settings)
-    # artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    # run.finish_artifact(artifact, distributed_id=group_name)
-    # run.finish()
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact, distributed_id=group_name)
+    run.finish()
