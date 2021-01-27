@@ -718,7 +718,7 @@ class SendManager(object):
                     "This W&B server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-            return
+                return
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         try:
