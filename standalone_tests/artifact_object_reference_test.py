@@ -732,9 +732,8 @@ def test_simple_partition_table():
     # test
     run = wandb.init(project=WANDB_PROJECT)
     partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
-    table = partition_table.materialize()
-    assert table.columns == columns
-    assert table.data == data
+    for ndx, row in partition_table.iterrows():
+        assert row == data[ndx]
 
 if __name__ == "__main__":
     _cleanup()
