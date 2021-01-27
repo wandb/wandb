@@ -748,6 +748,36 @@ class Table(Media):
 
         return json_dict
 
+    def iterrows(self):
+        """Iterate over rows as (ndx, row)
+        Yields
+        ------
+        index : int
+            The index of the row.
+        row : List[any]
+            The data of the row
+        """
+        for ndx in range(len(self.data)):
+            yield ndx, self.data[ndx]
+
+
+class _PartitionTablePartEntry:
+    """Helper class for PartitionTable to track its parts
+    """
+
+    def __init__(self, entry, source_artifact):
+        self.entry = entry
+        self.source_artifact = source_artifact
+        self._part = None
+
+    def get_part(self):
+        if self._part is None:
+            self._part = self.source_artifact.get(self.entry.path)
+        return self._part
+
+    def free(self):
+        self._part = None
+
 
 class PartitionedTable(Media):
     """ PartitionedTable represents a table which is composed
@@ -764,7 +794,7 @@ class PartitionedTable(Media):
         """
         super(PartitionedTable, self).__init__()
         self.parts_path = parts_path
-        self._loaded_parts = []
+        self._loaded_part_entries = {}
 
     def to_json(self, artifact):
         json_obj = super(PartitionedTable, self).to_json(artifact)
@@ -778,21 +808,22 @@ class PartitionedTable(Media):
             json_obj["parts_path"]
         )
         for entry in entries:
-            part = source_artifact.get(entry.path)
-            if isinstance(part, Table):
-                instance._add_part(part)
+            instance._add_part_entry(entry)
         return instance
 
-    def materialize(self):
-        """Returns a wandb.Table which is the union of all parts in
-        the partition table.
-
-        Returns:
-            wandb.Table: union of all parts.
+    def iterrows(self):
+        """Iterate over rows as (ndx, row)
+        Yields
+        ------
+        index : int
+            The index of the row.
+        row : List[any]
+            The data of the row
         """
         columns = None
-        data = []
-        for part in self._loaded_parts:
+        ndx = 0
+        for entry_path in self._loaded_part_entries:
+            part = self._loaded_part_entries[entry_path].get_part()
             if columns is None:
                 columns = part.columns
             elif columns != part.columns:
@@ -801,11 +832,16 @@ class PartitionedTable(Media):
                         columns, part.columns
                     )
                 )
-            data += part.data
-        return wandb.Table(data=data, columns=columns if columns is not None else [])
+            for _, row in part.iterrows():
+                yield ndx, row
+                ndx += 1
 
-    def _add_part(self, part):
-        self._loaded_parts.append(part)
+            self._loaded_part_entries[entry_path].free()
+
+    def _add_part_entry(self, entry, source_artifact):
+        self._loaded_part_entries[entry.path] = _PartitionTablePartEntry(
+            entry, source_artifact
+        )
 
     def __ne__(self, other):
         return not self.__eq__(other)

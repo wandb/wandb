@@ -590,6 +590,16 @@ def test_table_from_list():
     assert table.data == table_data
 
 
+def test_table_iterator():
+    table = wandb.Table(data=table_data)
+    for ndx, row in table.iterrows():
+        assert row == table_data[ndx]
+
+    table = wandb.Table(data=[])
+    for ndx, row in table.iterrows():
+        assert False
+
+
 def test_table_from_numpy():
     np_data = np.array(table_data)
     table = wandb.Table(data=np_data)
