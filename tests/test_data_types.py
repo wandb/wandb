@@ -602,8 +602,10 @@ def test_table_iterator():
         assert row == table_data[ndx]
 
     table = wandb.Table(data=[])
+    row_cnt = 0
     for ndx, row in table.iterrows():
-        assert False
+        row_cnt += 1
+    assert row_cnt == 0
 
 
 def test_table_from_numpy():
@@ -669,7 +671,9 @@ def test_partitioned_table_from_json(runner, mock_server, api):
 
 def test_partitioned_table():
     partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    row_cnt = 0
     for ndx, row in partition_table.iterrows():
-        assert False
+        row_cnt += 1
+    assert row_cnt == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
