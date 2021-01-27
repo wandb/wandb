@@ -20,9 +20,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
 
+
 @pytest.fixture
 def api(runner):
     return Api()
+
 
 def test_raw_data():
     wbhist = wandb.Histogram(data)
@@ -655,12 +657,14 @@ def test_numpy_arrays_to_list():
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
 
+
 def test_partitioned_table_from_json(runner, mock_server, api):
     # This is mocked and expected to not contain any parts
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     pt = wandb.data_types.PartitionedTable.from_json({"parts_path": "parts"}, art)
     for ndx, row in pt.iterrows():
         assert False
+
 
 def test_partitioned_table():
     partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
