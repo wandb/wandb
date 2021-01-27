@@ -654,6 +654,7 @@ def test_numpy_arrays_to_list():
 
 def test_partitioned_table():
     partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
-    assert partition_table.materialize() == wandb.Table(columns=[], data=[])
+    for ndx, row in partition_table.iterrows():
+        assert False
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
