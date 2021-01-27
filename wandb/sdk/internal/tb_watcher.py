@@ -16,12 +16,20 @@ from wandb import util
 
 from . import run as internal_run
 
+try:
+    from tensorboard.backend.event_processing import event_file_loader
+except ImportError:
+    raise Exception("Please install tensorboard package")
+
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, Optional
+    from typing import Dict, List, Optional
     from .settings_static import SettingsStatic
     from ..interface.interface import BackendSender
     from wandb.proto.wandb_internal_pb2 import RunRecord
     from six.moves.queue import PriorityQueue
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+
+    HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -169,10 +177,10 @@ class TBDirWatcher(object):
             "tensorboard.backend.event_processing.directory_watcher",
             required="Please install tensorboard package",
         )
-        self.event_file_loader = util.get_module(
-            "tensorboard.backend.event_processing.event_file_loader",
-            required="Please install tensorboard package",
-        )
+        # self.event_file_loader = util.get_module(
+        #     "tensorboard.backend.event_processing.event_file_loader",
+        #     required="Please install tensorboard package",
+        # )
         self.tf_compat = util.get_module(
             "tensorboard.compat", required="Please install tensorboard package"
         )
@@ -182,7 +190,7 @@ class TBDirWatcher(object):
         )
         self._thread = threading.Thread(target=self._thread_body)
         self._first_event_timestamp = None
-        self._shutdown = None
+        self._shutdown = threading.Event()
         self._queue = queue
         self._file_version = None
         self._namespace = namespace
@@ -201,13 +209,15 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(self, save: bool = True, namespace: str = None) -> Any:
+    def _loader(
+        self, save: bool = True, namespace: str = None
+    ) -> event_file_loader.EventFileLoader:
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
 
-        class EventFileLoader(self.event_file_loader.EventFileLoader):
-            def __init__(self, file_path):
+        class EventFileLoader(event_file_loader.EventFileLoader):
+            def __init__(self, file_path: str) -> None:
                 super(EventFileLoader, self).__init__(file_path)
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
@@ -232,7 +242,7 @@ class TBDirWatcher(object):
 
     def _thread_body(self) -> None:
         """Check for new events every second"""
-        shutdown_time = None
+        shutdown_time: Optional[float] = None
         while True:
             try:
                 for event in self._generator.Load():
@@ -244,9 +254,9 @@ class TBDirWatcher(object):
             ) as e:
                 # When listing s3 the directory may not yet exist, or could be empty
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
-                if not self._shutdown:
+                if not self._shutdown.is_set():
                     time.sleep(ERROR_DELAY)
-            if self._shutdown:
+            if self._shutdown.is_set():
                 now = time.time()
                 if not shutdown_time:
                     shutdown_time = now + SHUTDOWN_DELAY
@@ -254,7 +264,7 @@ class TBDirWatcher(object):
                     break
             time.sleep(1)
 
-    def process_event(self, event):
+    def process_event(self, event: ProtoEvent) -> None:
         # print("\nEVENT:::", self._logdir, self._namespace, event, "\n")
         if self._first_event_timestamp is None:
             self._first_event_timestamp = event.wall_time
@@ -265,10 +275,10 @@ class TBDirWatcher(object):
         if event.HasField("summary"):
             self._queue.put(Event(event, self._namespace))
 
-    def shutdown(self):
-        self._shutdown = True
+    def shutdown(self) -> None:
+        self._shutdown.set()
 
-    def finish(self):
+    def finish(self) -> None:
         self.shutdown()
         self._thread.join()
 
@@ -276,13 +286,15 @@ class TBDirWatcher(object):
 class Event(object):
     """An event wrapper to enable priority queueing"""
 
-    def __init__(self, event, namespace):
+    def __init__(self, event: ProtoEvent, namespace: Optional[str]):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
 
-    def __lt__(self, other):
-        return self.event.wall_time < other.event.wall_time
+    def __lt__(self, other: "Event") -> bool:
+        if self.event.wall_time < other.event.wall_time:
+            return True
+        return False
 
 
 class TBEventConsumer(object):
@@ -292,44 +304,54 @@ class TBEventConsumer(object):
     out of order steps.
     """
 
-    def __init__(self, tbwatcher, queue, run_proto, settings, delay=10):
+    def __init__(
+        self,
+        tbwatcher: TBWatcher,
+        queue: "PriorityQueue",
+        run_proto: RunRecord,
+        settings: SettingsStatic,
+        delay: int = 10,
+    ) -> None:
         self._tbwatcher = tbwatcher
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
-        self._shutdown = None
+        self._shutdown = threading.Event()
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname):
+        def datatypes_cb(fname: str) -> None:
             files = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
 
-    def start(self):
+    def start(self) -> None:
         self._start_time = time.time()
         self._thread.start()
 
-    def finish(self):
+    def finish(self) -> None:
         self._delay = 0
-        self._shutdown = True
+        self._shutdown.set()
         self._thread.join()
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
         tb_history = TBHistory()
         while True:
             try:
                 event = self._queue.get(True, 1)
                 # Wait self._delay seconds from consumer start before logging events
-                if time.time() < self._start_time + self._delay and not self._shutdown:
+                if (
+                    time.time() < self._start_time + self._delay
+                    and not self._shutdown.is_set()
+                ):
                     self._queue.put(event)
                     time.sleep(0.1)
                     continue
             except queue.Empty:
                 event = None
-                if self._shutdown:
+                if self._shutdown.is_set():
                     break
             if event:
                 self._handle_event(event, history=tb_history)
@@ -342,7 +364,7 @@ class TBEventConsumer(object):
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event, history=None):
+    def _handle_event(self, event: ProtoEvent, history: "TBHistory" = None) -> None:
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
@@ -350,32 +372,35 @@ class TBEventConsumer(object):
             history=history,
         )
 
-    def _save_row(self, row):
+    def _save_row(self, row: HistoryDict) -> None:
         self._tbwatcher._interface.publish_history(row, run=self._internal_run)
 
 
 class TBHistory(object):
-    def __init__(self):
+    _data: HistoryDict
+    _added: List[HistoryDict]
+
+    def __init__(self) -> None:
         self._step = 0
         self._data = dict()
         self._added = []
 
-    def _flush(self):
+    def _flush(self) -> None:
         if not self._data:
             return
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1
 
-    def add(self, d):
+    def add(self, d: HistoryDict) -> None:
         self._flush()
         self._data = dict()
         self._data.update(d)
 
-    def _row_update(self, d):
+    def _row_update(self, d: HistoryDict) -> None:
         self._data.update(d)
 
-    def _get_and_reset(self):
+    def _get_and_reset(self) -> List[HistoryDict]:
         added = self._added[:]
         self._added = []
         return added
