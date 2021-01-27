@@ -3,7 +3,6 @@ from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
-import os
 import ast
 import os
 import json
@@ -12,11 +11,7 @@ import re
 import click
 import logging
 import requests
-import socket
-import time
 import sys
-import random
-import traceback
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -24,21 +19,18 @@ else:
     import subprocess  # type: ignore[no-redef]
 
 import six
-from six import b
 from six import BytesIO
 import wandb
 from wandb import __version__
-from wandb.old.core import wandb_dir, Error
 from wandb import env
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
+from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
-from .file_stream import FileStreamApi
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -1691,7 +1683,7 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $distributedID: String
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1705,7 +1697,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                distributedID: $distributedID
+                %s
             }) {
                 artifact {
                     id
@@ -1726,6 +1718,13 @@ class Api(object):
             }
         }
         """
+            %
+            # For backwards compatibility with older backends that don't support
+            # distributed writers.
+            (
+                "$distributedID: String" if distributed_id else "",
+                "distributedID: $distributedID" if distributed_id else "",
+            )
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -1811,7 +1810,7 @@ class Api(object):
             $projectName: String!,
             $runName: String!,
             $includeUpload: Boolean!,
-            $type: ArtifactManifestType = FULL
+            %s
         ) {
             createArtifactManifest(input: {
                 name: $name,
@@ -1821,7 +1820,7 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                type: $type
+                %s
             }) {
                 artifactManifest {
                     id
@@ -1836,6 +1835,13 @@ class Api(object):
             }
         }
         """
+            %
+            # For backwards compatibility with older backends that don't support
+            # patch manifests.
+            (
+                "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
+                "type: $type" if type != "FULL" else "",
+            )
         )
 
         entity_name = entity or self.settings("entity")

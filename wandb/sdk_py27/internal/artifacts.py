@@ -122,7 +122,7 @@ class ArtifactSaver(object):
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
-            type="FULL" if distributed_id is None else "PATCH",
+            type="FULL" if not distributed_id else "PATCH",
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(
@@ -148,9 +148,24 @@ class ArtifactSaver(object):
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
-            _, resp = self._api.update_artifact_manifest(
-                artifact_manifest_id, digest=digest,
-            )
+            if distributed_id:
+                # If we're in the distributed flow, we want to update the
+                # patch manifest we created with our finalized digest.
+                _, resp = self._api.update_artifact_manifest(
+                    artifact_manifest_id, digest=digest,
+                )
+            else:
+                # In the regular flow, we can recreate the full manifest with the
+                # updated digest.
+                #
+                # NOTE: We do this for backwards compatibility with older backends
+                # that don't support the 'updateArtifactManifest' API.
+                _, resp = self._api.create_artifact_manifest(
+                    "wandb_manifest.json",
+                    digest,
+                    artifact_id,
+                    base_artifact_id=latest_artifact_id,
+                )
 
             # We're duplicating the file upload logic a little, which isn't great.
             upload_url = resp["uploadUrl"]
