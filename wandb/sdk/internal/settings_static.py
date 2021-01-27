@@ -15,6 +15,8 @@ class SettingsStatic(object):
     _offline: Optional[bool]
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _start_time: float
+    files_dir: str
 
     def __init__(self, config):
         object.__setattr__(self, "__dict__", dict(config))
