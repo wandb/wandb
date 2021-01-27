@@ -705,6 +705,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
         }
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="Test is busted in windows")
 def test_artifact_partial(runner, live_mock_server, test_settings):
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
