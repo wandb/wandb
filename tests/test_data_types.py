@@ -660,8 +660,7 @@ def test_numpy_arrays_to_list():
 
 def test_partitioned_table_from_json(runner, mock_server, api):
     # This is mocked to return some data
-    art = api.artifact("entity/project/mnist:v0", type="dataset")
-    ptable = art.get("parts/1")
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
     ptable = art.get("dataset")
     data = [[0, 0, 1]]
     for ndx, row in ptable.iterrows():
