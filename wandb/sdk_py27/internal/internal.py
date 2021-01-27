@@ -42,7 +42,7 @@ if wandb.TYPE_CHECKING:
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
         from .settings_static import SettingsStatic
-        from typing import Any, Dict, List, Optional
+        from typing import Any, Dict, List, Optional, Union
         from six.moves.queue import Queue
         from .internal_util import RecordLoopThread
         from wandb.proto.wandb_internal_pb2 import Record, Result
@@ -53,7 +53,9 @@ logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings, record_q, result_q
+    settings,
+    record_q,
+    result_q,
 ):
     """Internal process function entrypoint.
 
@@ -189,6 +191,10 @@ def configure_logging(log_fname, log_level, run_id = None):
 class HandlerThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to handler routines."""
 
+    # _record_q: "Queue[Record]"
+    # _result_q: "Queue[Result]"
+    # _stopped: "Event"
+
     def __init__(
         self,
         settings,
@@ -232,6 +238,9 @@ class HandlerThread(internal_util.RecordLoopThread):
 class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
 
+    # _record_q: "Queue[Record]"
+    # _result_q: "Queue[Result]"
+
     def __init__(
         self,
         settings,
@@ -266,6 +275,9 @@ class SenderThread(internal_util.RecordLoopThread):
 
 class WriterThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to writer routines."""
+
+    # _record_q: "Queue[Record]"
+    # _result_q: "Queue[Result]"
 
     def __init__(
         self,
