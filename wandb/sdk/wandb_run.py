@@ -1781,7 +1781,7 @@ class Run(object):
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         print("done using artifact")
         api.set_current_run_id(self.id)
-
+        print("set id")
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
             public_api = self._public_api()
