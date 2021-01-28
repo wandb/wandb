@@ -1777,26 +1777,20 @@ class Run(object):
             An `Artifact` object.
         """
         r = self._run_obj
-        print("use artifact", r.project, r.entity)
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
-        print("done using artifact")
         api.set_current_run_id(self.id)
-        print("set id")
+
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
             public_api = self._public_api()
-            print("getting art")
             artifact = public_api.artifact(type=type, name=name)
-            print("donezo")
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
                         type, artifact.type, artifact.name
                     )
                 )
-            print("using arti")
-            api.use_artifact(artifact.id, run_name=self.id, project_name=r.project)
-            print('done using')
+            api.use_artifact(artifact.id)
             return artifact
         else:
             artifact = artifact_or_name
