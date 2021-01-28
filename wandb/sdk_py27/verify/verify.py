@@ -478,19 +478,20 @@ def check_large_post():
 def check_wandb_version(api):
     print("Checking wandb package version is up to date".ljust(72, "."), end="")
     _, server_info = api.viewer_server_info()
+    fail_string = None
+    warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
     min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
             max_cli_version
         )
-        print_results(fail_string, False)
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run pip "
             "install --upgrade wandb=={}".format(max_cli_version)
         )
-        print_results(fail_string, True)
-    else:
-        print_results()
+        warning = True
+
+    print_results(fail_string, warning)
