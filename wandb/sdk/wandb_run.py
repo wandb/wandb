@@ -1795,7 +1795,7 @@ class Run(object):
                     )
                 )
             print("using arti")
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, run_name=self.id, project_name=r.project)
             print('done using')
             return artifact
         else:
