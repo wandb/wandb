@@ -1581,6 +1581,7 @@ class Api(object):
     def use_artifact(
         self, artifact_id, entity_name=None, project_name=None, run_name=None
     ):
+        print(entity_name, project_name, run_name, artifact_id)
         query = gql(
             """
         mutation UseArtifact(
