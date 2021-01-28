@@ -1785,14 +1785,18 @@ class Run(object):
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
             public_api = self._public_api()
+            print("getting art")
             artifact = public_api.artifact(type=type, name=name)
+            print("donezo")
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
                         type, artifact.type, artifact.name
                     )
                 )
+            print("using arti")
             api.use_artifact(artifact.id)
+            print('done using')
             return artifact
         else:
             artifact = artifact_or_name
