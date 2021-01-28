@@ -1581,7 +1581,6 @@ class Api(object):
     def use_artifact(
         self, artifact_id, entity_name=None, project_name=None, run_name=None
     ):
-        
         query = gql(
             """
         mutation UseArtifact(
@@ -1612,7 +1611,6 @@ class Api(object):
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
-        print(entity_name, project_name, run_name, artifact_id)
 
         response = self.gql(
             query,
