@@ -1108,7 +1108,7 @@ class Run(Attrs):
             A `File` matching the name argument.
         """
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            overrides={"entity": self.entity, "project": self.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
@@ -1220,7 +1220,7 @@ class Run(Attrs):
             A `Artifact` object.
         """
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            overrides={"entity": self.entity, "project": self.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
@@ -1248,7 +1248,7 @@ class Run(Attrs):
             A `Artifact` object.
         """
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            overrides={"entity": self.entity, "project": self.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)

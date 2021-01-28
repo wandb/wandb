@@ -77,6 +77,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
+    from wandb.apis.internal import Api as InternalApi
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -1105,7 +1106,7 @@ class Run(object):
         s = self._settings
 
         # TODO(jhr): migrate to new settings, but for now this is safer
-        api = internal.Api()
+        api = self._internal_api()
         if api.settings().get("anonymous") != "true":
             return ""
 
@@ -1776,8 +1777,8 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        r = self._run_obj
-        api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
+        # r = self._run_obj
+        api = self._internal_api()
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
@@ -1892,6 +1893,14 @@ class Run(object):
             overrides["entity"] = run_obj.entity
             overrides["project"] = run_obj.project
         return public.Api(overrides)
+
+    def _internal_api(self) -> InternalApi:
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return internal.Api(overrides=overrides)
 
     # TODO(jhr): annotate this
     def alert(self, title, text, level=None, wait_duration=None):  # type: ignore

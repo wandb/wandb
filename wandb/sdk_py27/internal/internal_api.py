@@ -67,6 +67,7 @@ class Api(object):
         load_settings=True,
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
+        overrides={},
     ):
         self._environ = environ
         self.default_settings = {
@@ -77,10 +78,12 @@ class Api(object):
         }
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
+        self.default_settings.update(overrides)
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
         )
+        self._settings.update(overrides)
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
