@@ -1607,7 +1607,8 @@ def verify(host):
                 host
             )
         )
-        os.system("WANDB_BASE_URL={} wandb init".format(host))
+        #os.system("WANDB_BASE_URL={} wandb init".format(host))
+        wandb.login(host=host, anonymous="never")
         api = _get_cling_api(reset=True)
     if not wandb_verify.check_host(host):
         return
