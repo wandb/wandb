@@ -1,23 +1,17 @@
 """
 Library public tests.
+
+*NOTE*: If you need to add a symbol, make sure this has been discussed and the name of the object or method is agreed upon.
+
+TODO:
+    - clean up / hide symbols which shouldnt be public
+    - deprecate ones that were public but we want to remove
+
 """
 
 import pytest
 
 import wandb
-
-from wandb.data_types import Graph
-from wandb.data_types import Image
-from wandb.data_types import Plotly
-from wandb.data_types import Video
-from wandb.data_types import Audio
-from wandb.data_types import Table
-from wandb.data_types import Html
-from wandb.data_types import Object3D
-from wandb.data_types import Molecule
-from wandb.data_types import Histogram
-from wandb.data_types import Classes
-from wandb.data_types import JoinedTable
 
 SYMBOLS_ROOT_DATATYPES = {
     "Graph",
@@ -123,6 +117,9 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_sdk",
     "wandb_torch",
     "xgboost",
+    "sync",
+    "sweeps",
+    "cli",
 }
 
 
@@ -198,4 +195,29 @@ def test_library_run():
     symbol_unknown = (
         symbol_public_set - SYMBOLS_RUN - SYMBOLS_RUN_RESUME - SYMBOLS_RUN_OTHER
     )
+    assert symbol_unknown == set()
+
+
+SYMBOLS_CONFIG = {
+    "get",
+    "update",
+    "setdefaults",
+    "items",
+    "keys",
+}
+
+# Look into these
+SYMBOLS_CONFIG_OTHER = {
+    "as_dict",
+    "update_locked",
+    "persist",
+}
+
+
+def test_library_config():
+    Config = wandb.wandb_sdk.wandb_config.Config
+    symbol_list = dir(Config)
+    symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
+    print("symbols", symbol_public_set)
+    symbol_unknown = symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER
     assert symbol_unknown == set()
