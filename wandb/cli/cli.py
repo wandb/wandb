@@ -1585,6 +1585,7 @@ def gc(args):
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
+    os.environ["PROJECT"] = "verify"
     api = _get_cling_api()
     reinit = False
     if host is None:
