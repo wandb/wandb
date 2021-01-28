@@ -1,3 +1,16 @@
+import wandb
+
+if wandb.TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import ClassVar, Dict, Optional, Type, Union
+        from .lib.json_type import JSON
+        from wandb.apis.public import Artifact as PublicArtifact
+        from .wandb_artifacts import Artifact as LocalArtifact
+        from .wandb_run import Run as LocalRun
+
+
 class WBValue(object):
     """
     Abstract parent class for things that can be logged by `wandb.log()` and
@@ -7,10 +20,13 @@ class WBValue(object):
     that indicates how to interpret the other fields.
     """
 
+    # Class Attributes
     _type_mapping = None
-    artifact_type = (
-        None  # override this value to indicate the type which the subclass deserializes
-    )
+    # override artifact_type to indicate the type which the subclass deserializes
+    artifact_type = None
+
+    # Instance Attributes
+    # _artifact_source: Optional[PublicArtifact]
 
     def __init__(self):
         self._artifact_source = None

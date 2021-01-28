@@ -295,16 +295,16 @@ class Media(WBValue):
                     # if not, check to see if there is a source artifact for this object
                     if (
                         self.artifact_source is not None
-                        and self.artifact_source["artifact"] != artifact
+                        and self.artifact_source.artifact != artifact
                     ):
-                        default_root = self.artifact_source["artifact"]._default_root()
+                        default_root = self.artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self.artifact_source["artifact"].get_path(name)
+                        path = self.artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     else:
                         entry = artifact.add_file(
@@ -1353,9 +1353,9 @@ class JoinedTable(Media):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
                 table.artifact_source is not None
-                and table.artifact_source["name"] is not None
+                and table.artifact_source.name is not None
             ):
-                table_name = os.path.basename(table.artifact_source["name"])
+                table_name = os.path.basename(table.artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactEntry
@@ -1572,7 +1572,7 @@ class Image(BatchableMedia):
             _masks = {}
             for key in masks:
                 _masks[key] = ImageMask.from_json(masks[key], source_artifact)
-                _masks[key].artifact_source = {"artifact": source_artifact}
+                _masks[key].set_artifact_source(source_artifact)
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")

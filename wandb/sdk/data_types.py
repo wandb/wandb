@@ -1,9 +1,24 @@
-if False:  # TYPE_CHECKING
-    from typing import ClassVar, Dict, Optional, Type, Union
-    from .lib.json_type import JSON
-    from wandb.apis.public import Artifact as PublicArtifact
-    from .wandb_artifacts import Artifact as LocalArtifact
-    from .wandb_run import Run as LocalRun
+import wandb
+
+if wandb.TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import ClassVar, Dict, Optional, Type, Union
+        from wandb.apis.public import Artifact as PublicArtifact
+        from .wandb_artifacts import Artifact as LocalArtifact
+        from .wandb_run import Run as LocalRun
+
+        TypeMappingType = Dict[str, Type["WBValue"]]
+
+
+class _WBValueArtifactSource(object):
+    artifact: PublicArtifact
+    name: Optional[str]
+
+    def __init__(self, artifact: PublicArtifact, name: str = None) -> None:
+        self.artifact = artifact
+        self.name = name
 
 
 class WBValue(object):
@@ -14,18 +29,19 @@ class WBValue(object):
     The objects will be serialized as JSON and always have a _type attribute
     that indicates how to interpret the other fields.
     """
+
     # Class Attributes
-    _type_mapping:ClassVar[Optional[Dict[str, Type["WBValue"]]]] = None
+    _type_mapping: ClassVar[Optional[TypeMappingType]] = None
     # override artifact_type to indicate the type which the subclass deserializes
-    artifact_type:ClassVar[Optional[str]] = None
+    artifact_type: ClassVar[Optional[str]] = None
 
     # Instance Attributes
-    _artifact_source:Optional[PublicArtifact]
+    artifact_source: Optional[_WBValueArtifactSource]
 
-    def __init__(self):
-        self._artifact_source = None
+    def __init__(self) -> None:
+        self.artifact_source = None
 
-    def to_json(self, run_or_artifact:Union[LocalRun, LocalArtifact]) -> JSON:
+    def to_json(self, run_or_artifact: Union[LocalRun, LocalArtifact]) -> Dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
@@ -38,7 +54,9 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls: Type["WBValue"], json_obj: Dict, source_artifact: PublicArtifact
+    ) -> "WBValue":
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
         `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
         the `source_artifact`.
@@ -51,7 +69,7 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls, name, filetype="json"):
+    def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
         """Helper function to return the name with suffix added if not already
 
         Args:
@@ -70,7 +88,9 @@ class WBValue(object):
         return name
 
     @staticmethod
-    def init_from_json(json_obj, source_artifact):
+    def init_from_json(
+        json_obj: Dict, source_artifact: PublicArtifact
+    ) -> Optional["WBValue"]:
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
         attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create
@@ -88,13 +108,13 @@ class WBValue(object):
         class_option = WBValue.type_mapping().get(json_obj["_type"])
         if class_option is not None:
             obj = class_option.from_json(json_obj, source_artifact)
-            obj.artifact_source = {"artifact": source_artifact}
+            obj.set_artifact_source(source_artifact)
             return obj
 
         return None
 
     @staticmethod
-    def type_mapping():
+    def type_mapping() -> TypeMappingType:
         """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
@@ -114,31 +134,14 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return super(WBValue, self).__eq__(other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    @property
-    def artifact_source(self):
-        """Getter which returns the object's artifact source
-
-        Returns:
-            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
-            stored as well as the name (optional)
-        """
-        return self._artifact_source
-
-    @artifact_source.setter
-    def artifact_source(self, artifact_source):
-        """Setter for artifact source
-
-        Args:
-            dict: {"artifact": wandb.Artifact, "name": str} the artifact from which this object was originally
-            stored as well as the name (optional)
-        """
-        self._artifact_source = artifact_source
+    def set_artifact_source(self, artifact: PublicArtifact, name: str = None) -> None:
+        self.artifact_source = _WBValueArtifactSource(artifact, name)
 
 
 __all__ = ["WBValue"]

@@ -41,4 +41,4 @@ if False:  # TYPE_CHECKING
     # UnsafeJSON_1 = Union[JSON_v, List[UnsafeJSON_2], Mapping[str, UnsafeJSON_2]]
     # UnsafeJSON = Union[JSON_v, List[UnsafeJSON_1], Mapping[str, UnsafeJSON_1]]
 
-    __all__: List[str] = ["JSON"]
+    __all__ = ["JSON"]
