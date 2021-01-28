@@ -20,6 +20,7 @@ import pprint
 import shutil
 import sys
 import warnings
+import re
 
 import six
 from six.moves.collections_abc import Sequence
@@ -437,6 +438,8 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self.artifact_source["artifact"].get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
+                    elif isinstance(self, Audio) and Audio.path_is_reference(self._path):
+                        artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
                             self._path, name=name, is_tmp=self._is_tmp
@@ -881,7 +884,17 @@ class Audio(BatchableMedia):
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            self._set_file(data_or_path, is_tmp=False)
+            if Audio.path_is_reference(data_or_path):
+                if sample_rate is None:
+                    raise ValueError(
+                        'Argument "sample_rate" is required when instantiating wandb.Audio with a reference path.'
+                    )
+                
+                self._path = data_or_path
+                self._sha256 = hashlib.sha256(data_or_path.encode('utf-8')).hexdigest()
+                self._is_tmp = False
+            else:
+                self._set_file(data_or_path, is_tmp=False)
         else:
             if sample_rate is None:
                 raise ValueError(
@@ -900,6 +913,10 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
+    def path_is_reference(cls, path):
+        return bool(re.match(r"^(gs|s3|https?)://", path))
+
+    @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "audio")
 
@@ -910,6 +927,12 @@ class Audio(BatchableMedia):
             json_obj["sample_rate"],
             json_obj["caption"],
         )
+    
+    def bind_to_run(self, run, key, step, id_=None):
+        if Audio.path_is_reference(self._path):
+            raise ValueError("Audio media created by a reference to external storage cannot currently be added to a run")
+
+        return super(Audio, self).bind_to_run(run, key, step, id_)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)

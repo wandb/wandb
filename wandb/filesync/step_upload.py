@@ -73,6 +73,7 @@ class StepUpload(object):
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
+                    print("ERROR ON " + job.artifact_id)
                     termerror(
                         "Uploading artifact file failed. Artifact won't be committed."
                     )
