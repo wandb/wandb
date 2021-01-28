@@ -8,6 +8,7 @@ from __future__ import print_function
 import getpass
 import os
 import sys
+import time
 
 import click
 from gql import gql  # type: ignore
@@ -113,7 +114,7 @@ def check_run(api: Api) -> None:
     f.write("test")
     f.close()
 
-    with wandb.init(config=config, project=PROJECT_NAME) as run:
+    with wandb.init(reinit=True, config=config, project=PROJECT_NAME) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -170,7 +171,7 @@ def check_run(api: Api) -> None:
         read_file = prev_run.file(filepath).download(replace=True)
     except Exception:
         with wandb.init(
-            project=PROJECT_NAME, config={"test": "test direct saving"}
+            reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
         ) as run:
             saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
             if saved:
@@ -284,7 +285,7 @@ def log_use_download_artifact(
     add_extra_file: bool,
 ) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact log"}
+         project=PROJECT_NAME, config={"test": "artifact log"}
     ) as log_art_run:
 
         if add_extra_file:
@@ -300,8 +301,9 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-        reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
+         project=PROJECT_NAME, config={"test": "artifact use"},
     ) as use_art_run:
+        print("getting used art")
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
         except Exception as e:
@@ -386,9 +388,9 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     f.write("test2")
     f.close()
     with wandb.init(
+        reinit=True,
         project=PROJECT_NAME,
-        config={"test": "put to graphql"},
-        settings=wandb.Settings(base_url=host),
+        config={"test": "put to graphql"}
     ) as run:
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
@@ -405,7 +407,8 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     public_api = wandb.Api()
     try:
         prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
-    except Exception:
+    except Exception as e:
+        print(e)
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
         )
