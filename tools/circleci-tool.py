@@ -16,6 +16,7 @@ parser.add_argument("--toxenv", help="single toxenv (py27,py36,py37,py38,py39)")
 parser.add_argument("--test-file", help="test file (ex: tests/test.py)")
 parser.add_argument("--test-name", help="test name (ex: test_dummy)")
 parser.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
+parser.add_argument("--branch", help="git branch (autodetected)")
 parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
 parser.add_argument("--wait", action="store_true", help="Wait for finish or error")
 parser.add_argument("--loop", type=int, help="Outer loop (implies wait)")
@@ -29,8 +30,10 @@ py_image_dict = dict(py27="python:2.7", py36="python:3.6", py37="python:3.7", py
 api_token = os.environ.get(CIRCLECI_API_TOKEN)
 assert api_token, "Set environment variable: {}".format(CIRCLECI_API_TOKEN)
 
-code, branch = subprocess.getstatusoutput("git branch --show-current")
-assert code == 0, "failed git command"
+branch = args.branch
+if not branch:
+    code, branch = subprocess.getstatusoutput("git branch --show-current")
+    assert code == 0, "failed git command"
 
 
 def poll(num):
