@@ -1584,27 +1584,22 @@ def gc(args):
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
-    os.environ["WANDB_SILENT"] = "true"
+    #os.environ["WANDB_SILENT"] = "true"
     api = _get_cling_api()
     reinit = False
-    settings = wandb.Settings()
-    print('settings base url', settings.base_url, settings.host)
-    print(host, api.settings("base_url"))
     if host is None:
         host = api.settings("base_url")
         print("Default host selected: {}".format(host))
     # if the given host does not match the default host, re run init
     elif host != api.settings("base_url"):
         reinit = True
-    # if the host does not match the default settings url, re run init
-    if host != settings.base_url:
-        reinit = True
+
     tmp_dir = tempfile.TemporaryDirectory()
     os.chdir(tmp_dir.name)
     if reinit:
         print(
             "Given host does not match default, reinitializing directory with host: {}".format(
-                host
+                 host
             )
         )
         #os.system("WANDB_BASE_URL={} wandb init".format(host))
