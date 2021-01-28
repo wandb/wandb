@@ -5,6 +5,7 @@ if wandb.TYPE_CHECKING:
 
     if TYPE_CHECKING:
         from typing import ClassVar, Dict, Optional, Type, Union
+
         from wandb.apis.public import Artifact as PublicArtifact
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
