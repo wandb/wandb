@@ -147,6 +147,18 @@ def test_run_update(mock_server, api):
     assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 
+def test_run_delete(mock_server, api):
+    run = api.run("test/test/test")
+
+    run.delete()
+    variables = {"id": run.storage_id, "delete_artifacts": False}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
+
+    run.delete(delete_artifacts=True)
+    variables = {"id": run.storage_id, "delete_artifacts": True}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
+
+
 def test_run_files(runner, mock_server, api):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
