@@ -1777,6 +1777,7 @@ class Run(object):
             An `Artifact` object.
         """
         r = self._run_obj
+        print("use artifact", r.project, r.entity)
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
