@@ -151,11 +151,11 @@ def test_run_delete(mock_server, api):
     run = api.run("test/test/test")
 
     run.delete()
-    variables = {"id": run.storage_id, "delete_artifacts": False}
+    variables = {"id": run.storage_id, "deleteArtifacts": False}
     assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
     run.delete(delete_artifacts=True)
-    variables = {"id": run.storage_id, "delete_artifacts": True}
+    variables = {"id": run.storage_id, "deleteArtifacts": True}
     assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
 

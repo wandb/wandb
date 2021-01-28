@@ -1031,7 +1031,7 @@ class Run(Attrs):
         mutation = gql(
             """
             mutation DeleteRun(
-                $id: String!,
+                $id: ID!,
                 $deleteArtifacts: Boolean
             ) {
                 deleteRun(input: {
@@ -1048,7 +1048,7 @@ class Run(Attrs):
             mutation,
             variable_values={
                 "id": self.storage_id,
-                "delete_artifacts": delete_artifacts,
+                "deleteArtifacts": delete_artifacts,
             },
         )
 
