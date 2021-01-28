@@ -1602,6 +1602,7 @@ def verify(host):
                 host
             )
         )
+        # because of some settings policies this is necessary if the hosts don't match.
         os.system("WANDB_BASE_URL={} wandb init".format(host))
         api = _get_cling_api(reset=True)
     if not wandb_verify.check_host(host):
