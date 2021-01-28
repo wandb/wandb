@@ -8,7 +8,6 @@ from __future__ import print_function
 import getpass
 import os
 import sys
-import time
 
 import click
 from gql import gql  # type: ignore
@@ -285,7 +284,7 @@ def log_use_download_artifact(
     add_extra_file: bool,
 ) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
     with wandb.init(
-         project=PROJECT_NAME, config={"test": "artifact log"}
+        reinit=True, project=PROJECT_NAME, config={"test": "artifact log"}
     ) as log_art_run:
 
         if add_extra_file:
@@ -301,9 +300,8 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-         project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME, config={"test": "artifact use"},
     ) as use_art_run:
-        print("getting used art")
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
         except Exception as e:
@@ -388,9 +386,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     f.write("test2")
     f.close()
     with wandb.init(
-        reinit=True,
-        project=PROJECT_NAME,
-        config={"test": "put to graphql"}
+        reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
     ) as run:
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
@@ -407,8 +403,7 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
     public_api = wandb.Api()
     try:
         prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
-    except Exception as e:
-        print(e)
+    except Exception:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
         )
