@@ -4,10 +4,32 @@
 static settings.
 """
 
+import wandb
+
+if wandb.TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import Any, Dict, Iterable, Optional, Union
+
+        SettingsDict = Dict[str, Union[str, float]]
+
 
 class SettingsStatic(object):
-    def __init__(self, config):
-        object.__setattr__(self, "__dict__", dict(config))
+    # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
+    # _offline: "Optional[bool]"
+    # _disable_stats: "Optional[bool]"
+    # _disable_meta: "Optional[bool]"
+    # _start_time: float
+    # files_dir: str
+    # log_internal: str
+    # _internal_check_process: bool
+
+    # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
+    # _log_level: int
+
+    def __init__(self, d):
+        object.__setattr__(self, "__dict__", d)
 
     def __setattr__(self, name, value):
         raise AttributeError("Error: SettingsStatic is a readonly object")
