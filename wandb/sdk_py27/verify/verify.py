@@ -113,7 +113,7 @@ def check_run(api):
     f.write("test")
     f.close()
 
-    with wandb.init(config=config, project=PROJECT_NAME) as run:
+    with wandb.init(reinit=True, config=config, project=PROJECT_NAME) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -170,7 +170,7 @@ def check_run(api):
         read_file = prev_run.file(filepath).download(replace=True)
     except Exception:
         with wandb.init(
-            project=PROJECT_NAME, config={"test": "test direct saving"}
+            reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
         ) as run:
             saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
             if saved:
@@ -284,7 +284,7 @@ def log_use_download_artifact(
     add_extra_file,
 ):
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact log"}
+        reinit=True, project=PROJECT_NAME, config={"test": "artifact log"}
     ) as log_art_run:
 
         if add_extra_file:
@@ -300,7 +300,7 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-        reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME, config={"test": "artifact use"},
     ) as use_art_run:
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
@@ -386,9 +386,7 @@ def check_graphql_put(api, host):
     f.write("test2")
     f.close()
     with wandb.init(
-        project=PROJECT_NAME,
-        config={"test": "put to graphql"},
-        settings=wandb.Settings(base_url=host),
+        reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
     ) as run:
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
