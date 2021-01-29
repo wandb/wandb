@@ -37,7 +37,7 @@ TYPE_CHECKING = PY3  # type: bool
 
 if not PY3:
 
-    class ImportMetaHook:
+    class _ImportMetaHook:
         def __init__(self):
             self.modules = {}
 
@@ -62,7 +62,7 @@ if not PY3:
             self.modules[fullname] = mod
             return mod
 
-    ImportMetaHook().install()
+    _ImportMetaHook().install()
 
 if PY3:
     from wandb import sdk as wandb_sdk
