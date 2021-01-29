@@ -1032,16 +1032,22 @@ class Run(Attrs):
             """
             mutation DeleteRun(
                 $id: ID!,
-                $deleteArtifacts: Boolean
+                %s
             ) {
                 deleteRun(input: {
                     id: $id,
-                    deleteArtifacts: $deleteArtifacts
+                    %s
                 }) {
                     clientMutationId
                 }
             }
-        """
+        """ %
+            # Older backends might not support the 'deleteArtifacts' argument,
+            # so only supply it when it is explicitly set.
+            (
+                "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else ""
+            )
         )
 
         return self.client.execute(
