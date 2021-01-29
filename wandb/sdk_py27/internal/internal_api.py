@@ -73,6 +73,7 @@ class Api(object):
         self._settings = Settings(
             load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
         )
+
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
@@ -529,8 +530,12 @@ class Api(object):
         }
         """
         )
-        entity = entity or self.settings("entity")
-        project = project or self.settings("project")
+        entity = (
+            entity or self.default_settings.get("entity") or self.settings("entity")
+        )
+        project = (
+            project or self.default_settings.get("project") or self.settings("project")
+        )
         response = self.gql(
             query,
             variable_values={
@@ -580,8 +585,12 @@ class Api(object):
             self.gql(
                 query,
                 variable_values={
-                    "entity": entity or self.settings("entity"),
-                    "model": project or self.settings("project"),
+                    "entity": entity
+                    or self.default_settings.get("entity")
+                    or self.settings("entity"),
+                    "model": project
+                    or self.default_settings.get("project")
+                    or self.settings("project"),
                 },
             )["model"]["buckets"]
         )
@@ -631,8 +640,12 @@ class Api(object):
         return self.gql(
             query,
             variable_values={
-                "entity": entity or self.settings("entity"),
-                "model": project or self.settings("project"),
+                "entity": entity
+                or self.default_settings.get("entity")
+                or self.settings("entity"),
+                "model": project
+                or self.default_settings.get("project")
+                or self.settings("project"),
                 "command": command,
                 "runId": run_id,
                 "patch": patch.read().decode("utf8"),
@@ -804,7 +817,9 @@ class Api(object):
             mutation,
             variable_values={
                 "name": self.format_project(project),
-                "entity": entity or self.settings("entity"),
+                "entity": entity
+                or self.default_settings.get("entity")
+                or self.settings("entity"),
                 "description": description,
                 "id": id,
             },
@@ -946,7 +961,9 @@ class Api(object):
 
         variable_values = {
             "id": id,
-            "entity": entity or self.settings("entity"),
+            "entity": entity
+            or self.default_settings.get("entity")
+            or self.settings("entity"),
             "name": name,
             "project": project or util.auto_project_name(program_path),
             "groupName": group,
@@ -1020,7 +1037,9 @@ class Api(object):
         )
         run_id = run or self.current_run_id
         assert run_id, "run must be specified"
-        entity = entity or self.settings("entity")
+        entity = (
+            entity or self.default_settings.get("entity") or self.settings("entity")
+        )
         query_result = self.gql(
             query,
             variable_values={
@@ -1080,7 +1099,9 @@ class Api(object):
         )
         run = run or self.current_run_id
         assert run, "run must be specified"
-        entity = entity or self.settings("entity")
+        entity = (
+            entity or self.default_settings.get("entity") or self.settings("entity")
+        )
         query_result = self.gql(
             query, variable_values={"name": project, "run": run, "entity": entity,},
         )
@@ -1133,7 +1154,9 @@ class Api(object):
                 "name": project,
                 "run": run,
                 "fileName": file_name,
-                "entity": entity or self.settings("entity"),
+                "entity": entity
+                or self.default_settings.get("entity")
+                or self.settings("entity"),
             },
         )
         if query_result["model"]:
@@ -1600,8 +1623,16 @@ class Api(object):
         }
         """
         )
-        entity_name = entity_name or self.settings("entity")
-        project_name = project_name or self.settings("project")
+        entity_name = (
+            entity_name
+            or self.default_settings.get("entity")
+            or self.settings("entity")
+        )
+        project_name = (
+            project_name
+            or self.default_settings.get("project")
+            or self.settings("project")
+        )
         run_name = run_name or self.current_run_id
 
         response = self.gql(
