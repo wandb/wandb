@@ -735,6 +735,49 @@ def test_simple_partition_table():
     for ndx, row in partition_table.iterrows():
         assert row == data[ndx]
 
+
+def test_distributed_artifact_simple():
+    table_name = "dataset"
+    artifact_name = "simple_dist_dataset_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(np.random.rand())
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    count = 2
+    images = []
+    image_paths = []
+
+    # Add Data
+    for i in range(count):
+        run = wandb.init(project=WANDB_PROJECT, group=group_name)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        path = "image_{}".format(i)
+        images.append(image)
+        image_paths.append(path)
+        artifact.add(image, path)
+        run.upsert_artifact(artifact)
+        run.finish()
+
+    # TODO: Should we try to use_artifact in some way before it is finished?
+
+    # Finish
+    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    # artifact.add_file("./test.py")
+    run.finish_artifact(artifact)
+    run.finish()
+
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    artifact = run.use_artifact("{}:latest".format(artifact_name))
+    assert len(artifact.manifest.entries.keys()) == count * 2
+    # for image, path in zip(images, image_paths):
+    #     assert image == artifact.get(path)
+
+
+
+
+
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
@@ -756,6 +799,8 @@ if __name__ == "__main__":
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
+        # TODO: Re-enable this test once 0.10.16 is released
+        # test_distributed_artifact_simple,
         test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
