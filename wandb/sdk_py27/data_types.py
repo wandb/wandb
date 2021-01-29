@@ -1,21 +1,20 @@
 import wandb
 
+from .wandb_artifacts import Artifact as LocalArtifact
+from .wandb_run import Run as LocalRun
+
 if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+    from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
 
     if TYPE_CHECKING:
-        from typing import ClassVar, Dict, Optional, Type, Union
-
         from wandb.apis.public import Artifact as PublicArtifact
-        from .wandb_artifacts import Artifact as LocalArtifact
-        from .wandb_run import Run as LocalRun
 
         TypeMappingType = Dict[str, Type["WBValue"]]
 
 
 class _WBValueArtifactSource(object):
     # artifact: "PublicArtifact"
-    # name: "Optional[str]"
+    # name: Optional[str]
 
     def __init__(self, artifact, name = None):
         self.artifact = artifact
@@ -37,7 +36,7 @@ class WBValue(object):
     artifact_type = None
 
     # Instance Attributes
-    # artifact_source: "Optional[_WBValueArtifactSource]"
+    # artifact_source: Optional[_WBValueArtifactSource]
 
     def __init__(self):
         self.artifact_source = None

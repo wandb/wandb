@@ -1,21 +1,20 @@
 import wandb
 
+from .wandb_artifacts import Artifact as LocalArtifact
+from .wandb_run import Run as LocalRun
+
 if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+    from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
 
     if TYPE_CHECKING:
-        from typing import ClassVar, Dict, Optional, Type, Union
-
         from wandb.apis.public import Artifact as PublicArtifact
-        from .wandb_artifacts import Artifact as LocalArtifact
-        from .wandb_run import Run as LocalRun
 
         TypeMappingType = Dict[str, Type["WBValue"]]
 
 
 class _WBValueArtifactSource(object):
     artifact: "PublicArtifact"
-    name: "Optional[str]"
+    name: Optional[str]
 
     def __init__(self, artifact: "PublicArtifact", name: str = None) -> None:
         self.artifact = artifact
@@ -32,17 +31,17 @@ class WBValue(object):
     """
 
     # Class Attributes
-    _type_mapping: "ClassVar[Optional[TypeMappingType]]" = None
+    _type_mapping: ClassVar[Optional["TypeMappingType"]] = None
     # override artifact_type to indicate the type which the subclass deserializes
-    artifact_type: "ClassVar[Optional[str]]" = None
+    artifact_type: ClassVar[Optional[str]] = None
 
     # Instance Attributes
-    artifact_source: "Optional[_WBValueArtifactSource]"
+    artifact_source: Optional[_WBValueArtifactSource]
 
     def __init__(self) -> None:
         self.artifact_source = None
 
-    def to_json(self, run_or_artifact: "Union[LocalRun, LocalArtifact]") -> dict:
+    def to_json(self, run_or_artifact: Union[LocalRun, LocalArtifact]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
@@ -56,7 +55,7 @@ class WBValue(object):
 
     @classmethod
     def from_json(
-        cls: "Type[WBValue]", json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["WBValue"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "WBValue":
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
         `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
@@ -70,7 +69,7 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls: "Type[WBValue]", name: str, filetype: str = "json") -> str:
+    def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
         """Helper function to return the name with suffix added if not already
 
         Args:

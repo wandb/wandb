@@ -25,6 +25,7 @@ import six
 from six.moves.collections_abc import Sequence
 import wandb
 from wandb import util
+from wandb._globals import _datatypes_callback
 from wandb.compat import tempfile
 from wandb.util import has_num
 
@@ -61,23 +62,6 @@ warnings.filterwarnings(
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
-
-
-# cling below
-_glob_datatypes_callback = None
-
-
-def _datatypes_set_callback(cb):
-    global _glob_datatypes_callback
-    _glob_datatypes_callback = cb
-
-
-def _datatypes_callback(fname):
-    if _glob_datatypes_callback:
-        _glob_datatypes_callback(fname)
-
-
-# cling above
 
 
 def wb_filename(key, step, id, extension):
