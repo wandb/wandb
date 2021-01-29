@@ -1778,12 +1778,8 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        # r = self._run_obj
-        api = (
-            self._internal_api()
-        )  # internal.Api(default_settings={"entity": r.entity, "project": r.project})
-        api.set_current_run_id(self.id)
 
+        api = self._internal_api()
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
             public_api = self._public_api()
