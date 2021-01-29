@@ -15,6 +15,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
+from wandb.data_types import WBValue
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -215,9 +216,6 @@ class Artifact(object):
             obj (wandb.WBValue): The object to save in an artifact
             name (str): The path to save
         """
-        # Import is done here to avoid circular imports
-        from wandb.data_types import WBValue
-
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type

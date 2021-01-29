@@ -1,8 +1,6 @@
 import wandb
 from wandb import util
 
-from .wandb_artifacts import Artifact as LocalArtifact
-from .wandb_run import Run as LocalRun
 
 if wandb.TYPE_CHECKING:
     from typing import (
@@ -17,6 +15,8 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:
+        from .wandb_artifacts import Artifact as LocalArtifact
+        from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
         from numpy import np  # type: ignore
 

@@ -1,8 +1,6 @@
 import wandb
 from wandb import util
 
-from .wandb_artifacts import Artifact as LocalArtifact
-from .wandb_run import Run as LocalRun
 
 if wandb.TYPE_CHECKING:
     from typing import (
@@ -17,6 +15,8 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:
+        from .wandb_artifacts import Artifact as LocalArtifact
+        from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
         from numpy import np  # type: ignore
 
@@ -53,7 +53,7 @@ class WBValue(object):
     def __init__(self) -> None:
         self.artifact_source = None
 
-    def to_json(self, run_or_artifact: Union[LocalRun, LocalArtifact]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
@@ -225,7 +225,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run: Union[LocalRun, LocalArtifact] = None) -> dict:
+    def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
