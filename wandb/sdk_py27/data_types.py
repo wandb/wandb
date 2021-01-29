@@ -147,7 +147,7 @@ class WBValue(object):
         return WBValue._type_mapping
 
     def __eq__(self, other):
-        return super(WBValue, self).__eq__(other)
+        return id(self) == id(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)

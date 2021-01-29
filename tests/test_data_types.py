@@ -20,6 +20,42 @@ import matplotlib.pyplot as plt  # noqa: E402
 data = np.random.randint(255, size=(1000))
 
 
+def test_wb_value(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    local_art = wandb.Artifact("N", "T")
+    public_art = run.use_artifact("N:latest")
+
+    wbvalue = data_types.WBValue()
+    with pytest.raises(NotImplementedError):
+        wbvalue.to_json(local_art)
+
+    with pytest.raises(NotImplementedError):
+        data_types.WBValue.from_json({}, public_art)
+
+    assert data_types.WBValue.with_suffix("item") == "item.json"
+
+    table = data_types.WBValue.init_from_json(
+        {
+            "_type": "table",
+            "data": [[]],
+            "columns": [],
+            "column_types": wandb.data_types._dtypes.DictType({}).to_json(),
+        },
+        public_art,
+    )
+    assert isinstance(table, data_types.WBValue) and isinstance(
+        table, wandb.data_types.Table
+    )
+
+    type_mapping = data_types.WBValue.type_mapping()
+    assert all(
+        [issubclass(type_mapping[key], data_types.WBValue) for key in type_mapping]
+    )
+
+    assert wbvalue == wbvalue
+    assert wbvalue != data_types.WBValue()
+
+
 def test_raw_data():
     wbhist = wandb.Histogram(data)
     assert len(wbhist.histogram) == 64
