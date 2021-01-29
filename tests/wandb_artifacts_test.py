@@ -702,3 +702,23 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
             },
             "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }
+
+
+def test_add_partition_folder(runner):
+    with runner.isolated_filesystem():
+        table_name = "dataset"
+        table_parts_dir = "dataset_parts"
+        artifact_name = "simple_dataset"
+        artifact_type = "dataset"
+
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+        artifact.add(partition_table, table_name)
+        manifest = artifact.manifest.to_manifest_json()
+        print(manifest)
+        print(artifact.digest)
+        assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
+        assert manifest["contents"]["dataset.partitioned-table.json"] == {
+            "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
+            "size": 61,
+        }
