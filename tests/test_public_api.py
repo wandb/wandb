@@ -332,7 +332,7 @@ def test_artifact_manual_use(runner, mock_server, api):
 
 def test_interal_api(runner, mock_server, api):
     run = api.run("test/test/test")
-    api = run._imteral_api()
+    api = run._internal_api()
     assert api.default_settings["entity"] == "test"
 
 
@@ -371,5 +371,3 @@ def test_sweep(runner, mock_server, api):
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
     assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
-
-
