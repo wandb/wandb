@@ -795,3 +795,23 @@ def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     run.finish_artifact(artifact, distributed_id=group_name)
     run.finish()
+
+
+def test_add_partition_folder(runner):
+    with runner.isolated_filesystem():
+        table_name = "dataset"
+        table_parts_dir = "dataset_parts"
+        artifact_name = "simple_dataset"
+        artifact_type = "dataset"
+
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+        artifact.add(partition_table, table_name)
+        manifest = artifact.manifest.to_manifest_json()
+        print(manifest)
+        print(artifact.digest)
+        assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
+        assert manifest["contents"]["dataset.partitioned-table.json"] == {
+            "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
+            "size": 61,
+        }
