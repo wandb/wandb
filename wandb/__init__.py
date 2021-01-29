@@ -24,6 +24,7 @@ __version__ = "0.10.16.dev1"
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
+import importlib
 import sys
 
 from wandb.errors import Error
