@@ -18,7 +18,7 @@ if wandb.TYPE_CHECKING:
 
     if TYPE_CHECKING:
         from wandb.apis.public import Artifact as PublicArtifact
-        from numpy import np
+        from numpy import np  # type: ignore
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
