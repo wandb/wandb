@@ -154,6 +154,8 @@ SYMBOLS_RUN = {
     "config_static",
     "log",
     "log_artifact",
+    "upsert_artifact",
+    "finish_artifact",
     "use_artifact",
     "alert",
     # "summary",   # really this should be here
