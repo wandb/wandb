@@ -7,6 +7,7 @@ import shutil
 import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
+import time
 
 
 def mock_boto(artifact, path=False):
@@ -701,4 +702,116 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "size": 8837,
             },
             "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
+        }
+
+
+def test_artifact_upsert_no_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Upsert without a group or id should fail
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_1")
+    with pytest.raises(TypeError):
+        run.upsert_artifact(artifact)
+    run.finish()
+
+
+def test_artifact_upsert_group_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Upsert with a group should succeed
+    run = wandb.init(group=group_name, settings=test_settings)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_1")
+    run.upsert_artifact(artifact)
+    run.finish()
+
+
+def test_artifact_upsert_distributed_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Upsert with a distributed_id should succeed
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    artifact.add(image, "image_2")
+    run.upsert_artifact(artifact, distributed_id=group_name)
+    run.finish()
+
+
+def test_artifact_finish_no_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Finish without a distributed_id should fail
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    with pytest.raises(TypeError):
+        run.finish_artifact(artifact)
+    run.finish()
+
+
+def test_artifact_finish_group_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Finish with a distributed_id should succeed
+    run = wandb.init(group=group_name, settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact)
+    run.finish()
+
+
+def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings):
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = "distributed_artifact_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(round(np.random.rand()))
+    artifact_type = "dataset"
+
+    # Finish with a distributed_id should succeed
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    run.finish_artifact(artifact, distributed_id=group_name)
+    run.finish()
+
+
+def test_add_partition_folder(runner):
+    with runner.isolated_filesystem():
+        table_name = "dataset"
+        table_parts_dir = "dataset_parts"
+        artifact_name = "simple_dataset"
+        artifact_type = "dataset"
+
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+        artifact.add(partition_table, table_name)
+        manifest = artifact.manifest.to_manifest_json()
+        print(manifest)
+        print(artifact.digest)
+        assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
+        assert manifest["contents"]["dataset.partitioned-table.json"] == {
+            "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
+            "size": 61,
         }
