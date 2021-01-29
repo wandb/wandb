@@ -91,8 +91,8 @@ def notebook_metadata(silent):
     5. Other?
     """
     error_message = (
-        "Failed to query for notebook name, you can set it manually with "
-        "the WANDB_NOTEBOOK_NAME environment variable"
+        "Failed to detect the name of this notebook, you can set it manually with "
+        "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
         # In colab we can request the most recent contents
@@ -133,6 +133,9 @@ def notebook_metadata(silent):
                             "path": nn["notebook"]["path"],
                             "name": nn["notebook"]["name"],
                         }
+
+        if not silent:
+            logger.error(error_message)
         return {}
     except Exception:
         # TODO: report this exception
@@ -184,7 +187,7 @@ def jupyter_servers_and_kernel_id():
         if notebookapp is not None:
             servers.extend(list(notebookapp.list_running_servers()))
         return servers, kernel_id
-    except (ValueError, ImportError):
+    except (AttributeError, ValueError, ImportError):
         return [], None
 
 
