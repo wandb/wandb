@@ -738,7 +738,7 @@ def test_simple_partition_table():
 
 def test_distributed_artifact_simple():
     table_name = "dataset"
-    artifact_name = "simple_dist_dataset"
+    artifact_name = "simple_dist_dataset_{}".format(round(time.time()))
     group_name = "test_group_{}".format(np.random.rand())
     artifact_type = "dataset"
     columns = ["A", "B", "C"]
@@ -799,7 +799,8 @@ if __name__ == "__main__":
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
-        test_distributed_artifact_simple,
+        # TODO: Re-enable this test once 0.10.16 is released
+        # test_distributed_artifact_simple,
         test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
