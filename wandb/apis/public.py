@@ -6,7 +6,6 @@ import os
 import platform
 import re
 import shutil
-import sys
 import tempfile
 import time
 
@@ -24,15 +23,9 @@ from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
+from wandb.sdk.interface import artifacts
 import yaml
 
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface import artifacts
-else:
-    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 

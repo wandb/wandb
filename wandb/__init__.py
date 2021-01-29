@@ -41,6 +41,37 @@ else:
 
 import wandb
 
+
+if not PY3:
+
+    class ImportMetaHook:
+        def __init__(self):
+            self.modules = {}
+
+        def install(self):
+            sys.meta_path.insert(0, self)
+
+        def uninstall(self):
+            sys.meta_path.remove(self)
+
+        def find_module(self, fullname, path=None):
+            if fullname == "wandb.sdk" or fullname.startswith("wandb.sdk."):
+                return self
+
+        def load_module(self, fullname):
+            self.uninstall()
+            if fullname == "wandb.sdk":
+                fullname = "wandb.sdk_py27"
+            elif fullname.startswith("wandb.sdk."):
+                fullname = "wandb.sdk_py27." + fullname[len("wandb.sdk.") :]
+            mod = importlib.import_module(fullname)
+            self.install()
+            self.modules[fullname] = mod
+            return mod
+
+    ImportMetaHook().install()
+
+
 wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
@@ -171,35 +202,6 @@ def set_trace():
     #  frame = sys._getframe().f_back
     pdb.set_trace()  # TODO: pass the parent stack...
 
-
-if not PY3:
-
-    class ImportMetaHook:
-        def __init__(self):
-            self.modules = {}
-
-        def install(self):
-            sys.meta_path.insert(0, self)
-
-        def uninstall(self):
-            sys.meta_path.remove(self)
-
-        def find_module(self, fullname, path=None):
-            if fullname == "wandb.sdk" or fullname.startswith("wandb.sdk."):
-                return self
-
-        def load_module(self, fullname):
-            self.uninstall()
-            if fullname == "wandb.sdk":
-                fullname = "wandb.sdk_py27"
-            elif fullname.startswith("wandb.sdk."):
-                fullname = "wandb.sdk_py27." + fullname[len("wandb.sdk.") :]
-            mod = importlib.import_module(fullname)
-            self.install()
-            self.modules[fullname] = mod
-            return mod
-
-    ImportMetaHook().install()
 
 
 __all__ = [
