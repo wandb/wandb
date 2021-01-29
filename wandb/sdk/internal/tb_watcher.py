@@ -13,10 +13,10 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
-from wandb.internal import run as internal_run
+from . import run as internal_run
+
 from wandb.viz import CustomChart, custom_chart_panel_config
 
-from . import run as internal_run
 
 if wandb.TYPE_CHECKING:
     from typing import TYPE_CHECKING
@@ -380,27 +380,44 @@ class TBEventConsumer(object):
             history=history,
         )
 
-<<<<<<< HEAD
-    def _save_row(self, row):
-        chart_key = None
+    # def _save_row(self, row):
+    #     chart_key = None
+    #     for key, item in row.items():
+    #         if isinstance(item, CustomChart):
+    #             table = item.table
+    #             panel_config = custom_chart_panel_config(item, key, key + '_table')
+    #             config = {"_wandb":{"visualize": {key:{
+    #                 "panel_type": 'Vega2',
+    #                 "panel_config": panel_config
+    #             }}}}
+    #             print(config)
+    #             chart_key = key
+    #             self._tbwatcher._interface.publish_config(config)
+    #     if chart_key:
+    #         row.pop(chart_key)
+    #         row[chart_key + '_table'] = table
+
+    def _save_row(self, row: "HistoryDict") -> None:
+        chart_keys = []
         for key, item in row.items():
             if isinstance(item, CustomChart):
                 table = item.table
-                panel_config = custom_chart_panel_config(item, key, key + '_table')
-                config = {"_wandb":{"visualize": {key:{
-                    "panel_type": 'Vega2',
-                    "panel_config": panel_config
-                }}}}
-                print(config)
-                chart_key = key
+                panel_config = custom_chart_panel_config(item, key, key + "_table")
+                config = {
+                    "_wandb": {
+                        "visualize": {
+                            key: {"panel_type": "Vega2", "panel_config": panel_config}
+                        }
+                    }
+                }
+                chart_keys.append(key)
                 self._tbwatcher._interface.publish_config(config)
-        if chart_key:
+        for chart_key in chart_keys:
             row.pop(chart_key)
-            row[chart_key + '_table'] = table
+            row[chart_key + "_table"] = table
+            print(row)
 
-=======
-    def _save_row(self, row: "HistoryDict") -> None:
->>>>>>> master
+        #row["_step"] = 0
         self._tbwatcher._interface.publish_history(row, run=self._internal_run)
 
 

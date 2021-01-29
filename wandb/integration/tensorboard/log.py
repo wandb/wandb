@@ -128,16 +128,24 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 encode_images(img_strs, value)
             elif plugin_name == "pr_curves":
                 pr_curve_data = make_ndarray(value.tensor)
-                precision = pr_curve_data[-2, :]
-                recall = pr_curve_data[-1, :]
+                precision = pr_curve_data[-2, :].tolist()
+                recall = pr_curve_data[-1, :].tolist()
                 # TODO: (kdg) implement spec for showing additional info in tool tips
                 # true_pos = pr_curve_data[1,:]
                 # false_pos = pr_curve_data[2,:]
                 # true_neg = pr_curve_data[1,:]
                 # false_neg = pr_curve_data[1,:]
                 # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
-                data_table = wandb.Table(data=[precision, recall], columns=['precision', 'recall'])
-                values[namespaced_tag(value.tag, namespace)] = create_custom_chart('wandb/line/v0', data_table, {'x':'recall', 'y':'precision'}, {'title':'Precision v. Recall'})
+                print([precision, recall])
+                data_table = wandb.Table(
+                    data=[*zip(precision, recall)], columns=["precision", "recall"]
+                )
+                values[namespaced_tag(value.tag, namespace)] = create_custom_chart(
+                    "wandb/line/v0",
+                    data_table,
+                    {"x": "recall", "y": "precision"},
+                    {"title": "Precision v. Recall"},
+                )
                 continue
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)
