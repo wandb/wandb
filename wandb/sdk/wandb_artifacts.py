@@ -17,7 +17,7 @@ from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
 from wandb.errors.error import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.interface.artifacts import (
+from wandb.sdk.interface.artifacts import (
     ArtifactManifest,
     b64_string_to_hex,
     env,
