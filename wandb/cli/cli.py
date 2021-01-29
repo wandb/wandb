@@ -1585,17 +1585,33 @@ def gc(args):
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     os.environ["WANDB_SILENT"] = "true"
+    os.environ["WANDB_PROJECT"] = "verify"
     api = _get_cling_api()
-
+    reinit = False
     if host is None:
         host = api.settings("base_url")
+        print("Default host selected: {}".format(host))
+    # if the given host does not match the default host, re run init
+    elif host != api.settings("base_url"):
+        reinit = True
 
     tmp_dir = tempfile.TemporaryDirectory()
     os.chdir(tmp_dir.name)
+    if reinit:
+        print(
+            "Given host does not match default, reinitializing directory with host: {}".format(
+                host
+            )
+        )
+        # because of some settings policies this is necessary if the hosts don't match.
+        os.system("WANDB_BASE_URL={} wandb init".format(host))
+        api = _get_cling_api(reset=True)
     if not wandb_verify.check_host(host):
         return
+    if not wandb_verify.check_logged_in(api):
+        return
     url = wandb_verify.check_graphql_put(api, host)
-    wandb_verify.check_large_post(api, host)
+    wandb_verify.check_large_post()
     wandb_verify.check_secure_requests(
         api.settings("base_url"),
         "Checking requests to base url",
