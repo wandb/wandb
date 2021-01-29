@@ -33,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["class_id", "id", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -190,10 +190,10 @@ def _make_wandb_table():
     table = wandb.Table(
         columns=columns,
         data=[
-            [1, "string", True, 1, 1.4, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
-            [2, "string", True, 1, 1.4, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud2],
-            [1, "string2", False, -0, -1.4, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud3],
-            [3, "string2", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud4],
+            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud2],
+            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud3],
+            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud4],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -376,8 +376,8 @@ def test_get_artifact_obj_by_name():
 
         actual_table = artifact.get("T1")
         assert actual_table.columns == columns
-        assert actual_table.data[0][5] == image
-        assert actual_table.data[1][5] == _make_wandb_image("2")
+        assert actual_table.data[0][columns.index("Image")] == image
+        assert actual_table.data[1][columns.index("Image")] == _make_wandb_image("2")
         assert actual_table == _make_wandb_table()
 
 
@@ -708,6 +708,33 @@ def test_image_reference_with_preferred_path():
     
     # This test just checks that all this logic does not fail
 
+def test_simple_partition_table():
+    table_name = "dataset"
+    table_parts_dir = "dataset_parts"
+    artifact_name = "simple_dataset"
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    data = []
+
+    # Add Data
+    run = wandb.init(project=WANDB_PROJECT)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    for i in range(5):
+        row = [i,i*i,2**i]
+        data.append(row)
+        table = wandb.Table(columns=columns, data=[row])
+        artifact.add(table, "{}/{}".format(table_parts_dir, i))
+    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    artifact.add(partition_table, table_name)
+    run.log_artifact(artifact)
+    run.finish()
+
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
+    for ndx, row in partition_table.iterrows():
+        assert row == data[ndx]
+
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
@@ -729,6 +756,7 @@ if __name__ == "__main__":
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
+        test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:

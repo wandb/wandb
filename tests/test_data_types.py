@@ -13,11 +13,17 @@ from click.testing import CliRunner
 from . import utils
 from .utils import dummy_data
 import matplotlib
+from wandb import Api
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
+
+
+@pytest.fixture
+def api(runner):
+    return Api()
 
 
 def test_raw_data():
@@ -590,6 +596,15 @@ def test_table_from_list():
     assert table.data == table_data
 
 
+def test_table_iterator():
+    table = wandb.Table(data=table_data)
+    for ndx, row in table.iterrows():
+        assert row == table_data[ndx]
+
+    table = wandb.Table(data=[])
+    assert len([(ndx, row) for ndx, row in table.iterrows()]) == 0
+
+
 def test_table_from_numpy():
     np_data = np.array(table_data)
     table = wandb.Table(data=np_data)
@@ -640,3 +655,19 @@ def test_numpy_arrays_to_list():
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
+
+
+def test_partitioned_table_from_json(runner, mock_server, api):
+    # This is mocked to return some data
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    ptable = art.get("dataset")
+    data = [[0, 0, 1]]
+    for ndx, row in ptable.iterrows():
+        assert row == data[ndx]
+
+
+def test_partitioned_table():
+    partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
+    assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
+    assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
