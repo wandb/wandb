@@ -14,8 +14,8 @@ if wandb.TYPE_CHECKING:
 
 
 class _WBValueArtifactSource(object):
-    # artifact: PublicArtifact
-    # name: Optional[str]
+    # artifact: "PublicArtifact"
+    # name: "Optional[str]"
 
     def __init__(self, artifact, name = None):
         self.artifact = artifact
@@ -37,7 +37,7 @@ class WBValue(object):
     artifact_type = None
 
     # Instance Attributes
-    # artifact_source: Optional[_WBValueArtifactSource]
+    # artifact_source: "Optional[_WBValueArtifactSource]"
 
     def __init__(self):
         self.artifact_source = None
