@@ -23,7 +23,7 @@ import threading
 import time
 import traceback
 
-import psutil  # type: ignore
+import psutil
 from six.moves import queue
 import wandb
 from wandb.util import sentry_exc
@@ -36,10 +36,27 @@ from . import writer
 from ..interface import interface
 
 
+if wandb.TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from ..interface.interface import BackendSender
+        from .settings_static import SettingsStatic
+        from typing import Any, Dict, List, Optional, Union
+        from six.moves.queue import Queue
+        from .internal_util import RecordLoopThread
+        from wandb.proto.wandb_internal_pb2 import Record, Result
+        from threading import Event
+
+
 logger = logging.getLogger(__name__)
 
 
-def wandb_internal(settings, record_q, result_q):
+def wandb_internal(
+    settings: "Dict[str, Union[str, float]]",
+    record_q: "Queue[Record]",
+    result_q: "Queue[Result]",
+) -> None:
     """Internal process function entrypoint.
 
     Read from record queue and dispatch work to various threads.
@@ -54,9 +71,9 @@ def wandb_internal(settings, record_q, result_q):
     wandb._IS_INTERNAL_PROCESS = True
 
     # Lets make sure we dont modify settings so use a static object
-    settings = settings_static.SettingsStatic(settings)
-    if settings.log_internal:
-        configure_logging(settings.log_internal, settings._log_level)
+    _settings = settings_static.SettingsStatic(settings)
+    if _settings.log_internal:
+        configure_logging(_settings.log_internal, _settings._log_level)
 
     parent_pid = os.getppid()
     pid = os.getpid()
@@ -66,11 +83,11 @@ def wandb_internal(settings, record_q, result_q):
     publish_interface = interface.BackendSender(record_q=record_q)
 
     stopped = threading.Event()
-    threads = []
+    threads: "List[RecordLoopThread]" = []
 
-    send_record_q = queue.Queue()
+    send_record_q: "Queue[Record]" = queue.Queue()
     record_sender_thread = SenderThread(
-        settings=settings,
+        settings=_settings,
         record_q=send_record_q,
         result_q=result_q,
         stopped=stopped,
@@ -78,9 +95,9 @@ def wandb_internal(settings, record_q, result_q):
     )
     threads.append(record_sender_thread)
 
-    write_record_q = queue.Queue()
+    write_record_q: "Queue[Record]" = queue.Queue()
     record_writer_thread = WriterThread(
-        settings=settings,
+        settings=_settings,
         record_q=write_record_q,
         result_q=result_q,
         stopped=stopped,
@@ -89,7 +106,7 @@ def wandb_internal(settings, record_q, result_q):
     threads.append(record_writer_thread)
 
     record_handler_thread = HandlerThread(
-        settings=settings,
+        settings=_settings,
         record_q=record_q,
         result_q=result_q,
         stopped=stopped,
@@ -99,16 +116,16 @@ def wandb_internal(settings, record_q, result_q):
     )
     threads.append(record_handler_thread)
 
-    process_check = ProcessCheck(settings=settings, pid=parent_pid)
+    process_check = ProcessCheck(settings=_settings, pid=parent_pid)
 
     for thread in threads:
         thread.start()
 
     interrupt_count = 0
-    while not stopped.isSet():
+    while not stopped.is_set():
         try:
             # wait for stop event
-            while not stopped.isSet():
+            while not stopped.is_set():
                 time.sleep(1)
                 if process_check.is_dead():
                     logger.error("Internal process shutdown.")
@@ -135,11 +152,11 @@ def wandb_internal(settings, record_q, result_q):
 
 
 @atexit.register
-def handle_exit(*args):
+def handle_exit(*args: "Any") -> None:
     logger.info("Internal process exited")
 
 
-def configure_logging(log_fname, log_level, run_id=None):
+def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
@@ -148,7 +165,7 @@ def configure_logging(log_fname, log_level, run_id=None):
     log_handler.setLevel(log_level)
 
     class WBFilter(logging.Filter):
-        def filter(self, record):
+        def filter(self, record: "Any") -> bool:
             record.run_id = run_id
             return True
 
@@ -174,9 +191,20 @@ def configure_logging(log_fname, log_level, run_id=None):
 class HandlerThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to handler routines."""
 
+    _record_q: "Queue[Record]"
+    _result_q: "Queue[Result]"
+    _stopped: "Event"
+
     def __init__(
-        self, settings, record_q, result_q, stopped, sender_q, writer_q, interface
-    ):
+        self,
+        settings: "SettingsStatic",
+        record_q: "Queue[Record]",
+        result_q: "Queue[Result]",
+        stopped: "Event",
+        sender_q: "Queue[Record]",
+        writer_q: "Queue[Record]",
+        interface: "BackendSender",
+    ) -> None:
         super(HandlerThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped,
         )
@@ -189,7 +217,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._writer_q = writer_q
         self._interface = interface
 
-    def _setup(self):
+    def _setup(self) -> None:
         self._hm = handler.HandleManager(
             settings=self._settings,
             record_q=self._record_q,
@@ -200,19 +228,27 @@ class HandlerThread(internal_util.RecordLoopThread):
             interface=self._interface,
         )
 
-    def _process(self, record):
+    def _process(self, record: "Record") -> None:
         self._hm.handle(record)
 
-    def _finish(self):
+    def _finish(self) -> None:
         self._hm.finish()
 
 
 class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
 
+    _record_q: "Queue[Record]"
+    _result_q: "Queue[Result]"
+
     def __init__(
-        self, settings, record_q, result_q, stopped, interface,
-    ):
+        self,
+        settings: "SettingsStatic",
+        record_q: "Queue[Record]",
+        result_q: "Queue[Result]",
+        stopped: "Event",
+        interface: "BackendSender",
+    ) -> None:
         super(SenderThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped,
         )
@@ -222,7 +258,7 @@ class SenderThread(internal_util.RecordLoopThread):
         self._result_q = result_q
         self._interface = interface
 
-    def _setup(self):
+    def _setup(self) -> None:
         self._sm = sender.SendManager(
             settings=self._settings,
             record_q=self._record_q,
@@ -230,17 +266,27 @@ class SenderThread(internal_util.RecordLoopThread):
             interface=self._interface,
         )
 
-    def _process(self, record):
+    def _process(self, record: "Record") -> None:
         self._sm.send(record)
 
-    def _finish(self):
+    def _finish(self) -> None:
         self._sm.finish()
 
 
 class WriterThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to writer routines."""
 
-    def __init__(self, settings, record_q, result_q, stopped, writer_q):
+    _record_q: "Queue[Record]"
+    _result_q: "Queue[Result]"
+
+    def __init__(
+        self,
+        settings: "SettingsStatic",
+        record_q: "Queue[Record]",
+        result_q: "Queue[Result]",
+        stopped: "Event",
+        writer_q: "Queue[Record]",
+    ) -> None:
         super(WriterThread, self).__init__(
             input_record_q=writer_q, result_q=result_q, stopped=stopped,
         )
@@ -249,36 +295,38 @@ class WriterThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
 
-    def _setup(self):
+    def _setup(self) -> None:
         self._wm = writer.WriteManager(
             settings=self._settings, record_q=self._record_q, result_q=self._result_q,
         )
 
-    def _process(self, record):
+    def _process(self, record: "Record") -> None:
         self._wm.write(record)
 
-    def _finish(self):
+    def _finish(self) -> None:
         self._wm.finish()
 
 
 class ProcessCheck(object):
     """Class to help watch a process id to detect when it is dead."""
 
-    def __init__(self, settings, pid):
+    check_process_last: "Optional[float]"
+
+    def __init__(self, settings: "SettingsStatic", pid: int) -> None:
         self.settings = settings
         self.pid = pid
         self.check_process_last = None
         self.check_process_interval = settings._internal_check_process
 
-    def is_dead(self):
+    def is_dead(self) -> bool:
         if not self.check_process_interval:
-            return
+            return False
         time_now = time.time()
         if (
             self.check_process_last
             and time_now < self.check_process_last + self.check_process_interval
         ):
-            return
+            return False
         self.check_process_last = time_now
 
         exists = psutil.pid_exists(self.pid)
