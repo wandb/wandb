@@ -309,7 +309,7 @@ class Run(object):
                 os.path.join("code", settings.program_relpath)
             )
         if sweep_config:
-            self._config.update_locked(sweep_config, user="sweep")
+            self._config.update_locked(sweep_config, user="sweep", _allow_val_change=True)
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
