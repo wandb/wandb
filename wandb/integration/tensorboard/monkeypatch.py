@@ -17,12 +17,9 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
 def unpatch():
-    for item in wandb.patched["tensorboard"]:
-        module = item[0]
-        method = item[1]
-        print("FOK", item, module, method)
+    for module, method in wandb.patched["tensorboard"]:
         writer = wandb.util.get_module(module)
-        setattr(writer, method, getattr(writer, "orig_{}", format(method)))
+        setattr(writer, method, getattr(writer, "orig_{}".format(method)))
     wandb.patched["tensorboard"] = []
 
 
