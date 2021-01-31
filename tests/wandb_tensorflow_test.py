@@ -158,7 +158,7 @@ def test_compat_tensorboard(live_mock_server, test_settings):
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when using"
         " syncing with tensorboard. Please log your step values as a metric such as 'global step'"
     ) not in term.PRINTED_MESSAGES
-    wandb.unpatch_tensorboard()
+    wandb.tensorboard.unpatch()
 
 
 @pytest.mark.skipif(
@@ -170,10 +170,10 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
 
     with tf.compat.v1.Session() as sess:
         initializer = tf.compat.v1.truncated_normal_initializer(mean=0, stddev=1)
-        x_scalar = tf.compat.v1.get_variable(
-            "x_scalar", shape=[], initializer=initializer
+        y_scalar = tf.compat.v1.get_variable(
+            "y_scalar", shape=[], initializer=initializer
         )
-        x_summary = tf.compat.v1.summary.scalar("x_scalar", x_scalar)
+        x_summary = tf.compat.v1.summary.scalar("y_scalar", y_scalar)
         init = tf.compat.v1.global_variables_initializer()
         writer = tf.compat.v1.summary.FileWriter(
             os.path.join(".", "summary"), sess.graph
@@ -197,4 +197,4 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     ) in term.PRINTED_MESSAGES
     assert json.loads(first_stream_hist["content"][-1])["_step"] == 20
     # assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9
-    wandb.tensorboard.unpatch_tensorboard()
+    wandb.tensorboard.unpatch()

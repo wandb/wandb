@@ -16,7 +16,7 @@ TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
-def unpatch_tensorboard():
+def unpatch():
     for item in wandb.patched["tensorboard"]:
         module = item[0]
         method = item[1]
