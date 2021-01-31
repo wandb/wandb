@@ -105,6 +105,8 @@ class SendManager(object):
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
+        self._step = 0
+
         self._exit_code = 0
 
     def send(self, record):
@@ -363,6 +365,7 @@ class SendManager(object):
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
+        self._step = self._resume_state("step")
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
@@ -603,6 +606,9 @@ class SendManager(object):
     def send_history(self, data):
         history = data.history
         history_dict = proto_util.dict_from_proto_list(history.item)
+        if self._settings._sync_tensorboard:
+            history_dict["_step"] = self._step
+            self._step += 1
         self._save_history(history_dict)
 
     def send_summary(self, data):

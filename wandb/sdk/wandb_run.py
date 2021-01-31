@@ -923,6 +923,11 @@ class Run(object):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
+            if self._settings._sync_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global step'",
+                    repeat=False,
+                )
             if self.history._step > step:
                 wandb.termwarn(
                     (

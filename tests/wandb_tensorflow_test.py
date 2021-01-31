@@ -12,6 +12,7 @@ if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow as tf
 import wandb
+from wandb.errors import term
 from wandb import wandb_sdk
 
 
@@ -153,3 +154,47 @@ def test_compat_tensorboard(live_mock_server, test_settings):
     print(first_stream_hist)
     assert json.loads(first_stream_hist["content"][-1])["_step"] == 9
     assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9
+    assert (
+        "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when using"
+        " syncing with tensorboard. Please log your step values as a metric such as 'global step'"
+    ) not in term.PRINTED_MESSAGES
+    wandb.unpatch_tensorboard()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
+def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
+    wandb.init(sync_tensorboard=True, settings=test_settings)
+
+    with tf.compat.v1.Session() as sess:
+        initializer = tf.compat.v1.truncated_normal_initializer(mean=0, stddev=1)
+        x_scalar = tf.compat.v1.get_variable(
+            "x_scalar", shape=[], initializer=initializer
+        )
+        x_summary = tf.compat.v1.summary.scalar("x_scalar", x_scalar)
+        init = tf.compat.v1.global_variables_initializer()
+        writer = tf.compat.v1.summary.FileWriter(
+            os.path.join(".", "summary"), sess.graph
+        )
+        for step in range(10):
+            sess.run(init)
+            summary = sess.run(x_summary)
+            writer.add_summary(summary, step)
+            wandb.log({"wandb_logged_val": step ** 2})
+
+        wandb.log({"wandb_logged_val_with_step": step}, step=step + 3)
+        writer.close()
+    wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+    print("CONTEXT!", server_ctx)
+    first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
+    print(first_stream_hist)
+    assert (
+        "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
+        " using syncing with tensorboard. Please log your step values as a metric such as 'global step'"
+    ) in term.PRINTED_MESSAGES
+    assert json.loads(first_stream_hist["content"][-1])["_step"] == 20
+    # assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9
+    wandb.tensorboard.unpatch_tensorboard()

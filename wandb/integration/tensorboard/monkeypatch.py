@@ -16,6 +16,16 @@ TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
+def unpatch_tensorboard():
+    for item in wandb.patched["tensorboard"]:
+        module = item[0]
+        method = item[1]
+        print("FOK", item, module, method)
+        writer = wandb.util.get_module(module)
+        setattr(writer, method, getattr(writer, "orig_{}", format(method)))
+    wandb.patched["tensorboard"] = []
+
+
 def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
