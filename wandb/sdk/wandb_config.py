@@ -188,7 +188,7 @@ class Config(object):
         if self._callback:
             self._callback(data=d)
 
-    def update_locked(self, d, user=None):
+    def update_locked(self, d, user=None, _allow_val_change=None):
         if user not in self._users:
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
@@ -197,7 +197,7 @@ class Config(object):
         num = self._users[user]
 
         for k, v in six.iteritems(d):
-            k, v = self._sanitize(k, v)
+            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
 
