@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import datetime
 import fnmatch
+import glob
 import os
 import sys
 import threading
@@ -24,14 +25,19 @@ if PY3:
     from wandb.sdk.internal import datastore
     from wandb.sdk.internal import sender
     from wandb.sdk.internal import settings_static
+    from wandb.sdk.internal import tb_watcher
+    from wandb.sdk import wandb_run
 else:
     from wandb.sdk_py27.interface import interface
     from wandb.sdk_py27.internal import datastore
     from wandb.sdk_py27.internal import sender
     from wandb.sdk_py27.internal import settings_static
+    from wandb.sdk_py27.internal import tb_watcher
+    from wandb.sdk_py27 import wandb_run
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
+TFEVENT_SUBSTRING = ".tfevents."
 
 
 class _LocalRun(object):
@@ -58,6 +64,7 @@ class SyncThread(threading.Thread):
         verbose=None,
         mark_synced=None,
         app_url=None,
+        sync_tensorboard=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -70,16 +77,106 @@ class SyncThread(threading.Thread):
         self._verbose = verbose
         self._mark_synced = mark_synced
         self._app_url = app_url
+        self._sync_tensorboard = sync_tensorboard
+
+    def _parse_pb(self, data, exit_pb=None):
+        pb = wandb_internal_pb2.Record()
+        pb.ParseFromString(data)
+        record_type = pb.WhichOneof("record_type")
+        if self._view:
+            if self._verbose:
+                print("Record:", pb)
+            else:
+                print("Record:", record_type)
+            return pb, exit_pb, True
+        if record_type == "run":
+            if self._run_id:
+                pb.run.run_id = self._run_id
+            if self._project:
+                pb.run.project = self._project
+            if self._entity:
+                pb.run.entity = self._entity
+            pb.control.req_resp = True
+        elif record_type == "exit":
+            exit_pb = pb
+            return pb, exit_pb, True
+        elif record_type == "final":
+            assert exit_pb, "final seen without exit"
+            pb = exit_pb
+            exit_pb = None
+        return pb, exit_pb, False
+
+    def _find_tfevent_files(self, sync_item):
+        tb_event_files = 0
+        tb_logdirs = []
+        tb_root = None
+        if self._sync_tensorboard:
+            # TODO: complain if there are too many dirs...
+            if os.path.isdir(sync_item):
+                glob_str = os.path.join(sync_item, "**", "*{}*".format(TFEVENT_SUBSTRING))
+                files = glob.glob(glob_str, recursive=True)
+                for tfevent in files:
+                    tb_event_files += 1
+                    tb_dir = os.path.dirname(os.path.abspath(tfevent))
+                    if tb_dir not in tb_logdirs:
+                        tb_logdirs.append(tb_dir)
+                if len(tb_logdirs) > 0:
+                    tb_root = os.path.commonprefix(tb_logdirs)
+            elif TFEVENT_SUBSTRING in sync_item:
+                tb_root = os.path.dirname(os.path.abspath(sync_item))
+                tb_logdirs.append(tb_root)
+                tb_event_files = 1
+        return tb_event_files, tb_logdirs, tb_root
+
+    def _send_tensorboard(self, tb_root, tb_logdirs, sm, publish_interface, record_q):
+        if self._entity is None:
+            viewer, server_info = sm._api.viewer_server_info()
+            self._entity = viewer.get("entity")
+        proto_run = wandb_internal_pb2.RunRecord()
+        proto_run.run_id = self._run_id or wandb.util.generate_id()
+        proto_run.project = self._project or wandb.util.auto_project_name(None)
+        proto_run.entity = self._entity
+        url = "{}/{}/{}/runs/{}".format(
+            self._app_url,
+            url_quote(proto_run.entity),
+            url_quote(proto_run.project),
+            url_quote(proto_run.run_id),
+        )
+        print("Syncing: %s ..." % url)
+        sys.stdout.flush()
+        record = publish_interface._make_record(run=proto_run)
+        sm.send(record)
+        # TODO: use a windows, unix, temp directory not working
+        settings = wandb.Settings(
+            root_dir="/tmp",
+            run_id=proto_run.run_id,
+            _start_datetime=datetime.datetime.now(),
+            _start_time=time.time()
+        )
+        tb_watcher.TBHistory.ignore = lambda key: "bert" in key
+        watcher = tb_watcher.TBWatcher(settings, proto_run, publish_interface, True)
+        for tb in tb_logdirs:
+            watcher.add(tb, True, tb_root)
+            sys.stdout.flush()
+        watcher.finish()
+        # send all of our records like a boss
+        while not record_q.empty():
+            data = record_q.get(block=True)
+            sm.send(data)
+        sys.stdout.flush()
+        sm.finish()
 
     def run(self):
         for sync_item in self._sync_list:
+            tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
                 files = os.listdir(sync_item)
                 filtered_files = list(filter(lambda f: f.endswith(WANDB_SUFFIX), files))
-                if check_and_warn_old(files) or len(filtered_files) != 1:
+                if tb_root is None and (check_and_warn_old(files) or len(filtered_files) != 1):
                     print("Skipping directory: {}".format(sync_item))
                     continue
-                sync_item = os.path.join(sync_item, filtered_files[0])
+                if len(filtered_files) > 0:
+                    sync_item = os.path.join(sync_item, filtered_files[0])
             dirname = os.path.dirname(sync_item)
             files_dir = os.path.join(dirname, "files")
             sd = dict(
@@ -111,6 +208,14 @@ class SyncThread(threading.Thread):
                 result_q=result_q,
                 interface=publish_interface,
             )
+
+            if tb_root is not None:
+                if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
+                    wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
+                else:
+                    print("Found {} tfevent files in {}".format(tb_event_files, tb_root))
+                    self._send_tensorboard(tb_root, tb_logdirs, sm, publish_interface, record_q)
+                    continue
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
 
@@ -122,30 +227,9 @@ class SyncThread(threading.Thread):
                 data = ds.scan_data()
                 if data is None:
                     break
-                pb = wandb_internal_pb2.Record()
-                pb.ParseFromString(data)
-                record_type = pb.WhichOneof("record_type")
-                if self._view:
-                    if self._verbose:
-                        print("Record:", pb)
-                    else:
-                        print("Record:", record_type)
+                pb, exit_pb, cont = self._parse_pb(data, exit_pb)
+                if cont:
                     continue
-                if record_type == "run":
-                    if self._run_id:
-                        pb.run.run_id = self._run_id
-                    if self._project:
-                        pb.run.project = self._project
-                    if self._entity:
-                        pb.run.entity = self._entity
-                    pb.control.req_resp = True
-                elif record_type == "exit":
-                    exit_pb = pb
-                    continue
-                elif record_type == "final":
-                    assert exit_pb, "final seen without exit"
-                    pb = exit_pb
-                    exit_pb = None
                 sm.send(pb)
                 # send any records that were added in previous send
                 while not record_q.empty():
@@ -185,6 +269,7 @@ class SyncManager:
         app_url=None,
         view=None,
         verbose=None,
+        sync_tensorboard=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -195,6 +280,7 @@ class SyncManager:
         self._app_url = app_url
         self._view = view
         self._verbose = verbose
+        self._sync_tensorboard = sync_tensorboard
 
     def status(self):
         pass
@@ -213,6 +299,7 @@ class SyncManager:
             verbose=self._verbose,
             mark_synced=self._mark_synced,
             app_url=self._app_url,
+            sync_tensorboard=self._sync_tensorboard,
         )
         self._thread.start()
 

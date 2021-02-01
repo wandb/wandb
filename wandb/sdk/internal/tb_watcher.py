@@ -3,9 +3,11 @@
 tensor b watcher.
 """
 
+import json
 import logging
 import os
 import socket
+import sys
 import threading
 import time
 
@@ -15,6 +17,7 @@ import wandb
 from wandb import util
 
 from . import run as internal_run
+from . import file_stream
 
 if wandb.TYPE_CHECKING:
     from typing import TYPE_CHECKING
@@ -105,12 +108,14 @@ class TBWatcher(object):
         settings: "SettingsStatic",
         run_proto: "RunRecord",
         interface: "BackendSender",
+        force: bool = False,
     ) -> None:
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
+        self._force = force
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
@@ -155,7 +160,7 @@ class TBWatcher(object):
             )
             self._consumer.start()
 
-        tbdir_watcher = TBDirWatcher(self, logdir, save, namespace, self._watcher_queue)
+        tbdir_watcher = TBDirWatcher(self, logdir, save, namespace, self._watcher_queue, self._force)
         self._logdirs[logdir] = tbdir_watcher
         tbdir_watcher.start()
 
@@ -176,6 +181,7 @@ class TBDirWatcher(object):
         save: bool,
         namespace: "Optional[str]",
         queue: "PriorityQueue",
+        force: bool = False,
     ) -> None:
         self.directory_watcher = util.get_module(
             "tensorboard.backend.event_processing.directory_watcher",
@@ -200,6 +206,7 @@ class TBDirWatcher(object):
         self._namespace = namespace
         self._logdir = logdir
         self._hostname = socket.gethostname()
+        self._force = force
 
     def start(self) -> None:
         self._thread.start()
@@ -208,6 +215,8 @@ class TBDirWatcher(object):
         """Checks if a path has been modified since launch and contains tfevents"""
         if not path:
             raise ValueError("Path must be a nonempty string")
+        if self._force:
+            return True
         path = self.tf_compat.tf.compat.as_str_any(path)
         return is_tfevents_file_created_by(
             path, self._hostname, self._tbwatcher._settings._start_time
@@ -388,23 +397,47 @@ class TBHistory(object):
 
     def __init__(self) -> None:
         self._step = 0
+        self._step_size = 0
         self._data = dict()
         self._added = []
 
     def _flush(self) -> None:
         if not self._data:
             return
+        if self._step_size > file_stream.MAX_LINE_SIZE:
+            metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
+            metrics.sort(key=lambda t: t[1], reverse=True)
+            bad = 0
+            dropped_keys = []
+            for k,v in metrics:
+                if self._step_size - bad < file_stream.MAX_LINE_SIZE:
+                    break
+                else:
+                    bad += v
+                    dropped_keys.append(k)
+                    del self._data[k]
+            wandb.termwarn("Step {} exceeds max data limit, dropping {} of the largest keys:".format(self._step, len(dropped_keys)))
+            print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1
+        self._step_size = 0
 
     def add(self, d: "HistoryDict") -> None:
         self._flush()
         self._data = dict()
-        self._data.update(d)
+        self._data.update(self._track_history_dict(d))
+
+    def _track_history_dict(self, d: "HistoryDict") -> None:
+        e = {}
+        for k in d.keys():
+            # TODO: allow users to skip certain keys?
+            e[k] = d[k]
+            self._step_size += sys.getsizeof(e[k])
+        return e
 
     def _row_update(self, d: "HistoryDict") -> None:
-        self._data.update(d)
+        self._data.update(self._track_history_dict(d))
 
     def _get_and_reset(self) -> "List[HistoryDict]":
         added = self._added[:]

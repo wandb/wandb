@@ -420,6 +420,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--sync-tensorboard", is_flag=True, default=True, help="Stream tfevent files to wandb.")
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -471,6 +472,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
     include_online=None,
@@ -551,6 +553,7 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
+            sync_tensorboard=sync_tensorboard
         )
         for p in path:
             sm.add(p)
@@ -1232,14 +1235,6 @@ def ls(path, type):
     else:
         types = public_api.artifact_types(path)
 
-    def human_size(bytes, units=None):
-        units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-        return (
-            str(bytes) + units[0]
-            if bytes < 1024
-            else human_size(bytes >> 10, units[1:])
-        )
-
     for kind in types:
         for collection in kind.collections():
             versions = public_api.artifact_versions(
@@ -1250,7 +1245,7 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, human_size(latest.size), latest.name
+                    kind.type, latest.updated_at, util.sizeof_fmt(latest.size), latest.name
                 )
             )
 
