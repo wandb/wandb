@@ -1,3 +1,23 @@
+## 0.10.16 (February 1, 2021)
+
+#### :nail_care: Enhancement
+
+- Artifacts now support parallel writers for large distributed workflows.
+- Artifacts support distributed tables for dataset visualization.
+- Improvements to PR templates
+- Added more type annotations
+- Vendored watchdog 0.9.0 removing it as a dependency
+- New documentation generator
+- Public api now has `file.direct_url` to avoid redirects for signed urls.
+
+#### :bug: Bug Fix
+
+- Allow `config-defaults.yaml` to be overwritten when running sweeps
+- General bug fixes and improvements to `wandb verify`
+- Disabled widgets in Spyder IDE
+- Fixed WANDB_SILENT in Spyder IDE
+- Reference file:// artifacts respect the `name` attribute.
+
 ## 0.10.15 (January 24, 2021)
 
 #### :nail_care: Enhancement
