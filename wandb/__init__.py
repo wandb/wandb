@@ -35,7 +35,7 @@ from wandb.errors.term import termsetup, termlog, termerror, termwarn
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 TYPE_CHECKING = PY3  # type: bool
 
-if not PY3:
+if sys.version_info.major == 2:
 
     class _ImportMetaHook:
         def __init__(self):
