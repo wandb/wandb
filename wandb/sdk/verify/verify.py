@@ -5,6 +5,7 @@ Utilities for wandb verify
 """
 from __future__ import print_function
 
+from functools import partial
 import getpass
 import os
 import sys
@@ -20,6 +21,7 @@ import wandb
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
         Any,
+        Callable,
         Dict,
         List,
         Optional,
@@ -80,12 +82,15 @@ def check_logged_in(api: Api, host: str) -> bool:
         fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
             click.style(login_doc_url, underline=True, fg="blue")
         )
+    # check that api key is correct
+    # TODO: Better check for api key is correct
     else:
-        logged_in = wandb.login(key=api.api_key, host=host)
-        if not logged_in:
-            fail_string = "Given key is not authorized for host: {}. Please login using wandb login.".format(
+        res = retry_fn(partial(api.api.viewer))
+        if res is None or res == {}:
+            fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
                 host
             )
+
     print_results(fail_string, False)
     return fail_string is None
 
@@ -145,8 +150,10 @@ def check_run(api: Api) -> bool:
             )
 
         wandb.save(filepath)
-
-    prev_run = get_run(run_id, entity, MIN_RETRYS, GET_RUN_MAX_TIME)
+    public_api = wandb.Api()
+    prev_run = retry_fn(
+        partial(public_api.run, "{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    )
     if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -386,7 +393,7 @@ def check_artifacts() -> bool:
     return len(failed_test_strings) == 0
 
 
-def check_graphql_put(api: Api, host: str) -> Tuple(bool, Optional[str]):
+def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     # check graphql endpoint using an upload
     print("Checking signed URL upload".ljust(72, "."), end="")
     failed_test_strings = []
@@ -408,8 +415,10 @@ def check_graphql_put(api: Api, host: str) -> Tuple(bool, Optional[str]):
 
             # next test will also fail if this one failed. So terminate this test here.
             return False, None
-
-    prev_run = get_run(run.id, run.entity, MIN_RETRYS, GET_RUN_MAX_TIME)
+    public_api = wandb.Api()
+    prev_run = retry_fn(
+        partial(public_api.run, "{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+    )
     if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -505,17 +514,16 @@ def check_wandb_version(api: Api) -> None:
     print_results(fail_string, warning)
 
 
-def get_run(run_id: str, entity: str, min_retrys: int, max_time: int):
-    public_api = wandb.Api()
+def retry_fn(fn: Callable):
     ini_time = time.time()
-    run = None
+    res = None
     i = 0
-    while i < min_retrys or time.time() - ini_time < max_time:
+    while i < MIN_RETRYS or time.time() - ini_time < GET_RUN_MAX_TIME:
         i += 1
         try:
-            run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+            res = fn()
             break
         except Exception:
             time.sleep(1)
             continue
-    return run
+    return res

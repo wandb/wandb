@@ -1598,11 +1598,12 @@ def verify(host):
     tmp_dir = tempfile.TemporaryDirectory()
     os.chdir(tmp_dir.name)
     os.environ["WANDB_BASE_URL"] = host
+    wandb.login(host=host)
     if reinit:
         api = _get_cling_api(reset=True)
     if not wandb_verify.check_host(host):
         sys.exit(1)
-    if not wandb_verify.check_logged_in(api):
+    if not wandb_verify.check_logged_in(api, host):
         sys.exit(1)
     url_success, url = wandb_verify.check_graphql_put(api, host)
     large_post_success = wandb_verify.check_large_post()
