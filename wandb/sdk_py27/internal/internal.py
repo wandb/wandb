@@ -69,16 +69,22 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._IS_INTERNAL_PROCESS = True
+    started = time.time()
 
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
     if _settings.log_internal:
+        logging_started = time.time()
         configure_logging(_settings.log_internal, _settings._log_level)
+        logging_finished = time.time()
 
     parent_pid = os.getppid()
     pid = os.getpid()
 
     logger.info("W&B internal server running at pid: %s", pid)
+    logger.info("started process at: %s", started)
+    logger.info("started logging at: %s", logging_started)
+    logger.info("finished logging at: %s", logging_finished)
 
     publish_interface = interface.BackendSender(record_q=record_q)
 

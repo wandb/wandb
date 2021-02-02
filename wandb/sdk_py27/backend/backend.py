@@ -82,7 +82,9 @@ class Backend(object):
         # Start the process with __name__ == "__main__" workarounds
         self.wandb_process.start()
         self._internal_pid = self.wandb_process.pid
-        logger.info("started backend process with pid: {}".format(self.wandb_process.pid))
+        logger.info(
+            "started backend process with pid: {}".format(self.wandb_process.pid)
+        )
 
         # Undo temporary changes from: __name__ == "__main__"
         if save_mod_name:
