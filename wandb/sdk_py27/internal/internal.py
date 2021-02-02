@@ -71,6 +71,11 @@ def wandb_internal(
     wandb._IS_INTERNAL_PROCESS = True
     started = time.time()
 
+    # register the exit handler only when wandb_internal is called, not on import
+    @atexit.register
+    def handle_exit(*args):
+        logger.info("Internal process exited")
+
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
     if _settings.log_internal:
@@ -160,11 +165,6 @@ def wandb_internal(
             sys.exit(-1)
 
 
-@atexit.register
-def handle_exit(*args):
-    logger.info("Internal process exited")
-
-
 def configure_logging(log_fname, log_level, run_id = None):
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
@@ -192,7 +192,9 @@ def configure_logging(log_fname, log_level, run_id = None):
     log_handler.setFormatter(formatter)
     if run_id:
         log_handler.addFilter(WBFilter())
-    root = logging.getLogger()
+    # If this is called without "wandb", backend logs from this module
+    # are not streamed to `debug-internal.log` when we spawn with fork
+    root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     root.addHandler(log_handler)
 

@@ -16,6 +16,7 @@ Threads:
 from __future__ import print_function
 
 import atexit
+from datetime import datetime
 import logging
 import os
 import sys
@@ -71,23 +72,20 @@ def wandb_internal(
     wandb._IS_INTERNAL_PROCESS = True
     started = time.time()
 
+    # register the exit handler only when wandb_internal is called, not on import
+    @atexit.register
+    def handle_exit(*args: "Any") -> None:
+        logger.info("Internal process exited")
+
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
     if _settings.log_internal:
-        logging_started = time.time()
         configure_logging(_settings.log_internal, _settings._log_level)
-        logging_finished = time.time()
-    else:
-        logging_started = started
-        logging_finished = started
 
     parent_pid = os.getppid()
     pid = os.getpid()
 
-    logger.info("W&B internal server running at pid: %s", pid)
-    logger.info("started process at: %s", started)
-    logger.info("started logging at: %s", logging_started)
-    logger.info("finished logging at: %s", logging_finished)
+    logger.info("W&B internal server running at pid: %s, started at: %s", pid, datetime.fromtimestamp(started))
 
     publish_interface = interface.BackendSender(record_q=record_q)
 
@@ -160,11 +158,6 @@ def wandb_internal(
             sys.exit(-1)
 
 
-@atexit.register
-def handle_exit(*args: "Any") -> None:
-    logger.info("Internal process exited")
-
-
 def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
@@ -192,7 +185,9 @@ def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> Non
     log_handler.setFormatter(formatter)
     if run_id:
         log_handler.addFilter(WBFilter())
-    root = logging.getLogger()
+    # If this is called without "wandb", backend logs from this module
+    # are not streamed to `debug-internal.log` when we spawn with fork
+    root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     root.addHandler(log_handler)
 
