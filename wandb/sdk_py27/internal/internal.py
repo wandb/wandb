@@ -77,6 +77,9 @@ def wandb_internal(
         logging_started = time.time()
         configure_logging(_settings.log_internal, _settings._log_level)
         logging_finished = time.time()
+    else:
+        logging_started = started
+        logging_finished = started
 
     parent_pid = os.getppid()
     pid = os.getpid()
