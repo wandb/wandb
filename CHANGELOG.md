@@ -1,3 +1,10 @@
+## 0.10.17 (February 1, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression seen with python 3.5
+- Silence vendored watchdog warning with python 2.7 on mac
+
 ## 0.10.16 (February 1, 2021)
 
 #### :nail_care: Enhancement
