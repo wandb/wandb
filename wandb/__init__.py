@@ -24,7 +24,6 @@ __version__ = "0.10.17.dev1"
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
-import importlib
 import sys
 
 from wandb.errors import Error
@@ -33,44 +32,14 @@ from wandb.errors import Error
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING = PY3  # type: bool
-
-if not PY3:
-
-    class _ImportMetaHook:
-        def __init__(self):
-            self.modules = {}
-
-        def install(self):
-            sys.meta_path.insert(0, self)
-
-        def uninstall(self):
-            sys.meta_path.remove(self)
-
-        def find_module(self, fullname, path=None):
-            if fullname == "wandb.sdk" or fullname.startswith("wandb.sdk."):
-                return self
-
-        def load_module(self, fullname):
-            self.uninstall()
-            if fullname == "wandb.sdk":
-                fullname = "wandb.sdk_py27"
-            elif fullname.startswith("wandb.sdk."):
-                fullname = "wandb.sdk_py27." + fullname[len("wandb.sdk.") :]
-            mod = importlib.import_module(fullname)
-            self.install()
-            self.modules[fullname] = mod
-            return mod
-
-    _ImportMetaHook().install()
-
+TYPE_CHECKING = False  # type: bool
 if PY3:
+    TYPE_CHECKING = True
     from wandb import sdk as wandb_sdk
 else:
     from wandb import sdk_py27 as wandb_sdk
 
 import wandb
-
 
 wandb.wandb_lib = wandb_sdk.lib
 

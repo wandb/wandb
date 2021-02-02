@@ -78,7 +78,6 @@ SYMBOLS_ROOT_OTHER = {
     "errors",
     "filesync",
     "gym",
-    "importlib",
     "integration",
     "jupyter",
     "keras",
