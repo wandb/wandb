@@ -681,7 +681,6 @@ class Run(object):
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
         custom_charts = {}
@@ -716,7 +715,9 @@ class Run(object):
             self._config_callback(data=self._config._as_dict())
 
         if self._backend:
-            self._backend.interface.publish_history(row, step)
+            self._backend.interface.publish_history(
+                row, step, publish_step=len(wandb.patched["tensorboard"]) == 0
+            )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)

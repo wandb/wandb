@@ -72,6 +72,7 @@ class HandleManager(object):
 
         self._tb_watcher = None
         self._system_stats = None
+        self._step = 0
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -168,6 +169,40 @@ class HandleManager(object):
                 self._sampled_history[k].add(v)
 
     def handle_history(self, record):
+        history_dict = proto_util.dict_from_proto_list(record.history.item)
+        try:
+            has_step = record.step
+        except Exception:
+            has_step = False
+        print(history_dict)
+        if history_dict.get("_step", None) is None:
+            item = record.history.item.add()
+            item.key = "_step"
+            if has_step:
+                history_dict["_step"] = json.loads(record.step)
+                item.value_json = json.loads(record.step)
+                self._step = json.loads(record.step) + 1
+            else:
+                history_dict["_step"] = self._step
+                item.value_json = json.dumps(self._step)
+                self._step += 1
+        print(history_dict)
+        self._dispatch_record(record)
+        self._save_history(record)
+        self._consolidated_summary.update(history_dict)
+        self._save_summary(self._consolidated_summary)
+
+        # has_step = False
+        # for index, item in enumerate(record.history.item):
+        #     if item.key == "_step":
+        #         has_step = True
+        # if not has_step:
+        #     item = record.history.item.add()
+        #     item.key = "_step"
+        #     item.value_json = json.dumps(self._step)
+        #     self._step += 1
+        # print("post", record)
+
         self._dispatch_record(record)
         self._save_history(record)
         history_dict = proto_util.dict_from_proto_list(record.history.item)
@@ -261,6 +296,7 @@ class HandleManager(object):
         if self._system_stats is not None:
             logger.info("starting system metrics thread")
             self._system_stats.start()
+        self._step = self.interface._step
 
     def handle_request_pause(self, record):
         if self._system_stats is not None:
@@ -283,6 +319,7 @@ class HandleManager(object):
         self._result_q.put(result)
 
     def handle_tbrecord(self, record):
+        print("handling tb_recrd")
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
             tbrecord = record.tbrecord

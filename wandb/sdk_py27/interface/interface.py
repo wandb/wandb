@@ -169,14 +169,18 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
-    def publish_history(self, data, step=None, run=None):
+    def publish_history(self, data, step=None, run=None, publish_step=True):
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = wandb_internal_pb2.HistoryRecord()
+        if publish_step:
+            history.step = step
+        data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
+
         self._publish_history(history)
 
     def publish_telemetry(self, telem):

@@ -367,7 +367,6 @@ class SendManager(object):
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
-
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
@@ -608,9 +607,6 @@ class SendManager(object):
     def send_history(self, data):
         history = data.history
         history_dict = proto_util.dict_from_proto_list(history.item)
-        if self._settings._sync_tensorboard:
-            history_dict["_step"] = self._step
-            self._step += 1
         self._save_history(history_dict)
 
     def send_summary(self, data):
