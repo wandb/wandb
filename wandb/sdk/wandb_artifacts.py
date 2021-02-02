@@ -1,33 +1,22 @@
 #
-import base64
 import contextlib
-import hashlib
-import os
 import re
-import shutil
+import os
 import time
-
+import shutil
 import requests
-from six.moves.urllib.parse import quote, urlparse
+
+from six.moves.urllib.parse import urlparse, quote
+
 import wandb
-from wandb import util
+from wandb.compat import tempfile as compat_tempfile
+from .interface.artifacts import *
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.compat import tempfile as compat_tempfile
-from wandb.data_types import WBValue
 from wandb.errors.error import CommError
-from wandb.errors.term import termlog, termwarn
-from wandb.sdk.interface.artifacts import (
-    ArtifactManifest,
-    b64_string_to_hex,
-    env,
-    get_artifacts_cache,
-    md5_file_b64,
-    StorageHandler,
-    StorageLayout,
-    StoragePolicy,
-)
-
+from wandb import util
+from wandb.errors.term import termwarn, termlog
+from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional
@@ -185,8 +174,8 @@ class Artifact(object):
 
         import multiprocessing.dummy  # this uses threads
 
-        num_threads = 8
-        pool = multiprocessing.dummy.Pool(num_threads)
+        NUM_THREADS = 8
+        pool = multiprocessing.dummy.Pool(NUM_THREADS)
         pool.map(add_manifest_file, paths)
         pool.close()
         pool.join()
@@ -194,9 +183,9 @@ class Artifact(object):
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
     def add_reference(self, uri, name=None, checksum=True, max_objects=None):
-        """adds `uri` to the artifact via a reference, located at `name`.
+        """adds `uri` to the artifact via a reference, located at `name`. 
         You can use `Artifact.get_path(name)` to retrieve this object.
-
+        
         Arguments:
             uri (str) - the URI path of the reference to add. Can be an object returned from
                 Artifact.get_path to store a reference to another artifact's entry.
@@ -212,7 +201,7 @@ class Artifact(object):
             and hasattr(uri, "parent_artifact")
             and uri.parent_artifact != self
         ):
-            ref_url_fn = uri.ref_url
+            ref_url_fn = getattr(uri, "ref_url")
             uri = ref_url_fn()
         url = urlparse(uri)
         if not url.scheme:
@@ -231,7 +220,7 @@ class Artifact(object):
     def add(self, obj, name):
         """Adds `obj` to the artifact, located at `name`. You can
         use `Artifact.get(name)` after downloading the artifact to retrieve this object.
-
+        
         Arguments:
             obj (wandb.WBValue): The object to save in an artifact
             name (str): The path to save
@@ -716,7 +705,7 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if not checksum:
+        if checksum == False:
             return [
                 ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
             ]
@@ -729,7 +718,7 @@ class LocalFileHandler(StorageHandler):
                 % (max_objects, local_path),
                 newline=False,
             )
-            for root, _, files in os.walk(local_path):
+            for root, dirs, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
                     if i >= max_objects:
@@ -1003,6 +992,7 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
+        extra_args = {}
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
         if version is not None:
@@ -1035,7 +1025,7 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
 
-        if not checksum:
+        if checksum == False:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key)
@@ -1192,7 +1182,7 @@ class WBArtifactHandler(StorageHandler):
 
         Arguments:
             manifest_entry (ArtifactManifestEntry): The index entry to load
-
+        
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
@@ -1216,7 +1206,7 @@ class WBArtifactHandler(StorageHandler):
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         """
         Stores the file or directory at the given path within the specified artifact. In this
-        case we recursively resolve the reference until the result is a concrete asset so that
+        case we recursively resolve the reference until the result is a concrete asset so that 
         we don't have multiple hops. TODO-This resolution could be done in the server for
         performance improvements.
 
@@ -1224,7 +1214,7 @@ class WBArtifactHandler(StorageHandler):
             artifact: The artifact doing the storing
             path (str): The path to store
             name (str): If specified, the logical name that should map to `path`
-
+        
         Returns:
             (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
         """
