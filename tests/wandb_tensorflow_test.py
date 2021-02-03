@@ -196,7 +196,7 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     # print(second_stream_hist)
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
-        " using syncing with tensorboard. Please log your step values as a metric such as 'global step'"
+        " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
     ) in term.PRINTED_MESSAGES
     assert json.loads(first_stream_hist["content"][-1])["_step"] == 20
     assert (

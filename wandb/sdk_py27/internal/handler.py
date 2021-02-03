@@ -127,7 +127,6 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_run(self, record):
-        print("RUN RECORD", record)
         self._dispatch_record(record)
 
     def handle_stats(self, record):
@@ -171,10 +170,10 @@ class HandleManager(object):
 
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-
         try:
             has_step = record.step
-        except Exception:
+        except AttributeError:
+            print("error")
             has_step = False
 
         if history_dict.get("_step", None) is None:
@@ -304,7 +303,6 @@ class HandleManager(object):
         self._result_q.put(result)
 
     def handle_tbrecord(self, record):
-        print("handling tb_recrd")
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
             tbrecord = record.tbrecord

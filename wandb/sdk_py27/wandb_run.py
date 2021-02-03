@@ -926,7 +926,7 @@ class Run(object):
         if step is not None:
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global step'",
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if self.history._step > step:

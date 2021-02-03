@@ -105,8 +105,6 @@ class SendManager(object):
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
-        self._step = 0
-
         self._exit_code = 0
 
     def send(self, record):
@@ -365,7 +363,6 @@ class SendManager(object):
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
-
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
