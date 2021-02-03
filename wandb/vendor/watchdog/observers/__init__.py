@@ -71,10 +71,14 @@ elif platform.is_darwin():
     except:
         try:
             from .kqueue import KqueueObserver as Observer
-            warnings.warn("Failed to import fsevents. Fall back to kqueue")
+            # Note: (tim): Commenting out these warnings since the _watchdog_fsevents
+            # module is not available unless installed directly.
+            # warnings.warn("Failed to import fsevents. Fall back to kqueue")
         except:
             from .polling import PollingObserver as Observer
-            warnings.warn("Failed to import fsevents and kqueue. Fall back to polling.")
+            # Note: (tim): Commenting out these warnings since the _watchdog_fsevents
+            # module is not available unless installed directly.
+            # warnings.warn("Failed to import fsevents and kqueue. Fall back to polling.")
 
 elif platform.is_bsd():
     from .kqueue import KqueueObserver as Observer
