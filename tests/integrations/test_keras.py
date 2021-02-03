@@ -285,6 +285,7 @@ def test_keras_convert_sequential():
     }
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="Cannot convert a symbolic Tensor")
 def test_keras_convert_model_non_sequential():
     # necessary to keep the names of the layers consistent
     K.clear_session()
