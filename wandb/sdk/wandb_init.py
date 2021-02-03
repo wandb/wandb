@@ -466,7 +466,7 @@ class _WandbInit(object):
             run._set_run_obj(ret.run)
 
         # initiate run (stats and metadata probing)
-        _ = backend.interface.communicate_run_start()
+        _ = backend.interface.communicate_run_start(run)
 
         self._wl._global_run_stack.append(run)
         self.run = run

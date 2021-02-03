@@ -127,6 +127,7 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_run(self, record):
+        print("RUN RECORD", record)
         self._dispatch_record(record)
 
     def handle_stats(self, record):
@@ -170,11 +171,12 @@ class HandleManager(object):
 
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
+
         try:
             has_step = record.step
         except Exception:
             has_step = False
-        print(history_dict)
+
         if history_dict.get("_step", None) is None:
             item = record.history.item.add()
             item.key = "_step"
@@ -186,26 +188,8 @@ class HandleManager(object):
                 history_dict["_step"] = self._step
                 item.value_json = json.dumps(self._step)
                 self._step += 1
-        print(history_dict)
         self._dispatch_record(record)
         self._save_history(record)
-        self._consolidated_summary.update(history_dict)
-        self._save_summary(self._consolidated_summary)
-
-        # has_step = False
-        # for index, item in enumerate(record.history.item):
-        #     if item.key == "_step":
-        #         has_step = True
-        # if not has_step:
-        #     item = record.history.item.add()
-        #     item.key = "_step"
-        #     item.value_json = json.dumps(self._step)
-        #     self._step += 1
-        # print("post", record)
-
-        self._dispatch_record(record)
-        self._save_history(record)
-        history_dict = proto_util.dict_from_proto_list(record.history.item)
         self._consolidated_summary.update(history_dict)
         self._save_summary(self._consolidated_summary)
 
@@ -288,7 +272,8 @@ class HandleManager(object):
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run,
         )
-
+        if run_start.run.resumed:
+            self._step = run_start.run.starting_step
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
 
@@ -296,7 +281,7 @@ class HandleManager(object):
         if self._system_stats is not None:
             logger.info("starting system metrics thread")
             self._system_stats.start()
-        self._step = self.interface._step
+        self._step = self._interface._step
 
     def handle_request_pause(self, record):
         if self._system_stats is not None:

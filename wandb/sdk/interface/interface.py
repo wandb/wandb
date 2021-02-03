@@ -654,8 +654,11 @@ class BackendSender(object):
             return
         return result.response.check_version_response
 
-    def communicate_run_start(self):
+    def communicate_run_start(self, run):
         run_start = wandb_internal_pb2.RunStartRequest()
+        run_start.run.run_id = run.id
+        run_start.run.starting_step = run.step
+        run_start.run.resumed = run.resumed
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result

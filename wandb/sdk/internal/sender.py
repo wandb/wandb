@@ -358,15 +358,14 @@ class SendManager(object):
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state["runtime"] = max(events_rt, history_rt)
-        self._step = self._resume_state["step"] = (
-            history.get("_step", -1) + 1 if history else 0
-        )
+        self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
+
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
