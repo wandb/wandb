@@ -69,6 +69,7 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._IS_INTERNAL_PROCESS = True
+
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
     if _settings.log_internal:
