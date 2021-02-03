@@ -83,8 +83,8 @@ class BackendMock(object):
         if len(rec.history.item) > 0:
             hist = self._proto_to_dict(rec.history.item)
             # handle case where step is not passed in items
-            if len(rec.history.step) > 0:
-                hist["_step"] = json.loads(rec.history.step)
+            if rec.history.HasField("step"):
+                hist["_step"] = rec.history.step
             self.history.append(hist)
         if len(rec.summary.update) > 0:
             self.summary.update(self._proto_to_dict(rec.summary.update))
