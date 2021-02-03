@@ -112,7 +112,11 @@ class SyncThread(threading.Thread):
                 interface=publish_interface,
             )
             ds = datastore.DataStore()
-            ds.open_for_scan(sync_item)
+            try:
+                ds.open_for_scan(sync_item)
+            except Exception:
+                print("Error for record {sync_item}. Skipping")
+                continue
 
             # save exit for final send
             exit_pb = None
