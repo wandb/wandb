@@ -180,7 +180,6 @@ class BackendSender(object):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
-
         self._publish_history(history)
 
     def publish_telemetry(self, telem):

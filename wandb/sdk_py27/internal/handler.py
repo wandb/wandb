@@ -270,6 +270,7 @@ class HandleManager(object):
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
         )
+
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
         result = wandb_internal_pb2.Result(uuid=record.uuid)

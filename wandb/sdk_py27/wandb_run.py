@@ -683,6 +683,7 @@ class Run(object):
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row, step):
+
         # TODO(jhr): move visualize hack somewhere else
         visualize_persist_config = False
         custom_charts = {}
