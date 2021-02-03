@@ -174,7 +174,7 @@ class BackendSender(object):
         data = data_types.history_dict_to_json(run, data, step=step)
         history = wandb_internal_pb2.HistoryRecord()
         if publish_step:
-            history.step = step
+            history.step = json.dumps(step)
         data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()

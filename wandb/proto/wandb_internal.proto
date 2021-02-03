@@ -156,7 +156,7 @@ message SettingsItem {
  */
 message HistoryRecord {
   repeated HistoryItem item = 1;
-  int32                step = 2;
+  string step = 2;
 }
 
 message HistoryItem {

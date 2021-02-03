@@ -170,19 +170,18 @@ class HandleManager(object):
 
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-        try:
-            has_step = record.step
-        except AttributeError:
-            print("error")
-            has_step = False
-
+        step = record.history.step
+        if len(step) == 0:
+            step_check = None
+        else:
+            step_check = int(step)
         if history_dict.get("_step", None) is None:
             item = record.history.item.add()
             item.key = "_step"
-            if has_step:
-                history_dict["_step"] = json.loads(record.step)
-                item.value_json = json.loads(record.step)
-                self._step = json.loads(record.step) + 1
+            if step_check is not None:
+                history_dict["_step"] = step_check
+                item.value_json = json.dumps(step_check)
+                self._step = step_check + 1
             else:
                 history_dict["_step"] = self._step
                 item.value_json = json.dumps(self._step)
@@ -269,7 +268,7 @@ class HandleManager(object):
             run_meta.write()
 
         self._tb_watcher = tb_watcher.TBWatcher(
-            self._settings, interface=self._interface, run_proto=run_start.run,
+            self._settings, interface=self._interface, run_proto=run_start.run
         )
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
@@ -280,7 +279,6 @@ class HandleManager(object):
         if self._system_stats is not None:
             logger.info("starting system metrics thread")
             self._system_stats.start()
-        self._step = self._interface._step
 
     def handle_request_pause(self, record):
         if self._system_stats is not None:
