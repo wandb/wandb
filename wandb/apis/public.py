@@ -1041,12 +1041,13 @@ class Run(Attrs):
                     clientMutationId
                 }
             }
-        """ %
+        """
+            %
             # Older backends might not support the 'deleteArtifacts' argument,
             # so only supply it when it is explicitly set.
             (
                 "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else ""
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
             )
         )
 
