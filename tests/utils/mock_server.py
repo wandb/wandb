@@ -478,6 +478,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation DeleteRun(" in body["query"]:
+            return json.dumps({"data": {}})
         if "mutation CreateAnonymousApiKey " in body["query"]:
             return json.dumps(
                 {
