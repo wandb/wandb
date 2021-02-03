@@ -170,8 +170,9 @@ class HandleManager(object):
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-        has_step = record.history.WhichOneof("step_oneof")
+        # if syncing an old run, we can skip this logic
         if history_dict.get("_step", None) is None:
+            has_step = record.history.HasField("step")
             item = record.history.item.add()
             item.key = "_step"
             if has_step:
@@ -183,6 +184,7 @@ class HandleManager(object):
                 history_dict["_step"] = self._step
                 item.value_json = json.dumps(self._step)
                 self._step += 1
+
         self._dispatch_record(record)
         self._save_history(record)
         self._consolidated_summary.update(history_dict)
