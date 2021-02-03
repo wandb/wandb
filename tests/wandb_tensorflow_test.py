@@ -156,7 +156,7 @@ def test_compat_tensorboard(live_mock_server, test_settings):
     assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when using"
-        " syncing with tensorboard. Please log your step values as a metric such as 'global step'"
+        " syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
     ) not in term.PRINTED_MESSAGES
     wandb.tensorboard.unpatch()
 
