@@ -190,10 +190,7 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     server_ctx = live_mock_server.get_ctx()
     print("CONTEXT!", server_ctx)
     first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
-    print(first_stream_hist)
-    # print()
     second_stream_hist = server_ctx["file_stream"][-4]["files"]["wandb-history.jsonl"]
-    # print(second_stream_hist)
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
         " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"

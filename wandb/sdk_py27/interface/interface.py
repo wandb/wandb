@@ -13,7 +13,6 @@ import uuid
 
 import six
 from six.moves import queue
-
 import wandb
 from wandb import data_types
 from wandb.proto import wandb_internal_pb2  # type: ignore
@@ -656,7 +655,7 @@ class BackendSender(object):
 
     def communicate_run_start(self, run):
         run_start = wandb_internal_pb2.RunStartRequest()
-        run_start.run.MergeFrom(run._run_obj)
+        run._make_proto_run(run_start.run)
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result
