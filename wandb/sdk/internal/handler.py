@@ -176,7 +176,7 @@ class HandleManager(object):
             item = record.history.item.add()
             item.key = "_step"
             if has_step:
-                step = int(record.history.step)
+                step = int(record.history.step.num)
                 history_dict["_step"] = step
                 item.value_json = json.dumps(step)
                 self._step = step + 1

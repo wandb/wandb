@@ -174,7 +174,7 @@ class BackendSender(object):
         data = data_types.history_dict_to_json(run, data, step=step)
         history = wandb_internal_pb2.HistoryRecord()
         if publish_step:
-            history.step = step
+            history.step.num = step
         data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
@@ -655,7 +655,7 @@ class BackendSender(object):
 
     def communicate_run_start(self, run):
         run_start = wandb_internal_pb2.RunStartRequest()
-        run._make_proto_run(run_start.run)
+        run_start.run.MergeFrom(self._make_run(run))
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result

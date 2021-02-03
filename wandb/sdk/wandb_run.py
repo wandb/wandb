@@ -391,6 +391,10 @@ class Run(object):
                 run.tags.append(tag)
         if self._start_time is not None:
             run.start_time.FromSeconds(int(self._start_time))
+        if self.starting_step is not None:
+            run.starting_step = self.starting_step
+        if self.resumed is not None:
+            run.resumed = self.resumed
         # Note: run.config is set in interface/interface:_make_run()
 
     def __getstate__(self) -> None:
