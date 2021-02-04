@@ -32,7 +32,6 @@ if wandb.TYPE_CHECKING:
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
-        DataOrPathType = Union["np.ndarray", str, "TextIO"]
 
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -523,7 +522,9 @@ class Object3D(BatchableMedia):
     )
     artifact_type = "object3D-file"
 
-    def __init__(self, data_or_path, **kwargs):
+    def __init__(
+        self, data_or_path, **kwargs
+    ):
         super(Object3D, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -776,4 +777,105 @@ class Molecule(BatchableMedia):
         }
 
 
-__all__ = ["WBValue", "Histogram", "Media", "BatchableMedia", "Object3D", "Molecule"]
+class Html(BatchableMedia):
+    """
+    Wandb class for arbitrary html
+
+    Arguments:
+        data: (string or io object) HTML to display in wandb
+        inject: (boolean) Add a stylesheet to the HTML object.  If set
+            to False the HTML will pass through unchanged.
+    """
+
+    artifact_type = "html-file"
+
+    def __init__(self, data, inject = True):
+        super(Html, self).__init__()
+        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_path = ""
+        if data_is_path:
+            assert isinstance(data, str)
+            data_path = data
+            with open(data_path, "r") as file:
+                self.html = file.read()
+        elif isinstance(data, str):
+            self.html = data
+        elif hasattr(data, "read"):
+            if hasattr(data, "seek"):
+                data.seek(0)
+            self.html = data.read()
+        else:
+            raise ValueError("data must be a string or an io object")
+
+        if inject:
+            self.inject_head()
+
+        if inject or not data_is_path:
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
+            with open(tmp_path, "w") as out:
+                print(self.html, file=out)
+
+            self._set_file(tmp_path, is_tmp=True)
+        else:
+            self._set_file(data_path, is_tmp=False)
+
+    def inject_head(self):
+        join = ""
+        if "<head>" in self.html:
+            parts = self.html.split("<head>", 1)
+            parts[0] = parts[0] + "<head>"
+        elif "<html>" in self.html:
+            parts = self.html.split("<html>", 1)
+            parts[0] = parts[0] + "<html><head>"
+            parts[1] = "</head>" + parts[1]
+        else:
+            parts = ["", self.html]
+        parts.insert(
+            1,
+            '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />',
+        )
+        self.html = join.join(parts).strip()
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join("media", "html")
+
+    def to_json(self, run_or_artifact):
+        json_dict = super(Html, self).to_json(run_or_artifact)
+        json_dict["_type"] = "html-file"
+        return json_dict
+
+    @classmethod
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
+
+    @classmethod
+    def seq_to_json(
+        cls,
+        seq,
+        run,
+        key,
+        step,
+    ):
+        base_path = os.path.join(run.dir, cls.get_media_subdir())
+        util.mkdir_exists_ok(base_path)
+
+        meta = {
+            "_type": "html",
+            "count": len(seq),
+            "html": [h.to_json(run) for h in seq],
+        }
+        return meta
+
+
+__all__ = [
+    "WBValue",
+    "Histogram",
+    "Media",
+    "BatchableMedia",
+    "Object3D",
+    "Molecule",
+    "Html",
+]
