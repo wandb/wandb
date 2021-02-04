@@ -24,18 +24,8 @@ from wandb.proto import wandb_internal_pb2
 
 
 @pytest.fixture()
-def record_q():
-    return queue.Queue()
-
-
-@pytest.fixture()
 def result_q():
     return queue.Queue()
-
-
-@pytest.fixture()
-def interface(record_q):
-    return BackendSender(record_q=record_q)
 
 
 @pytest.fixture()
@@ -69,7 +59,7 @@ def sender(record_q, result_q, process):
 
 @pytest.fixture()
 def sm(
-    runner, sender_q, result_q, test_settings, mock_server, interface,
+    runner, sender_q, result_q, test_settings, mock_server, fake_interface,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -77,7 +67,7 @@ def sm(
             settings=test_settings,
             record_q=sender_q,
             result_q=result_q,
-            interface=interface,
+            interface=fake_interface,
         )
         yield sm
 
@@ -91,7 +81,7 @@ def hm(
     mock_server,
     sender_q,
     writer_q,
-    interface,
+    fake_interface,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -103,7 +93,7 @@ def hm(
             stopped=stopped,
             sender_q=sender_q,
             writer_q=writer_q,
-            interface=interface,
+            interface=fake_interface,
         )
         yield hm
 
@@ -574,7 +564,13 @@ def test_upgrade_removed(
 def gen_metrics(
     mocked_run, mock_server, sender, start_backend, stop_backend, parse_ctx,
 ):
-    def fn(md):
+    def fn(md, metrics=None):
+        if metrics is None:
+            metrics = []
+            metrics.append(dict(v1=1, v2=2, v3="dog", mystep=1))
+            metrics.append(dict(v1=3, v2=8, v3="cat", mystep=2))
+            metrics.append(dict(v1=2, v2=3, v3="pizza", mystep=3))
+
         start_backend()
         if md:
             metric = wandb_internal_pb2.MetricRecord()
@@ -583,9 +579,8 @@ def gen_metrics(
                 mi.metric = mk
                 mi.val.CopyFrom(mv)
             sender.publish_metric(metric)
-        sender.publish_history(dict(v1=1, v2=2, mystep=1), run=mocked_run, step=0)
-        sender.publish_history(dict(v1=3, v2=8, mystep=2), run=mocked_run, step=1)
-        sender.publish_history(dict(v1=2, v2=3, mystep=3), run=mocked_run, step=2)
+        for num, m in enumerate(metrics):
+            sender.publish_history(m, run=mocked_run, step=num)
         stop_backend()
 
         ctx_util = parse_ctx(mock_server.ctx)
@@ -627,6 +622,15 @@ def test_metric_min(gen_metrics):
     summary = ctx_util.summary
     assert "v1" not in summary
     assert summary["v2"] == 2
+
+
+def test_metric_min_str(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.summary_min = True
+    ctx_util = gen_metrics(dict(v3=mv))
+    summary = ctx_util.summary
+    # not a number
+    assert "v3" not in summary
 
 
 def test_metric_last(gen_metrics):
