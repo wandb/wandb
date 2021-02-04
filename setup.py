@@ -20,6 +20,7 @@ gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
+media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
 
 setup(
     name='wandb',
@@ -76,6 +77,7 @@ setup(
         'gcp': gcp_requirements,
         'aws': aws_requirements,
         'grpc': grpc_requirements,
+        'media': media_requirements
     }
 )
 
