@@ -814,7 +814,7 @@ class Html(BatchableMedia):
         if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".html")
             with open(tmp_path, "w") as out:
-                print(self.html, file=out)
+                out.write(self.html)
 
             self._set_file(tmp_path, is_tmp=True)
         else:
@@ -1050,6 +1050,50 @@ class Video(BatchableMedia):
         return meta
 
 
+# Allows encoding of arbitrary JSON structures
+# as a file
+#
+# This class should be used as an abstract class
+# extended to have validation methods
+
+
+class JSONMetadata(Media):
+    """
+    JSONMetadata is a type for encoding arbitrary metadata as files.
+    """
+
+    def __init__(self, val: object, **kwargs: object) -> None:
+        super(JSONMetadata, self).__init__()
+
+        self.validate(val)
+        self._val = val
+
+        ext = "." + self.type_name() + ".json"
+        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        util.json_dump_uncompressed(
+            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
+        )
+        self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+    @classmethod
+    def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
+        return os.path.join("media", "metadata", cls.type_name())
+
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        json_dict = super(JSONMetadata, self).to_json(run_or_artifact)
+        json_dict["_type"] = self.type_name()
+
+        return json_dict
+
+    # These methods should be overridden in the child class
+    @classmethod
+    def type_name(cls) -> str:
+        return "metadata"
+
+    def validate(self, val: object) -> bool:
+        return True
+
+
 __all__ = [
     "WBValue",
     "Histogram",
@@ -1059,4 +1103,5 @@ __all__ = [
     "Molecule",
     "Html",
     "Video",
+    "JSONMetadata",  # should remove once others come over
 ]
