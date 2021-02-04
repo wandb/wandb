@@ -30,7 +30,14 @@ _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 
 if _PY3:
     from wandb.sdk.interface import _dtypes
-    from wandb.sdk.data_types import WBValue, Histogram, Media, BatchableMedia, Object3D, Molecule
+    from wandb.sdk.data_types import (
+        WBValue,
+        Histogram,
+        Media,
+        BatchableMedia,
+        Object3D,
+        Molecule,
+    )
 else:
     from wandb.sdk_py27.interface import _dtypes
     from wandb.sdk_py27.data_types import (
@@ -39,7 +46,7 @@ else:
         Media,
         BatchableMedia,
         Object3D,
-        Molecule
+        Molecule,
     )
 
 __all__ = ["WBValue", "Histogram", "Media", "BatchableMedia", "Object3D", "Molecule"]
@@ -573,9 +580,6 @@ def is_numpy_array(data):
         "numpy", required="Logging raw point cloud data requires numpy"
     )
     return isinstance(data, np.ndarray)
-
-
-
 
 
 class Html(BatchableMedia):

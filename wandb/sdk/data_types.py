@@ -20,7 +20,6 @@ if wandb.TYPE_CHECKING:
         Union,
         Sequence,
         Tuple,
-        List,
         Set,
     )
 
@@ -33,6 +32,7 @@ if wandb.TYPE_CHECKING:
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+        DataOrPathType = Union["np.ndarray", str, "TextIO"]
 
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
@@ -307,7 +307,9 @@ class Media(WBValue):
         raise NotImplementedError
 
     @staticmethod
-    def captions(media_items: List[Type["Media"]]) -> Union[bool, List[Optional[str]]]:
+    def captions(
+        media_items: Sequence["Media"],
+    ) -> Union[bool, Sequence[Optional[str]]]:
         if media_items[0]._caption is not None:
             return [m._caption for m in media_items]
         else:
@@ -489,7 +491,7 @@ class BatchableMedia(Media):
     @classmethod
     def seq_to_json(
         cls: Type["BatchableMedia"],
-        seq: List["BatchableMedia"],
+        seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,
         step: int,
@@ -521,9 +523,7 @@ class Object3D(BatchableMedia):
     )
     artifact_type: ClassVar[str] = "object3D-file"
 
-    def __init__(
-        self, data_or_path: Union["np.ndarray", str, TextIO], **kwargs: str
-    ) -> None:
+    def __init__(self, data_or_path: "DataOrPathType", **kwargs: str) -> None:
         super(Object3D, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -653,18 +653,12 @@ class Object3D(BatchableMedia):
     @classmethod
     def seq_to_json(
         cls: Type["BatchableMedia"],
-        seq: List["BatchableMedia"],
+        seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,
         step: int,
     ) -> dict:
         seq = list(seq)
-
-        # Due to the Liskov substitution principle, we cannot further
-        # narrow the parameter type of the seq_to_json, therefore we do
-        # a runtime check.
-        if any([not isinstance(item, Object3D) for item in seq]):
-            raise ValueError("All items in sequence are expected to be Object3D")
 
         jsons = [obj.to_json(run) for obj in seq]
 
@@ -686,6 +680,7 @@ class Object3D(BatchableMedia):
             "objects": jsons,
         }
 
+
 class Molecule(BatchableMedia):
     """
     Wandb class for Molecular data
@@ -699,17 +694,17 @@ class Molecule(BatchableMedia):
         ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
     )
 
-    def __init__(self, data_or_path, **kwargs):
-        super(Molecule, self).__init__(**kwargs)
+    def __init__(self, data_or_path: DataOrPathType, **kwargs: str) -> None:
+        super(Molecule, self).__init__()
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
-            data_or_path = data_or_path.name
+            data_or_path = data_or_path.name  # type: ignore
 
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
-                data_or_path.seek(0)
-            molecule = data_or_path.read()
+                data_or_path.seek(0)  # type: ignore
+            molecule = data_or_path.read()  # type: ignore
 
             extension = kwargs.pop("file_type", None)
             if extension is None:
@@ -742,21 +737,27 @@ class Molecule(BatchableMedia):
             raise ValueError("Data must be file name or a file object")
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run):
-        json_dict = super(Molecule, self).to_json(run)
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        json_dict = super(Molecule, self).to_json(run_or_artifact)
         json_dict["_type"] = "molecule-file"
         if self._caption:
             json_dict["caption"] = self._caption
         return json_dict
 
     @classmethod
-    def seq_to_json(cls, molecule_list, run, key, step):
-        molecule_list = list(molecule_list)
+    def seq_to_json(
+        cls: Type["BatchableMedia"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
+        seq = list(seq)
 
-        jsons = [obj.to_json(run) for obj in molecule_list]
+        jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
             expected = util.to_forward_slash_path(cls.get_media_subdir())
@@ -771,7 +772,8 @@ class Molecule(BatchableMedia):
             "_type": "molecule",
             "filenames": [obj["path"] for obj in jsons],
             "count": len(jsons),
-            "captions": Media.captions(molecule_list),
+            "captions": Media.captions(seq),
         }
+
 
 __all__ = ["WBValue", "Histogram", "Media", "BatchableMedia", "Object3D", "Molecule"]
