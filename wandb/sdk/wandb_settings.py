@@ -182,7 +182,11 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
-AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
+if hasattr(multiprocessing, "get_all_start_methods"):
+    AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
+else:
+    # TODO: this can go away when we deprecate Python 2
+    AVAILABLE_START_METHODS = ["fork", "spawn"]
 DEFAULT_START_METHOD = "fork" if "fork" in AVAILABLE_START_METHODS else "spawn"
 
 
