@@ -34,6 +34,7 @@ message Record {
     TBRecord        tbrecord = 9;
     AlertRecord     alert = 10;
     TelemetryRecord telemetry = 11;
+    MetricRecord    metric = 12;
     // Higher numbers for less frequent data
     RunRecord       run = 17;
     RunExitRecord   exit = 18;
@@ -181,6 +182,27 @@ message OutputRecord {
 }
 
 message OutputResult {
+}
+
+/*
+ * MetricRecord: wandb/sdk/wandb_metric/Metric
+ */
+message MetricRecord {
+  repeated MetricItem update = 1;
+}
+
+message MetricItem {
+  string          metric = 1;
+  repeated string nested_metric = 2;
+  MetricValue     val = 3;
+}
+
+message MetricValue {
+  bool default_xaxis = 1;
+  /* TODO: use oneof?, add best, define direction */
+  bool summary_last = 2;
+  bool summary_max = 3;
+  bool summary_min = 4;
 }
 
 /*

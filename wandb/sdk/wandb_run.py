@@ -38,6 +38,7 @@ from wandb.viz import (
 from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
+from . import wandb_metric
 from . import wandb_summary
 from .lib import (
     apikey,
@@ -75,6 +76,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         RunRecord,
         FilePusherStats,
         PollExitResponse,
+        MetricRecord,
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
@@ -674,6 +676,10 @@ class Run(object):
             return {}
         ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
+
+    def _metric_callback(self, metric_record: MetricRecord) -> None:
+        if self._backend:
+            self._backend.interface.publish_metric(metric_record)
 
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend:
@@ -1756,6 +1762,11 @@ class Run(object):
         with open(spec_filename, "w") as f:
             print(s, file=f)
         self.save(spec_filename)
+
+    def define_metric(self, metric: str) -> wandb_metric.Metric:
+        m = wandb_metric.Metric(metric=metric)
+        m._set_callback(self._metric_callback)
+        return m
 
     # TODO(jhr): annotate this
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore

@@ -25,6 +25,8 @@ if wandb.TYPE_CHECKING:
         Dict,
         Iterable,
         Optional,
+        Tuple,
+        Union,
     )
     from .settings_static import SettingsStatic
     from six.moves.queue import Queue
@@ -51,6 +53,8 @@ class HandleManager(object):
     # _interface: BackendSender
     # _system_stats: Optional[stats.SystemStats]
     # _tb_watcher: Optional[tb_watcher.TBWatcher]
+    # _metric_defines: Dict[Union[str, Tuple[str, ...]], wandb_internal_pb2.MetricValue]
+    # _metric_track: Dict[Union[str, Tuple[str, ...]], float]
 
     def __init__(
         self,
@@ -76,6 +80,8 @@ class HandleManager(object):
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = dict()
+        self._metric_defines = dict()
+        self._metric_track = dict()
 
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
@@ -167,12 +173,37 @@ class HandleManager(object):
                 self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
+    def _update_summary(self, history_dict):
+        if not self._metric_defines:
+            self._consolidated_summary.update(history_dict)
+            return True
+        updated = False
+        for k, v in six.iteritems(history_dict):
+            d = self._metric_defines.get(k, None)
+            # TODO(jhr): handle nested metrics
+            if not d:
+                continue
+            if d.summary_last:
+                self._consolidated_summary[k] = v
+                updated = True
+                continue
+            if not isinstance(v, numbers.Real):
+                continue
+            if d.summary_max:
+                oldmax = self._metric_track.get(k, None)
+                if oldmax is None or float(v) > oldmax:
+                    self._metric_track[k] = float(v)
+                    self._consolidated_summary[k] = v
+                    updated = True
+        return updated
+
     def handle_history(self, record):
         self._dispatch_record(record)
         self._save_history(record)
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-        self._consolidated_summary.update(history_dict)
-        self._save_summary(self._consolidated_summary)
+        updated = self._update_summary(history_dict)
+        if updated:
+            self._save_summary(self._consolidated_summary)
 
     def handle_summary(self, record):
         summary = record.summary
@@ -287,6 +318,18 @@ class HandleManager(object):
         if self._tb_watcher:
             tbrecord = record.tbrecord
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
+        self._dispatch_record(record)
+
+    def handle_metric(self, record):
+        for metric_item in record.metric.update:
+            # metric: Union[str, Tuple[str, ...]]
+            # TODO(jhr): handle nested metrics
+            # metric = metric_item.metric or metric_item.nested_metric
+            metric = metric_item.metric
+            self._metric_defines.setdefault(
+                metric, wandb_internal_pb2.MetricValue()
+            ).MergeFrom(metric_item.val)
+
         self._dispatch_record(record)
 
     def handle_request_sampled_history(self, record):

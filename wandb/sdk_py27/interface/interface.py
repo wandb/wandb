@@ -29,7 +29,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
     from . import summary_record as sr
     from typing import Optional
-    from wandb.proto.wandb_internal_pb2 import PollExitResponse
+    from wandb.proto.wandb_internal_pb2 import PollExitResponse, MetricRecord
 
 logger = logging.getLogger("wandb")
 
@@ -418,6 +418,7 @@ class BackendSender(object):
         footer=None,
         request=None,
         telemetry=None,
+        metric=None,
     ):
         record = wandb_internal_pb2.Record()
         if run:
@@ -450,6 +451,8 @@ class BackendSender(object):
             record.request.CopyFrom(request)
         elif telemetry:
             record.telemetry.CopyFrom(telemetry)
+        elif metric:
+            record.metric.CopyFrom(metric)
         else:
             raise Exception("Invalid record")
         return record
@@ -537,6 +540,10 @@ class BackendSender(object):
 
     def _publish_summary(self, summary):
         rec = self._make_record(summary=summary)
+        self._publish(rec)
+
+    def publish_metric(self, metric):
+        rec = self._make_record(metric=metric)
         self._publish(rec)
 
     def _communicate_run(self, run, timeout=None):

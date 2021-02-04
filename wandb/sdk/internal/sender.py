@@ -80,6 +80,7 @@ class SendManager(object):
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._config_default_xaxis: str = None
 
         # State updated by resuming
         self._resume_state = {
@@ -420,10 +421,19 @@ class SendManager(object):
         t: Dict[int, Any] = self._telemetry_format()
         config_dict[wandb_key]["t"] = t
 
+    def _config_default_xaxis_update(self, config_dict: Dict[str, Any]) -> None:
+        """Add default xaxis to config."""
+        if not self._config_default_xaxis:
+            return
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
+
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
         """Format dict into value dict with telemetry info."""
         config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
         self._config_telemetry_update(config_dict)
+        self._config_default_xaxis_update(config_dict)
         config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
@@ -672,6 +682,23 @@ class SendManager(object):
         cfg = data.config
         config_util.update_from_proto(self._consolidated_config, cfg)
         self._update_config()
+
+    def send_metric(self, data: wandb_internal_pb2.Record) -> None:
+        metric = data.metric
+        # we only care about default_xaxis for now
+        default_xaxis: Optional[str] = None
+        for metric_item in metric.update:
+            if metric_item.val.default_xaxis:
+                metric_key: str
+                if metric_item.metric:
+                    metric_key = metric_item.metric
+                else:
+                    # TODO: figure out if the backend can handle this
+                    metric_key = ".".join(metric_item.metric)
+                default_xaxis = metric_key
+        if default_xaxis:
+            self._config_default_xaxis = default_xaxis
+            self._update_config()
 
     def send_telemetry(self, data):
         telem = data.telemetry
