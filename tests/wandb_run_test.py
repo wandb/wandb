@@ -39,6 +39,7 @@ def test_run_pub_config(fake_run, record_q, records_util):
 
     r = records_util(record_q)
     assert len(r.records) == 2
+    assert len(r.summary) == 0
     configs = r.configs
     assert len(configs) == 2
     # TODO(jhr): check config vals
@@ -51,6 +52,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
 
     r = records_util(record_q)
     assert len(r.records) == 2
+    assert len(r.summary) == 0
     history = r.history
     assert len(history) == 2
     # TODO(jhr): check history vals
