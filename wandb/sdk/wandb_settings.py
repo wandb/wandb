@@ -29,6 +29,7 @@ import enum
 import getpass
 import itertools
 import json
+import multiprocessing
 import os
 import platform
 import socket
@@ -89,6 +90,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     resume=None,
     silent=None,
     sagemaker_disable=None,
+    start_method=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -180,6 +182,10 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
+AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
+DEFAULT_START_METHOD = "fork" if "fork" in AVAILABLE_START_METHODS else "spawn"
+
+
 class Settings(object):
     """Settings Constructor
 
@@ -192,6 +198,7 @@ class Settings(object):
     """
 
     mode: str = "online"
+    start_method: str = DEFAULT_START_METHOD
     console: str = "auto"
     disabled: bool = False
     run_tags: Optional[Tuple] = None
@@ -512,6 +519,11 @@ class Settings(object):
     @property
     def settings_workspace(self) -> str:
         return self._path_convert(self.settings_workspace_spec)
+
+    def _validate_start_method(self, value):
+        if value in AVAILABLE_START_METHODS:
+            return
+        return _error_choices(value, AVAILABLE_START_METHODS)
 
     def _validate_mode(self, value):
         choices = {

@@ -85,7 +85,11 @@ def wandb_internal(
     parent_pid = os.getppid()
     pid = os.getpid()
 
-    logger.info("W&B internal server running at pid: %s, started at: %s", pid, datetime.fromtimestamp(started))
+    logger.info(
+        "W&B internal server running at pid: %s, started at: %s",
+        pid,
+        datetime.fromtimestamp(started),
+    )
 
     publish_interface = interface.BackendSender(record_q=record_q)
 
