@@ -113,7 +113,7 @@ def check_run(api):
     f.write("test")
     f.close()
 
-    with wandb.init(reinit=True, config=config) as run:
+    with wandb.init(reinit=True, config=config, project=PROJECT_NAME) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -170,7 +170,7 @@ def check_run(api):
         read_file = prev_run.file(filepath).download(replace=True)
     except Exception:
         with wandb.init(
-            project=PROJECT_NAME, config={"test": "test direct saving"}
+            reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
         ) as run:
             saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
             if saved:
@@ -284,7 +284,7 @@ def log_use_download_artifact(
     add_extra_file,
 ):
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact log"}
+        reinit=True, project=PROJECT_NAME, config={"test": "artifact log"}
     ) as log_art_run:
 
         if add_extra_file:
@@ -300,7 +300,7 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-        reinit=True, project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME, config={"test": "artifact use"},
     ) as use_art_run:
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
@@ -344,7 +344,7 @@ def check_artifacts():
     multi_art_dir = "./verify_art"
     alias = "art1"
     name = "my-artys"
-    art1 = artifact_with_path_or_paths(alias, "./verify_art_dir", singular=False)
+    art1 = artifact_with_path_or_paths(name, "./verify_art_dir", singular=False)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
     )
@@ -385,7 +385,9 @@ def check_graphql_put(api, host):
     f = open(gql_fp, "w")
     f.write("test2")
     f.close()
-    with wandb.init(project=PROJECT_NAME, config={"test": "put to graphql"}) as run:
+    with wandb.init(
+        reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
+    ) as run:
         saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
         if not saved:
             print_results(
@@ -427,7 +429,7 @@ def check_graphql_put(api, host):
     return url
 
 
-def check_large_post(api, host):
+def check_large_post():
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
@@ -475,21 +477,21 @@ def check_large_post(api, host):
 
 def check_wandb_version(api):
     print("Checking wandb package version is up to date".ljust(72, "."), end="")
-    fail_strings = []
     _, server_info = api.viewer_server_info()
+    fail_string = None
+    warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
     min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
-        fail_strings.append(
-            "wandb version out of date, please run pip install --upgrade wandb=={}".format(
-                max_cli_version
-            )
+        fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
+            max_cli_version
         )
-        print_results(fail_strings, False)
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
-        fail_strings.append(
+        fail_string = (
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run pip "
             "install --upgrade wandb=={}".format(max_cli_version)
         )
-        print_results(fail_strings, True)
+        warning = True
+
+    print_results(fail_string, warning)
