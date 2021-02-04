@@ -158,6 +158,7 @@ SYMBOLS_RUN = {
     "finish_artifact",
     "use_artifact",
     "alert",
+    "define_metric",
     # "summary",   # really this should be here
     # mode stuff
     "mode",
