@@ -362,22 +362,21 @@ def _get_filestream_file_updates(ctx):
     return data
 
 
-def _get_filestream_file_strings(ctx):
+def _get_filestream_file_items(ctx):
     data = {}
     fs_file_updates = _get_filestream_file_updates(ctx)
     for k, v in six.iteritems(fs_file_updates):
-        s = ""
+        l = []
         for d in v:
             offset = d.get("offset")
             content = d.get("content")
             assert offset is not None
             assert content is not None
-            if offset == 0:
-                s = content[0]
-            else:
-                assert offset == len(s), "k={} v={} s={} d={}".format(k, v, s, d)
-                s = s + content[0]
-        data[k] = json.loads(s)
+            assert offset == 0 or offset == len(l), (k, v, l, d)
+            if not offset:
+                l = []
+            l.extend(map(json.loads, content))
+        data[k] = l
     return data
 
 
@@ -391,8 +390,8 @@ def test_metric_null(live_mock_server, test_settings):
     run.finish()
     server_ctx = live_mock_server.get_ctx()
     config = server_ctx["config"][-1]
-    fs_files = _get_filestream_file_strings(server_ctx)
-    summary = fs_files["wandb-summary.json"]
+    fs_files = _get_filestream_file_items(server_ctx)
+    summary = fs_files["wandb-summary.json"][-1]
     assert "x_axis" not in config["_wandb"]["value"]
     # by default we use last value
     assert summary["val"] == 3
@@ -409,7 +408,7 @@ def test_metric_xaxis(live_mock_server, test_settings):
     assert config["_wandb"]["value"]["x_axis"] == "mystep"
 
 
-def test_metric_max(live_mock_server, test_settings):
+def test_metric_last(live_mock_server, test_settings):
     run = wandb.init()
     run.define_metric("val").set_summary(last=True)
     run.log(dict(mystep=1, val=2))
@@ -419,11 +418,11 @@ def test_metric_max(live_mock_server, test_settings):
     run.log(dict(val2=1))
     run.finish()
     server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_strings(server_ctx)
-    summary = fs_files["wandb-summary.json"]
+    fs_files = _get_filestream_file_items(server_ctx)
+    summary = fs_files["wandb-summary.json"][-1]
     # if we set any metric, last is disabled for all other metrics
     assert summary["val"] == 3
-    assert "val2" not in summary["val"]
+    assert "val2" not in summary
 
 
 def test_metric_max(live_mock_server, test_settings):
@@ -434,8 +433,8 @@ def test_metric_max(live_mock_server, test_settings):
     run.log(dict(mystep=1, val=3))
     run.finish()
     server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_strings(server_ctx)
-    summary = fs_files["wandb-summary.json"]
+    fs_files = _get_filestream_file_items(server_ctx)
+    summary = fs_files["wandb-summary.json"][-1]
     assert summary["val"] == 8
 
 
@@ -447,6 +446,6 @@ def test_metric_min(live_mock_server, test_settings):
     run.log(dict(mystep=1, val=3))
     run.finish()
     server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_strings(server_ctx)
-    summary = fs_files["wandb-summary.json"]
+    fs_files = _get_filestream_file_items(server_ctx)
+    summary = fs_files["wandb-summary.json"][-1]
     assert summary["val"] == 2
