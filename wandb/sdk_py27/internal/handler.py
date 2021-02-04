@@ -10,6 +10,7 @@ import numbers
 import os
 
 import six
+import wandb
 from wandb.proto import wandb_internal_pb2
 
 from . import meta, sample, stats
@@ -17,12 +18,49 @@ from . import tb_watcher
 from ..lib import proto_util
 
 
+if wandb.TYPE_CHECKING:
+    from typing import (
+        Any,
+        Callable,
+        Dict,
+        Iterable,
+        Optional,
+    )
+    from .settings_static import SettingsStatic
+    from six.moves.queue import Queue
+    from threading import Event
+    from ..interface.interface import BackendSender
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    SummaryDict = Dict[str, Any]
+
+
 logger = logging.getLogger(__name__)
 
 
 class HandleManager(object):
+
+    # _consolidated_summary: SummaryDict
+    # _sampled_history: Dict[str, sample.UniformSampleAccumulator]
+    # _settings: SettingsStatic
+    # _record_q: "Queue[Record]"
+    # _result_q: "Queue[Result]"
+    # _stopped: Event
+    # _sender_q: "Queue[Record]"
+    # _writer_q: "Queue[Record]"
+    # _interface: BackendSender
+    # _system_stats: Optional[stats.SystemStats]
+    # _tb_watcher: Optional[tb_watcher.TBWatcher]
+
     def __init__(
-        self, settings, record_q, result_q, stopped, sender_q, writer_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        stopped,
+        sender_q,
+        writer_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -56,7 +94,7 @@ class HandleManager(object):
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
-    def _dispatch_record(self, record, always_send=False):
+    def _dispatch_record(self, record, always_send = False):
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
         if not record.control.local:
@@ -108,7 +146,7 @@ class HandleManager(object):
     def handle_alert(self, record):
         self._dispatch_record(record)
 
-    def _save_summary(self, summary_dict, flush=False):
+    def _save_summary(self, summary_dict, flush = False):
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
@@ -204,11 +242,11 @@ class HandleManager(object):
 
         if not self._settings._disable_stats:
             pid = os.getpid()
-            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface,)
+            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
             self._system_stats.start()
 
         if not self._settings._disable_meta:
-            run_meta = meta.Meta(settings=self._settings, interface=self._interface,)
+            run_meta = meta.Meta(settings=self._settings, interface=self._interface)
             run_meta.probe()
             run_meta.write()
 
@@ -219,12 +257,12 @@ class HandleManager(object):
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
 
-    def handle_request_resume(self, data):
+    def handle_request_resume(self, record):
         if self._system_stats is not None:
             logger.info("starting system metrics thread")
             self._system_stats.start()
 
-    def handle_request_pause(self, data):
+    def handle_request_pause(self, record):
         if self._system_stats is not None:
             logger.info("stopping system metrics thread")
             self._system_stats.shutdown()
@@ -235,8 +273,8 @@ class HandleManager(object):
     def handle_request_status(self, record):
         self._dispatch_record(record)
 
-    def handle_request_get_summary(self, data):
-        result = wandb_internal_pb2.Result(uuid=data.uuid)
+    def handle_request_get_summary(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
         for key, value in six.iteritems(self._consolidated_summary):
             item = wandb_internal_pb2.SummaryItem()
             item.key = key
@@ -251,8 +289,8 @@ class HandleManager(object):
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
-    def handle_request_sampled_history(self, data):
-        result = wandb_internal_pb2.Result(uuid=data.uuid)
+    def handle_request_sampled_history(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
         for key, sampled in six.iteritems(self._sampled_history):
             item = wandb_internal_pb2.SampledHistoryItem()
             item.key = key

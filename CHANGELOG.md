@@ -1,3 +1,44 @@
+## 0.10.17 (February 1, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression seen with python 3.5
+- Silence vendored watchdog warnings on mac
+
+## 0.10.16 (February 1, 2021)
+
+#### :nail_care: Enhancement
+
+- Artifacts now support parallel writers for large distributed workflows.
+- Artifacts support distributed tables for dataset visualization.
+- Improvements to PR templates
+- Added more type annotations
+- Vendored watchdog 0.9.0 removing it as a dependency
+- New documentation generator
+- Public api now has `file.direct_url` to avoid redirects for signed urls.
+
+#### :bug: Bug Fix
+
+- Allow `config-defaults.yaml` to be overwritten when running sweeps
+- General bug fixes and improvements to `wandb verify`
+- Disabled widgets in Spyder IDE
+- Fixed WANDB_SILENT in Spyder IDE
+- Reference file:// artifacts respect the `name` attribute.
+
+## 0.10.15 (January 24, 2021)
+
+#### :nail_care: Enhancement
+
+- Add `wandb verify` to troubleshoot local installs
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync issue writing to s3
+- Prevent git secrets from being stored
+- Disable verbose console messages when using moviepy
+- Fix artifacts with checkpoints to be more robust when overwriting files
+- Fix artifacts recycled id issue
+
 ## 0.10.14 (January 15, 2021)
 
 #### :nail_care: Enhancement

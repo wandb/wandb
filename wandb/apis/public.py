@@ -78,6 +78,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -1023,6 +1024,41 @@ class Run(Attrs):
         )
         self.summary.update()
 
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteRun(
+                $id: ID!,
+                %s
+            ) {
+                deleteRun(input: {
+                    id: $id,
+                    %s
+                }) {
+                    clientMutationId
+                }
+            }
+        """
+            %
+            # Older backends might not support the 'deleteArtifacts' argument,
+            # so only supply it when it is explicitly set.
+            (
+                "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+            )
+        )
+
+        return self.client.execute(
+            mutation,
+            variable_values={
+                "id": self.storage_id,
+                "deleteArtifacts": delete_artifacts,
+            },
+        )
+
     def save(self):
         self.update()
 
@@ -1569,6 +1605,7 @@ class File(object):
     Attributes:
         name (string): filename
         url (string): path to file
+        direct_url (string): path to file in the bucket
         md5 (string): md5 of file
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
@@ -1590,6 +1627,10 @@ class File(object):
     @property
     def url(self):
         return self._attrs["url"]
+
+    @property
+    def direct_url(self):
+        return self._attrs["directUrl"]
 
     @property
     def md5(self):
@@ -2440,7 +2481,7 @@ class Artifact(object):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(req.content)
+                    artifact, json.loads(six.ensure_text(req.content))
                 )
 
             artifact._load_dependent_manifests()
@@ -2976,7 +3017,7 @@ class Artifact(object):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(req.content)
+                    self, json.loads(six.ensure_text(req.content))
                 )
 
             self._load_dependent_manifests()

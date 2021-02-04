@@ -781,6 +781,16 @@ class Settings(object):
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
             u["_jupyter_root"] = meta.get("root")
+        elif self._jupyter and os.path.exists(self.notebook_name):
+            u["_jupyter_path"] = self.notebook_name
+            u["_jupyter_name"] = self.notebook_name
+            u["_jupyter_root"] = os.getcwd()
+        elif self._jupyter:
+            wandb.termwarn(
+                "WANDB_NOTEBOOK_NAME should be a path to a notebook file, couldn't find {}".format(
+                    self.notebook_name
+                )
+            )
 
         # host and username are populated by env_settings above if their env
         # vars exist -- but if they don't, we'll fill them in here
