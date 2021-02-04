@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 import json
 import yaml
+import six
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -264,6 +265,13 @@ def create_app(user_ctx=None):
         body = request.get_json()
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
+        if "mutation UpsertBucket(" in body["query"]:
+            param_config = body["variables"].get("config")
+            if param_config:
+                ctx.setdefault("config", []).append(json.loads(param_config))
+            param_summary = body["variables"].get("summaryMetrics")
+            if param_summary:
+                ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
             ctx["requested_file"] = body["variables"]["files"][0]
             url = request.url_root + "/storage?file={}&run={}".format(
@@ -790,6 +798,53 @@ index 30d74d2..9a2c773 100644
         return "Not Found", 404
 
     return app
+
+
+class ParseCTX(object):
+    def __init__(self, ctx):
+        self._ctx = ctx
+
+    def get_filestream_file_updates(self):
+        data = {}
+        file_stream_updates = self._ctx["file_stream"]
+        for update in file_stream_updates:
+            files = update.get("files")
+            if not files:
+                continue
+            for k, v in six.iteritems(files):
+                data.setdefault(k, []).append(v)
+        return data
+
+    def get_filestream_file_items(self):
+        data = {}
+        fs_file_updates = self.get_filestream_file_updates()
+        for k, v in six.iteritems(fs_file_updates):
+            l = []
+            for d in v:
+                offset = d.get("offset")
+                content = d.get("content")
+                assert offset is not None
+                assert content is not None
+                assert offset == 0 or offset == len(l), (k, v, l, d)
+                if not offset:
+                    l = []
+                l.extend(map(json.loads, content))
+            data[k] = l
+        return data
+
+    @property
+    def summary(self):
+        fs_files = self.get_filestream_file_items()
+        summary = fs_files["wandb-summary.json"][-1]
+        return summary
+
+    @property
+    def config(self):
+        return self._ctx["config"][-1]
+
+    @property
+    def config_wandb(self):
+        return self.config["_wandb"]["value"]
 
 
 if __name__ == "__main__":
