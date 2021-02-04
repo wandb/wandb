@@ -601,16 +601,20 @@ class Run(object):
     def commit_code(
         self,
         root = ".",
+        name = None,
         include = lambda path: path.endswith(".py"),
-        exclude = lambda path: False,
+        exclude = lambda path: "wandb" + os.sep in path,
     ):
         """
         commit_code() saves the current state of your code to a W&B artifact.  By
         default it walks the current directory and logs all files that end with ".py".
 
         Arguments:
-            row (str, optional): The relative (to os.getcwd()) or absolute path to
+            root (str, optional): The relative (to os.getcwd()) or absolute path to
                 recursively find code from.
+            name (str, optional): The name of our code artifact.  By default we'll name
+                the artifact "source-$RUN_ID".  There may be scenarios where you want
+                many runs to share the same artifact.  Specifying name allows you to achieve that.
             include (callable, optional): A callable that accepts a file path and
                 returns True when it should be included and False otherwise.  This
                 defaults to: `lambda path: path.endswith(".py")`
@@ -633,7 +637,8 @@ class Run(object):
             An `Artifact` object if code was logged
         """
         # TODO: should this type be a special wandb type?
-        art = wandb.Artifact("{}-{}".format("source", self.id), "code")
+        name = name or "{}-{}".format("source", self.id)
+        art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)

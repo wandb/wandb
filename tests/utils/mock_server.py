@@ -516,7 +516,9 @@ def create_app(user_ctx=None):
         if "mutation CreateArtifact(" in body["query"]:
             collection_name = body["variables"]["artifactCollectionNames"][0]
             ctx["artifacts"] = ctx.get("artifacts", {})
-            ctx["artifacts"][collection_name] = ctx["artifacts"].get(collection_name, [])
+            ctx["artifacts"][collection_name] = ctx["artifacts"].get(
+                collection_name, []
+            )
             ctx["artifacts"][collection_name].append(body["variables"])
             return {
                 "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
