@@ -19,8 +19,8 @@ import os
 import pprint
 import shutil
 import sys
-import warnings
 import re
+import warnings
 
 import six
 from six.moves.collections_abc import Sequence
@@ -889,7 +889,7 @@ class Audio(BatchableMedia):
                     raise ValueError(
                         'Argument "sample_rate" is required when instantiating wandb.Audio with a reference path.'
                     )
-                
+
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode('utf-8')).hexdigest()
                 self._is_tmp = False
@@ -927,7 +927,7 @@ class Audio(BatchableMedia):
             json_obj["sample_rate"],
             json_obj["caption"],
         )
-    
+
     def bind_to_run(self, run, key, step, id_=None):
         if Audio.path_is_reference(self._path):
             raise ValueError("Audio media created by a reference to external storage cannot currently be added to a run")
