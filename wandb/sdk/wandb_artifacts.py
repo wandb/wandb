@@ -463,8 +463,6 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        util.download_file_from_url(path,)
-
         with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)

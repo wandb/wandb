@@ -1173,7 +1173,7 @@ class Api(object):
 
         size, response = self.download_file(metadata["url"])
 
-        with util.fsync_open(path, "wb") as file:
+        with open(path, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 
