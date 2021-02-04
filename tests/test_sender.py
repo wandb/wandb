@@ -590,7 +590,7 @@ def gen_metrics(
 
 
 def test_metric_none(gen_metrics):
-    ctx_util = gen_metrics(dict())
+    ctx_util = gen_metrics(None)
     assert "x_axis" not in ctx_util.config_wandb
     summary = ctx_util.summary
     assert summary["v1"] == 2
