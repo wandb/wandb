@@ -1,10 +1,14 @@
+import codecs
 import hashlib
+import json
 import os
 import shutil
 
+import six
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
+from wandb.compat import tempfile
 
 if wandb.TYPE_CHECKING:
     from typing import (
@@ -17,6 +21,7 @@ if wandb.TYPE_CHECKING:
         Sequence,
         Tuple,
         List,
+        Set,
     )
 
     if TYPE_CHECKING:
@@ -24,9 +29,16 @@ if wandb.TYPE_CHECKING:
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
         from numpy import np  # type: ignore
+        from typing import TextIO
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+
+MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+
+
+def wb_filename(key: str, step: int, id: str, extension: str) -> str:
+    return "{}_{}_{}{}".format(key, str(step), id, extension)
 
 
 def _safe_sdk_import() -> Tuple[Type["LocalRun"], Type["LocalArtifact"]]:
@@ -36,6 +48,13 @@ def _safe_sdk_import() -> Tuple[Type["LocalRun"], Type["LocalArtifact"]]:
     from .wandb_run import Run as LocalRun
 
     return LocalRun, LocalArtifact
+
+
+def is_numpy_array(data: object) -> bool:
+    np = util.get_module(
+        "numpy", required="Logging raw point cloud data requires numpy"
+    )
+    return isinstance(data, np.ndarray)
 
 
 class _WBValueArtifactSource(object):
@@ -241,10 +260,6 @@ class Histogram(WBValue):
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
-
-
-def wb_filename(key: str, step: int, id: str, extension: str) -> str:
-    return "{}_{}_{}{}".format(key, str(step), id, extension)
 
 
 class Media(WBValue):
@@ -460,4 +475,216 @@ class Media(WBValue):
         )
 
 
-__all__ = ["WBValue", "Histogram", "Media"]
+class BatchableMedia(Media):
+    """Parent class for Media we treat specially in batches, like images and
+    thumbnails.
+
+    Apart from images, we just use these batches to help organize files by name
+    in the media directory.
+    """
+
+    def __init__(self) -> None:
+        super(BatchableMedia, self).__init__()
+
+    @classmethod
+    def seq_to_json(
+        cls: Type["BatchableMedia"],
+        seq: List["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
+        raise NotImplementedError
+
+
+class Object3D(BatchableMedia):
+    """
+    Wandb class for 3D point clouds.
+
+    Arguments:
+        data_or_path: (numpy array, string, io)
+            Object3D can be initialized from a file or a numpy array.
+
+            The file types supported are obj, gltf, babylon, stl.  You can pass a path to
+                a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
+
+    The shape of the numpy array must be one of either:
+    ```
+    [[x y z],       ...] nx3
+    [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+    [x y z r g b], ...] nx4 where is rgb is color
+    ```
+    """
+
+    SUPPORTED_TYPES: ClassVar[Set[str]] = set(
+        ["obj", "gltf", "babylon", "stl", "pts.json"]
+    )
+    artifact_type: ClassVar[str] = "object3D-file"
+
+    def __init__(
+        self, data_or_path: Union["np.ndarray", str, TextIO], **kwargs: str
+    ) -> None:
+        super(Object3D, self).__init__()
+
+        if hasattr(data_or_path, "name"):
+            # if the file has a path, we just detect the type and copy it from there
+            data_or_path = data_or_path.name  # type: ignore
+
+        if hasattr(data_or_path, "read"):
+            if hasattr(data_or_path, "seek"):
+                data_or_path.seek(0)  # type: ignore
+            object_3d = data_or_path.read()  # type: ignore
+
+            extension = kwargs.pop("file_type", None)
+            if extension is None:
+                raise ValueError(
+                    "Must pass file type keyword argument when using io objects."
+                )
+            if extension not in Object3D.SUPPORTED_TYPES:
+                raise ValueError(
+                    "Object 3D only supports numpy arrays or files of the type: "
+                    + ", ".join(Object3D.SUPPORTED_TYPES)
+                )
+
+            tmp_path = os.path.join(
+                MEDIA_TMP.name, util.generate_id() + "." + extension
+            )
+            with open(tmp_path, "w") as f:
+                f.write(object_3d)
+
+            self._set_file(tmp_path, is_tmp=True)
+        elif isinstance(data_or_path, six.string_types):
+            path = data_or_path
+            extension = None
+            for supported_type in Object3D.SUPPORTED_TYPES:
+                if path.endswith(supported_type):
+                    extension = supported_type
+                    break
+
+            if not extension:
+                raise ValueError(
+                    "File '"
+                    + path
+                    + "' is not compatible with Object3D: supported types are: "
+                    + ", ".join(Object3D.SUPPORTED_TYPES)
+                )
+
+            self._set_file(data_or_path, is_tmp=False)
+        # Supported different types and scene for 3D scenes
+        elif isinstance(data_or_path, dict) and "type" in data_or_path:
+            if data_or_path["type"] == "lidar/beta":
+                data = {
+                    "type": data_or_path["type"],
+                    "vectors": data_or_path["vectors"].tolist()
+                    if "vectors" in data_or_path
+                    else [],
+                    "points": data_or_path["points"].tolist()
+                    if "points" in data_or_path
+                    else [],
+                    "boxes": data_or_path["boxes"].tolist()
+                    if "boxes" in data_or_path
+                    else [],
+                }
+            else:
+                raise ValueError(
+                    "Type not supported, only 'lidar/beta' is currently supported"
+                )
+
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            json.dump(
+                data,
+                codecs.open(tmp_path, "w", encoding="utf-8"),
+                separators=(",", ":"),
+                sort_keys=True,
+                indent=4,
+            )
+            self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
+        elif is_numpy_array(data_or_path):
+            np_data = data_or_path
+
+            # The following assertion is required for numpy to trust that
+            # np_data is numpy array. The reason it is behind a False
+            # guard is to ensure that this line does not run at runtime,
+            # which would cause a runtime error if the user's machine did
+            # not have numpy installed.
+
+            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+                assert isinstance(np_data, np.ndarray)
+
+            if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
+                raise ValueError(
+                    """The shape of the numpy array must be one of either
+                                    [[x y z],       ...] nx3
+                                     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                                     [x y z r g b], ...] nx4 where is rgb is color"""
+                )
+
+            list_data = np_data.tolist()
+            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            json.dump(
+                list_data,
+                codecs.open(tmp_path, "w", encoding="utf-8"),
+                separators=(",", ":"),
+                sort_keys=True,
+                indent=4,
+            )
+            self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
+        else:
+            raise ValueError("data must be a numpy array, dict or a file object")
+
+    @classmethod
+    def get_media_subdir(cls: Type["Object3D"]) -> str:
+        return os.path.join("media", "object3D")
+
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        json_dict = super(Object3D, self).to_json(run_or_artifact)
+        json_dict["_type"] = Object3D.artifact_type
+
+        _, artifact_class = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, artifact_class):
+            if self._path is None or not self._path.endswith(".pts.json"):
+                raise ValueError(
+                    "Non-point cloud 3D objects are not yet supported with Artifacts"
+                )
+
+        return json_dict
+
+    @classmethod
+    def seq_to_json(
+        cls: Type["BatchableMedia"],
+        seq: List["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
+        seq = list(seq)
+
+        # Due to the Liskov substitution principle, we cannot further
+        # narrow the parameter type of the seq_to_json, therefore we do
+        # a runtime check.
+        if any([not isinstance(item, Object3D) for item in seq]):
+            raise ValueError("All items in sequence are expected to be Object3D")
+
+        jsons = [obj.to_json(run) for obj in seq]
+
+        for obj in jsons:
+            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            if not obj["path"].startswith(expected):
+                raise ValueError(
+                    "Files in an array of Object3D's must be in the {} directory, not {}".format(
+                        expected, obj["path"]
+                    )
+                )
+
+        return {
+            "_type": "object3D",
+            "filenames": [
+                os.path.relpath(j["path"], cls.get_media_subdir()) for j in jsons
+            ],
+            "count": len(jsons),
+            "objects": jsons,
+        }
+
+
+__all__ = ["WBValue", "Histogram", "Media", "BatchableMedia", "Object3D"]
