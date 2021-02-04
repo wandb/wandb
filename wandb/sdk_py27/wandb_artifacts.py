@@ -116,7 +116,7 @@ class Artifact(object):
             )
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with open(path, mode) as f:
+        with util.fsync_open(path, mode) as f:
             yield f
 
         self.add_file(path, name=name)
@@ -463,7 +463,10 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with open(path, "wb") as file:
+        util.download_file_from_url(
+            path,)
+
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
@@ -1118,7 +1121,7 @@ class HTTPHandler(StorageHandler):
                 % (manifest_entry.ref, manifest_entry.digest, digest)
             )
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
