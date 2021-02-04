@@ -375,7 +375,7 @@ def _get_filestream_file_strings(ctx):
             if offset == 0:
                 s = content[0]
             else:
-                assert offset == len(s)
+                assert offset == len(s), "k={} v={} s={} d={}".format(k, v, s, d)
                 s = s + content[0]
         data[k] = json.loads(s)
     return data
