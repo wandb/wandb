@@ -5,20 +5,23 @@ from __future__ import division
 import base64
 import binascii
 import colorsys
-import codecs
 import contextlib
+import codecs
 import errno
 import hashlib
 import json
+import getpass
 import logging
 import math
 import os
 import re
 import shlex
+import subprocess
 import sys
 import threading
 import time
 import random
+import stat
 import shortuuid
 import importlib
 import types
@@ -27,20 +30,25 @@ from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
 
+import click
 import requests
 import six
 from six.moves import queue
+import textwrap
 from sys import getsizeof
+from collections import namedtuple
 from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
+from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
 from wandb.old.core import wandb_dir
 from wandb.errors.error import CommError
+from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
