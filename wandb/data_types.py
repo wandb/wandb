@@ -487,6 +487,10 @@ class Table(Media):
         data: (array) 2D Array of values that will be displayed as strings.
         dataframe: (pandas.DataFrame) DataFrame object used to create the table.
             When set, the other arguments are ignored.
+        optional (Union[bool,List[bool]]): If None values are allowed. Singular bool
+            applies to all columns. A list of bool values applies to each respective column.
+            Default to True.
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
     """
 
     MAX_ROWS = 10000
@@ -501,9 +505,12 @@ class Table(Media):
         dataframe=None,
         dtype=None,
         optional=True,
+        allow_mixed_types=False,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+        if allow_mixed_types:
+            dtype = _dtypes.AnyType
 
         # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
@@ -595,7 +602,7 @@ class Table(Media):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
-                        self._column_types.params["type_map"][col_name],
+                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
                         wbtype,
                     )
                 )
@@ -611,6 +618,7 @@ class Table(Media):
             not isinstance(other, Table)
             or len(self.data) != len(other.data)
             or self.columns != other.columns
+            or self._column_types != other._column_types
         ):
             return False
 
@@ -619,7 +627,7 @@ class Table(Media):
                 if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
                     return False
 
-        return self._column_types == other._column_types
+        return True
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -684,11 +692,12 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(json_obj["columns"], data=data,)
+        new_obj = cls(columns=json_obj["columns"], data=data)
 
-        new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-            json_obj["column_types"], source_artifact
-        )
+        if json_obj.get("column_types") is not None:
+            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
 
         return new_obj
 

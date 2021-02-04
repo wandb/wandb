@@ -1024,6 +1024,41 @@ class Run(Attrs):
         )
         self.summary.update()
 
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteRun(
+                $id: ID!,
+                %s
+            ) {
+                deleteRun(input: {
+                    id: $id,
+                    %s
+                }) {
+                    clientMutationId
+                }
+            }
+        """
+            %
+            # Older backends might not support the 'deleteArtifacts' argument,
+            # so only supply it when it is explicitly set.
+            (
+                "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+            )
+        )
+
+        return self.client.execute(
+            mutation,
+            variable_values={
+                "id": self.storage_id,
+                "deleteArtifacts": delete_artifacts,
+            },
+        )
+
     def save(self):
         self.update()
 
