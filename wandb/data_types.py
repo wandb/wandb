@@ -885,11 +885,6 @@ class Audio(BatchableMedia):
 
         if isinstance(data_or_path, six.string_types):
             if Audio.path_is_reference(data_or_path):
-                if sample_rate is None:
-                    raise ValueError(
-                        'Argument "sample_rate" is required when instantiating wandb.Audio with a reference path.'
-                    )
-
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode('utf-8')).hexdigest()
                 self._is_tmp = False
@@ -924,8 +919,7 @@ class Audio(BatchableMedia):
     def from_json(cls, json_obj, source_artifact):
         return cls(
             source_artifact.get_path(json_obj["path"]).download(),
-            json_obj["sample_rate"],
-            json_obj["caption"],
+            caption=json_obj["caption"],
         )
 
     def bind_to_run(self, run, key, step, id_=None):
@@ -939,7 +933,6 @@ class Audio(BatchableMedia):
         json_dict.update(
             {
                 "_type": self.artifact_type,
-                "sample_rate": self._sample_rate,
                 "caption": self._caption,
             }
         )
@@ -991,7 +984,6 @@ class Audio(BatchableMedia):
     def __eq__(self, other):
         return (
             super(Audio, self).__eq__(other)
-            and self._sample_rate == other._sample_rate
             and self._caption == other._caption
         )
 
