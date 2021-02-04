@@ -378,6 +378,7 @@ def test_metric_xaxis(live_mock_server, test_settings, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     config_wandb = ctx_util.config_wandb
     assert config_wandb["x_axis"] == "mystep"
+    assert "val" not in ctx_util.summary
 
 
 def test_metric_last(live_mock_server, test_settings, parse_ctx):

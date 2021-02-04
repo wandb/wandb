@@ -570,52 +570,87 @@ def test_upgrade_removed(
     assert not ret.yank_message
 
 
-def test_metric_none(
-    mocked_run,
-    mock_server,
-    sender,
-    start_backend,
-    stop_backend,
-    restore_version,
-    parse_ctx,
+@pytest.fixture
+def gen_metrics(
+    mocked_run, mock_server, sender, start_backend, stop_backend, parse_ctx,
 ):
-    start_backend()
-    sender.publish_history(dict(v1=1, v2=2), run=mocked_run, step=0)
-    sender.publish_history(dict(v1=3, v2=8), run=mocked_run, step=1)
-    sender.publish_history(dict(v1=2, v2=3), run=mocked_run, step=2)
-    stop_backend()
+    def fn(md):
+        start_backend()
+        if md:
+            metric = wandb_internal_pb2.MetricRecord()
+            for mk, mv in md.items():
+                mi = metric.update.add()
+                mi.metric = mk
+                mi.val.CopyFrom(mv)
+            sender.publish_metric(metric)
+        sender.publish_history(dict(v1=1, v2=2, mystep=1), run=mocked_run, step=0)
+        sender.publish_history(dict(v1=3, v2=8, mystep=2), run=mocked_run, step=1)
+        sender.publish_history(dict(v1=2, v2=3, mystep=3), run=mocked_run, step=2)
+        stop_backend()
 
-    ctx_util = parse_ctx(mock_server.ctx)
+        ctx_util = parse_ctx(mock_server.ctx)
+        return ctx_util
+
+    yield fn
+
+
+def test_metric_none(gen_metrics):
+    ctx_util = gen_metrics(dict())
     assert "x_axis" not in ctx_util.config_wandb
     summary = ctx_util.summary
     assert summary["v1"] == 2
     assert summary["v2"] == 3
 
 
-def test_metric_max(
-    mocked_run,
-    mock_server,
-    sender,
-    start_backend,
-    stop_backend,
-    restore_version,
-    parse_ctx,
-):
-    start_backend()
-    metric = wandb_internal_pb2.MetricRecord()
-    mi = metric.update.add()
-    mi.metric = "v2"
-    mi.val.summary_max = True
-    sender.publish_metric(metric)
-    sender.publish_history(dict(v1=1, v2=2), run=mocked_run, step=0)
-    sender.publish_history(dict(v1=3, v2=8), run=mocked_run, step=1)
-    sender.publish_history(dict(v1=2, v2=3), run=mocked_run, step=2)
-    stop_backend()
+def test_metric_xaxis(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.default_xaxis = True
+    ctx_util = gen_metrics(dict(mystep=mv))
+    config_wandb = ctx_util.config_wandb
+    assert config_wandb["x_axis"] == "mystep"
+    assert "v1" not in ctx_util.summary
 
-    ctx_util = parse_ctx(mock_server.ctx)
+
+def test_metric_max(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.summary_max = True
+    ctx_util = gen_metrics(dict(v2=mv))
     summary = ctx_util.summary
     assert "v1" not in summary
     assert summary["v2"] == 8
+
+
+def test_metric_min(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.summary_min = True
+    ctx_util = gen_metrics(dict(v2=mv))
+    summary = ctx_util.summary
+    assert "v1" not in summary
+    assert summary["v2"] == 2
+
+
+def test_metric_last(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.summary_last = True
+    ctx_util = gen_metrics(dict(v2=mv))
+    summary = ctx_util.summary
+    assert "v1" not in summary
+    assert summary["v2"] == 3
+
+
+def test_metric_mult(gen_metrics):
+    mv = wandb_internal_pb2.MetricValue()
+    mv.default_xaxis = True
+    mv1 = wandb_internal_pb2.MetricValue()
+    mv1.summary_max = True
+    mv2 = wandb_internal_pb2.MetricValue()
+    mv2.summary_min = True
+    ctx_util = gen_metrics(dict(mystep=mv, v1=mv1, v2=mv2))
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+    assert summary["v1"] == 3
+    assert summary["v2"] == 2
+    assert config_wandb["x_axis"] == "mystep"
 
 
 # TODO: test other sender methods
