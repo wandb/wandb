@@ -12,7 +12,6 @@ import subprocess
 import os
 import sys
 import shutil
-import six
 from .utils import fixture_open
 import sys
 
@@ -350,37 +349,7 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-def _get_filestream_file_updates(ctx):
-    data = {}
-    file_stream_updates = ctx["file_stream"]
-    for update in file_stream_updates:
-        files = update.get("files")
-        if not files:
-            continue
-        for k, v in six.iteritems(files):
-            data.setdefault(k, []).append(v)
-    return data
-
-
-def _get_filestream_file_items(ctx):
-    data = {}
-    fs_file_updates = _get_filestream_file_updates(ctx)
-    for k, v in six.iteritems(fs_file_updates):
-        l = []
-        for d in v:
-            offset = d.get("offset")
-            content = d.get("content")
-            assert offset is not None
-            assert content is not None
-            assert offset == 0 or offset == len(l), (k, v, l, d)
-            if not offset:
-                l = []
-            l.extend(map(json.loads, content))
-        data[k] = l
-    return data
-
-
-def test_metric_null(live_mock_server, test_settings):
+def test_metric_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=2, val=8))
@@ -388,27 +357,30 @@ def test_metric_null(live_mock_server, test_settings):
     run.log(dict(val2=4))
     run.log(dict(val2=1))
     run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    config = server_ctx["config"][-1]
-    fs_files = _get_filestream_file_items(server_ctx)
-    summary = fs_files["wandb-summary.json"][-1]
-    assert "x_axis" not in config["_wandb"]["value"]
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+
+    # no default axis
+    config_wandb = ctx_util.config_wandb
+    assert "x_axis" not in config_wandb
+
     # by default we use last value
+    summary = ctx_util.summary
     assert summary["val"] == 3
     assert summary["val2"] == 1
 
 
-def test_metric_xaxis(live_mock_server, test_settings):
+def test_metric_xaxis(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
     run.define_metric("mystep").set_default_xaxis()
     run.log(dict(mystep=1, val=2))
     run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    config = server_ctx["config"][-1]
-    assert config["_wandb"]["value"]["x_axis"] == "mystep"
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    config_wandb = ctx_util.config_wandb
+    assert config_wandb["x_axis"] == "mystep"
 
 
-def test_metric_last(live_mock_server, test_settings):
+def test_metric_last(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
     run.define_metric("val").set_summary(last=True)
     run.log(dict(mystep=1, val=2))
@@ -417,35 +389,32 @@ def test_metric_last(live_mock_server, test_settings):
     run.log(dict(val2=4))
     run.log(dict(val2=1))
     run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_items(server_ctx)
-    summary = fs_files["wandb-summary.json"][-1]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
     # if we set any metric, last is disabled for all other metrics
     assert summary["val"] == 3
     assert "val2" not in summary
 
 
-def test_metric_max(live_mock_server, test_settings):
+def test_metric_max(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
     run.define_metric("val").set_summary(max=True)
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
     run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_items(server_ctx)
-    summary = fs_files["wandb-summary.json"][-1]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
     assert summary["val"] == 8
 
 
-def test_metric_min(live_mock_server, test_settings):
+def test_metric_min(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
     run.define_metric("val").set_summary(min=True)
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
     run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    fs_files = _get_filestream_file_items(server_ctx)
-    summary = fs_files["wandb-summary.json"][-1]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
     assert summary["val"] == 2

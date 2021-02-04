@@ -20,6 +20,8 @@ else:
     from wandb.sdk_py27.internal.sender import SendManager
     from wandb.sdk_py27.interface.interface import BackendSender
 
+from wandb.proto import wandb_internal_pb2
+
 
 @pytest.fixture()
 def record_q():
@@ -566,6 +568,54 @@ def test_upgrade_removed(
         ret.delete_message == "wandb version 0.0.4 has been retired!  Please upgrade."
     )
     assert not ret.yank_message
+
+
+def test_metric_none(
+    mocked_run,
+    mock_server,
+    sender,
+    start_backend,
+    stop_backend,
+    restore_version,
+    parse_ctx,
+):
+    start_backend()
+    sender.publish_history(dict(v1=1, v2=2), run=mocked_run, step=0)
+    sender.publish_history(dict(v1=3, v2=8), run=mocked_run, step=1)
+    sender.publish_history(dict(v1=2, v2=3), run=mocked_run, step=2)
+    stop_backend()
+
+    ctx_util = parse_ctx(mock_server.ctx)
+    assert "x_axis" not in ctx_util.config_wandb
+    summary = ctx_util.summary
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+
+
+def test_metric_max(
+    mocked_run,
+    mock_server,
+    sender,
+    start_backend,
+    stop_backend,
+    restore_version,
+    parse_ctx,
+):
+    start_backend()
+    metric = wandb_internal_pb2.MetricRecord()
+    mi = metric.update.add()
+    mi.metric = "v2"
+    mi.val.summary_max = True
+    sender.publish_metric(metric)
+    sender.publish_history(dict(v1=1, v2=2), run=mocked_run, step=0)
+    sender.publish_history(dict(v1=3, v2=8), run=mocked_run, step=1)
+    sender.publish_history(dict(v1=2, v2=3), run=mocked_run, step=2)
+    stop_backend()
+
+    ctx_util = parse_ctx(mock_server.ctx)
+    summary = ctx_util.summary
+    assert "v1" not in summary
+    assert summary["v2"] == 8
 
 
 # TODO: test other sender methods

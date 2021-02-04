@@ -399,3 +399,13 @@ def disable_console():
     os.environ["WANDB_CONSOLE"] = "off"
     yield
     del os.environ["WANDB_CONSOLE"]
+
+
+@pytest.fixture()
+def parse_ctx():
+    """Fixture providing class to parse context data."""
+
+    def parse_ctx_fn(ctx):
+        return utils.ParseCTX(ctx)
+
+    yield parse_ctx_fn
