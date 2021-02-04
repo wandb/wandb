@@ -271,6 +271,7 @@ class Settings(object):
         api_key: str = None,
         anonymous=None,
         mode: str = None,
+        start_method: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,

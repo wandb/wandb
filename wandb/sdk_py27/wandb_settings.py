@@ -271,6 +271,7 @@ class Settings(object):
         api_key = None,
         anonymous=None,
         mode = None,
+        start_method = None,
         entity = None,
         project = None,
         run_group = None,
