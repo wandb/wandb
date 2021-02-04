@@ -230,7 +230,6 @@ def test_audio_to_json(mocked_run):
     audio_expected = {
         "_type": "audio-file",
         "caption": None,
-        "sample_rate": 44100,
         "size": 88244,
     }
     assert utils.subdict(meta["audio"][0], audio_expected) == audio_expected
