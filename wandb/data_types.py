@@ -17,9 +17,9 @@ import logging
 import numbers
 import os
 import pprint
+import re
 import shutil
 import sys
-import re
 import warnings
 
 import six
