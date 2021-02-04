@@ -438,7 +438,9 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self.artifact_source["artifact"].get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif isinstance(self, Audio) and Audio.path_is_reference(self._path):
+                    elif isinstance(self, Audio) and Audio.path_is_reference(
+                        self._path
+                    ):
                         artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
@@ -886,7 +888,7 @@ class Audio(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             if Audio.path_is_reference(data_or_path):
                 self._path = data_or_path
-                self._sha256 = hashlib.sha256(data_or_path.encode('utf-8')).hexdigest()
+                self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
                 self._is_tmp = False
             else:
                 self._set_file(data_or_path, is_tmp=False)
@@ -924,17 +926,16 @@ class Audio(BatchableMedia):
 
     def bind_to_run(self, run, key, step, id_=None):
         if Audio.path_is_reference(self._path):
-            raise ValueError("Audio media created by a reference to external storage cannot currently be added to a run")
+            raise ValueError(
+                "Audio media created by a reference to external storage cannot currently be added to a run"
+            )
 
         return super(Audio, self).bind_to_run(run, key, step, id_)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {
-                "_type": self.artifact_type,
-                "caption": self._caption,
-            }
+            {"_type": self.artifact_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -982,10 +983,7 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def __eq__(self, other):
-        return (
-            super(Audio, self).__eq__(other)
-            and self._caption == other._caption
-        )
+        return super(Audio, self).__eq__(other) and self._caption == other._caption
 
     def __ne__(self, other):
         return not self.__eq__(other)
