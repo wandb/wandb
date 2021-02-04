@@ -195,6 +195,12 @@ class HandleManager(object):
                     self._metric_track[k] = float(v)
                     self._consolidated_summary[k] = v
                     updated = True
+            if d.summary_min:
+                oldmin = self._metric_track.get(k, None)
+                if oldmin is None or float(v) < oldmin:
+                    self._metric_track[k] = float(v)
+                    self._consolidated_summary[k] = v
+                    updated = True
         return updated
 
     def handle_history(self, record: Record) -> None:

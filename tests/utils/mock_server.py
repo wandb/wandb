@@ -264,6 +264,14 @@ def create_app(user_ctx=None):
         body = request.get_json()
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
+        if "mutation UpsertBucket(" in body["query"]:
+            print("GOT VARS", body["variables"])
+            param_config = body["variables"].get("config")
+            if param_config:
+                ctx.setdefault("config", []).append(json.loads(param_config))
+            param_summary = body["variables"].get("summaryMetrics")
+            if param_summary:
+                ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
             ctx["requested_file"] = body["variables"]["files"][0]
             url = request.url_root + "/storage?file={}&run={}".format(
