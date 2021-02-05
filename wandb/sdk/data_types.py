@@ -7,6 +7,7 @@ import os
 import shutil
 
 import six
+from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
@@ -2002,7 +2003,7 @@ def val_to_json(
         return _data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
+    elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)
@@ -2060,7 +2061,7 @@ def _numpy_arrays_to_lists(
         for key, val in six.iteritems(payload):
             res[key] = _numpy_arrays_to_lists(val)
         return res
-    elif isinstance(payload, Sequence) and not isinstance(payload, six.string_types):
+    elif isinstance(payload, SixSequence) and not isinstance(payload, six.string_types):
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
