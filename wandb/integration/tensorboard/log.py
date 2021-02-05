@@ -113,12 +113,14 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
+        print(kind)
         if kind in IGNORE_KINDS:
             continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
         elif kind == "tensor":
             plugin_name = value.metadata.plugin_data.plugin_name
+            print(plugin_name)
             if plugin_name == "scalars" or plugin_name == "":
                 values[namespaced_tag(value.tag, namespace)] = make_ndarray(
                     value.tensor
@@ -154,6 +156,11 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     {"title": "Precision v. Recall"},
                 )
                 continue
+            elif plugin_name == "graphs":
+                print([field.full_name for field in value.tensor.DESCRIPTOR.fields])
+                print(value.tensor.tensor_content)
+                data = make_ndarray(value.tensor.string_val)
+                print(data)
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)
 

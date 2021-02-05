@@ -10,6 +10,7 @@ import pytest
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+from tensorboard.plugins.pr_curve import summary
 import tensorflow as tf
 import wandb
 from wandb.errors import term
@@ -201,3 +202,26 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     )
     assert json.loads(second_stream_hist["content"][-2])["wandb_logged_val"] == 81
     wandb.tensorboard.unpatch()
+
+
+def test_add_pr_curve(live_mock_server, test_settings):
+    tf.compat.v1.disable_v2_behavior()
+    wandb.init(sync_tensorboard=True, settings=test_settings)
+    summary.op(
+            name="test_pr",
+            labels=tf.constant([True, False, True]),
+            predictions=tf.constant([0.7, 0.2, 0.3]),
+            num_thresholds=5)
+    merged_summary_op = tf.compat.v1.summary.merge_all()
+    sess = tf.compat.v1.Session()
+    writer = tf.compat.v1.summary.FileWriter(wandb.run.dir, sess.graph)
+    
+    merged_summary = sess.run(merged_summary_op)
+    writer.add_summary(merged_summary, 0)
+    
+    wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+    print("CONTEXT!", server_ctx)
+
+
+        
