@@ -35,12 +35,12 @@ if wandb.TYPE_CHECKING:
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
-        import numpy as np
-        import pandas as pd
-        import matplotlib
-        import plotly
-        import PIL
-        import torch
+        import numpy as np  # type: ignore
+        import pandas as pd  # type: ignore
+        import matplotlib  # type: ignore
+        import plotly  # type: ignore
+        import PIL  # type: ignore
+        import torch  # type: ignore
         from typing import TextIO
 
         TypeMappingType = Dict[str, Type["WBValue"]]
@@ -1558,7 +1558,7 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size
+        self._width, self._height = self._image.size  # type: ignore
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -1813,12 +1813,12 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0]._image.size
+        width, height = seq[0]._image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image: "Image") -> bool:
-            img_width, img_height = image._image.size
-            return img_width == width and img_height == height
+            img_width, img_height = image._image.size  # type: ignore
+            return img_width == width and img_height == height  # type: ignore
 
         sizes_match = all(size_equals_image(img) for img in seq)
         if not sizes_match:
