@@ -65,7 +65,6 @@ else:
         _numpy_arrays_to_lists,
     )
 
-# TODO: Move non exported symbols to private
 __all__ = [
     "Histogram",
     "Object3D",
