@@ -35,6 +35,8 @@ if wandb.TYPE_CHECKING:
         from wandb.apis.public import Artifact as PublicArtifact
         import numpy as np
         import pandas as pd
+        import matplotlib
+        import plotly
         from typing import TextIO
 
         TypeMappingType = Dict[str, Type["WBValue"]]
@@ -1891,8 +1893,8 @@ def history_dict_to_json(
 def val_to_json(
     run: "LocalRun",
     key: str,
-    val: Union["pd.DataFrame", object],
-    namespace: Optional[str] = None,
+    val: Union[dict, WBValue, Sequence[WBValue], "plotly.Figure", "matplotlib.artist.Artist" "pd.DataFrame", object],
+    namespace: Optional[Union[str, int]] = None,
 ) -> dict:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -2076,7 +2078,7 @@ class _ClassesIdType(_dtypes.Type):
     def __init__(
         self,
         classes_obj: Optional[Classes] = None,
-        valid_ids: Sequence[Union[str, int]] = None,
+        valid_ids: Optional["_dtypes.UnionType"] = None,
     ):
         if valid_ids is None:
             valid_ids = _dtypes.UnionType()
@@ -2109,10 +2111,10 @@ class _ClassesIdType(_dtypes.Type):
         self.wb_classes_obj_ref = classes_obj
         self.params.update({"valid_ids": valid_ids})
 
-    def assign(self, py_obj: Optional[Any] = None) -> "Type":
+    def assign(self, py_obj: Optional[Any] = None) -> "_dtypes.Type":
         return self.assign_type(_dtypes.ConstType(py_obj))
 
-    def assign_type(self, wb_type: "Type") -> "Type":
+    def assign_type(self, wb_type: "_dtypes.Type") -> "_dtypes.Type":
         valid_ids = self.params["valid_ids"].assign_type(wb_type)
         if not isinstance(valid_ids, _dtypes.InvalidType):
             return self
@@ -2120,7 +2122,7 @@ class _ClassesIdType(_dtypes.Type):
         return _dtypes.InvalidType()
 
     @classmethod
-    def from_obj(cls, py_obj: Optional[Any] = None) -> "Type":
+    def from_obj(cls, py_obj: Optional[Any] = None) -> "_dtypes.Type":
         return cls(py_obj)
 
     def to_json(self, artifact: Optional["LocalArtifact"] = None) -> Dict[str, Any]:
@@ -2143,15 +2145,18 @@ class _ClassesIdType(_dtypes.Type):
     @classmethod
     def from_json(
         cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
-    ) -> "Type":
+    ) -> "_dtypes.Type":
         classes_obj = None
         if (
             json_dict.get("params", {}).get("classes_obj", {}).get("type")
             == "classes-file"
         ):
-            classes_obj = artifact.get(
-                json_dict.get("params", {}).get("classes_obj", {}).get("path")
-            )
+            if artifact is not None:
+                classes_obj = artifact.get(
+                    json_dict.get("params", {}).get("classes_obj", {}).get("path")
+                )
+            else:
+                raise RuntimeError("Expected artifact to be non-null.")
         else:
             classes_obj = Classes.from_json(
                 json_dict["params"]["classes_obj"], artifact
