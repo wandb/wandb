@@ -191,6 +191,7 @@ def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> Non
         log_handler.addFilter(WBFilter())
     # If this is called without "wandb", backend logs from this module
     # are not streamed to `debug-internal.log` when we spawn with fork
+    # TODO: (cvp) we should really take another pass at logging in general
     root = logging.getLogger("wandb")
     root.setLevel(logging.DEBUG)
     root.addHandler(log_handler)
