@@ -19,8 +19,6 @@ import sys
 import warnings
 
 import six
-from six.moves.collections_abc import Sequence
-import wandb
 from wandb import util
 from wandb.compat import tempfile
 
@@ -39,6 +37,12 @@ if _PY3:
         Video,
         ImageMask,
         BoundingBoxes2D,
+        Classes,
+        Image,
+        Plotly,
+        history_dict_to_json,
+        val_to_json,
+        _numpy_arrays_to_lists,
     )
 else:
     from wandb.sdk_py27.interface import _dtypes
@@ -53,19 +57,28 @@ else:
         Video,
         ImageMask,
         BoundingBoxes2D,
+        Classes,
+        Image,
+        Plotly,
+        history_dict_to_json,
+        val_to_json,
+        _numpy_arrays_to_lists,
     )
 
+# TODO: Move non exported symbols to private
 __all__ = [
-    "WBValue",
     "Histogram",
-    "Media",
-    "BatchableMedia",
     "Object3D",
     "Molecule",
     "Html",
     "Video",
     "ImageMask",
     "BoundingBoxes2D",
+    "Classes",
+    "Image",
+    "Plotly",
+    "history_dict_to_json",
+    "val_to_json",
 ]
 
 
@@ -90,8 +103,6 @@ warnings.filterwarnings(
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
-
-DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
 class Table(Media):
@@ -285,7 +296,7 @@ class Table(Media):
     def bind_to_run(self, *args, **kwargs):
         data = self._to_table_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
-        data = numpy_arrays_to_lists(data)
+        data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
@@ -599,45 +610,6 @@ def is_numpy_array(data):
     return isinstance(data, np.ndarray)
 
 
-class Classes(Media):
-    artifact_type = "classes"
-
-    def __init__(self, class_set):
-        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
-
-        Args:
-            class_set (list): list of dicts in the form of {"id":int|str, "name":str}
-        """
-        super(Classes, self).__init__()
-        for class_obj in class_set:
-            assert "id" in class_obj and "name" in class_obj
-        self._class_set = class_set
-
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(json_obj.get("class_set"))
-
-    def to_json(self, artifact=None):
-        json_obj = {}
-        # This is a bit of a hack to allow _ClassesIdType to
-        # be able to operate fully without an artifact in play.
-        # In all other cases, artifact should be a true artifact.
-        if artifact is not None:
-            json_obj = super(Classes, self).to_json(artifact)
-        json_obj["_type"] = Classes.artifact_type
-        json_obj["class_set"] = self._class_set
-        return json_obj
-
-    def get_type(self):
-        return _ClassesIdType(self)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __eq__(self, other):
-        return self._class_set == other._class_set
-
-
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
@@ -753,471 +725,6 @@ class JoinedTable(Media):
         )
 
 
-class Image(BatchableMedia):
-    """
-    Wandb class for images.
-
-    Arguments:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
-            image data, or a PIL image. The class attempts to infer
-            the data format and converts it.
-        mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
-        caption: (string) Label for display of image.
-    """
-
-    MAX_ITEMS = 108
-
-    # PIL limit
-    MAX_DIMENSION = 65500
-
-    artifact_type = "image-file"
-
-    def __init__(
-        self,
-        data_or_path,
-        mode=None,
-        caption=None,
-        grouping=None,
-        classes=None,
-        boxes=None,
-        masks=None,
-    ):
-        super(Image, self).__init__()
-        # TODO: We should remove grouping, it's a terrible name and I don't
-        # think anyone uses it.
-
-        self._grouping = None
-        self._caption = None
-        self._width = None
-        self._height = None
-        self._image = None
-        self._classes = None
-        self._boxes = None
-        self._masks = None
-
-        # Allows the user to pass an Image object as the first parameter and have a perfect copy,
-        # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
-        if isinstance(data_or_path, Image):
-            self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, six.string_types):
-            self._initialize_from_path(data_or_path)
-        else:
-            self._initialize_from_data(data_or_path, mode)
-
-        self._set_initialization_meta(grouping, caption, classes, boxes, masks)
-
-    def _set_initialization_meta(
-        self, grouping=None, caption=None, classes=None, boxes=None, masks=None
-    ):
-        if grouping is not None:
-            self._grouping = grouping
-
-        if caption is not None:
-            self._caption = caption
-
-        if classes is not None:
-            if not isinstance(classes, Classes):
-                self._classes = Classes(classes)
-            else:
-                self._classes = classes
-
-        if boxes:
-            if not isinstance(boxes, dict):
-                raise ValueError('Images "boxes" argument must be a dictionary')
-            boxes_final = {}
-            for key in boxes:
-                if isinstance(boxes[key], BoundingBoxes2D):
-                    boxes_final[key] = boxes[key]
-                else:
-                    boxes_final[key] = BoundingBoxes2D(boxes[key], key)
-            self._boxes = boxes_final
-
-        if masks:
-            if not isinstance(masks, dict):
-                raise ValueError('Images "masks" argument must be a dictionary')
-            masks_final = {}
-            for key in masks:
-                if isinstance(masks[key], ImageMask):
-                    masks_final[key] = masks[key]
-                else:
-                    masks_final[key] = ImageMask(masks[key], key)
-            self._masks = masks_final
-
-        self._width, self._height = self._image.size
-
-    def _initialize_from_wbimage(self, wbimage):
-        self._grouping = wbimage._grouping
-        self._caption = wbimage._caption
-        self._width = wbimage._width
-        self._height = wbimage._height
-        self._image = wbimage._image
-        self._classes = wbimage._classes
-        self._path = wbimage._path
-        self._is_tmp = wbimage._is_tmp
-        self._extension = wbimage._extension
-        self._sha256 = wbimage._sha256
-        self._size = wbimage._size
-        self.format = wbimage.format
-        self.artifact_source = wbimage.artifact_source
-
-        # We do not want to implicitly copy boxes or masks, just the image-related data.
-        # self._boxes = wbimage._boxes
-        # self._masks = wbimage._masks
-
-    def _initialize_from_path(self, path):
-        pil_image = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
-        self._set_file(path, is_tmp=False)
-        self._image = pil_image.open(path)
-        self._image.load()
-        ext = os.path.splitext(path)[1][1:]
-        self.format = ext
-
-    def _initialize_from_data(self, data, mode=None):
-        pil_image = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
-        if util.is_matplotlib_typename(util.get_full_typename(data)):
-            buf = six.BytesIO()
-            util.ensure_matplotlib_figure(data).savefig(buf)
-            self._image = pil_image.open(buf)
-        elif isinstance(data, pil_image.Image):
-            self._image = data
-        elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-            vis_util = util.get_module(
-                "torchvision.utils", "torchvision is required to render images"
-            )
-            if hasattr(data, "requires_grad") and data.requires_grad:
-                data = data.detach()
-            data = vis_util.make_grid(data, normalize=True)
-            self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
-            )
-        else:
-            if hasattr(data, "numpy"):  # TF data eager tensors
-                data = data.numpy()
-            if data.ndim > 2:
-                data = data.squeeze()  # get rid of trivial dimensions as a convenience
-            self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
-            )
-
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".png")
-        self.format = "png"
-        self._image.save(tmp_path, transparency=None)
-        self._set_file(tmp_path, is_tmp=True)
-
-    @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        classes = None
-        if json_obj.get("classes") is not None:
-            classes = source_artifact.get(json_obj["classes"]["path"])
-
-        _masks = None
-        masks = json_obj.get("masks")
-        if masks:
-            _masks = {}
-            for key in masks:
-                _masks[key] = ImageMask.from_json(masks[key], source_artifact)
-                _masks[key].set_artifact_source(source_artifact)
-                _masks[key]._key = key
-
-        boxes = json_obj.get("boxes")
-        _boxes = None
-        if boxes:
-            _boxes = {}
-            for key in boxes:
-                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
-                _boxes[key]._key = key
-
-        return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
-            caption=json_obj.get("caption"),
-            grouping=json_obj.get("grouping"),
-            classes=classes,
-            boxes=_boxes,
-            masks=_masks,
-        )
-
-    @classmethod
-    def get_media_subdir(cls):
-        return os.path.join("media", "images")
-
-    def bind_to_run(self, *args, **kwargs):
-        super(Image, self).bind_to_run(*args, **kwargs)
-        id_ = kwargs.get("id_")
-        if self._boxes is not None:
-            for i, k in enumerate(self._boxes):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(*args, **kwargs)
-
-        if self._masks is not None:
-            for i, k in enumerate(self._masks):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(*args, **kwargs)
-
-    def to_json(self, run_or_artifact):
-        json_dict = super(Image, self).to_json(run_or_artifact)
-        json_dict["_type"] = Image.artifact_type
-        json_dict["format"] = self.format
-
-        if self._width is not None:
-            json_dict["width"] = self._width
-        if self._height is not None:
-            json_dict["height"] = self._height
-        if self._grouping:
-            json_dict["grouping"] = self._grouping
-        if self._caption:
-            json_dict["caption"] = self._caption
-
-        wandb_run, wandb_artifacts = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            artifact = run_or_artifact
-            if (
-                self._masks is not None or self._boxes is not None
-            ) and self._classes is None:
-                raise ValueError(
-                    "classes must be passed to wandb.Image which have masks or bounding boxes when adding to artifacts"
-                )
-
-            if self._classes is not None:
-                # Here, rather than give each class definition it's own name (and entry), we
-                # purposely are giving a non-unique class name of /media/cls.classes.json.
-                # This may create user confusion if if multiple different class definitions
-                # are expected in a single artifact. However, we want to catch this user pattern
-                # if it exists and dive deeper. The alternative code is provided below.
-                #
-                class_name = os.path.join("media", "cls")
-                #
-                # class_name = os.path.join(
-                #     "media", "classes", os.path.basename(self._path) + "_cls"
-                # )
-                #
-                classes_entry = artifact.add(self._classes, class_name)
-                json_dict["classes"] = {
-                    "type": "classes-file",
-                    "path": classes_entry.path,
-                    "digest": classes_entry.digest,
-                }
-
-        elif not isinstance(run_or_artifact, wandb_run.Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
-
-        if self._boxes:
-            json_dict["boxes"] = {
-                k: box.to_json(run_or_artifact) for (k, box) in self._boxes.items()
-            }
-        if self._masks:
-            json_dict["masks"] = {
-                k: mask.to_json(run_or_artifact) for (k, mask) in self._masks.items()
-            }
-        return json_dict
-
-    def guess_mode(self, data):
-        """
-        Guess what type of image the np.array is representing
-        """
-        # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.ndim == 2:
-            return "L"
-        elif data.shape[-1] == 3:
-            return "RGB"
-        elif data.shape[-1] == 4:
-            return "RGBA"
-        else:
-            raise ValueError(
-                "Un-supported shape for image conversion %s" % list(data.shape)
-            )
-
-    @classmethod
-    def to_uint8(cls, data):
-        """
-        Converts floating point image on the range [0,1] and integer images
-        on the range [0,255] to uint8, clipping if necessary.
-        """
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-
-        # I think it's better to check the image range vs the data type, since many
-        # image libraries will return floats between 0 and 255
-
-        # some images have range -1...1 or 0-1
-        dmin = np.min(data)
-        if dmin < 0:
-            data = (data - np.min(data)) / np.ptp(data)
-        if np.max(data) <= 1.0:
-            data = (data * 255).astype(np.int32)
-
-        # assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
-        return data.clip(0, 255).astype(np.uint8)
-
-    @classmethod
-    def seq_to_json(cls, images, run, key, step):
-        """
-        Combines a list of images into a meta dictionary object describing the child images.
-        """
-
-        jsons = [obj.to_json(run) for obj in images]
-
-        media_dir = cls.get_media_subdir()
-
-        for obj in jsons:
-            expected = util.to_forward_slash_path(media_dir)
-            if not obj["path"].startswith(expected):
-                raise ValueError(
-                    "Files in an array of Image's must be in the {} directory, not {}".format(
-                        cls.get_media_subdir(), obj["path"]
-                    )
-                )
-
-        num_images_to_log = len(images)
-        width, height = images[0]._image.size
-        format = jsons[0]["format"]
-
-        def size_equals_image(image):
-            img_width, img_height = image._image.size
-            return img_width == width and img_height == height
-
-        sizes_match = all(size_equals_image(img) for img in images)
-        if not sizes_match:
-            logging.warning(
-                "Images sizes do not match. This will causes images to be display incorrectly in the UI."
-            )
-
-        meta = {
-            "_type": "images/separated",
-            "width": width,
-            "height": height,
-            "format": format,
-            "count": num_images_to_log,
-        }
-
-        captions = Image.all_captions(images)
-
-        if captions:
-            meta["captions"] = captions
-
-        all_masks = Image.all_masks(images, run, key, step)
-
-        if all_masks:
-            meta["all_masks"] = all_masks
-
-        all_boxes = Image.all_boxes(images, run, key, step)
-
-        if all_boxes:
-            meta["all_boxes"] = all_boxes
-
-        return meta
-
-    @classmethod
-    def all_masks(cls, images, run, run_key, step):
-        all_mask_groups = []
-        for image in images:
-            if image._masks:
-                mask_group = {}
-                for k in image._masks:
-                    mask = image._masks[k]
-                    mask_group[k] = mask.to_json(run)
-                all_mask_groups.append(mask_group)
-            else:
-                all_mask_groups.append(None)
-        if all_mask_groups and not all(x is None for x in all_mask_groups):
-            return all_mask_groups
-        else:
-            return False
-
-    @classmethod
-    def all_boxes(cls, images, run, run_key, step):
-        all_box_groups = []
-        for image in images:
-            if image._boxes:
-                box_group = {}
-                for k in image._boxes:
-                    box = image._boxes[k]
-                    box_group[k] = box.to_json(run)
-                all_box_groups.append(box_group)
-            else:
-                all_box_groups.append(None)
-        if all_box_groups and not all(x is None for x in all_box_groups):
-            return all_box_groups
-        else:
-            return False
-
-    @classmethod
-    def all_captions(cls, images):
-        if images[0]._caption is not None:
-            return [i._caption for i in images]
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __eq__(self, other):
-        return (
-            self._grouping == other._grouping
-            and self._caption == other._caption
-            and self._width == other._width
-            and self._height == other._height
-            and self._image == other._image
-            and self._classes == other._classes
-        )
-
-
-class Plotly(Media):
-    """
-    Wandb class for plotly plots.
-
-    Arguments:
-        val: matplotlib or plotly figure
-    """
-
-    @classmethod
-    def make_plot_media(cls, val):
-        if util.is_matplotlib_typename(util.get_full_typename(val)):
-            if util.matplotlib_contains_images(val):
-                return Image(val)
-            val = util.matplotlib_to_plotly(val)
-        return cls(val)
-
-    def __init__(self, val, **kwargs):
-        super(Plotly, self).__init__()
-        # First, check to see if the incoming `val` object is a plotfly figure
-        if not util.is_plotly_figure_typename(util.get_full_typename(val)):
-            # If it is not, but it is a matplotlib figure, then attempt to convert it to plotly
-            if util.is_matplotlib_typename(util.get_full_typename(val)):
-                if util.matplotlib_contains_images(val):
-                    raise ValueError(
-                        "Plotly does not currently support converting matplotlib figures containing images. \
-                            You can convert the plot to a static image with `wandb.Image(plt)` "
-                    )
-                val = util.matplotlib_to_plotly(val)
-            else:
-                raise ValueError(
-                    "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
-                )
-
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".plotly.json")
-        val = numpy_arrays_to_lists(val.to_plotly_json())
-        util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
-        self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
-
-    def get_media_subdir(self):
-        return os.path.join("media", "plotly")
-
-    def to_json(self, run):
-        json_dict = super(Plotly, self).to_json(run)
-        json_dict["_type"] = "plotly-file"
-        return json_dict
-
-
 class Bokeh(Media):
     """
     Wandb class for Bokeh plots.
@@ -1270,6 +777,16 @@ class Bokeh(Media):
         return cls(source_artifact.get_path(json_obj["path"]).download())
 
 
+def _nest(thing):
+    # Use tensorflows nest function if available, otherwise just wrap object in an array"""
+
+    tfutil = util.get_module("tensorflow.python.util")
+    if tfutil:
+        return tfutil.nest.flatten(thing)
+    else:
+        return [thing]
+
+
 class Graph(Media):
     """Wandb class for graphs
 
@@ -1315,7 +832,7 @@ class Graph(Media):
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
-        data = numpy_arrays_to_lists(data)
+        data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
@@ -1380,7 +897,7 @@ class Graph(Media):
                     if relevant_nodes and in_node not in relevant_nodes:
                         # node is not part of the current network
                         continue
-                    for in_layer in nest(in_node.inbound_layers):
+                    for in_layer in _nest(in_node.inbound_layers):
                         inbound_keras_node = Node.from_keras(in_layer)
 
                         if inbound_keras_node.id not in graph.nodes_by_id:
@@ -1658,285 +1175,7 @@ class Edge(WBValue):
         return val
 
 
-def nest(thing):
-    # Use tensorflows nest function if available, otherwise just wrap object in an array"""
-
-    tfutil = util.get_module("tensorflow.python.util")
-    if tfutil:
-        return tfutil.nest.flatten(thing)
-    else:
-        return [thing]
-
-
-def history_dict_to_json(run, payload, step=None):
-    # Converts a History row dict's elements so they're friendly for JSON serialization.
-
-    if step is None:
-        # We should be at the top level of the History row; assume this key is set.
-        step = payload["_step"]
-
-    # We use list here because we were still seeing cases of RuntimeError dict changed size
-    for key in list(payload):
-        val = payload[key]
-        if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
-        else:
-            payload[key] = val_to_json(run, key, val, namespace=step)
-
-    return payload
-
-
-def numpy_arrays_to_lists(payload):
-    # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
-
-    if isinstance(payload, dict):
-        res = {}
-        for key, val in six.iteritems(payload):
-            res[key] = numpy_arrays_to_lists(val)
-        return res
-    elif isinstance(payload, Sequence) and not isinstance(payload, six.string_types):
-        return [numpy_arrays_to_lists(v) for v in payload]
-    elif util.is_numpy_array(payload):
-        return [numpy_arrays_to_lists(v) for v in payload.tolist()]
-
-    return payload
-
-
-def prune_max_seq(seq):
-    # If media type has a max respect it
-    items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
-        logging.warning(
-            "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
-        )
-        items = seq[: seq[0].MAX_ITEMS]
-    return items
-
-
-def val_to_json(run, key, val, namespace=None):
-    # Converts a wandb datatype to its JSON representation.
-    if namespace is None:
-        raise ValueError(
-            "val_to_json must be called with a namespace(a step number, or 'summary') argument"
-        )
-
-    converted = val
-    typename = util.get_full_typename(val)
-
-    if util.is_pandas_data_frame(val):
-        assert namespace == "summary", "We don't yet support DataFrames in History."
-        return data_frame_to_json(val, run, key, namespace)
-    elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
-        val = Plotly.make_plot_media(val)
-    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
-        # This check will break down if Image/Audio/... have child classes.
-        if (
-            len(val)
-            and isinstance(val[0], BatchableMedia)
-            and all(isinstance(v, type(val[0])) for v in val)
-        ):
-            items = prune_max_seq(val)
-
-            for i, item in enumerate(items):
-                item.bind_to_run(run, key, namespace, id_=i)
-
-            return items[0].seq_to_json(items, run, key, namespace)
-        else:
-            # TODO(adrian): Good idea to pass on the same key here? Maybe include
-            # the array index?
-            # There is a bug here: if this array contains two arrays of the same type of
-            # anonymous media objects, their eventual names will collide.
-            # This used to happen. The frontend doesn't handle heterogenous arrays
-            # raise ValueError(
-            #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, namespace=namespace) for v in val]
-
-    if isinstance(val, WBValue):
-        if isinstance(val, Media) and not val.is_bound():
-            val.bind_to_run(run, key, namespace)
-        return val.to_json(run)
-
-    return converted
-
-
-def data_frame_to_json(df, run, key, step):
-    """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
-
-    Writes the data to a file and returns a dictionary that we use to represent
-    it in `Summary`'s.
-
-    Arguments:
-        df (pandas.DataFrame): The DataFrame. Must not have columns named
-            "wandb_run_id" or "wandb_data_frame_id". They will be added to the
-            DataFrame here.
-        run (wandb_run.Run): The Run the DataFrame is associated with. We need
-            this because the information we store on the DataFrame is derived
-            from the Run it's in.
-        key (str): Name of the DataFrame, ie. the summary key path in which it's
-            stored. This is for convenience, so people exploring the
-            directory tree can have some idea of what is in the Parquet files.
-        step: History step or "summary".
-
-    Returns:
-        A dict representing the DataFrame that we can store in summaries or
-        histories. This is the format:
-        {
-            '_type': 'data-frame',
-                # Magic field that indicates that this object is a data frame as
-                # opposed to a normal dictionary or anything else.
-            'id': 'asdf',
-                # ID for the data frame that is unique to this Run.
-            'format': 'parquet',
-                # The file format in which the data frame is stored. Currently can
-                # only be Parquet.
-            'project': 'wfeas',
-                # (Current) name of the project that this Run is in. It'd be
-                # better to store the project's ID because we know it'll never
-                # change but we don't have that here. We store this just in
-                # case because we use the project name in identifiers on the
-                # back end.
-            'path': 'media/data_frames/sdlk.parquet',
-                # Path to the Parquet file in the Run directory.
-        }
-    """
-    pandas = util.get_module("pandas")
-    fastparquet = util.get_module("fastparquet")
-    missing_reqs = []
-    if not pandas:
-        missing_reqs.append("pandas")
-    if not fastparquet:
-        missing_reqs.append("fastparquet")
-    if len(missing_reqs) > 0:
-        raise wandb.Error(
-            "Failed to save data frame. Please run 'pip install %s'"
-            % " ".join(missing_reqs)
-        )
-
-    data_frame_id = util.generate_id()
-
-    df = df.copy()  # we don't want to modify the user's DataFrame instance.
-
-    for _, series in df.items():
-        for i, val in enumerate(series):
-            if isinstance(val, WBValue):
-                series.iat[i] = six.text_type(
-                    json.dumps(val_to_json(run, key, val, namespace=step))
-                )
-
-    # We have to call this wandb_run_id because that name is treated specially by
-    # our filtering code
-    df["wandb_run_id"] = pandas.Series(
-        [six.text_type(run.id)] * len(df.index), index=df.index
-    )
-
-    df["wandb_data_frame_id"] = pandas.Series(
-        [six.text_type(data_frame_id)] * len(df.index), index=df.index
-    )
-    frames_dir = os.path.join(run.dir, DATA_FRAMES_SUBDIR)
-    util.mkdir_exists_ok(frames_dir)
-    path = os.path.join(frames_dir, "{}-{}.parquet".format(key, data_frame_id))
-    fastparquet.write(path, df)
-
-    return {
-        "id": data_frame_id,
-        "_type": "data-frame",
-        "format": "parquet",
-        "project": run.project_name(),  # we don't have the project ID here
-        "entity": run.entity,
-        "run": run.id,
-        "path": path,
-    }
-
-
 # Custom dtypes for typing system
-
-
-class _ClassesIdType(_dtypes.Type):
-    name = "wandb.Classes_id"
-    types = [Classes]
-
-    def __init__(
-        self, classes_obj=None, valid_ids=None,
-    ):
-        if valid_ids is None:
-            valid_ids = _dtypes.UnionType()
-        elif isinstance(valid_ids, list):
-            valid_ids = _dtypes.UnionType(
-                [_dtypes.ConstType(item) for item in valid_ids]
-            )
-        elif isinstance(valid_ids, _dtypes.UnionType):
-            valid_ids = valid_ids
-        else:
-            raise TypeError("valid_ids must be None, list, or UnionType")
-
-        if classes_obj is None:
-            classes_obj = Classes(
-                [
-                    {"id": _id.params["val"], "name": str(_id.params["val"])}
-                    for _id in valid_ids.params["allowed_types"]
-                ]
-            )
-        elif not isinstance(classes_obj, Classes):
-            raise TypeError("valid_ids must be None, or instance of Classes")
-        else:
-            valid_ids = _dtypes.UnionType(
-                [
-                    _dtypes.ConstType(class_obj["id"])
-                    for class_obj in classes_obj._class_set
-                ]
-            )
-
-        self.wb_classes_obj_ref = classes_obj
-        self.params.update({"valid_ids": valid_ids})
-
-    def assign(self, py_obj=None):
-        return self.assign_type(_dtypes.ConstType(py_obj))
-
-    def assign_type(self, wb_type=None):
-        valid_ids = self.params["valid_ids"].assign_type(wb_type)
-        if not isinstance(valid_ids, _dtypes.InvalidType):
-            return self
-
-        return _dtypes.InvalidType()
-
-    @classmethod
-    def from_obj(cls, py_obj=None):
-        return cls(py_obj)
-
-    def to_json(self, artifact=None):
-        cl_dict = super(_ClassesIdType, self).to_json(artifact)
-        # TODO (tss): Refactor this block with the similar one in wandb.Image.
-        # This is a bit of a smell that the classes object does not follow
-        # the same file-pattern as other media types.
-        if artifact is not None:
-            class_name = os.path.join("media", "cls")
-            classes_entry = artifact.add(self.wb_classes_obj_ref, class_name)
-            cl_dict["params"]["classes_obj"] = {
-                "type": "classes-file",
-                "path": classes_entry.path,
-                "digest": classes_entry.digest,  # is this needed really?
-            }
-        else:
-            cl_dict["params"]["classes_obj"] = self.wb_classes_obj_ref.to_json(artifact)
-        return cl_dict
-
-    @classmethod
-    def from_json(cls, json_dict, artifact=None):
-        classes_obj = None
-        if (
-            json_dict.get("params", {}).get("classes_obj", {}).get("type")
-            == "classes-file"
-        ):
-            classes_obj = artifact.get(
-                json_dict.get("params", {}).get("classes_obj", {}).get("path")
-            )
-        else:
-            classes_obj = Classes.from_json(
-                json_dict["params"]["classes_obj"], artifact
-            )
-
-        return cls(classes_obj)
 
 
 class _ImageType(_dtypes.Type):
@@ -2033,6 +1272,5 @@ class _TableType(_dtypes.Type):
             return cls(py_obj._column_types)
 
 
-_dtypes.TypeRegistry.add(_ClassesIdType)
 _dtypes.TypeRegistry.add(_ImageType)
 _dtypes.TypeRegistry.add(_TableType)

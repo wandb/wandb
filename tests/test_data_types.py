@@ -197,7 +197,7 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        data_types.prune_max_seq(large_list), mocked_run, "test2", 0
+        data_types._prune_max_seq(large_list), mocked_run, "test2", 0
     )
     expected = {
         "_type": "images/separated",
@@ -687,7 +687,7 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types.numpy_arrays_to_lists
+    conv = data_types._numpy_arrays_to_lists
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
