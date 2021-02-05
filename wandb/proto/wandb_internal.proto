@@ -155,7 +155,7 @@ message SettingsItem {
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
 message HistoryStep {
-  int32 num = 1;
+  int64 num = 1;
 }
 
 message HistoryRecord {
