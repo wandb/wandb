@@ -85,7 +85,7 @@ def check_logged_in(api, host):
     # check that api key is correct
     # TODO: Better check for api key is correct
     else:
-        res = retry_fn(partial(api.api.viewer))
+        res = api.api.viewer()
         if res is None or res == {}:
             fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
                 host
@@ -151,9 +151,7 @@ def check_run(api):
 
         wandb.save(filepath)
     public_api = wandb.Api()
-    prev_run = retry_fn(
-        partial(public_api.run, "{}/{}/{}".format(entity, PROJECT_NAME, run_id))
-    )
+    prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
     if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -181,7 +179,8 @@ def check_run(api):
             "Read summary values don't match expected value. Check database encoding, or contact W&B for support."
         )
     try:
-        read_file = prev_run.file(filepath).download(replace=True)
+        read_file = retry_fn(partial(prev_run.file, filepath))
+        read_file = read_file.download(replace=True)
     except Exception:
         with wandb.init(
             reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
@@ -416,9 +415,7 @@ def check_graphql_put(api, host):
             # next test will also fail if this one failed. So terminate this test here.
             return False, None
     public_api = wandb.Api()
-    prev_run = retry_fn(
-        partial(public_api.run, "{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
-    )
+    prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
     if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -426,7 +423,8 @@ def check_graphql_put(api, host):
         print_results(failed_test_strings, False)
         return False, None
     try:
-        read_file = prev_run.file(gql_fp).download(replace=True)
+        read_file = retry_fn(partial(prev_run.file, gql_fp))
+        read_file = read_file.download(replace=True)
     except Exception:
         failed_test_strings.append(
             "Unable to read file successfully saved through a put request. Check SQS configurations, bucket permissions and topic configs."
