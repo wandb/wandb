@@ -27,6 +27,7 @@ if wandb.TYPE_CHECKING:
         Tuple,
         Set,
         Any,
+        cast,
     )
 
     if TYPE_CHECKING:
@@ -329,7 +330,11 @@ class Media(WBValue):
         return self._path is not None and self._sha256 is not None
 
     def bind_to_run(
-        self, run: "LocalRun", key: str, step: int, id_: Optional[str] = None
+        self,
+        run: "LocalRun",
+        key: str,
+        step: Union[int, str],
+        id_: Optional[str] = None,
     ) -> None:
         """Bind this object to a particular Run.
 
@@ -1947,7 +1952,7 @@ def val_to_json(
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
-    return converted
+    return converted  # type: ignore
 
 
 def _is_numpy_array(data: object) -> bool:
@@ -1961,7 +1966,9 @@ def _wb_filename(key: str, step: int, id: str, extension: str) -> str:
     return "{}_{}_{}{}".format(key, str(step), id, extension)
 
 
-def _numpy_arrays_to_lists(payload: Union[dict, Sequence, "np.ndarray"]) -> Sequence:
+def _numpy_arrays_to_lists(
+    payload: Union[dict, Sequence, "np.ndarray"]
+) -> Union[Sequence, dict]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
@@ -1972,25 +1979,27 @@ def _numpy_arrays_to_lists(payload: Union[dict, Sequence, "np.ndarray"]) -> Sequ
     elif isinstance(payload, Sequence) and not isinstance(payload, six.string_types):
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
 
     return payload
 
 
-def _prune_max_seq(seq: Sequence["Media"]) -> Sequence["Media"]:
+def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # type: ignore
         logging.warning(
             "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
+            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)  # type: ignore
         )
-        items = seq[: seq[0].MAX_ITEMS]
+        items = seq[: seq[0].MAX_ITEMS]  # type: ignore
     return items
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: int
+    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 
