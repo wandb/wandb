@@ -11,6 +11,7 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.compat import tempfile
+from wandb.util import has_num
 
 if wandb.TYPE_CHECKING:
     from typing import (
@@ -1063,7 +1064,7 @@ class JSONMetadata(Media):
     JSONMetadata is a type for encoding arbitrary metadata as files.
     """
 
-    def __init__(self, val: object, **kwargs: object) -> None:
+    def __init__(self, val: dict) -> None:
         super(JSONMetadata, self).__init__()
 
         self.validate(val)
@@ -1091,7 +1092,7 @@ class JSONMetadata(Media):
     def type_name(cls) -> str:
         return "metadata"
 
-    def validate(self, val: object) -> bool:
+    def validate(self, val: dict) -> bool:
         return True
 
 
@@ -1188,34 +1189,182 @@ class ImageMask(Media):
     def type_name(cls: Type["ImageMask"]) -> str:
         return "mask"
 
-    def validate(self, mask: dict) -> None:
+    def validate(self, val: dict) -> bool:
         np = util.get_module(
             "numpy", required="Semantic Segmentation mask support requires numpy"
         )
         # 2D Make this work with all tensor(like) types
-        if "mask_data" not in mask:
+        if "mask_data" not in val:
             raise TypeError(
                 'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
             )
         else:
             error_str = "mask_data must be a 2d array"
-            shape = mask["mask_data"].shape
+            shape = val["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
             if not (
-                (mask["mask_data"] >= 0).all() and (mask["mask_data"] <= 255).all()
-            ) and issubclass(mask["mask_data"].dtype.type, np.integer):
+                (val["mask_data"] >= 0).all() and (val["mask_data"] <= 255).all()
+            ) and issubclass(val["mask_data"].dtype.type, np.integer):
                 raise TypeError("Mask data must be integers between 0 and 255")
 
         # Optional argument
-        if "class_labels" in mask:
-            for k, v in list(mask["class_labels"].items()):
+        if "class_labels" in val:
+            for k, v in list(val["class_labels"].items()):
                 if (not isinstance(k, numbers.Number)) or (
                     not isinstance(v, six.string_types)
                 ):
                     raise TypeError(
                         "Class labels must be a dictionary of numbers to string"
                     )
+        return True
+
+
+class BoundingBoxes2D(JSONMetadata):
+    """
+    Wandb class for 2D bounding boxes
+    """
+
+    artifact_type = "bounding-boxes"
+
+    def __init__(self, val: dict, key: str) -> None:
+        """
+        Args:
+            val (dict): dictionary following the form:
+            {
+                "class_labels": optional mapping from class ids to strings {id: str}
+                "box_data": list of boxes: [
+                    {
+                        "position": {
+                            "minX": float,
+                            "maxX": float,
+                            "minY": float,
+                            "maxY": float,
+                        },
+                        "class_id": 1,
+                        "box_caption": optional str
+                        "scores": optional dict of scores
+                    },
+                    ...
+                ],
+            }
+            key (str): id for set of bounding boxes
+        """
+        super(BoundingBoxes2D, self).__init__(val)
+        self._val = val["box_data"]
+        self._key = key
+        # Add default class mapping
+        if "class_labels" not in val:
+            np = util.get_module(
+                "numpy", required="Semantic Segmentation mask support requires numpy"
+            )
+            classes = (
+                np.unique(list([box["class_id"] for box in val["box_data"]]))
+                .astype(np.int32)
+                .tolist()
+            )
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            self._class_labels = class_labels
+        else:
+            self._class_labels = val["class_labels"]
+
+    def bind_to_run(
+        self, run: "LocalRun", key: str, step: int, id_: Optional[str] = None
+    ) -> None:
+        # bind_to_run key argument is the Image parent key
+        # the self._key value is the mask's sub key
+        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
+        run._add_singleton(
+            "bounding_box/class_labels",
+            key + "_wandb_delimeter_" + self._key,
+            self._class_labels,
+        )
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "boxes2D"
+
+    def validate(self, val: dict) -> bool:
+        # Optional argument
+        if "class_labels" in val:
+            for k, v in list(val["class_labels"].items()):
+                if (not isinstance(k, numbers.Number)) or (
+                    not isinstance(v, six.string_types)
+                ):
+                    raise TypeError(
+                        "Class labels must be a dictionary of numbers to string"
+                    )
+
+        boxes = val["box_data"]
+        if not isinstance(boxes, Sequence):
+            raise TypeError("Boxes must be a list")
+
+        for box in boxes:
+            # Required arguments
+            error_str = "Each box must contain a position with: middle, width, and height or \
+                    \nminX, maxX, minY, maxY."
+            if "position" not in box:
+                raise TypeError(error_str)
+            else:
+                valid = False
+                if (
+                    "middle" in box["position"]
+                    and len(box["position"]["middle"]) == 2
+                    and has_num(box["position"], "width")
+                    and has_num(box["position"], "height")
+                ):
+                    valid = True
+                elif (
+                    has_num(box["position"], "minX")
+                    and has_num(box["position"], "maxX")
+                    and has_num(box["position"], "minY")
+                    and has_num(box["position"], "maxY")
+                ):
+                    valid = True
+
+                if not valid:
+                    raise TypeError(error_str)
+
+            # Optional arguments
+            if ("scores" in box) and not isinstance(box["scores"], dict):
+                raise TypeError("Box scores must be a dictionary")
+            elif "scores" in box:
+                for k, v in list(box["scores"].items()):
+                    if not isinstance(k, six.string_types):
+                        raise TypeError("A score key must be a string")
+                    if not isinstance(v, numbers.Number):
+                        raise TypeError("A score value must be a number")
+
+            if ("class_id" in box) and not isinstance(
+                box["class_id"], six.integer_types
+            ):
+                raise TypeError("A box's class_id must be an integer")
+
+            # Optional
+            if ("box_caption" in box) and not isinstance(
+                box["box_caption"], six.string_types
+            ):
+                raise TypeError("A box's caption must be a string")
+        return True
+
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        run_class, artifact_class = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, run_class):
+            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
+        elif isinstance(run_or_artifact, artifact_class):
+            # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
+            # want to mess with the visualizations that are currently available in the UI. This really should output
+            # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
+            return self._val
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
+    @classmethod
+    def from_json(
+        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "BoundingBoxes2D":
+        return cls({"box_data": json_obj}, "")
 
 
 __all__ = [
@@ -1227,6 +1376,6 @@ __all__ = [
     "Molecule",
     "Html",
     "Video",
-    "JSONMetadata",  # should remove once others come over
     "ImageMask",
+    "BoundingBoxes2D",
 ]
