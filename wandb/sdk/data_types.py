@@ -1396,7 +1396,9 @@ class BoundingBoxes2D(JSONMetadata):
 class Classes(Media):
     artifact_type = "classes"
 
-    def __init__(self, class_set: Sequence[dict]):
+    _class_set: Sequence[dict]
+
+    def __init__(self, class_set: Sequence[dict]) -> None:
         """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
 
         Args:
@@ -1408,28 +1410,37 @@ class Classes(Media):
         self._class_set = class_set
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(json_obj.get("class_set"))
+    def from_json(
+        cls: Type["Classes"],
+        json_obj: dict,
+        source_artifact: Optional["PublicArtifact"],
+    ) -> "Classes":
+        return cls(json_obj.get("class_set"))  # type: ignore
 
-    def to_json(self, artifact=None):
+    def to_json(
+        self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
+    ) -> dict:
         json_obj = {}
         # This is a bit of a hack to allow _ClassesIdType to
         # be able to operate fully without an artifact in play.
         # In all other cases, artifact should be a true artifact.
-        if artifact is not None:
-            json_obj = super(Classes, self).to_json(artifact)
+        if run_or_artifact is not None:
+            json_obj = super(Classes, self).to_json(run_or_artifact)
         json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
         return json_obj
 
-    def get_type(self):
+    def get_type(self) -> "_ClassesIdType":
         return _ClassesIdType(self)
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        return self._class_set == other._class_set
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Classes):
+            return self._class_set == other._class_set
+        else:
+            return False
 
 
 class Image(BatchableMedia):
