@@ -1296,7 +1296,7 @@ class BoundingBoxes2D(JSONMetadata):
                     )
 
         boxes = val["box_data"]
-        if not isinstance(boxes, Sequence):
+        if not isinstance(boxes, list):
             raise TypeError("Boxes must be a list")
 
         for box in boxes:
