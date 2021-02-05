@@ -136,10 +136,17 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 # true_neg = pr_curve_data[1,:]
                 # false_neg = pr_curve_data[1,:]
                 # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
-                print([precision, recall])
-                data_table = wandb.Table(
-                    data=[*zip(precision, recall)], columns=["precision", "recall"]
-                )
+                data = []
+                # min of each in case tensorboard ever changes their pr_curve
+                # to allow for different length outputs
+                for i in range(min(len((precision)), len(recall))):
+                    # drop additional threshold values if they exist
+                    if precision[i] != 0 or recall[i] != 0:
+                        data.append((recall[i], precision[i]))
+                # sort data so custom chart looks the same as tb generated pr curve
+                # ascending recall, descending precision for the same recall values
+                data = sorted(data, key=lambda x: (x[0], -x[1]))
+                data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 values[namespaced_tag(value.tag, namespace)] = create_custom_chart(
                     "wandb/line/v0",
                     data_table,
@@ -230,7 +237,6 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """
     global STEPS
     global RATE_LIMIT
-
     history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log

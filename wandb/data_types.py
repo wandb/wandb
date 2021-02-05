@@ -635,7 +635,6 @@ class Table(Media):
 
     def add_data(self, *data):
         """Add a row of data to the table. Argument length should match column length"""
-        print(len(data), len(self.columns))
         if len(data) != len(self.columns):
             raise ValueError(
                 "This table expects {} columns: {}".format(
