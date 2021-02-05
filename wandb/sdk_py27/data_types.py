@@ -39,11 +39,11 @@ if wandb.TYPE_CHECKING:
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
-def wb_filename(key, step, id, extension):
+def wb_filename(key: str, step: int, id: str, extension: str) -> str:
     return "{}_{}_{}{}".format(key, str(step), id, extension)
 
 
-def _safe_sdk_import():
+def _safe_sdk_import() -> Tuple[Type["LocalRun"], Type["LocalArtifact"]]:
     """Safely import due to circular deps"""
 
     from .wandb_artifacts import Artifact as LocalArtifact
@@ -52,7 +52,7 @@ def _safe_sdk_import():
     return LocalRun, LocalArtifact
 
 
-def is_numpy_array(data):
+def is_numpy_array(data: object) -> bool:
     np = util.get_module(
         "numpy", required="Logging raw point cloud data requires numpy"
     )
@@ -60,10 +60,10 @@ def is_numpy_array(data):
 
 
 class _WBValueArtifactSource(object):
-    # artifact: "PublicArtifact"
-    # name: Optional[str]
+    artifact: "PublicArtifact"
+    name: Optional[str]
 
-    def __init__(self, artifact, name = None):
+    def __init__(self, artifact: "PublicArtifact", name: str = None) -> None:
         self.artifact = artifact
         self.name = name
 
@@ -78,17 +78,17 @@ class WBValue(object):
     """
 
     # Class Attributes
-    _type_mapping = None
+    _type_mapping: ClassVar[Optional["TypeMappingType"]] = None
     # override artifact_type to indicate the type which the subclass deserializes
-    artifact_type = None
+    artifact_type: ClassVar[Optional[str]] = None
 
     # Instance Attributes
-    # artifact_source: Optional[_WBValueArtifactSource]
+    artifact_source: Optional[_WBValueArtifactSource]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.artifact_source = None
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
         Args:
@@ -102,8 +102,8 @@ class WBValue(object):
 
     @classmethod
     def from_json(
-        cls, json_obj, source_artifact
-    ):
+        cls: Type["WBValue"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "WBValue":
         """Deserialize a `json_obj` into it's class representation. If additional resources were stored in the
         `run_or_artifact` artifact during the `to_json` call, then those resources are expected to be in
         the `source_artifact`.
@@ -116,7 +116,7 @@ class WBValue(object):
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls, name, filetype = "json"):
+    def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
         """Helper function to return the name with suffix added if not already
 
         Args:
@@ -136,8 +136,8 @@ class WBValue(object):
 
     @staticmethod
     def init_from_json(
-        json_obj, source_artifact
-    ):
+        json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Optional[WBValue]":
         """Looks through all subclasses and tries to match the json obj with the class which created it. It will then
         call that subclass' `from_json` method. Importantly, this function will set the return object's `source_artifact`
         attribute to the passed in source artifact. This is critical for artifact bookkeeping. If you choose to create
@@ -161,7 +161,7 @@ class WBValue(object):
         return None
 
     @staticmethod
-    def type_mapping():
+    def type_mapping() -> "TypeMappingType":
         """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
@@ -181,13 +181,13 @@ class WBValue(object):
                         frontier.append(subclass)
         return WBValue._type_mapping
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return id(self) == id(other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def set_artifact_source(self, artifact, name = None):
+    def set_artifact_source(self, artifact: "PublicArtifact", name: str = None) -> None:
         self.artifact_source = _WBValueArtifactSource(artifact, name)
 
 
@@ -220,14 +220,14 @@ class Histogram(WBValue):
         histogram: ([int]) number of elements falling in each bin
     """
 
-    MAX_LENGTH = 512
+    MAX_LENGTH: int = 512
 
     def __init__(
         self,
-        sequence = None,
-        np_histogram = None,
-        num_bins = 64,
-    ):
+        sequence: Optional[Sequence] = None,
+        np_histogram: Optional["NumpyHistogram"] = None,
+        num_bins: int = 64,
+    ) -> None:
 
         if np_histogram:
             if len(np_histogram) == 2:
@@ -260,7 +260,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run = None):
+    def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
 
 
@@ -272,15 +272,15 @@ class Media(WBValue):
     uploaded.
     """
 
-    # _path: Optional[str]
-    # _run: Optional["LocalRun"]
-    # _caption: Optional[str]
-    # _is_tmp: Optional[bool]
-    # _extension: Optional[str]
-    # _sha256: Optional[str]
-    # _size: Optional[int]
+    _path: Optional[str]
+    _run: Optional["LocalRun"]
+    _caption: Optional[str]
+    _is_tmp: Optional[bool]
+    _extension: Optional[str]
+    _sha256: Optional[str]
+    _size: Optional[int]
 
-    def __init__(self, caption = None):
+    def __init__(self, caption: Optional[str] = None) -> None:
         super(Media, self).__init__()
         self._path = None
         # The run under which this object is bound, if any.
@@ -288,8 +288,8 @@ class Media(WBValue):
         self._caption = caption
 
     def _set_file(
-        self, path, is_tmp = False, extension = None
-    ):
+        self, path: str, is_tmp: bool = False, extension: Optional[str] = None
+    ) -> None:
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
@@ -305,27 +305,27 @@ class Media(WBValue):
         self._size = os.path.getsize(self._path)
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Media"]) -> str:
         raise NotImplementedError
 
     @staticmethod
     def captions(
-        media_items,
-    ):
+        media_items: Sequence["Media"],
+    ) -> Union[bool, Sequence[Optional[str]]]:
         if media_items[0]._caption is not None:
             return [m._caption for m in media_items]
         else:
             return False
 
-    def is_bound(self):
+    def is_bound(self) -> bool:
         return self._run is not None
 
-    def file_is_set(self):
+    def file_is_set(self) -> bool:
         return self._path is not None and self._sha256 is not None
 
     def bind_to_run(
-        self, run, key, step, id_ = None
-    ):
+        self, run: "LocalRun", key: str, step: int, id_: Optional[str] = None
+    ) -> None:
         """Bind this object to a particular Run.
 
         Calling this function is necessary so that we have somewhere specific to
@@ -373,7 +373,7 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run):
+    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
         is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
@@ -464,12 +464,12 @@ class Media(WBValue):
 
     @classmethod
     def from_json(
-        cls, json_obj, source_artifact
-    ):
+        cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Media":
         """Likely will need to override for any more complicated media objects"""
         return cls(source_artifact.get_path(json_obj["path"]).download())
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Likely will need to override for any more complicated media objects"""
         return (
             isinstance(other, self.__class__)
@@ -487,17 +487,17 @@ class BatchableMedia(Media):
     in the media directory.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(BatchableMedia, self).__init__()
 
     @classmethod
     def seq_to_json(
-        cls,
-        seq,
-        run,
-        key,
-        step,
-    ):
+        cls: Type["BatchableMedia"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
         raise NotImplementedError
 
 
@@ -520,14 +520,14 @@ class Object3D(BatchableMedia):
     ```
     """
 
-    SUPPORTED_TYPES = set(
+    SUPPORTED_TYPES: ClassVar[Set[str]] = set(
         ["obj", "gltf", "babylon", "stl", "pts.json"]
     )
-    artifact_type = "object3D-file"
+    artifact_type: ClassVar[str] = "object3D-file"
 
     def __init__(
-        self, data_or_path, **kwargs
-    ):
+        self, data_or_path: Union["np.ndarray", str, "TextIO"], **kwargs: str
+    ) -> None:
         super(Object3D, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -637,10 +637,10 @@ class Object3D(BatchableMedia):
             raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D.artifact_type
 
@@ -656,12 +656,12 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls,
-        seq,
-        run,
-        key,
-        step,
-    ):
+        cls: Type["Object3D"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
         seq = list(seq)
 
         jsons = [obj.to_json(run) for obj in seq]
@@ -698,7 +698,7 @@ class Molecule(BatchableMedia):
         ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
     )
 
-    def __init__(self, data_or_path, **kwargs):
+    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
         super(Molecule, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -741,10 +741,10 @@ class Molecule(BatchableMedia):
             raise ValueError("Data must be file name or a file object")
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Molecule, self).to_json(run_or_artifact)
         json_dict["_type"] = "molecule-file"
         if self._caption:
@@ -753,12 +753,12 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls,
-        seq,
-        run,
-        key,
-        step,
-    ):
+        cls: Type["Molecule"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
         seq = list(seq)
 
         jsons = [obj.to_json(run) for obj in seq]
@@ -792,7 +792,7 @@ class Html(BatchableMedia):
 
     artifact_type = "html-file"
 
-    def __init__(self, data, inject = True):
+    def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
         data_is_path = isinstance(data, str) and os.path.exists(data)
         data_path = ""
@@ -822,7 +822,7 @@ class Html(BatchableMedia):
         else:
             self._set_file(data_path, is_tmp=False)
 
-    def inject_head(self):
+    def inject_head(self) -> None:
         join = ""
         if "<head>" in self.html:
             parts = self.html.split("<head>", 1)
@@ -840,28 +840,28 @@ class Html(BatchableMedia):
         self.html = join.join(parts).strip()
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Html"]) -> str:
         return os.path.join("media", "html")
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Html, self).to_json(run_or_artifact)
         json_dict["_type"] = "html-file"
         return json_dict
 
     @classmethod
     def from_json(
-        cls, json_obj, source_artifact
-    ):
+        cls: Type["Html"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Html":
         return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(
-        cls,
-        seq,
-        run,
-        key,
-        step,
-    ):
+        cls: Type["Html"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         util.mkdir_exists_ok(base_path)
 
@@ -894,15 +894,15 @@ class Video(BatchableMedia):
 
     artifact_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
-    # _width: Optional[int]
-    # _height: Optional[int]
+    _width: Optional[int]
+    _height: Optional[int]
 
     def __init__(
         self,
-        data_or_path,
-        caption = None,
-        fps = 4,
-        format = None,
+        data_or_path: Union["np.ndarray", str, "TextIO"],
+        caption: Optional[str] = None,
+        fps: int = 4,
+        format: Optional[str] = None,
     ):
         super(Video, self).__init__()
 
@@ -942,7 +942,7 @@ class Video(BatchableMedia):
                 )
             self.encode()
 
-    def encode(self):
+    def encode(self) -> None:
         mpy = util.get_module(
             "moviepy.editor",
             required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
@@ -955,7 +955,7 @@ class Video(BatchableMedia):
 
         filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
-            kwargs = {}
+            kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
             kwargs = {"logger": None}
             if self._format == "gif":
@@ -980,10 +980,10 @@ class Video(BatchableMedia):
         self._set_file(filename, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Video, self).to_json(run_or_artifact)
         json_dict["_type"] = "video-file"
 
@@ -996,7 +996,7 @@ class Video(BatchableMedia):
 
         return json_dict
 
-    def _prepare_video(self, video):
+    def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
         """This logic was mostly taken from tensorboardX"""
         np = util.get_module(
             "numpy",
@@ -1014,7 +1014,7 @@ class Video(BatchableMedia):
             logging.warning("Converting video data to uint8")
             video = video.astype(np.uint8)
 
-        def is_power2(num):
+        def is_power2(num: int) -> bool:
             return num != 0 and ((num & (num - 1)) == 0)
 
         # pad to nearest power of 2, all at once
@@ -1034,12 +1034,12 @@ class Video(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls,
-        seq,
-        run,
-        key,
-        step,
-    ):
+        cls: Type["Video"],
+        seq: Sequence["BatchableMedia"],
+        run: "LocalRun",
+        key: str,
+        step: int,
+    ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         util.mkdir_exists_ok(base_path)
 
@@ -1064,7 +1064,7 @@ class JSONMetadata(Media):
     JSONMetadata is a type for encoding arbitrary metadata as files.
     """
 
-    def __init__(self, val):
+    def __init__(self, val: dict) -> None:
         super(JSONMetadata, self).__init__()
 
         self.validate(val)
@@ -1078,10 +1078,10 @@ class JSONMetadata(Media):
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(JSONMetadata, self).to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 
@@ -1089,10 +1089,10 @@ class JSONMetadata(Media):
 
     # These methods should be overridden in the child class
     @classmethod
-    def type_name(cls):
+    def type_name(cls) -> str:
         return "metadata"
 
-    def validate(self, val):
+    def validate(self, val: dict) -> bool:
         return True
 
 
@@ -1103,7 +1103,7 @@ class ImageMask(Media):
 
     artifact_type = "mask"
 
-    def __init__(self, val, key):
+    def __init__(self, val: dict, key: str) -> None:
         """
         Args:
             val (dict): dictionary following 1 of two forms:
@@ -1149,8 +1149,8 @@ class ImageMask(Media):
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def bind_to_run(
-        self, run, key, step, id_ = None
-    ):
+        self, run: "LocalRun", key: str, step: int, id_: Optional[str] = None
+    ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
@@ -1161,18 +1161,18 @@ class ImageMask(Media):
         )
 
     @classmethod
-    def get_media_subdir(cls):
+    def get_media_subdir(cls: Type["ImageMask"]) -> str:
         return os.path.join("media", "images", cls.type_name())
 
     @classmethod
     def from_json(
-        cls, json_obj, source_artifact
-    ):
+        cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "ImageMask":
         return cls(
             {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(ImageMask, self).to_json(run_or_artifact)
         run_class, artifact_class = _safe_sdk_import()
 
@@ -1186,10 +1186,10 @@ class ImageMask(Media):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
     @classmethod
-    def type_name(cls):
+    def type_name(cls: Type["ImageMask"]) -> str:
         return "mask"
 
-    def validate(self, val):
+    def validate(self, val: dict) -> bool:
         np = util.get_module(
             "numpy", required="Semantic Segmentation mask support requires numpy"
         )
@@ -1227,7 +1227,7 @@ class BoundingBoxes2D(JSONMetadata):
 
     artifact_type = "bounding-boxes"
 
-    def __init__(self, val, key):
+    def __init__(self, val: dict, key: str) -> None:
         """
         Args:
             val (dict): dictionary following the form:
@@ -1269,8 +1269,8 @@ class BoundingBoxes2D(JSONMetadata):
             self._class_labels = val["class_labels"]
 
     def bind_to_run(
-        self, run, key, step, id_ = None
-    ):
+        self, run: "LocalRun", key: str, step: int, id_: Optional[str] = None
+    ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
@@ -1281,10 +1281,10 @@ class BoundingBoxes2D(JSONMetadata):
         )
 
     @classmethod
-    def type_name(cls):
+    def type_name(cls) -> str:
         return "boxes2D"
 
-    def validate(self, val):
+    def validate(self, val: dict) -> bool:
         # Optional argument
         if "class_labels" in val:
             for k, v in list(val["class_labels"].items()):
@@ -1296,7 +1296,7 @@ class BoundingBoxes2D(JSONMetadata):
                     )
 
         boxes = val["box_data"]
-        if not isinstance(boxes, Sequence):
+        if not isinstance(boxes, list):
             raise TypeError("Boxes must be a list")
 
         for box in boxes:
@@ -1347,7 +1347,7 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
         return True
 
-    def to_json(self, run_or_artifact):
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         run_class, artifact_class = _safe_sdk_import()
 
         if isinstance(run_or_artifact, run_class):
@@ -1362,8 +1362,8 @@ class BoundingBoxes2D(JSONMetadata):
 
     @classmethod
     def from_json(
-        cls, json_obj, source_artifact
-    ):
+        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "BoundingBoxes2D":
         return cls({"box_data": json_obj}, "")
 
 
