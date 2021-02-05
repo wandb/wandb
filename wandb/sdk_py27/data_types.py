@@ -35,10 +35,21 @@ if wandb.TYPE_CHECKING:
         from wandb.apis.public import Artifact as PublicArtifact
         import numpy as np
         import pandas as pd
+        import matplotlib
+        import plotly
         from typing import TextIO
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+        ValToJsonType = Union[
+            dict,
+            "WBValue",
+            Sequence["WBValue"],
+            "plotly.Figure",
+            "matplotlib.artist.Artist",
+            "pd.DataFrame",
+            object,
+        ]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -2149,9 +2160,12 @@ class _ClassesIdType(_dtypes.Type):
             json_dict.get("params", {}).get("classes_obj", {}).get("type")
             == "classes-file"
         ):
-            classes_obj = artifact.get(
-                json_dict.get("params", {}).get("classes_obj", {}).get("path")
-            )
+            if artifact is not None:
+                classes_obj = artifact.get(
+                    json_dict.get("params", {}).get("classes_obj", {}).get("path")
+                )
+            else:
+                raise RuntimeError("Expected artifact to be non-null.")
         else:
             classes_obj = Classes.from_json(
                 json_dict["params"]["classes_obj"], artifact

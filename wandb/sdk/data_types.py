@@ -41,6 +41,15 @@ if wandb.TYPE_CHECKING:
 
         TypeMappingType = Dict[str, Type["WBValue"]]
         NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+        ValToJsonType = Union[
+            dict,
+            "WBValue",
+            Sequence["WBValue"],
+            "plotly.Figure",
+            "matplotlib.artist.Artist",
+            "pd.DataFrame",
+            object,
+        ]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -1893,7 +1902,7 @@ def history_dict_to_json(
 def val_to_json(
     run: "LocalRun",
     key: str,
-    val: Union[dict, WBValue, Sequence[WBValue], "plotly.Figure", "matplotlib.artist.Artist" "pd.DataFrame", object],
+    val: "ValToJsonType",
     namespace: Optional[Union[str, int]] = None,
 ) -> dict:
     # Converts a wandb datatype to its JSON representation.
