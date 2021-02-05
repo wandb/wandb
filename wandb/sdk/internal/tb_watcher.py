@@ -415,10 +415,10 @@ class TBEventConsumer(object):
         for chart_key in chart_keys:
             row.pop(chart_key)
             row[chart_key + "_table"] = table
-            print(row)
 
-        #row["_step"] = 0
-        self._tbwatcher._interface.publish_history(row, run=self._internal_run)
+        self._tbwatcher._interface.publish_history(
+            row, run=self._internal_run, publish_step=False
+        )
 
 
 class TBHistory(object):

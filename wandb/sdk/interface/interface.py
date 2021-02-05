@@ -169,10 +169,13 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
-    def publish_history(self, data, step=None, run=None):
+    def publish_history(self, data, step=None, run=None, publish_step=True):
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = wandb_internal_pb2.HistoryRecord()
+        if publish_step:
+            history.step.num = step
+        data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
@@ -200,6 +203,8 @@ class BackendSender(object):
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
         proto_artifact.digest = artifact.digest
+        if artifact.distributed_id:
+            proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
@@ -572,7 +577,13 @@ class BackendSender(object):
         self._publish(rec)
 
     def publish_artifact(
-        self, run, artifact, aliases, is_user_created=False, use_after_commit=False
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created=False,
+        use_after_commit=False,
+        finalize=True,
     ):
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
@@ -581,6 +592,7 @@ class BackendSender(object):
         proto_artifact.entity = proto_run.entity
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
         for alias in aliases:
             proto_artifact.aliases.append(alias)
         rec = self._make_record(artifact=proto_artifact)
@@ -642,8 +654,9 @@ class BackendSender(object):
             return
         return result.response.check_version_response
 
-    def communicate_run_start(self):
+    def communicate_run_start(self, run_pb):
         run_start = wandb_internal_pb2.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result

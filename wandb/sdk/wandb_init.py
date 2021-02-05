@@ -211,8 +211,9 @@ class _WandbInit(object):
         logger.addHandler(handler)
         # TODO: make me configurable
         logger.setLevel(logging.DEBUG)
-        # TODO: we may need to close the handler as well...
-        self._teardown_hooks.append(lambda: logger.removeHandler(handler))
+        self._teardown_hooks.append(
+            lambda: (handler.close(), logger.removeHandler(handler))
+        )
 
     def _safe_symlink(self, base, target, name, delete=False):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
@@ -466,7 +467,8 @@ class _WandbInit(object):
             run._set_run_obj(ret.run)
 
         # initiate run (stats and metadata probing)
-        _ = backend.interface.communicate_run_start()
+        run_obj = run._run_obj or run._run_obj_offline
+        _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
         self.run = run

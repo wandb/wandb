@@ -35,6 +35,7 @@ from wandb.viz import (
     Visualize,
 )
 
+from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
 from . import wandb_summary
@@ -308,7 +309,9 @@ class Run(object):
                 os.path.join("code", settings.program_relpath)
             )
         if sweep_config:
-            self._config.update_locked(sweep_config, user="sweep")
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
@@ -715,7 +718,10 @@ class Run(object):
             self._config_callback(data=self._config._as_dict())
 
         if self._backend:
-            self._backend.interface.publish_history(row, step)
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            self._backend.interface.publish_history(
+                row, step, publish_step=not_using_tensorboard
+            )
 
     def _console_callback(self, name, data):
         # logger.info("console callback: %s, %s", name, data)
@@ -922,6 +928,15 @@ class Run(object):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             if self.history._step > step:
                 wandb.termwarn(
                     (
@@ -1813,7 +1828,13 @@ class Run(object):
                 )
 
     # TODO(jhr): annotate this
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):  # type: ignore
+    def log_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+    ):
         """ Declare an artifact as output of a run.
 
         Arguments:
@@ -1838,6 +1859,164 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
+        return self._log_artifact(artifact_or_path, name, type, aliases)
+
+    def upsert_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
+    ):
+        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
+        run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
+        need to all contribute to the same artifact.
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot upsert artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=False,
+        )
+
+    def finish_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
+    ):
+        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
+        the same distributed ID will result in a new version
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot finish artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=True,
+        )
+
+    def _log_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+        distributed_id = None,
+        finalize = True,
+    ):
+        if not finalize and distributed_id is None:
+            raise TypeError("Must provide distributed_id if artifact is not finalize")
+        artifact, aliases = self._prepare_artifact(
+            artifact_or_path, name, type, aliases
+        )
+        artifact.distributed_id = distributed_id
+        self._assert_can_log_artifact(artifact)
+        if self._backend:
+            self._backend.interface.publish_artifact(
+                self, artifact, aliases, finalize=finalize
+            )
+        return artifact
+
+    def _public_api(self):
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return public.Api(overrides)
+
+    # TODO(jhr): annotate this
+    def _assert_can_log_artifact(self, artifact):  # type: ignore
+        if not self._settings._offline:
+            public_api = self._public_api()
+            expected_type = public.Artifact.expected_type(
+                public_api.client,
+                artifact.name,
+                public_api.settings["entity"],
+                public_api.settings["project"],
+            )
+            if expected_type is not None and artifact.type != expected_type:
+                raise ValueError(
+                    "Expected artifact type {}, got {}".format(
+                        expected_type, artifact.type
+                    )
+                )
+
+    def _prepare_artifact(
+        self,
+        artifact_or_path,
+        name = None,
+        type = None,
+        aliases = None,
+    ):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
@@ -1864,34 +2043,7 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
-        self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases)
-        return artifact
-
-    # TODO(jhr): annotate this
-    def _assert_can_log_artifact(self, artifact):  # type: ignore
-        if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
-                )
-
-    def _public_api(self):
-        overrides = {"run": self.id}
-        run_obj = self._run_obj
-        if run_obj is not None:
-            overrides["entity"] = run_obj.entity
-            overrides["project"] = run_obj.project
-        return public.Api(overrides)
+        return artifact, aliases
 
     # TODO(jhr): annotate this
     def alert(self, title, text, level=None, wait_duration=None):  # type: ignore

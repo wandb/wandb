@@ -487,6 +487,10 @@ class Table(Media):
         data: (array) 2D Array of values that will be displayed as strings.
         dataframe: (pandas.DataFrame) DataFrame object used to create the table.
             When set, the other arguments are ignored.
+        optional (Union[bool,List[bool]]): If None values are allowed. Singular bool
+            applies to all columns. A list of bool values applies to each respective column.
+            Default to True.
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
     """
 
     MAX_ROWS = 10000
@@ -501,9 +505,12 @@ class Table(Media):
         dataframe=None,
         dtype=None,
         optional=True,
+        allow_mixed_types=False,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+        if allow_mixed_types:
+            dtype = _dtypes.AnyType
 
         # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
@@ -595,7 +602,7 @@ class Table(Media):
                 raise TypeError(
                     "Existing data {}, of type {} cannot be cast to {}".format(
                         row[col_ndx],
-                        self._column_types.params["type_map"][col_name],
+                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
                         wbtype,
                     )
                 )
@@ -611,6 +618,7 @@ class Table(Media):
             not isinstance(other, Table)
             or len(self.data) != len(other.data)
             or self.columns != other.columns
+            or self._column_types != other._column_types
         ):
             return False
 
@@ -619,7 +627,7 @@ class Table(Media):
                 if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
                     return False
 
-        return self._column_types == other._column_types
+        return True
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -685,11 +693,12 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(json_obj["columns"], data=data,)
+        new_obj = cls(columns=json_obj["columns"], data=data)
 
-        new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-            json_obj["column_types"], source_artifact
-        )
+        if json_obj.get("column_types") is not None:
+            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
 
         return new_obj
 
@@ -748,6 +757,107 @@ class Table(Media):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
+
+    def iterrows(self):
+        """Iterate over rows as (ndx, row)
+        Yields
+        ------
+        index : int
+            The index of the row.
+        row : List[any]
+            The data of the row
+        """
+        for ndx in range(len(self.data)):
+            yield ndx, self.data[ndx]
+
+
+class _PartitionTablePartEntry:
+    """Helper class for PartitionTable to track its parts
+    """
+
+    def __init__(self, entry, source_artifact):
+        self.entry = entry
+        self.source_artifact = source_artifact
+        self._part = None
+
+    def get_part(self):
+        if self._part is None:
+            self._part = self.source_artifact.get(self.entry.path)
+        return self._part
+
+    def free(self):
+        self._part = None
+
+
+class PartitionedTable(Media):
+    """ PartitionedTable represents a table which is composed
+    by the union of multiple sub-tables. Currently, PartitionedTable
+    is designed to point to a directory within an artifact.
+    """
+
+    artifact_type = "partitioned-table"
+
+    def __init__(self, parts_path):
+        """
+        Args:
+            parts_path (str): path to a directory of tables in the artifact
+        """
+        super(PartitionedTable, self).__init__()
+        self.parts_path = parts_path
+        self._loaded_part_entries = {}
+
+    def to_json(self, artifact):
+        json_obj = super(PartitionedTable, self).to_json(artifact)
+        json_obj["parts_path"] = self.parts_path
+        return json_obj
+
+    @classmethod
+    def from_json(cls, json_obj, source_artifact):
+        instance = cls(json_obj["parts_path"])
+        entries = source_artifact.manifest.get_entries_in_directory(
+            json_obj["parts_path"]
+        )
+        for entry in entries:
+            instance._add_part_entry(entry, source_artifact)
+        return instance
+
+    def iterrows(self):
+        """Iterate over rows as (ndx, row)
+        Yields
+        ------
+        index : int
+            The index of the row.
+        row : List[any]
+            The data of the row
+        """
+        columns = None
+        ndx = 0
+        for entry_path in self._loaded_part_entries:
+            part = self._loaded_part_entries[entry_path].get_part()
+            if columns is None:
+                columns = part.columns
+            elif columns != part.columns:
+                raise ValueError(
+                    "Table parts have non-matching columns. {} != {}".format(
+                        columns, part.columns
+                    )
+                )
+            for _, row in part.iterrows():
+                yield ndx, row
+                ndx += 1
+
+            self._loaded_part_entries[entry_path].free()
+
+    def _add_part_entry(self, entry, source_artifact):
+        self._loaded_part_entries[entry.path] = _PartitionTablePartEntry(
+            entry, source_artifact
+        )
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.parts_path == other.parts_path
 
 
 class Audio(BatchableMedia):
@@ -1476,12 +1586,13 @@ class JoinedTable(Media):
         return (
             (type(table) == str and table.endswith(".table.json"))
             or isinstance(table, Table)
+            or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path"""
-        if isinstance(table, Table):
+        if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
                 table.artifact_source is not None
@@ -1497,7 +1608,7 @@ class JoinedTable(Media):
                 base64.standard_b64decode(table.entry.digest)
             ).decode("ascii")[:8]
             entry = artifact.add_reference(
-                table.ref_url(), "{}.table.json".format(name)
+                table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
             table = entry.path
 
