@@ -168,22 +168,25 @@ class HandleManager(object):
                 self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
+    def _history_assign_step(self, record, history_dict):
+        has_step = record.history.HasField("step")
+        item = record.history.item.add()
+        item.key = "_step"
+        if has_step:
+            step = record.history.step.num
+            history_dict["_step"] = step
+            item.value_json = json.dumps(step)
+            self._step = step + 1
+        else:
+            history_dict["_step"] = self._step
+            item.value_json = json.dumps(self._step)
+            self._step += 1
+
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
         # if syncing an old run, we can skip this logic
-        if history_dict.get("_step", None) is None:
-            has_step = record.history.HasField("step")
-            item = record.history.item.add()
-            item.key = "_step"
-            if has_step:
-                step = int(record.history.step.num)
-                history_dict["_step"] = step
-                item.value_json = json.dumps(step)
-                self._step = step + 1
-            else:
-                history_dict["_step"] = self._step
-                item.value_json = json.dumps(self._step)
-                self._step += 1
+        if history_dict.get("_step") is None:
+            self._history_assign_step(record, history_dict)
 
         self._dispatch_record(record)
         self._save_history(record)

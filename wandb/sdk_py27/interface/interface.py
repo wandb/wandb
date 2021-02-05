@@ -653,9 +653,9 @@ class BackendSender(object):
             return
         return result.response.check_version_response
 
-    def communicate_run_start(self, run):
+    def communicate_run_start(self, run_pb):
         run_start = wandb_internal_pb2.RunStartRequest()
-        run_start.run.MergeFrom(self._make_run(run))
+        run_start.run.CopyFrom(run_pb)
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result
