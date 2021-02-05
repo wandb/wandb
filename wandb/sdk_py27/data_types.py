@@ -27,6 +27,7 @@ if wandb.TYPE_CHECKING:
         Tuple,
         Set,
         Any,
+        List,
         cast,
     )
 
@@ -34,10 +35,12 @@ if wandb.TYPE_CHECKING:
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
-        import numpy as np
-        import pandas as pd
-        import matplotlib
-        import plotly
+        import numpy as np  # type: ignore
+        import pandas as pd  # type: ignore
+        import matplotlib  # type: ignore
+        import plotly  # type: ignore
+        import PIL  # type: ignore
+        import torch  # type: ignore
         from typing import TextIO
 
         TypeMappingType = Dict[str, Type["WBValue"]]
@@ -51,6 +54,11 @@ if wandb.TYPE_CHECKING:
             "pd.DataFrame",
             object,
         ]
+        ImageDataType = Union[
+            "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+        ]
+        ImageDataOrPathType = Union[str, "Image", ImageDataType]
+        TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -1161,7 +1169,11 @@ class ImageMask(Media):
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def bind_to_run(
-        self, run, key, step, id_ = None
+        self,
+        run,
+        key,
+        step,
+        id_ = None,
     ):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
@@ -1169,7 +1181,9 @@ class ImageMask(Media):
         class_labels = self._val["class_labels"]
 
         run._add_singleton(
-            "mask/class_labels", key + "_wandb_delimeter_" + self._key, class_labels
+            "mask/class_labels",
+            str(key) + "_wandb_delimeter_" + self._key,
+            class_labels,
         )
 
     @classmethod
@@ -1281,14 +1295,18 @@ class BoundingBoxes2D(JSONMetadata):
             self._class_labels = val["class_labels"]
 
     def bind_to_run(
-        self, run, key, step, id_ = None
+        self,
+        run,
+        key,
+        step,
+        id_ = None,
     ):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
         run._add_singleton(
             "bounding_box/class_labels",
-            key + "_wandb_delimeter_" + self._key,
+            str(key) + "_wandb_delimeter_" + self._key,
             self._class_labels,
         )
 
@@ -1382,6 +1400,8 @@ class BoundingBoxes2D(JSONMetadata):
 class Classes(Media):
     artifact_type = "classes"
 
+    # _class_set: Sequence[dict]
+
     def __init__(self, class_set):
         """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
 
@@ -1394,16 +1414,22 @@ class Classes(Media):
         self._class_set = class_set
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
-        return cls(json_obj.get("class_set"))
+    def from_json(
+        cls,
+        json_obj,
+        source_artifact,
+    ):
+        return cls(json_obj.get("class_set"))  # type: ignore
 
-    def to_json(self, artifact=None):
+    def to_json(
+        self, run_or_artifact
+    ):
         json_obj = {}
         # This is a bit of a hack to allow _ClassesIdType to
         # be able to operate fully without an artifact in play.
         # In all other cases, artifact should be a true artifact.
-        if artifact is not None:
-            json_obj = super(Classes, self).to_json(artifact)
+        if run_or_artifact is not None:
+            json_obj = super(Classes, self).to_json(run_or_artifact)
         json_obj["_type"] = Classes.artifact_type
         json_obj["class_set"] = self._class_set
         return json_obj
@@ -1415,7 +1441,10 @@ class Classes(Media):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        return self._class_set == other._class_set
+        if isinstance(other, Classes):
+            return self._class_set == other._class_set
+        else:
+            return False
 
 
 class Image(BatchableMedia):
@@ -1438,15 +1467,25 @@ class Image(BatchableMedia):
 
     artifact_type = "image-file"
 
+    # format: Optional[str]
+    # _grouping: Optional[str]
+    # _caption: Optional[str]
+    # _width: Optional[int]
+    # _height: Optional[int]
+    # _image: Optional["PIL.Image"]
+    # _classes: Optional["Classes"]
+    # _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
+    # _masks: Optional[Dict[str, "ImageMask"]]
+
     def __init__(
         self,
         data_or_path,
-        mode=None,
-        caption=None,
-        grouping=None,
-        classes=None,
-        boxes=None,
-        masks=None,
+        mode = None,
+        caption = None,
+        grouping = None,
+        classes = None,
+        boxes = None,
+        masks = None,
     ):
         super(Image, self).__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
@@ -1473,7 +1512,12 @@ class Image(BatchableMedia):
         self._set_initialization_meta(grouping, caption, classes, boxes, masks)
 
     def _set_initialization_meta(
-        self, grouping=None, caption=None, classes=None, boxes=None, masks=None
+        self,
+        grouping = None,
+        caption = None,
+        classes = None,
+        boxes = None,
+        masks = None,
     ):
         if grouping is not None:
             self._grouping = grouping
@@ -1492,10 +1536,11 @@ class Image(BatchableMedia):
                 raise ValueError('Images "boxes" argument must be a dictionary')
             boxes_final = {}
             for key in boxes:
-                if isinstance(boxes[key], BoundingBoxes2D):
-                    boxes_final[key] = boxes[key]
-                else:
-                    boxes_final[key] = BoundingBoxes2D(boxes[key], key)
+                box_item = boxes[key]
+                if isinstance(box_item, BoundingBoxes2D):
+                    boxes_final[key] = box_item
+                elif isinstance(box_item, dict):
+                    boxes_final[key] = BoundingBoxes2D(box_item, key)
             self._boxes = boxes_final
 
         if masks:
@@ -1503,13 +1548,14 @@ class Image(BatchableMedia):
                 raise ValueError('Images "masks" argument must be a dictionary')
             masks_final = {}
             for key in masks:
-                if isinstance(masks[key], ImageMask):
-                    masks_final[key] = masks[key]
-                else:
-                    masks_final[key] = ImageMask(masks[key], key)
+                mask_item = masks[key]
+                if isinstance(mask_item, ImageMask):
+                    masks_final[key] = mask_item
+                elif isinstance(mask_item, dict):
+                    masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size
+        self._width, self._height = self._image.size  # type: ignore
 
     def _initialize_from_wbimage(self, wbimage):
         self._grouping = wbimage._grouping
@@ -1541,7 +1587,7 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data, mode=None):
+    def _initialize_from_data(self, data, mode = None,):
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -1577,13 +1623,15 @@ class Image(BatchableMedia):
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
         classes = None
         if json_obj.get("classes") is not None:
             classes = source_artifact.get(json_obj["classes"]["path"])
 
-        _masks = None
         masks = json_obj.get("masks")
+        _masks = None
         if masks:
             _masks = {}
             for key in masks:
@@ -1612,18 +1660,23 @@ class Image(BatchableMedia):
     def get_media_subdir(cls):
         return os.path.join("media", "images")
 
-    def bind_to_run(self, *args, **kwargs):
-        super(Image, self).bind_to_run(*args, **kwargs)
-        id_ = kwargs.get("id_")
+    def bind_to_run(
+        self,
+        run,
+        key,
+        step,
+        id_ = None,
+    ):
+        super(Image, self).bind_to_run(run, key, step, id_)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(*args, **kwargs)
+                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                self._boxes[k].bind_to_run(run, key, step, id_)
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
-                kwargs["id_"] = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(*args, **kwargs)
+                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                self._masks[k].bind_to_run(run, key, step, id_)
 
     def to_json(self, run_or_artifact):
         json_dict = super(Image, self).to_json(run_or_artifact)
@@ -1639,9 +1692,9 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        wandb_run, wandb_artifacts = _safe_sdk_import()
+        run_class, artifact_class = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, artifact_class):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -1670,7 +1723,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, wandb_run.Run):
+        elif not isinstance(run_or_artifact, run_class):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
@@ -1724,12 +1777,20 @@ class Image(BatchableMedia):
         return data.clip(0, 255).astype(np.uint8)
 
     @classmethod
-    def seq_to_json(cls, images, run, key, step):
+    def seq_to_json(
+        cls,
+        seq,
+        run,
+        key,
+        step,
+    ):
         """
         Combines a list of images into a meta dictionary object describing the child images.
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            seq = cast(Sequence["Image"], seq)
 
-        jsons = [obj.to_json(run) for obj in images]
+        jsons = [obj.to_json(run) for obj in seq]
 
         media_dir = cls.get_media_subdir()
 
@@ -1742,15 +1803,15 @@ class Image(BatchableMedia):
                     )
                 )
 
-        num_images_to_log = len(images)
-        width, height = images[0]._image.size
+        num_images_to_log = len(seq)
+        width, height = seq[0]._image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image):
-            img_width, img_height = image._image.size
-            return img_width == width and img_height == height
+            img_width, img_height = image._image.size  # type: ignore
+            return img_width == width and img_height == height  # type: ignore
 
-        sizes_match = all(size_equals_image(img) for img in images)
+        sizes_match = all(size_equals_image(img) for img in seq)
         if not sizes_match:
             logging.warning(
                 "Images sizes do not match. This will causes images to be display incorrectly in the UI."
@@ -1764,17 +1825,17 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
 
-        captions = Image.all_captions(images)
+        captions = Image.all_captions(seq)
 
         if captions:
             meta["captions"] = captions
 
-        all_masks = Image.all_masks(images, run, key, step)
+        all_masks = Image.all_masks(seq, run, key, step)
 
         if all_masks:
             meta["all_masks"] = all_masks
 
-        all_boxes = Image.all_boxes(images, run, key, step)
+        all_boxes = Image.all_boxes(seq, run, key, step)
 
         if all_boxes:
             meta["all_boxes"] = all_boxes
@@ -1782,7 +1843,13 @@ class Image(BatchableMedia):
         return meta
 
     @classmethod
-    def all_masks(cls, images, run, run_key, step):
+    def all_masks(
+        cls,
+        images,
+        run,
+        run_key,
+        step,
+    ):
         all_mask_groups = []
         for image in images:
             if image._masks:
@@ -1799,7 +1866,13 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_boxes(cls, images, run, run_key, step):
+    def all_boxes(
+        cls,
+        images,
+        run,
+        run_key,
+        step,
+    ):
         all_box_groups = []
         for image in images:
             if image._boxes:
@@ -1816,24 +1889,26 @@ class Image(BatchableMedia):
             return False
 
     @classmethod
-    def all_captions(cls, images):
-        if images[0]._caption is not None:
-            return [i._caption for i in images]
-        else:
-            return False
+    def all_captions(
+        cls, images
+    ):
+        return cls.captions(images)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        return (
-            self._grouping == other._grouping
-            and self._caption == other._caption
-            and self._width == other._width
-            and self._height == other._height
-            and self._image == other._image
-            and self._classes == other._classes
-        )
+        if not isinstance(other, Image):
+            return False
+        else:
+            return (
+                self._grouping == other._grouping
+                and self._caption == other._caption
+                and self._width == other._width
+                and self._height == other._height
+                and self._image == other._image
+                and self._classes == other._classes
+            )
 
 
 class Plotly(Media):
@@ -1845,14 +1920,16 @@ class Plotly(Media):
     """
 
     @classmethod
-    def make_plot_media(cls, val):
+    def make_plot_media(
+        cls, val
+    ):
         if util.is_matplotlib_typename(util.get_full_typename(val)):
             if util.matplotlib_contains_images(val):
                 return Image(val)
             val = util.matplotlib_to_plotly(val)
         return cls(val)
 
-    def __init__(self, val, **kwargs):
+    def __init__(self, val):
         super(Plotly, self).__init__()
         # First, check to see if the incoming `val` object is a plotfly figure
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
@@ -1874,11 +1951,12 @@ class Plotly(Media):
         util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
-    def get_media_subdir(self):
+    @classmethod
+    def get_media_subdir(cls):
         return os.path.join("media", "plotly")
 
-    def to_json(self, run):
-        json_dict = super(Plotly, self).to_json(run)
+    def to_json(self, run_or_artifact):
+        json_dict = super(Plotly, self).to_json(run_or_artifact)
         json_dict["_type"] = "plotly-file"
         return json_dict
 
@@ -1931,6 +2009,10 @@ def val_to_json(
             and isinstance(val[0], BatchableMedia)
             and all(isinstance(v, type(val[0])) for v in val)
         ):
+
+            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+                val = cast(Sequence["BatchableMedia"], val)
+
             items = _prune_max_seq(val)
 
             for i, item in enumerate(items):
@@ -1962,8 +2044,10 @@ def _is_numpy_array(data):
     return isinstance(data, np.ndarray)
 
 
-def _wb_filename(key, step, id, extension):
-    return "{}_{}_{}{}".format(key, str(step), id, extension)
+def _wb_filename(
+    key, step, id, extension
+):
+    return "{}_{}_{}{}".format(str(key), str(step), str(id), extension)
 
 
 def _numpy_arrays_to_lists(

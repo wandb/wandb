@@ -54,6 +54,10 @@ if wandb.TYPE_CHECKING:
             "pd.DataFrame",
             object,
         ]
+        ImageDataType = Union[
+            "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+        ]
+        ImageDataOrPathType = Union[str, "Image", ImageDataType]
         TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
@@ -1475,14 +1479,7 @@ class Image(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[
-            str,
-            "Image",
-            "matplotlib.artist.Artist",
-            "PIL.Image",
-            "TorchTensorType",
-            "np.ndarray",
-        ],
+        data_or_path: "ImageDataOrPathType",
         mode: Optional[str] = None,
         caption: Optional[str] = None,
         grouping: Optional[str] = None,
@@ -1590,13 +1587,7 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(
-        self,
-        data: Union[
-            "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
-        ],
-        mode: str = None,
-    ) -> None:
+    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
