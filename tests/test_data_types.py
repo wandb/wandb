@@ -443,6 +443,17 @@ def test_molecule(runner, mocked_run):
         assert os.path.exists(mol._path)
 
 
+def test_molecule_file(runner, mocked_run):
+    with runner.isolated_filesystem():
+        with open("test.pdb", "w") as f:
+            f.write("00000")
+        mol = wandb.Molecule(open("test.pdb", "r"))
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
 def test_html_str(mocked_run):
     html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
     html.bind_to_run(mocked_run, "rad", "summary")
@@ -476,6 +487,16 @@ def test_html_file(mocked_run):
     with open("test.html", "w") as f:
         f.write("<html><body><h1>Hello</h1></body></html>")
     html = wandb.Html(open("test.html"))
+    html.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
+
+    assert os.path.exists(html._path)
+
+
+def test_html_file_path(mocked_run):
+    with open("test.html", "w") as f:
+        f.write("<html><body><h1>Hello</h1></body></html>")
+    html = wandb.Html("test.html")
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
 
