@@ -187,7 +187,7 @@ if hasattr(multiprocessing, "get_all_start_methods"):
 else:
     # TODO: this can go away when we deprecate Python 2
     AVAILABLE_START_METHODS = ["fork", "spawn"]
-DEFAULT_START_METHOD = "fork" if "fork" in AVAILABLE_START_METHODS else "spawn"
+DEFAULT_START_METHOD = "spawn"  # defaulting to spawn for now, fork needs more testing
 
 
 class Settings(object):

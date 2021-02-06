@@ -471,7 +471,9 @@ class _WandbInit(object):
             error_message = None
             if not ret:
                 logger.error("backend process timed out")
-                error_message = "Error communicating with backend"
+                error_message = "Error communicating with wandb process"
+                if self.settings.start_method != "fork":
+                    error_message += ", try setting WANDB_START_METHOD=fork"
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
