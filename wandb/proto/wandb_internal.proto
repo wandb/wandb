@@ -334,7 +334,6 @@ message AlertRecord {
 message Request {
   oneof request_type {
     StatusRequest         status = 1;
-    PollRequest           poll = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
     LoginRequest          login = 5;
@@ -344,7 +343,6 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
-    CancelRequest         canceel = 13;
     ShutdownRequest       shutdown = 64;
     TestInjectRequest     test_inject = 1000;
   }
@@ -355,8 +353,6 @@ message Request {
  */
 message Response {
   oneof response_type {
-    PollResponse           poll_response = 2;
-    CancelResponse         cancel_response = 18;
     StatusResponse         status_response = 19;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
@@ -429,24 +425,6 @@ message StatusRequest {
 
 message StatusResponse {
   bool run_should_stop = 1;
-}
-
-/*
- * PollRequest:
- */
-message PollRequest {
-}
-
-message PollResponse {
-}
-
-/*
- * CancelRequest:
- */
-message CancelRequest {
-}
-
-message CancelResponse {
 }
 
 /*
