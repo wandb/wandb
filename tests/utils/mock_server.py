@@ -69,6 +69,7 @@ def run(ctx):
         fileNames = None
     if fileNames == ["nofile.h5"]:
         fileNode = {
+            "id": "file123",
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
@@ -76,6 +77,7 @@ def run(ctx):
         }
     else:
         fileNode = {
+            "id": "file123",
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
@@ -496,6 +498,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation DeleteFiles(" in body["query"]:
+            return json.dumps({"data": {"deleteFiles": {"success": True}}})
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
