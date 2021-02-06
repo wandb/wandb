@@ -154,8 +154,13 @@ message SettingsItem {
 /*
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
+message HistoryStep {
+  int64 num = 1;
+}
+
 message HistoryRecord {
   repeated HistoryItem item = 1;
+  HistoryStep step = 2;
 }
 
 message HistoryItem {
