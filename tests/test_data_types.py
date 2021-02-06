@@ -530,6 +530,24 @@ def test_object3d_numpy(mocked_run):
     assert obj3.to_json(mocked_run)["_type"] == "object3D-file"
 
 
+def test_object3d_dict(mocked_run):
+    obj = wandb.Object3D(
+        {"type": "lidar/beta", "vectors": [], "points": [], "boxes": [],}
+    )
+    obj.bind_to_run(mocked_run, "object3D", 0)
+    assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+
+
+def test_object3d_dict_invalid(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D({"type": "INVALID",})
+
+
+def test_object3d_dict_invalid(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D("INVALID")
+
+
 def test_object3d_obj(mocked_run):
     obj = wandb.Object3D(utils.fixture_open("cube.obj"))
     obj.bind_to_run(mocked_run, "object3D", 0)

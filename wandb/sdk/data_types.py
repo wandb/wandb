@@ -32,7 +32,7 @@ if wandb.TYPE_CHECKING:
         cast,
     )
 
-    if TYPE_CHECKING:
+    if TYPE_CHECKING:  # pragma: no cover
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
