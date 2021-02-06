@@ -86,7 +86,7 @@ def check_logged_in(api: Api, host: str) -> bool:
     # TODO: Better check for api key is correct
     else:
         res = api.api.viewer()
-        if res is None or res == {}:
+        if not res:
             fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
                 host
             )
@@ -178,6 +178,7 @@ def check_run(api: Api) -> bool:
         failed_test_strings.append(
             "Read summary values don't match expected value. Check database encoding, or contact W&B for support."
         )
+    # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
         read_file = retry_fn(partial(prev_run.file, filepath))
         read_file = read_file.download(replace=True)
@@ -422,6 +423,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
         )
         print_results(failed_test_strings, False)
         return False, None
+    # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
         read_file = retry_fn(partial(prev_run.file, gql_fp))
         read_file = read_file.download(replace=True)

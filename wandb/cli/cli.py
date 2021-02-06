@@ -1584,6 +1584,7 @@ def gc(args):
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
+    # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
     api = _get_cling_api()
@@ -1612,7 +1613,7 @@ def verify(host):
         "Checking requests to base url",
         "Connections are not made over https. SSL required for secure communications.",
     )
-    if url is not None:
+    if url:
         wandb_verify.check_secure_requests(
             url,
             "Checking requests made over signed URLs",
