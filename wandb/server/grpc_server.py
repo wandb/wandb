@@ -32,7 +32,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = self._backend._interface._communicate_run(run_data)
 
         # initiate run (stats and metadata probing)
-        _ = self._backend._interface.communicate_run_start()
+        _ = self._backend._interface.communicate_run_start(result.run)
 
         return result
 
