@@ -562,7 +562,7 @@ def test_object3d_dict_invalid(mocked_run):
         obj = wandb.Object3D({"type": "INVALID",})
 
 
-def test_object3d_dict_invalid(mocked_run):
+def test_object3d_dict_invalid_string(mocked_run):
     with pytest.raises(ValueError):
         obj = wandb.Object3D("INVALID")
 
