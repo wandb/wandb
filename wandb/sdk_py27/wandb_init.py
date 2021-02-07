@@ -28,15 +28,35 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
+from .interface import interface
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
+if wandb.TYPE_CHECKING:
+    from typing import (
+        Optional,
+        Union,
+        Sequence,
+        Dict,
+        Any,
+        NoReturn,
+    )
 
 logger = None  # logger configured during wandb.init()
+
+
+class WandbError(Exception):
+    """Base class for all wandb exceptions"""
+
+    pass
+
+
+class WandbInitError(WandbError):
+    """Raised when wandb.init() fails"""
+
+    pass
 
 
 def _set_logger(log_object):
@@ -319,6 +339,11 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+    def _fail(self, msg):
+        if logger:
+            logger.error(msg)
+        raise WandbInitError(msg)
+
     def init(self):  # noqa: C901
         trigger.call("on_init", **self.kwargs)
         s = self.settings
@@ -398,6 +423,11 @@ class _WandbInit(object):
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
+
+        monitor = interface.Monitor()
+        result = backend.interface.communicate_health(monitor=monitor)
+        if not result:
+            self._fail("Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
 

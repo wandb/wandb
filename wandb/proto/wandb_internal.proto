@@ -346,6 +346,7 @@ message Request {
     CheckVersionRequest   check_version = 12;
     CancelRequest         canceel = 13;
     ShutdownRequest       shutdown = 64;
+    HealthRequest         health = 65;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -365,6 +366,7 @@ message Response {
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
     ShutdownResponse       shutdown_response = 64;
+    HealthResponse         health_response = 65;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -438,6 +440,9 @@ message PollRequest {
 }
 
 message PollResponse {
+  bool   done = 1;
+  Result result = 2;
+  // Progress progress = 3;
 }
 
 /*
@@ -545,4 +550,13 @@ message CheckVersionResponse {
   string upgrade_message = 1;
   string yank_message = 2;
   string delete_message = 3;
+}
+
+/*
+ * Health:
+ */
+message HealthRequest {
+}
+
+message HealthResponse {
 }

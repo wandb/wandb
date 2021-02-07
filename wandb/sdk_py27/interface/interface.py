@@ -117,6 +117,10 @@ class MessageRouter(object):
         future._set_object(msg)
 
 
+class Monitor(object):
+    pass
+
+
 class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
@@ -469,6 +473,17 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         f = future.get(timeout)
         return f
+
+    def communicate_health(
+        self, monitor
+    ):
+        record = wandb_internal_pb2.Record()
+        record.request.health.CopyFrom(wandb_internal_pb2.HealthRequest())
+        result = self._communicate(record)
+        if not result:
+            return None
+        health_response = result.response.health_response
+        return health_response
 
     def communicate_login(self, api_key=None, anonymous=None, timeout=15):
         login = self._make_login(api_key, anonymous)
