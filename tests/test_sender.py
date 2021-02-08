@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import pytest
 from six.moves import queue
@@ -8,6 +10,7 @@ import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -59,7 +62,7 @@ def sender(record_q, result_q, process):
 
 @pytest.fixture()
 def sm(
-    runner, sender_q, result_q, test_settings, mock_server, fake_interface,
+    runner, sender_q, result_q, test_settings, mock_server, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -67,21 +70,14 @@ def sm(
             settings=test_settings,
             record_q=sender_q,
             result_q=result_q,
-            interface=fake_interface,
+            interface=sender,
         )
         yield sm
 
 
 @pytest.fixture()
 def hm(
-    runner,
-    record_q,
-    result_q,
-    test_settings,
-    mock_server,
-    sender_q,
-    writer_q,
-    fake_interface,
+    runner, record_q, result_q, test_settings, mock_server, sender_q, writer_q, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -93,7 +89,7 @@ def hm(
             stopped=stopped,
             sender_q=sender_q,
             writer_q=writer_q,
-            interface=fake_interface,
+            interface=sender,
         )
         yield hm
 
@@ -154,7 +150,7 @@ def start_handle_thread(record_q, get_record):
 
 @pytest.fixture()
 def start_backend(
-    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread, log_debug,
 ):
     def start_backend_func(initial_run=True):
         start_handle_thread(hm)
