@@ -74,14 +74,7 @@ def sm(
 
 @pytest.fixture()
 def hm(
-    runner,
-    record_q,
-    result_q,
-    test_settings,
-    mock_server,
-    sender_q,
-    writer_q,
-    sender,
+    runner, record_q, result_q, test_settings, mock_server, sender_q, writer_q, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
