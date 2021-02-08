@@ -59,7 +59,7 @@ def sender(record_q, result_q, process):
 
 @pytest.fixture()
 def sm(
-    runner, sender_q, result_q, test_settings, mock_server, fake_interface,
+    runner, sender_q, result_q, test_settings, mock_server, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -67,7 +67,7 @@ def sm(
             settings=test_settings,
             record_q=sender_q,
             result_q=result_q,
-            interface=fake_interface,
+            interface=sender,
         )
         yield sm
 
@@ -81,7 +81,7 @@ def hm(
     mock_server,
     sender_q,
     writer_q,
-    fake_interface,
+    sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -93,7 +93,7 @@ def hm(
             stopped=stopped,
             sender_q=sender_q,
             writer_q=writer_q,
-            interface=fake_interface,
+            interface=sender,
         )
         yield hm
 
