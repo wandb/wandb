@@ -427,6 +427,7 @@ class _WandbInit(object):
         monitor = interface.Monitor()
         result = backend.interface.communicate_health(monitor=monitor)
         if not result:
+            backend.abort()
             self._fail("Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)

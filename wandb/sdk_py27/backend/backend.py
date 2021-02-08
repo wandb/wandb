@@ -100,6 +100,10 @@ class Backend(object):
         """Report server status."""
         pass
 
+    def abort(self):
+        self.wandb_process.terminate()
+        self.cleanup()
+
     def cleanup(self):
         # TODO: make _done atomic
         if self._done:
