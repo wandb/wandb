@@ -471,3 +471,5 @@ def records_util():
 def log_debug(caplog):
     caplog.set_level(logging.DEBUG)
     yield
+    # for rec in caplog.records:
+    #     print("LOGGER", rec.message, file=sys.stderr)
