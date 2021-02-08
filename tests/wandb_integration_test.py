@@ -15,6 +15,8 @@ import shutil
 from .utils import fixture_open
 import sys
 
+from wandb import wandb_sdk
+
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
     reloadFn = reload  # noqa: F821
@@ -368,3 +370,12 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
     summary = ctx_util.summary
     assert summary["val"] == 3
     assert summary["val2"] == 1
+
+
+def test_init_fail(live_mock_server, test_settings, inject_util):
+    def inject_fn(_):
+        return inject_util._inject.INJECT_DROP
+
+    inject_util.install(inject_fn)
+    with pytest.raises(Exception):
+        run = wandb.init()

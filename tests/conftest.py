@@ -454,3 +454,10 @@ def records_util():
         return ru
 
     yield records_fn
+
+
+@pytest.fixture
+def inject_util():
+    iu = utils.InjectUtil()
+    yield iu
+    iu.cleanup()

@@ -44,12 +44,15 @@ message Record {
     Request         request = 100;
   }
   Control          control = 16;
+  // uuid to match Record to Result in MessageRouter
   string           uuid = 19;
 }
 
 message Control {
-  bool req_resp = 1;  // record is expecting a result
-  bool local = 2;     // should not be persisted or synchronized
+  bool   req_resp = 1;   // record is expecting a result
+  bool   local = 2;      // should not be persisted or synchronized
+  string req_id = 3;     // used for cancel and poll
+  bool   immediate = 5;  // handle immediately (poll)
 }
 
 /*
@@ -66,7 +69,22 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  ErrorStatus         error_status = 16;
+  TransportStatus     transport_status = 32;
+  BackendStatus       backend_status = 33;
+  // uuid to match Record to Result in MessageRouter
   string              uuid = 24;
+}
+
+message ErrorStatus {
+  string msg = 1;
+}
+
+message TransportStatus {
+  bool  poll_needed = 1;
+}
+
+message BackendStatus {
 }
 
 /*

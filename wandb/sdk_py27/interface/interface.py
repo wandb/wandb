@@ -25,6 +25,8 @@ from wandb.util import (
     WandBJSONEncoderOld,
 )
 
+from ..lib import _inject
+
 if wandb.TYPE_CHECKING:  # type: ignore
     import typing as t
     from . import summary_record as sr
@@ -470,6 +472,8 @@ class BackendSender(object):
 
     def _communicate(self, rec, timeout=5, local=None):
         assert self._router
+        if _inject.inject_communicate(rec) == _inject.INJECT_DROP:
+            return None
         future = self._router.send_and_receive(rec, local=local)
         f = future.get(timeout)
         return f
