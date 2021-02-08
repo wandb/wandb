@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import pytest
 from six.moves import queue
@@ -8,6 +10,7 @@ import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -147,7 +150,7 @@ def start_handle_thread(record_q, get_record):
 
 @pytest.fixture()
 def start_backend(
-    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread, log_debug,
 ):
     def start_backend_func(initial_run=True):
         start_handle_thread(hm)

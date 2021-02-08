@@ -1,9 +1,12 @@
+from __future__ import print_function
+
 import pytest
 import time
 import datetime
 import requests
 import os
 import sys
+import logging
 import shutil
 from contextlib import contextmanager
 from tests import utils
@@ -454,6 +457,22 @@ def records_util():
         return ru
 
     yield records_fn
+
+
+# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+# def pytest_runtest_makereport(item, call):
+#     outcome = yield
+#     rep = outcome.get_result()
+#     if rep.when == "call" and rep.failed:
+#         print("DEBUG PYTEST", rep, item, call, outcome)
+
+
+@pytest.fixture
+def log_debug(caplog):
+    caplog.set_level(logging.DEBUG)
+    yield
+    # for rec in caplog.records:
+    #     print("LOGGER", rec.message, file=sys.stderr)
 
 
 @pytest.fixture
