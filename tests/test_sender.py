@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import pytest
 from six.moves import queue
@@ -5,10 +7,10 @@ import threading
 import time
 import shutil
 import sys
-import logging
 
 import wandb
 from wandb.util import mkdir_exists_ok
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -300,9 +302,8 @@ def test_save_live_multi_write(
 
 
 def test_save_live_glob_multi_write(
-    mocked_run, mock_server, sender, start_backend, stop_backend, caplog,
+    mocked_run, mock_server, sender, start_backend, stop_backend, log_debug,
 ):
-    caplog.set_level(logging.DEBUG)
     start_backend()
     sender.publish_files({"files": [("checkpoints/*", "live")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
@@ -330,13 +331,8 @@ def test_save_live_glob_multi_write(
     print(
         "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
-    print("DEBUG1")
-    print("DEBUG2", file=sys.stderr)
-    for rec in caplog.records:
-        print("LOG", rec.message, file=sys.stderr)
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
-    assert 0
 
 
 def test_save_rename_file(
