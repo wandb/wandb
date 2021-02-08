@@ -19,3 +19,4 @@ pip-wheel-metadata
 xcuserdata/
 test-results/
 mypy-results/
+wandb/proto_check/
