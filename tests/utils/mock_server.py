@@ -258,7 +258,7 @@ def create_app(user_ctx=None):
         ctx = get_ctx()
         test_name = request.headers.get("X-WANDB-USERNAME")
         if test_name:
-            app.logger.info("Test request from: %s", test_name) # XXX
+            app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
