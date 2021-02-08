@@ -62,10 +62,15 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
+
+    try:
+        from typing import NoReturn
+    except ImportError:
+        NoReturn = None  # type: ignore
+
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord

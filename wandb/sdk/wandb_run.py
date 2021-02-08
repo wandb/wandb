@@ -69,7 +69,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     try:
         from typing import NoReturn
     except ImportError:
-        NoReturn = None
+        NoReturn = None  # type: ignore
 
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
