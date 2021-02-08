@@ -150,7 +150,7 @@ def start_handle_thread(record_q, get_record):
 
 @pytest.fixture()
 def start_backend(
-    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread, log_debug,
 ):
     def start_backend_func(initial_run=True):
         start_handle_thread(hm)
@@ -302,7 +302,7 @@ def test_save_live_multi_write(
 
 
 def test_save_live_glob_multi_write(
-    mocked_run, mock_server, sender, start_backend, stop_backend, log_debug,
+    mocked_run, mock_server, sender, start_backend, stop_backend,
 ):
     start_backend()
     sender.publish_files({"files": [("checkpoints/*", "live")]})
