@@ -5,6 +5,7 @@
 - Add run delete and file delete to the public API
 - Align steps between `tensorboard_sync` and wandb.log() history
 - Add `WANDB_START_METHOD` to allow POSIX systems to use fork
+- Add `allow_mixed_types` option to wandb.Table()
 
 #### :bug: Bug Fix
 
