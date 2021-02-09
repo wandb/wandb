@@ -19,9 +19,9 @@ import traceback
 import shortuuid  # type: ignore
 import six
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb.dummy import Dummy, DummyDict
-from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -37,6 +37,7 @@ from .wandb_settings import Settings
 if wandb.TYPE_CHECKING:
     from typing import (
         Optional,
+        Type,
         Union,
         Sequence,
         Dict,
@@ -45,18 +46,6 @@ if wandb.TYPE_CHECKING:
     )
 
 logger: Optional[logging.Logger] = None  # logger configured during wandb.init()
-
-
-class WandbError(Exception):
-    """Base class for all wandb exceptions"""
-
-    pass
-
-
-class WandbInitError(WandbError):
-    """Raised when wandb.init() fails"""
-
-    pass
 
 
 def _set_logger(log_object):
@@ -339,10 +328,10 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def _fail(self, msg: str) -> NoReturn:
+    def _fail(self, err_class: Type[Exception], msg: str) -> "NoReturn":
         if logger:
             logger.error(msg)
-        raise WandbInitError(msg)
+        raise err_class(msg)
 
     def init(self) -> Union[Run, Dummy, None]:  # noqa: C901
         assert logger
@@ -442,7 +431,7 @@ class _WandbInit(object):
         result = backend.interface.communicate_health(monitor=monitor)
         if not result:
             backend.abort()
-            self._fail("Could not talk to internal process")
+            self._fail(errors.InitStartError, "Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
 
@@ -513,7 +502,7 @@ class _WandbInit(object):
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
                 self.teardown()
-                raise UsageError(error_message)
+                raise errors.UsageError(error_message)
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
@@ -760,7 +749,7 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
-    except UsageError:
+    except errors.UsageError:
         raise
     except KeyboardInterrupt as e:
         assert logger
@@ -779,7 +768,9 @@ def init(
     finally:
         if error_seen:
             wandb.termerror("Abnormal program exit")
-            if except_exit:
-                os._exit(-1)
-            six.raise_from(Exception("problem"), error_seen)
+            if isinstance(error_seen, errors.InitError):
+                six.raise_from(error_seen, error_seen)
+            six.raise_from(
+                errors.InitGenericError("Problem in wandb.init()"), error_seen
+            )
     return run
