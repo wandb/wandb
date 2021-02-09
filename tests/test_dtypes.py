@@ -329,7 +329,7 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = data_types._ClassesIdType.from_obj(wb_classes)
+    wb_class_type = wandb.wandb_sdk.data_types._ClassesIdType.from_obj(wb_classes)
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 

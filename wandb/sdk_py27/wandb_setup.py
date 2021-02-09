@@ -206,9 +206,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if hasattr(multiprocessing, "get_context"):
             all_methods = multiprocessing.get_all_start_methods()
             logger.info(
-                "multiprocessing start_methods={}".format(",".join(all_methods))
+                "multiprocessing start_methods={}, using: {}".format(
+                    ",".join(all_methods), self._settings.start_method
+                )
             )
-            ctx = multiprocessing.get_context("spawn")
+            ctx = multiprocessing.get_context(self._settings.start_method)
         else:
             logger.info("multiprocessing fallback, likely fork on unix")
             ctx = multiprocessing

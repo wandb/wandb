@@ -5,6 +5,7 @@ from __future__ import division
 import base64
 import binascii
 import colorsys
+import contextlib
 import codecs
 import errno
 import hashlib
@@ -997,7 +998,7 @@ def download_file_from_url(dest_path, source_url, api_key=None):
 
     if os.sep in dest_path:
         mkdir_exists_ok(os.path.dirname(dest_path))
-    with open(dest_path, "wb") as file:
+    with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
 
@@ -1173,6 +1174,19 @@ def _has_internet():
         return True
     except OSError:
         return False
+
+
+@contextlib.contextmanager
+def fsync_open(path, mode="w"):
+    """
+    Opens a path for I/O, guaranteeing that the file is flushed and
+    fsynced when the file's context expires.
+    """
+    with open(path, mode) as f:
+        yield f
+
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def _is_kaggle():

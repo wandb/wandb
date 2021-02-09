@@ -1,3 +1,18 @@
+## 0.10.18 (February 8, 2021)
+
+#### :nail_care: Enhancement
+
+- Add run delete and file delete to the public API
+- Align steps between `tensorboard_sync` and wandb.log() history
+- Add `WANDB_START_METHOD` to allow POSIX systems to use fork
+- Support mixed types in wandb.Table() with `allow_mixed_types`
+
+#### :bug: Bug Fix
+
+- Fix potential leaked file due to log not being closed properly
+- Improve `wandb verify` to better handle network issues and report errors
+- Made file downloads more deterministic with respect to filesystem caches
+
 ## 0.10.17 (February 1, 2021)
 
 #### :bug: Bug Fix
