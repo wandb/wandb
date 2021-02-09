@@ -556,6 +556,7 @@ class BackendSender(object):
         req = self._make_record(run=run)
         resp = self._communicate(req, timeout=timeout)
         if resp is None:
+            logger.info("couldn't get run from backend")
             # Note: timeouts handled by callers: wandb_init.py
             return
         assert resp.run_result
