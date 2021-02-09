@@ -919,8 +919,22 @@ class Audio(BatchableMedia):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
+        entry = source_artifact.get_path(json_obj["path"])
+        if entry.entry.ref:
+            # for refs, convert media paths to the "original" external path
+
+            # NOTE: the Media object's sha is computed from this path, not the
+            # file contents -- this could be a problem if the remote file changes.
+
+            # If that's an issue, we might have to refactor to use the MD5 reported by
+            # the remote server.
+            print(source_artifact.get_path(json_obj["path"]).download())
+            path = entry.ref()
+        else:
+            path = entry.download()
+
         return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
+            path,
             caption=json_obj["caption"],
         )
 

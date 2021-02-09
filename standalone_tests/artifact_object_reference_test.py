@@ -179,13 +179,16 @@ def _make_wandb_audio(frequency, caption):
 aud1 = _make_wandb_audio(440, "four forty")
 
 aud_ref_https = wandb.Audio(
-    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav", 100000000, "star wars"
+    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+    caption="star wars https"
 )
 aud_ref_s3 = wandb.Audio(
-    "s3://wandb-artifacts-refs-public-test/StarWars3.wav", 100000000, "star wars"
+    "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
+    caption="star wars s3"
 )
 aud_ref_gs = wandb.Audio(
-    "gs://wandb-artifact-refs-public-test/StarWars3.wav", 100000000, "star wars"
+    "gs://wandb-artifact-refs-public-test/StarWars3.wav",
+    caption="star wars gs"
 )
 
 
@@ -532,7 +535,6 @@ def assert_media_obj_referential_equality(obj):
         orig_dir = orig_artifact_ref._default_root()
         obj1 = orig_artifact_ref.get("obj")
 
-    import ipdb; ipdb.set_trace()
     assert obj1 == obj
     target_path = os.path.join(orig_dir, "obj." + type(obj).artifact_type + ".json")
     assert os.path.isfile(target_path)
@@ -604,8 +606,10 @@ def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 def test_audio_refs():
-    assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+    # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
     assert_media_obj_referential_equality(aud_ref_https)
+    assert_media_obj_referential_equality(aud_ref_s3)
+    assert_media_obj_referential_equality(aud_ref_gs)
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
@@ -791,27 +795,27 @@ def test_distributed_artifact_simple():
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
-        test_artifact_add_reference_via_url,
-        test_add_reference_via_artifact_entry,
-        test_adding_artifact_by_object,
-        test_get_artifact_obj_by_name,
-        test_image_reference_artifact,
-        test_nested_reference_artifact,
-        test_table_slice_reference_artifact,
-        test_image_refs,
-        test_point_cloud_refs,
-        test_bokeh_refs,
-        test_html_refs,
-        test_video_refs,
-        test_table_refs,
-        test_joined_table_refs,
+        # test_artifact_add_reference_via_url,
+        # test_add_reference_via_artifact_entry,
+        # test_adding_artifact_by_object,
+        # test_get_artifact_obj_by_name,
+        # test_image_reference_artifact,
+        # test_nested_reference_artifact,
+        # test_table_slice_reference_artifact,
+        # test_image_refs,
+        # test_point_cloud_refs,
+        # test_bokeh_refs,
+        # test_html_refs,
+        # test_video_refs,
+        # test_table_refs,
+        # test_joined_table_refs,
         test_audio_refs,
-        test_joined_table_referential,
-        test_joined_table_add_by_path,
-        test_image_reference_with_preferred_path,
+        # test_joined_table_referential,
+        # test_joined_table_add_by_path,
+        # test_image_reference_with_preferred_path,
         # TODO: Re-enable this test once 0.10.16 is released
         # test_distributed_artifact_simple,
-        test_simple_partition_table,
+        # test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:
