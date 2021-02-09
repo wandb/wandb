@@ -1024,6 +1024,7 @@ class Run(Attrs):
         )
         self.summary.update()
 
+    @normalize_exceptions
     def delete(self, delete_artifacts=False):
         """
         Deletes the given run from the wandb backend.
@@ -1051,7 +1052,7 @@ class Run(Attrs):
             )
         )
 
-        return self.client.execute(
+        self.client.execute(
             mutation,
             variable_values={
                 "id": self.storage_id,
@@ -1621,6 +1622,10 @@ class File(object):
         #        "File {} does not exist.".format(self._attrs["name"]))
 
     @property
+    def id(self):
+        return self._attrs["id"]
+
+    @property
     def name(self):
         return self._attrs["name"]
 
@@ -1677,6 +1682,21 @@ class File(object):
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path, "r")
+
+    @normalize_exceptions
+    def delete(self):
+        mutation = gql(
+            """
+        mutation deleteFiles($files: [ID!]!) {
+            deleteFiles(input: {
+                files: $files
+            }) {
+                success
+            }
+        }
+        """
+        )
+        self.client.execute(mutation, variable_values={"files": [self.id]})
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
@@ -2620,8 +2640,9 @@ class Artifact(object):
 
         return None
 
+    @normalize_exceptions
     def delete(self):
-        """Delete artifact and it's files."""
+        """Delete artifact and its files."""
         mutation = gql(
             """
         mutation deleteArtifact($id: ID!) {
