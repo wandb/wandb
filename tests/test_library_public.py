@@ -157,6 +157,7 @@ SYMBOLS_RUN = {
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",
+    "commit_code",
     "alert",
     # "summary",   # really this should be here
     # mode stuff

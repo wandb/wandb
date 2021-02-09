@@ -18,9 +18,9 @@ def fixture_open(path):
 
 def notebook_path(path):
     """Returns the path to a notebook"""
-    return os.path.abspath(os.path.join(
-        os.path.dirname(__file__), "..", "notebooks", path
-    ))
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "notebooks", path)
+    )
 
 
 def free_port():
