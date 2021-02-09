@@ -53,7 +53,7 @@ def poll(num):
             w = r.json()
             status = w["status"]
             print("Status:", status)
-            if status != "running":
+            if status not in ("running", "failing"):
                 done += 1
         if num and done == num:
             print("Finished")
