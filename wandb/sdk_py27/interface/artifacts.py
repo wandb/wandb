@@ -5,8 +5,13 @@ import codecs
 import hashlib
 import os
 
+import wandb
 from wandb import env
 from wandb import util
+from wandb.data_types import WBValue
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
 
 
 def md5_string(string):
@@ -85,6 +90,116 @@ class ArtifactManifest(object):
                 directory + "/"
             )  # entries use forward slash even for windows
         ]
+
+
+class Artifact(object):
+    @property
+    def id(self):
+        """
+        Returns:
+            (str): The artifact's ID
+        """
+        raise NotImplementedError
+
+    @property
+    def entity(self):
+        """
+        Returns:
+            (str): The name of the entity this artifact belongs to.
+        """
+        raise NotImplementedError
+
+    @property
+    def project(self):
+        """
+        Returns:
+            (str): The name of the project this artifact belongs to.
+        """
+        raise NotImplementedError
+
+    @property
+    def manifest(self):
+        """
+        Returns:
+            (ArtifactManifest): The artifact's manifest, listing all of its contents.
+                You cannot add more files to an artifact once you've retrieved its
+                manifest.
+        """
+        raise NotImplementedError
+
+    @property
+    def digest(self):
+        """
+        Returns:
+            (str): The artifact's logical digest, a checksum of its contents. If
+                an artifact has the same digest as the current `latest` version,
+                then `log_artifact` is a no-op.
+        """
+        raise NotImplementedError
+
+    def get_path(self, name):
+        """
+        Gets the path to the file located at the artifact relative `name`.
+
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact` or the API.
+
+        Arguments:
+            name: (str) The artifact relative name to get
+
+        Raises:
+            Exception: if problem
+
+        Examples:
+            Basic usage
+            ```
+            # Run logging the artifact
+            with wandb.init() as r:
+                artifact = wandb.Artifact('my_dataset', type='dataset')
+                artifact.add_file('path/to/file.txt')
+                wandb.log_artifact(artifact)
+
+            # Run using the artifact
+            with wandb.init() as r:
+                artifact = r.use_artifact('my_dataset:latest')
+                path = artifact.get_path('file.txt')
+
+                # Can now download 'file.txt' directly:
+                path.download()
+            ```
+        """
+        raise NotImplementedError
+
+    def get(self, name):
+        """
+        Gets the WBValue object located at the artifact relative `name`.
+
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact` or the API.
+
+        Arguments:
+            name: (str) The artifact relative name to get
+
+        Raises:
+            Exception: if problem
+
+        Examples:
+            Basic usage
+            ```
+            # Run logging the artifact
+            with wandb.init() as r:
+                artifact = wandb.Artifact('my_dataset', type='dataset')
+                table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+                artifact.add(table, "my_table")
+                wandb.log_artifact(artifact)
+
+            # Run using the artifact
+            with wandb.init() as r:
+                artifact = r.use_artifact('my_dataset:latest')
+                table = r.get('my_table')
+            ```
+        """
+        raise NotImplementedError
 
 
 class StorageLayout(object):

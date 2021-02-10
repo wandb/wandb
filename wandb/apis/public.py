@@ -2444,7 +2444,7 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-class Artifact(object):
+class Artifact(artifacts.Artifact):
     QUERY = gql(
         """
         query Artifact(

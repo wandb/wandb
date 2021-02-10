@@ -11,6 +11,7 @@ from six.moves.urllib.parse import urlparse, quote
 import wandb
 from wandb.compat import tempfile as compat_tempfile
 from .interface.artifacts import *
+from .interface.artifacts import Artifact as ArtifactInterface
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
@@ -34,7 +35,7 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 
-class Artifact(object):
+class Artifact(ArtifactInterface):
     """An artifact object you can write files into, and pass to log_artifact."""
 
     name: str
@@ -122,49 +123,25 @@ class Artifact(object):
 
     @property
     def id(self) -> Optional[str]:
-        """
-        Returns:
-            (str): The artifact's ID
-        """
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
 
     @property
     def entity(self) -> str:
-        """
-        Returns:
-            (str): The name of the entity this artifact belongs to.
-        """
         # TODO: querying for default entity a good idea here?
         return self._api.settings("entity") or self._api.viewer().get("entity")
 
     @property
     def project(self) -> str:
-        """
-        Returns:
-            (str): The name of the project this artifact belongs to.
-        """
         return self._api.settings("project")
 
     @property
     def manifest(self) -> ArtifactManifest:
-        """
-        Returns:
-            (ArtifactManifest): The artifact's manifest, listing all of its contents.
-                You cannot add more files to an artifact once you've retrieved its
-                manifest.
-        """
         self.finalize()
         return self._manifest
 
     @property
     def digest(self) -> str:
-        """
-        Returns:
-            (str): The artifact's logical digest, a checksum of its contents. If
-                an artifact has the same digest as the current `latest` version,
-                then `log_artifact` is a no-op.
-        """
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
@@ -182,10 +159,6 @@ class Artifact(object):
             name: (str) The name of the new file being added to the artifact.
             mode: (str, optional) The mode in which to open the new file.
 
-        Returns:
-            (file): A new file object that can be written to. Upon closing,
-                the file will be automatically added to the artifact.
-
         Examples:
             ```
             artifact = wandb.Artifact('my_data', type='dataset')
@@ -193,6 +166,10 @@ class Artifact(object):
                 f.write('hello!')
             wandb.log_artifact(artifact)
             ```
+
+        Returns:
+            (file): A new file object that can be written to. Upon closing,
+                the file will be automatically added to the artifact.
         """
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
@@ -214,10 +191,10 @@ class Artifact(object):
         Adds a local file to the artifact.
 
         Arguments:
-            local_path (str): The path to the file being added.
-            name (str, optional): The path within the artifact to use for the file being added. Defaults
+            local_path: (str) The path to the file being added.
+            name: (str, optional) The path within the artifact to use for the file being added. Defaults
                 to the basename of the file.
-            is_tmp (bool, optional): If true, then the file is renamed deterministically to avoid collisions.
+            is_tmp: (bool, optional) If true, then the file is renamed deterministically to avoid collisions.
                 (default: False)
 
         Examples:
@@ -235,7 +212,7 @@ class Artifact(object):
             Exception: if problem
 
         Returns:
-            ArtifactManifestEntry: the added entry
+            ArtifactManifestEntry: the added manifest entry
 
         """
         self._ensure_can_add()
@@ -253,13 +230,13 @@ class Artifact(object):
 
         return self._add_local_file(name, local_path, digest=digest)
 
-    def add_dir(self, local_path, name=None):
+    def add_dir(self, local_path: str, name: Optional[str] = None):
         """
         Adds a local directory to the artifact.
 
         Arguments:
-            local_path (str): The path to the directory being added.
-            name (str, optional): The path within the artifact to use for the directory being added. Defaults
+            local_path: (str) The path to the directory being added.
+            name: (str, optional) The path within the artifact to use for the directory being added. Defaults
                 to files being added under the root of the artifact.
 
         Examples:
@@ -313,7 +290,13 @@ class Artifact(object):
 
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
-    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+    def add_reference(
+        self,
+        uri: str,
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ):
         """
         Adds a reference denoted by a URI to the artifact. Unlike adding files or directories,
         references are NOT uploaded to W&B. However, artifact methods such as `download()` can
@@ -335,15 +318,21 @@ class Artifact(object):
         For any other scheme, the digest is just a hash of the URI and the size is left blank.
 
         Arguments:
-            uri (str) - The URI path of the reference to add. Can be an object returned from
+            uri: (str) The URI path of the reference to add. Can be an object returned from
                 Artifact.get_path to store a reference to another artifact's entry.
-            name (str) - The path within the artifact to place the contents of this reference
+            name: (str) The path within the artifact to place the contents of this reference
+            checksum: (bool, optional) Whether or not to checksum the resource(s) located at the
+                reference URI. Checksumming is strongly recommended as it enables automatic integrity
+                validation, however it can be disabled to speed up artifact creation. (default: True)
+            max_objects: (int, optional) The maximum number of objects to consider when adding a
+                reference that points to directory or bucket store prefix. For S3 and GCS, this limit
+                is 10,000 by default but is uncapped for other URI schemes. (default: None)
 
         Raises:
             Exception: If problem.
 
         Returns:
-            List[ArtifactManifestEntry]: The added entries.
+            List[ArtifactManifestEntry]: The added manifest entries.
 
         Examples:
             Adding an HTTP link:
@@ -390,7 +379,7 @@ class Artifact(object):
 
         return manifest_entries
 
-    def add(self, obj, name):
+    def add(self, obj: WBValue, name: str):
         """
         Adds `obj` to the artifact, where the object is a W&B histogram or
         media type.
@@ -400,8 +389,11 @@ class Artifact(object):
         ```
 
         Arguments:
-            obj (wandb.WBValue): The object to add.
-            name (str): The path within the artifact to add the object.
+            obj: (wandb.WBValue) The object to add.
+            name: (str) The path within the artifact to add the object.
+
+        Returns:
+            ArtifactManifestEntry: the added manifest entry
 
         Examples:
             Basic usage
@@ -415,10 +407,9 @@ class Artifact(object):
 
             Retrieving an object:
             ```
-            artifact = wandb.use_artifact('dataset/my_table:latest')
+            artifact = wandb.use_artifact('my_table:latest')
             table = artifact.get("my_table")
             ```
-
         """
         self._ensure_can_add()
 
@@ -456,21 +447,39 @@ class Artifact(object):
 
         return entry
 
-    def get_added_local_path_name(self, local_path):
-        """If local_path was already added to artifact, return its internal name."""
+    def get_added_local_path_name(self, local_path: str):
+        """
+        Get the artifact relative path of a file added by a local filesystem path.
+
+        Arguments:
+            local_path: (str) The local path to resolve into an artifact relative path.
+
+        Returns:
+            str: The artifact relative path.
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_dataset', type='dataset')
+            artifact.add_file('path/to/file.txt', name='artifact/path/file.txt')
+
+            # Returns `artifact/path/file.txt`:
+            name = artifact.get_added_local_path_name('path/to/file.txt')
+            ```
+        """
         entry = self._added_local_paths.get(local_path, None)
         if entry is None:
             return None
         return entry.path
 
-    def get_path(self, name):
+    def get_path(self, name: str):
         raise ValueError("Cannot load paths from an artifact before it has been saved")
 
-    def download(self):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
-
-    def get(self):
+    def get(self, name: str):
         raise ValueError("Cannot call get on an artifact before it has been saved")
+
+    def download(self, root: str = None, recursive: bool = False):
+        raise ValueError("Cannot call download on an artifact before it has been saved")
 
     def finalize(self):
         if self._final:
