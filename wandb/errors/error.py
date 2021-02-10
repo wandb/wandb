@@ -31,13 +31,13 @@ class InitError(Error):
     pass
 
 
-class InitStartError(Error):
+class InitStartError(InitError):
     """Raised when wandb.init() fails"""
 
     pass
 
 
-class InitGenericError(Error):
+class InitGenericError(InitError):
     """Raised when wandb.init() fails"""
 
     pass

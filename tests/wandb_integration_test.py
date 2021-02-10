@@ -15,6 +15,7 @@ import shutil
 from .utils import fixture_open
 import sys
 
+import wandb
 from wandb import wandb_sdk
 
 # Conditional imports of the reload function based on version
@@ -385,7 +386,7 @@ def test_init_inject_health(live_mock_server, test_settings, inject_util):
         return inject_util._inject.INJECT_DROP
 
     inject_util.install(inject_fn)
-    with pytest.raises(Exception):
+    with pytest.raises(wandb.errors.InitStartError):
         run = wandb.init()
 
 
