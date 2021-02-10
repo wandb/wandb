@@ -919,22 +919,8 @@ class Audio(BatchableMedia):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        entry = source_artifact.get_path(json_obj["path"])
-        if entry.entry.ref:
-            # for refs, convert media paths to the "original" external path
-
-            # NOTE: the Media object's sha is computed from this path, not the
-            # file contents -- this could be a problem if the remote file changes.
-
-            # If that's an issue, we might have to refactor to use the MD5 reported by
-            # the remote server.
-            print(source_artifact.get_path(json_obj["path"]).download())
-            path = entry.ref()
-        else:
-            path = entry.download()
-
         return cls(
-            path,
+            source_artifact.get_path(json_obj["path"]).download(),
             caption=json_obj["caption"],
         )
 
@@ -996,7 +982,25 @@ class Audio(BatchableMedia):
         else:
             return ["" if c is None else c for c in captions]
 
+    def resolve_ref(self):
+        if Audio.path_is_reference(self._path):
+            # this object was already created using a ref:
+            return self._path
+
+        source_artifact = self.artifact_source["artifact"]
+        return source_artifact.get_path(
+            self._path.split("./artifacts/" + source_artifact.name + "/")[-1]
+        ).ref()
+
     def __eq__(self, other):
+        if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
+            # one or more of these objects is an unresolved reference -- we'll compare
+            # their reference paths instead of their SHAs:
+            return (
+                self.resolve_ref() == other.resolve_ref()
+                and self._caption == other._caption
+            )
+
         return super(Audio, self).__eq__(other) and self._caption == other._caption
 
     def __ne__(self, other):

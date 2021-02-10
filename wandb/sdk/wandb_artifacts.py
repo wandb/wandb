@@ -794,6 +794,9 @@ class S3Handler(StorageHandler):
         return self._versioning_enabled
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -838,9 +841,6 @@ class S3Handler(StorageHandler):
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
-
-        if not local:
-            return manifest_entry.ref
 
         obj.download_file(path, ExtraArgs=extra_args)
         return path
@@ -982,6 +982,9 @@ class GCSHandler(StorageHandler):
         return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -1013,9 +1016,6 @@ class GCSHandler(StorageHandler):
                     "Digest mismatch for object %s: expected %s but found %s"
                     % (manifest_entry.ref, manifest_entry.digest, md5)
                 )
-
-        if not local:
-            return manifest_entry.ref
 
         obj.download_to_filename(path)
         return path
