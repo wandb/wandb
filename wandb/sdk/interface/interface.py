@@ -472,8 +472,9 @@ class BackendSender(object):
 
     def _communicate(self, rec, timeout=5, local=None):
         assert self._router
-        if _inject.inject_communicate(rec) == _inject.INJECT_DROP:
-            return None
+        if wandb._INJECT:
+            if _inject.inject_communicate(rec) == _inject.INJECT_DROP:
+                return None
         future = self._router.send_and_receive(rec, local=local)
         f = future.get(timeout)
         return f
