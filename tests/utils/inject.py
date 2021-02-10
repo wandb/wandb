@@ -14,9 +14,9 @@ class InjectUtil:
     def __init__(self):
         self._inject_communicate = _inject.inject_communicate
         self._inject = _inject
+        wandb._INJECT = True
 
     def install(self, fn):
-        wandb._INJECT = True
         _inject.inject_communicate = fn
 
     def cleanup(self):

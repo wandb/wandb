@@ -372,7 +372,15 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
     assert summary["val2"] == 1
 
 
-def test_init_fail_health(live_mock_server, test_settings, inject_util):
+def test_init_inject_none(live_mock_server, test_settings, inject_util):
+    """Use injection framework, but don't inject anything."""
+    run = wandb.init()
+    run.finish()
+
+
+def test_init_inject_health(live_mock_server, test_settings, inject_util):
+    """Drop health message to simulate problem starting int process."""
+
     def inject_fn(_):
         return inject_util._inject.INJECT_DROP
 
@@ -381,7 +389,9 @@ def test_init_fail_health(live_mock_server, test_settings, inject_util):
         run = wandb.init()
 
 
-def test_init_fail_interrupt(live_mock_server, test_settings, inject_util):
+def test_init_inject_interrupt(live_mock_server, test_settings, inject_util):
+    """On health check meessage, send control-c."""
+
     def inject_fn(_):
         raise KeyboardInterrupt()
 
