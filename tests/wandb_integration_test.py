@@ -372,10 +372,19 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
     assert summary["val2"] == 1
 
 
-def test_init_fail(live_mock_server, test_settings, inject_util):
+def test_init_fail_health(live_mock_server, test_settings, inject_util):
     def inject_fn(_):
         return inject_util._inject.INJECT_DROP
 
     inject_util.install(inject_fn)
     with pytest.raises(Exception):
+        run = wandb.init()
+
+
+def test_init_fail_interrupt(live_mock_server, test_settings, inject_util):
+    def inject_fn(_):
+        raise KeyboardInterrupt()
+
+    inject_util.install(inject_fn)
+    with pytest.raises(KeyboardInterrupt):
         run = wandb.init()

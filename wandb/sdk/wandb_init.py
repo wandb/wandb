@@ -41,9 +41,13 @@ if wandb.TYPE_CHECKING:
         Union,
         Sequence,
         Dict,
+        List,
+        Callable,
         Any,
         NoReturn,
     )
+
+    # from .wandb_setup import _WandbSetup
 
 logger: Optional[logging.Logger] = None  # logger configured during wandb.init()
 
@@ -67,6 +71,11 @@ def _huggingface_version():
 
 
 class _WandbInit(object):
+    backend: Optional[Backend]
+    _teardown_hooks: List[Callable[[], None]]
+    # _wl: Optional[_WandbSetup]
+    # kwargs: Optional[Dict[str, Any]]
+
     def __init__(self):
         self.kwargs = None
         self.settings = None
@@ -79,7 +88,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
 
-    def setup(self, kwargs) -> None:
+    def setup(self, kwargs: Dict[str, Any]):
         """
         Complete setup for wandb.init(). This includes parsing all arguments,
         applying them with settings and enabling logging.
@@ -328,7 +337,14 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+    def abort(self) -> None:
+        if not self.backend:
+            return
+        self.backend.abort()
+        self.backend = None
+
     def _fail(self, err_class: Type[Exception], msg: str) -> "NoReturn":
+        self.abort()
         if logger:
             logger.error(msg)
         raise err_class(msg)
@@ -420,6 +436,7 @@ class _WandbInit(object):
             stderr_fd=stderr_master_fd,
             use_redirect=use_redirect,
         )
+        self.backend = backend
         backend.server_connect()
         logger.info("backend started and connected")
         # Make sure we are logged in
@@ -430,7 +447,6 @@ class _WandbInit(object):
         monitor = interface.Monitor()
         result = backend.interface.communicate_health(monitor=monitor)
         if not result:
-            backend.abort()
             self._fail(errors.InitStartError, "Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
@@ -738,23 +754,19 @@ def init(
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
                 sentry_exc(e)
+            wi.abort()
             if not (
                 wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
             ):
                 getcaller()
-            assert logger
-            if wi.settings.problem == "fatal":
-                raise
-            if wi.settings.problem == "warn":
-                pass
-            # TODO(jhr): figure out how to make this RunDummy
             run = None
+            raise
     except errors.UsageError:
         raise
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)
-        raise e
+        raise
     except Exception as e:
         error_seen = e
         traceback.print_exc()
