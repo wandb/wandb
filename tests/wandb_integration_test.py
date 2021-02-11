@@ -399,3 +399,14 @@ def test_init_inject_interrupt(live_mock_server, test_settings, inject_util):
     inject_util.install(inject_fn)
     with pytest.raises(KeyboardInterrupt):
         run = wandb.init()
+
+
+def test_init_inject_generic(live_mock_server, test_settings, inject_util):
+    """On health check meessage, send generic Exception."""
+
+    def inject_fn(_):
+        raise Exception("This is generic")
+
+    inject_util.install(inject_fn)
+    with pytest.raises(wandb.errors.InitGenericError):
+        run = wandb.init()
