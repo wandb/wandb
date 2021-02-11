@@ -20,7 +20,7 @@ import six
 import wandb
 from wandb import errors
 from wandb import trigger
-from wandb.dummy import RunDisabled, SummaryDisabled
+from .lib import RunDisabled, SummaryDisabled
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
