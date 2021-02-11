@@ -20,7 +20,6 @@ import six
 import wandb
 from wandb import errors
 from wandb import trigger
-from wandb.dummy import RunDisabled, SummaryDisabled
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -29,6 +28,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .interface import interface
 from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
