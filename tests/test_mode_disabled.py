@@ -37,6 +37,10 @@ def test_disabled_ops():
     print(run or False)
     print(+run)
     print(-run)
+    run += 1
+    run()
+    print(run.attrib)
+    print(run["item"])
 
 
 def test_disabled_can_pickle():

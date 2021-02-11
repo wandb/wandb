@@ -6,43 +6,43 @@ class RunDisabled(str):
         object.__setattr__(self, "___dict", {})
 
     def __add__(self, other):
-        return RunDisabled()
+        return self
 
     def __sub__(self, other):
-        return RunDisabled()
+        return self
 
     def __mul__(self, other):
-        return RunDisabled()
+        return self
 
     def __truediv__(self, other):
-        return RunDisabled()
+        return self
 
     def __floordiv__(self, other):
-        return RunDisabled()
+        return self
 
     def __mod__(self, other):
-        return RunDisabled()
+        return self
 
     def __pow__(self, other, modulo=None):
-        return RunDisabled()
+        return self
 
     def __lshift__(self, other):
-        return RunDisabled()
+        return self
 
     def __rshift__(self, other):
-        return RunDisabled()
+        return self
 
     def __and__(self, other):
-        return RunDisabled()
+        return self
 
     def __xor__(self, other):
-        return RunDisabled()
+        return self
 
     def __or__(self, other):
-        return RunDisabled()
+        return self
 
     def __iadd__(self, other):
-        pass
+        return self
 
     def __isub__(self, other):
         pass
@@ -78,16 +78,16 @@ class RunDisabled(str):
         pass
 
     def __neg__(self):
-        return RunDisabled()
+        return self
 
     def __pos__(self):
-        return RunDisabled()
+        return self
 
     def __abs__(self):
-        return RunDisabled()
+        return self
 
     def __invert__(self):
-        return RunDisabled()
+        return self
 
     def __complex__(self):
         return 1 + 0j
