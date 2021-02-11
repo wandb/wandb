@@ -353,7 +353,7 @@ class _WandbInit(object):
             logger.error(msg)
         raise err_class(msg)
 
-    def _make_disabled_run(self):
+    def _make_run_disabled(self):
         drun = RunDisabled()
         drun.config = wandb.wandb_sdk.wandb_config.Config()
         drun.config.update(self.sweep_config)
@@ -393,7 +393,7 @@ class _WandbInit(object):
             )
         )
         if s._noop:
-            return self._make_disabled_run()
+            return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
