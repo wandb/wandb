@@ -1,42 +1,42 @@
-class Dummy(str):
+class RunDisabled(str):
     def __init__(self, *args, **kwargs):
         object.__setattr__(self, "___dict", {})
 
     def __add__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __sub__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __mul__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __truediv__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __floordiv__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __mod__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __pow__(self, other, modulo=None):
-        return Dummy()
+        return RunDisabled()
 
     def __lshift__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __rshift__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __and__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __xor__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __or__(self, other):
-        return Dummy()
+        return RunDisabled()
 
     def __iadd__(self, other):
         pass
@@ -75,16 +75,16 @@ class Dummy(str):
         pass
 
     def __neg__(self):
-        return Dummy()
+        return RunDisabled()
 
     def __pos__(self):
-        return Dummy()
+        return RunDisabled()
 
     def __abs__(self):
-        return Dummy()
+        return RunDisabled()
 
     def __invert__(self):
-        return Dummy()
+        return RunDisabled()
 
     def __complex__(self):
         return 1 + 0j
@@ -134,7 +134,7 @@ class Dummy(str):
             key = str(key)
             if key in d:
                 return d[key]
-        dummy = Dummy()
+        dummy = RunDisabled()
         d[key] = dummy
         return dummy
 
@@ -145,7 +145,7 @@ class Dummy(str):
         self[key] = value
 
     def __call__(self, *args, **kwargs):
-        return Dummy()
+        return RunDisabled()
 
     def __len__(self):
         return 1
@@ -172,7 +172,7 @@ class Dummy(str):
         return 1
 
 
-class DummyDict(dict):
+class SummaryDisabled(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
@@ -181,7 +181,7 @@ class DummyDict(dict):
 
     def __getitem__(self, key):
         val = dict.__getitem__(self, key)
-        if isinstance(val, dict) and not isinstance(val, DummyDict):
-            val = DummyDict(val)
+        if isinstance(val, dict) and not isinstance(val, SummaryDisabled):
+            val = SummaryDisabled(val)
             self[key] = val
         return val

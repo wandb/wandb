@@ -20,7 +20,7 @@ import six
 import wandb
 from wandb import errors
 from wandb import trigger
-from wandb.dummy import Dummy, DummyDict
+from wandb.dummy import RunDisabled, SummaryDisabled
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -41,6 +41,7 @@ if wandb.TYPE_CHECKING:
         Sequence,
         Dict,
         List,
+        Iterable,
         Callable,
         Any,
         NoReturn,
@@ -352,6 +353,33 @@ class _WandbInit(object):
             logger.error(msg)
         raise err_class(msg)
 
+    def _make_disabled_run(self):
+        drun = RunDisabled()
+        drun.config = wandb.wandb_sdk.wandb_config.Config()
+        drun.config.update(self.sweep_config)
+        drun.config.update(self.config)
+        drun.summary = SummaryDisabled()
+        drun.log = lambda data, *_, **__: drun.summary.update(data)
+        drun.finish = lambda *_, **__: module.unset_globals()
+        drun.step = 0
+        drun.resumed = False
+        drun.disabled = True
+        drun.id = shortuuid.uuid()
+        drun.name = "dummy-" + drun.id
+        drun.dir = "/"
+        module.set_global(
+            run=drun,
+            config=drun.config,
+            log=drun.log,
+            summary=drun.summary,
+            save=drun.save,
+            use_artifact=drun.use_artifact,
+            log_artifact=drun.log_artifact,
+            plot_table=drun.plot_table,
+            alert=drun.alert,
+        )
+        return drun
+
     def init(self):  # noqa: C901
         assert logger
         logger.info("calling init triggers")
@@ -365,31 +393,7 @@ class _WandbInit(object):
             )
         )
         if s._noop:
-            drun = Dummy()
-            drun.config = wandb.wandb_sdk.wandb_config.Config()
-            drun.config.update(sweep_config)
-            drun.config.update(config)
-            drun.summary = DummyDict()
-            drun.log = lambda data, *_, **__: drun.summary.update(data)
-            drun.finish = lambda *_, **__: module.unset_globals()
-            drun.step = 0
-            drun.resumed = False
-            drun.disabled = True
-            drun.id = shortuuid.uuid()
-            drun.name = "dummy-" + drun.id
-            drun.dir = "/"
-            module.set_global(
-                run=drun,
-                config=drun.config,
-                log=drun.log,
-                summary=drun.summary,
-                save=drun.save,
-                use_artifact=drun.use_artifact,
-                log_artifact=drun.log_artifact,
-                plot_table=drun.plot_table,
-                alert=drun.alert,
-            )
-            return drun
+            return self._make_disabled_run()
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -566,7 +570,7 @@ def getcaller():
 
 def init(
     job_type = None,
-    dir=None,
+    dir = None,
     config = None,
     project = None,
     entity = None,
@@ -576,18 +580,18 @@ def init(
     name = None,
     notes = None,
     magic = None,
-    config_exclude_keys=None,
-    config_include_keys=None,
+    config_exclude_keys = None,
+    config_include_keys = None,
     anonymous = None,
     mode = None,
     allow_val_change = None,
     resume = None,
     force = None,
-    tensorboard=None,  # alias for sync_tensorboard
-    sync_tensorboard=None,
-    monitor_gym=None,
-    save_code=None,
-    id=None,
+    tensorboard = None,  # alias for sync_tensorboard
+    sync_tensorboard = None,
+    monitor_gym = None,
+    save_code = None,
+    id = None,
     settings = None,
 ):
     """
@@ -773,6 +777,4 @@ def init(
             raise
         generic_error = errors.InitGenericError("Problem in wandb.init()")
         six.raise_from(generic_error, e)
-    else:
-        return run
-    return None
+    return run

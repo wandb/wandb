@@ -383,6 +383,7 @@ def test_inject_init_health(live_mock_server, test_settings, inject_util):
     """Drop health message to simulate problem starting int process."""
 
     def inject_fn(_):
+        inject_util.cleanup()
         return True
 
     inject_util.install(inject_fn)
@@ -394,6 +395,7 @@ def test_inject_init_interrupt(live_mock_server, test_settings, inject_util):
     """On health check meessage, send control-c."""
 
     def inject_fn(_):
+        inject_util.cleanup()
         raise KeyboardInterrupt()
 
     inject_util.install(inject_fn)
@@ -405,6 +407,7 @@ def test_inject_init_generic(live_mock_server, test_settings, inject_util):
     """On health check meessage, send generic Exception."""
 
     def inject_fn(_):
+        inject_util.cleanup()
         raise Exception("This is generic")
 
     inject_util.install(inject_fn)
