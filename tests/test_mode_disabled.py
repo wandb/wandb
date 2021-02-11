@@ -1,6 +1,8 @@
 """
-mode test.
+disabled mode test.
 """
+
+from __future__ import division
 
 import pytest  # type: ignore
 
@@ -14,6 +16,27 @@ def test_disabled_noop():
     run = wandb.init(mode="disabled")
     run.log(dict(this=2))
     run.finish()
+
+
+def test_disabled_ops():
+    run = wandb.init(mode="disabled")
+    print(len(run))
+    print(abs(run))
+    print(~run)
+    print(run + 10)
+    print(run - 10)
+    print(run * 10)
+    print(run / 10)
+    print(run // 10)
+    print(run % 10)
+    print(run ** 10)
+    print(run << 10)
+    print(run >> 10)
+    print(run and True)
+    print(run ^ 2)
+    print(run or False)
+    print(+run)
+    print(-run)
 
 
 def test_disabled_can_pickle():
