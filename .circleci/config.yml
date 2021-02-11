@@ -181,7 +181,7 @@ jobs:
                   shell: bash.exe
                   command: |
                       tox -vv -e << parameters.toxenv >>
-                  no_output_timeout: 15m
+                  no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
     mac:
