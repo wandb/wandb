@@ -45,37 +45,37 @@ class RunDisabled(str):
         return self
 
     def __isub__(self, other):
-        pass
+        return self
 
     def __imul__(self, other):
-        pass
+        return self
 
     def __idiv__(self, other):
-        pass
+        return self
 
     def __ifloordiv__(self, other):
-        pass
+        return self
 
     def __imod__(self, other):
-        pass
+        return self
 
     def __ipow__(self, other, modulo=None):
-        pass
+        return self
 
     def __ilshift__(self, other):
-        pass
+        return self
 
     def __irshift__(self, other):
-        pass
+        return self
 
     def __iand__(self, other):
-        pass
+        return self
 
     def __ixor__(self, other):
-        pass
+        return self
 
     def __ior__(self, other):
-        pass
+        return self
 
     def __neg__(self):
         return self

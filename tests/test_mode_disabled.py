@@ -26,21 +26,60 @@ def test_disabled_ops():
     print(run + 10)
     print(run - 10)
     print(run * 10)
-    print(run / 10)
+    print(run / 1.2)
     print(run // 10)
     print(run % 10)
     print(run ** 10)
     print(run << 10)
     print(run >> 10)
-    print(run and True)
+    print(run & 2)
     print(run ^ 2)
-    print(run or False)
+    print(run | 2)
     print(+run)
     print(-run)
     run += 1
+    run -= 1
+    run *= 1
+    run /= 1.2
+    run //= 1
+    run **= 1
+    run <<= 1
+    run >>= 1
+    run |= 1
+    run %= 1
+    run ^= 1
+    run &= 1
     run()
     print(run.attrib)
     print(run["item"])
+    run["3"] = 3
+    print(run["3"])
+    print(run[3])
+    print(int(run))
+    print(float(run))
+    print(run < 2)
+    print(run <= 2)
+    print(run == 2)
+    print(run > 2)
+    print(run >= 2)
+    print(run != 2)
+    print(run)
+    print(str(run))
+    print(repr(run))
+    if run:
+        print(run)
+    print(bool(run))
+
+
+def test_disabled_summary():
+    run = wandb.init(mode="disabled")
+    run.summary["cat"] = 2
+    run.summary["nested"] = dict(level=3)
+    print(run.summary["cat"])
+    print(run.summary.cat)
+    with pytest.raises(KeyError):
+        print(run.summary["dog"])
+    run.summary["nested"]["level"] = 3
 
 
 def test_disabled_can_pickle():
