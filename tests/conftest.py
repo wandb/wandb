@@ -28,10 +28,12 @@ from six.moves import urllib
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
+    from wandb.sdk.lib import _inject
     from wandb.sdk.lib.module import unset_globals
     from wandb.sdk.lib.git import GitRepo
     from wandb.sdk.interface.interface import BackendSender
 else:
+    from wandb.sdk_py27.lib import _inject
     from wandb.sdk_py27.lib.module import unset_globals
     from wandb.sdk_py27.lib.git import GitRepo
     from wandb.sdk_py27.interface.interface import BackendSender
@@ -477,6 +479,6 @@ def log_debug(caplog):
 
 @pytest.fixture
 def inject_util():
-    iu = utils.InjectUtil()
+    iu = _inject.InjectUtil()
     yield iu
     iu.cleanup()

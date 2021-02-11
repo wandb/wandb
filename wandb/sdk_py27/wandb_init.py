@@ -14,7 +14,6 @@ import os
 import platform
 import sys
 import time
-import traceback
 
 import shortuuid  # type: ignore
 import six
@@ -340,7 +339,11 @@ class _WandbInit(object):
     def abort(self):
         if not self.backend:
             return
-        self.backend.abort()
+        try:
+            self.backend.abort()
+        except Exception as e:
+            if logger:
+                logger.warning("problem aborting", exc_info=e)
         self.backend = None
 
     def _fail(self, err_class, msg):
@@ -555,8 +558,10 @@ class _WandbInit(object):
 def getcaller():
     # py2 doesnt have stack_info
     # src, line, func, stack = logger.findCaller(stack_info=True)
-    src, line, func = logger.findCaller()[:3]
-    print("Problem at:", src, line, func)
+    # src, line, func = logger.findCaller()[:3]
+    # print("Problem at:", src, line, func)
+    # traceback.print_exc()
+    pass
 
 
 def init(
@@ -742,47 +747,32 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
-    error_seen = None
-    except_exit = None
+
+    wi = _WandbInit()
+    wi.setup(kwargs)
     try:
-        wi = _WandbInit()
-        wi.setup(kwargs)
-        except_exit = wi.settings._except_exit
-        try:
-            run = wi.init()
-            except_exit = wi.settings._except_exit
-        except (KeyboardInterrupt, Exception) as e:
-            if not isinstance(e, KeyboardInterrupt):
-                sentry_exc(e)
-            wi.abort()
-            if not (
-                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
-            ):
-                getcaller()
-            run = None
-            raise
-    except errors.UsageError:
-        raise
+        run = wi.init()
     except KeyboardInterrupt as e:
-        assert logger
-        logger.warning("interrupted", exc_info=e)
+        if logger:
+            logger.warning("interrupted", exc_info=e)
+        wi.abort()
+        raise
+    except errors.UsageError as e:
+        if logger:
+            logger.warning("usage", exc_info=e)
+        wi.abort()
         raise
     except Exception as e:
-        error_seen = e
-        traceback.print_exc()
-        assert logger
-        logger.error("error", exc_info=e)
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
+        if logger:
+            logger.error("error", exc_info=e)
         sentry_exc(e, delay=True)
-        # reraise(*sys.exc_info())
-        # six.raise_from(Exception("problem"), e)
-    finally:
-        if error_seen:
-            wandb.termerror("Abnormal program exit")
-            if isinstance(error_seen, errors.InitError):
-                six.raise_from(error_seen, error_seen)
-            six.raise_from(
-                errors.InitGenericError("Problem in wandb.init()"), error_seen
-            )
-    return run
+        wi.abort()
+        getcaller()
+        wandb.termerror("Abnormal program exit")
+        if isinstance(e, errors.InitError):
+            raise
+        generic_error = errors.InitGenericError("Problem in wandb.init()")
+        six.raise_from(generic_error, e)
+    else:
+        return run
+    return None
