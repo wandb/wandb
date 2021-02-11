@@ -413,3 +413,14 @@ def test_inject_init_generic(live_mock_server, test_settings, inject_util):
     inject_util.install(inject_fn)
     with pytest.raises(wandb.errors.InitGenericError):
         run = wandb.init()
+
+
+def test_inject_init_abort_fail(live_mock_server, test_settings, inject_util):
+    """On health check meessage, send generic Exception. abort fail too."""
+
+    def inject_fn(_):
+        raise Exception("This is generic")
+
+    inject_util.install(inject_fn)
+    with pytest.raises(wandb.errors.InitGenericError):
+        run = wandb.init()
