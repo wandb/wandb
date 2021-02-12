@@ -2510,9 +2510,9 @@ class Artifact(artifacts.Artifact):
 
     def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
-        self.entity = entity
-        self.project = project
-        self.artifact_name = name
+        self._entity = entity
+        self._project = project
+        self._artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -2534,6 +2534,14 @@ class Artifact(artifacts.Artifact):
     @property
     def id(self) -> str:
         return self._attrs["id"]
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def project(self):
+        return self._project
 
     @property
     def metadata(self) -> dict:
@@ -2825,7 +2833,7 @@ class Artifact(artifacts.Artifact):
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self.artifact_name, size / (1024 * 1024), nfiles),
+                % (self._artifact_name, size / (1024 * 1024), nfiles),
                 newline=False,
             )
         start_time = time.time()
@@ -2982,13 +2990,13 @@ class Artifact(artifacts.Artifact):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
         except Exception:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
-            if ":" not in self.artifact_name and len(self.artifact_name) != 32:
+            if ":" not in self._artifact_name and len(self._artifact_name) != 32:
                 raise ValueError(
                     'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
                 )
@@ -2999,7 +3007,7 @@ class Artifact(artifacts.Artifact):
         ):
             raise ValueError(
                 'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self.artifact_name)
+                % (self.entity, self.project, self._artifact_name)
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -3036,7 +3044,7 @@ class Artifact(artifacts.Artifact):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
 

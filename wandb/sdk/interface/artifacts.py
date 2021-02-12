@@ -102,12 +102,10 @@ class Artifact(object):
 
     def metadata(self) -> dict:
         """
-        Arguments:
-            metadata: (dict) Structured data associated with the artifact,
+        Returns:
+            (dict): Structured data associated with the artifact,
                 for example class distribution of a dataset. This will eventually be queryable
                 and plottable in the UI. There is a hard limit of 100 total keys.
-        Returns:
-            (dict): Structured data associated with the artifact.
         """
         raise NotImplementedError
 

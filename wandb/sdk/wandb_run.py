@@ -2049,7 +2049,7 @@ class Run(object):
         self,
         title: str,
         text: str,
-        level: Union[str, wandb.AlertLevel, None] = None,
+        level: Union[str, None] = None,
         wait_duration: Union[int, float, timedelta, None] = None,
     ) -> None:
         """Launch an alert with the given title and text.

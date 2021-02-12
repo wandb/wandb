@@ -167,6 +167,14 @@ class Artifact(ArtifactInterface):
         return self._name
 
     @property
+    def state(self) -> str:
+        return "PENDING"
+
+    @property
+    def size(self) -> int:
+        return sum([entry.size for entry in self._manifest.entries])
+
+    @property
     def distributed_id(self) -> str:
         return self._distributed_id
 
