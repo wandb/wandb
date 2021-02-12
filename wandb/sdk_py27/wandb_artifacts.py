@@ -237,8 +237,8 @@ class Artifact(object):
 
         # If the object is coming from another artifact, save it as a reference
         if obj.artifact_source is not None:
-            ref_path = obj.artifact_source["artifact"].get_path(
-                type(obj).with_suffix(obj.artifact_source["name"])
+            ref_path = obj.artifact_source.artifact.get_path(
+                type(obj).with_suffix(obj.artifact_source.name)
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 

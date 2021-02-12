@@ -20,7 +20,6 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -29,6 +28,7 @@ from wandb.util import sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
@@ -319,6 +319,33 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+    def _make_run_disabled(self):
+        drun = RunDisabled()
+        drun.config = wandb.wandb_sdk.wandb_config.Config()
+        drun.config.update(self.sweep_config)
+        drun.config.update(self.config)
+        drun.summary = SummaryDisabled()
+        drun.log = lambda data, *_, **__: drun.summary.update(data)
+        drun.finish = lambda *_, **__: module.unset_globals()
+        drun.step = 0
+        drun.resumed = False
+        drun.disabled = True
+        drun.id = shortuuid.uuid()
+        drun.name = "dummy-" + drun.id
+        drun.dir = "/"
+        module.set_global(
+            run=drun,
+            config=drun.config,
+            log=drun.log,
+            summary=drun.summary,
+            save=drun.save,
+            use_artifact=drun.use_artifact,
+            log_artifact=drun.log_artifact,
+            plot_table=drun.plot_table,
+            alert=drun.alert,
+        )
+        return drun
+
     def init(self):  # noqa: C901
         assert logger
         logger.info("calling init triggers")
@@ -332,31 +359,7 @@ class _WandbInit(object):
             )
         )
         if s._noop:
-            drun = Dummy()
-            drun.config = wandb.wandb_sdk.wandb_config.Config()
-            drun.config.update(sweep_config)
-            drun.config.update(config)
-            drun.summary = DummyDict()
-            drun.log = lambda data, *_, **__: drun.summary.update(data)
-            drun.finish = lambda *_, **__: module.unset_globals()
-            drun.step = 0
-            drun.resumed = False
-            drun.disabled = True
-            drun.id = shortuuid.uuid()
-            drun.name = "dummy-" + drun.id
-            drun.dir = "/"
-            module.set_global(
-                run=drun,
-                config=drun.config,
-                log=drun.log,
-                summary=drun.summary,
-                save=drun.save,
-                use_artifact=drun.use_artifact,
-                log_artifact=drun.log_artifact,
-                plot_table=drun.plot_table,
-                alert=drun.alert,
-            )
-            return drun
+            return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
