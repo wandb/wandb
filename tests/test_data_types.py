@@ -62,6 +62,14 @@ def test_wb_value(live_mock_server, test_settings):
     assert wbvalue != data_types.WBValue()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="fastparqet not for py2")
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="numpy not in py3.9 yet")
+def test_wb_summary_df(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
+    run.summary.update({"data-frame-summary": data_frame})
+
+
 def test_raw_data():
     wbhist = wandb.Histogram(data)
     assert len(wbhist.histogram) == 64
