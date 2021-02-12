@@ -2,7 +2,7 @@ import os
 import platform
 import pytest
 import sys
-from wandb import jupyter
+import wandb
 
 pytestmark = pytest.mark.skipif(
     sys.version_info < (3, 5) or platform.system() == "Windows",
@@ -54,7 +54,7 @@ def test_notebook_metadata_jupyter(mocker, mocked_module, live_mock_server):
     serverapp.list_running_servers.return_value = [
         {"url": live_mock_server.base_url, "notebook_dir": "/test"}
     ]
-    meta = jupyter.notebook_metadata(False)
+    meta = wandb.jupyter.notebook_metadata(False)
     assert meta == {"path": "test.ipynb", "root": "/test", "name": "test.ipynb"}
 
 
@@ -63,7 +63,7 @@ def test_notebook_metadata_no_servers(mocker, mocked_module):
     ipyconnect.get_connection_file.return_value = "kernel-12345.json"
     serverapp = mocked_module("jupyter_server.serverapp")
     serverapp.list_running_servers.return_value = []
-    meta = jupyter.notebook_metadata(False)
+    meta = wandb.jupyter.notebook_metadata(False)
     assert meta == {}
 
 
@@ -72,7 +72,7 @@ def test_notebook_metadata_colab(mocked_module):
     colab._message.blocking_request.return_value = {
         "ipynb": {"metadata": {"colab": {"name": "colab.ipynb"}}}
     }
-    meta = jupyter.notebook_metadata(False)
+    meta = wandb.jupyter.notebook_metadata(False)
     assert meta == {
         "root": "/content",
         "path": "colab.ipynb",
@@ -88,7 +88,7 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
         "metadata": {"name": "kaggle.ipynb"}
     }
     kaggle.UserSessionClient.return_value = kaggle_client
-    meta = jupyter.notebook_metadata(False)
+    meta = wandb.jupyter.notebook_metadata(False)
     assert meta == {
         "root": "/kaggle/working",
         "path": "kaggle.ipynb",

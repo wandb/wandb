@@ -354,6 +354,7 @@ def notebook(live_mock_server, test_dir):
 @pytest.fixture
 def mocked_module(monkeypatch):
     """This allows us to mock modules loaded via wandb.util.get_module"""
+
     def mock_get_module(module):
         orig_get_module = wandb.util.get_module
         mocked_module = MagicMock()
@@ -363,8 +364,10 @@ def mocked_module(monkeypatch):
                 return mocked_module
             else:
                 return orig_get_module(mod)
+
         monkeypatch.setattr(wandb.util, "get_module", get_module)
         return mocked_module
+
     return mock_get_module
 
 

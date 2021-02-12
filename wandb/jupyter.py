@@ -1,5 +1,4 @@
 from base64 import b64encode
-import glob
 import json
 import logging
 import os

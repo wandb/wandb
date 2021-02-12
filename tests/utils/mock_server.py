@@ -787,15 +787,14 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/api/sessions")
     def jupyter_sessions():
-        return json.dumps([
-            {
-                "kernel": {"id": "12345"},
-                "notebook": {
-                    "path": "test.ipynb",
-                    "name": "test.ipynb"
+        return json.dumps(
+            [
+                {
+                    "kernel": {"id": "12345"},
+                    "notebook": {"path": "test.ipynb", "name": "test.ipynb"},
                 }
-            }
-        ])
+            ]
+        )
 
     @app.route("/pypi/<library>/json")
     def pypi(library):
