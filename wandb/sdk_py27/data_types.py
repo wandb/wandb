@@ -1999,11 +1999,13 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
+        assert run
         assert namespace == "summary", "We don't yet support DataFrames in History."
         return _data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
+        assert run
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)
@@ -2031,6 +2033,7 @@ def val_to_json(
             return [val_to_json(run, key, v, namespace=namespace) for v in val]
 
     if isinstance(val, WBValue):
+        assert run
         if isinstance(val, Media) and not val.is_bound():
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
