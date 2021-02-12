@@ -20,7 +20,6 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -29,6 +28,7 @@ from wandb.util import sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
@@ -211,8 +211,9 @@ class _WandbInit(object):
         logger.addHandler(handler)
         # TODO: make me configurable
         logger.setLevel(logging.DEBUG)
-        # TODO: we may need to close the handler as well...
-        self._teardown_hooks.append(lambda: logger.removeHandler(handler))
+        self._teardown_hooks.append(
+            lambda: (handler.close(), logger.removeHandler(handler))
+        )
 
     def _safe_symlink(self, base, target, name, delete=False):
         # TODO(jhr): do this with relpaths, but i cant figure it out on no sleep
@@ -318,37 +319,47 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def init(self) -> Union[Run, Dummy, None]:  # noqa: C901
+    def _make_run_disabled(self) -> RunDisabled:
+        drun = RunDisabled()
+        drun.config = wandb.wandb_sdk.wandb_config.Config()
+        drun.config.update(self.sweep_config)
+        drun.config.update(self.config)
+        drun.summary = SummaryDisabled()
+        drun.log = lambda data, *_, **__: drun.summary.update(data)
+        drun.finish = lambda *_, **__: module.unset_globals()
+        drun.step = 0
+        drun.resumed = False
+        drun.disabled = True
+        drun.id = shortuuid.uuid()
+        drun.name = "dummy-" + drun.id
+        drun.dir = "/"
+        module.set_global(
+            run=drun,
+            config=drun.config,
+            log=drun.log,
+            summary=drun.summary,
+            save=drun.save,
+            use_artifact=drun.use_artifact,
+            log_artifact=drun.log_artifact,
+            plot_table=drun.plot_table,
+            alert=drun.alert,
+        )
+        return drun
+
+    def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
+        assert logger
+        logger.info("calling init triggers")
         trigger.call("on_init", **self.kwargs)
         s = self.settings
         sweep_config = self.sweep_config
         config = self.config
-        if s._noop:
-            drun = Dummy()
-            drun.config = wandb.wandb_sdk.wandb_config.Config()
-            drun.config.update(sweep_config)
-            drun.config.update(config)
-            drun.summary = DummyDict()
-            drun.log = lambda data, *_, **__: drun.summary.update(data)
-            drun.finish = lambda *_, **__: module.unset_globals()
-            drun.step = 0
-            drun.resumed = False
-            drun.disabled = True
-            drun.id = shortuuid.uuid()
-            drun.name = "dummy-" + drun.id
-            drun.dir = "/"
-            module.set_global(
-                run=drun,
-                config=drun.config,
-                log=drun.log,
-                summary=drun.summary,
-                save=drun.save,
-                use_artifact=drun.use_artifact,
-                log_artifact=drun.log_artifact,
-                plot_table=drun.plot_table,
-                alert=drun.alert,
+        logger.info(
+            "wandb.init called with sweep_config: {}\nconfig: {}".format(
+                sweep_config, config
             )
-            return drun
+        )
+        if s._noop:
+            return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -357,6 +368,11 @@ class _WandbInit(object):
                     )
 
                 last_id = self._wl._global_run_stack[-1]._run_id
+                logger.info(
+                    "re-initializing run, found existing run on stack: {}".format(
+                        last_id
+                    )
+                )
                 jupyter = (
                     s._jupyter
                     and not s._silent
@@ -385,6 +401,7 @@ class _WandbInit(object):
         stdout_master_fd, stderr_master_fd = None, None
         stdout_slave_fd, stderr_slave_fd = None, None
 
+        logger.info("starting backend")
         backend = Backend()
         backend.ensure_launched(
             settings=s,
@@ -393,6 +410,7 @@ class _WandbInit(object):
             use_redirect=use_redirect,
         )
         backend.server_connect()
+        logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
@@ -415,6 +433,7 @@ class _WandbInit(object):
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
+        logger.info("updated telemetry")
         run._set_console(
             use_redirect=use_redirect,
             stdout_slave_fd=stdout_slave_fd,
@@ -437,10 +456,12 @@ class _WandbInit(object):
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
         else:
+            logger.info("communicating current version")
             ret = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
             if ret:
+                logger.info("got version response {}".format(ret))
                 if ret.upgrade_message:
                     run._set_upgraded_version_message(ret.upgrade_message)
                 if ret.delete_message:
@@ -448,25 +469,33 @@ class _WandbInit(object):
                 if ret.yank_message:
                     run._set_yanked_version_message(ret.yank_message)
             run._on_init()
+            logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
             if not ret:
-                error_message = "Error communicating with backend"
+                logger.error("backend process timed out")
+                error_message = "Error communicating with wandb process"
+                if self.settings.start_method != "fork":
+                    error_message += ", try setting WANDB_START_METHOD=fork"
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
+                logger.error("encountered error: {}".format(error_message))
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
             if ret.run.resumed:
+                logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
                     tel.feature.resumed = True
             run._set_run_obj(ret.run)
 
+        logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
-        _ = backend.interface.communicate_run_start()
+        run_obj = run._run_obj or run._run_obj_offline
+        _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
         self.run = run
@@ -486,6 +515,7 @@ class _WandbInit(object):
         run._on_start()
 
         run._freeze()
+        logger.info("run started, returning control to user process")
         return run
 
 
@@ -521,7 +551,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, Dummy, None]:
+) -> Union[Run, RunDisabled, None]:
     """
     Start a new tracked run with `wandb.init()`.
 

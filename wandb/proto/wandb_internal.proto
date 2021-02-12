@@ -154,8 +154,13 @@ message SettingsItem {
 /*
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
+message HistoryStep {
+  int64 num = 1;
+}
+
 message HistoryRecord {
   repeated HistoryItem item = 1;
+  HistoryStep step = 2;
 }
 
 message HistoryItem {
@@ -268,6 +273,8 @@ message ArtifactRecord {
   bool                          use_after_commit = 10;
   repeated string               aliases = 11;
   ArtifactManifest              manifest = 12;
+  string                        distributed_id=13;
+  bool                          finalize=14;
 }
 
 message ArtifactManifest {

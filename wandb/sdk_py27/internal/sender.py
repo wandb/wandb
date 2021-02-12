@@ -709,6 +709,17 @@ class SendManager(object):
             is_user_created=artifact.user_created,
         )
 
+        if artifact.distributed_id:
+            max_cli_version = self._max_cli_version()
+            if max_cli_version is None or parse_version(
+                max_cli_version
+            ) < parse_version("0.10.16"):
+                logger.warning(
+                    "This W&B server doesn't support distributed artifacts, "
+                    "have your administrator install wandb/local >= 0.9.37"
+                )
+                return
+
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         try:
             saver.save(
@@ -718,6 +729,8 @@ class SendManager(object):
                 description=artifact.description,
                 aliases=artifact.aliases,
                 use_after_commit=artifact.use_after_commit,
+                distributed_id=artifact.distributed_id,
+                finalize=artifact.finalize,
             )
         except Exception as e:
             logger.error(
@@ -728,10 +741,7 @@ class SendManager(object):
 
     def send_alert(self, data):
         alert = data.alert
-        _, server_info = self._api.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
+        max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
         ):
@@ -766,3 +776,10 @@ class SendManager(object):
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+
+    def _max_cli_version(self):
+        _, server_info = self._api.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        return max_cli_version

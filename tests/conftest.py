@@ -1,12 +1,17 @@
+from __future__ import print_function
+
 import pytest
 import time
 import datetime
 import requests
 import os
 import sys
+import logging
 import shutil
 from contextlib import contextmanager
 from tests import utils
+from six.moves import queue
+from wandb import wandb_sdk
 
 # from multiprocessing import Process
 import subprocess
@@ -25,9 +30,13 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     from wandb.sdk.lib.module import unset_globals
     from wandb.sdk.lib.git import GitRepo
+    from wandb.sdk.interface.interface import BackendSender
 else:
     from wandb.sdk_py27.lib.module import unset_globals
     from wandb.sdk_py27.lib.git import GitRepo
+    from wandb.sdk_py27.interface.interface import BackendSender
+
+from wandb.proto import wandb_internal_pb2
 
 try:
     import nbformat
@@ -399,3 +408,68 @@ def disable_console():
     os.environ["WANDB_CONSOLE"] = "off"
     yield
     del os.environ["WANDB_CONSOLE"]
+
+
+@pytest.fixture()
+def parse_ctx():
+    """Fixture providing class to parse context data."""
+
+    def parse_ctx_fn(ctx):
+        return utils.ParseCTX(ctx)
+
+    yield parse_ctx_fn
+
+
+@pytest.fixture()
+def record_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def fake_interface(record_q):
+    return BackendSender(record_q=record_q)
+
+
+@pytest.fixture
+def fake_backend(fake_interface):
+    class FakeBackend:
+        def __init__(self):
+            self.interface = fake_interface
+
+    yield FakeBackend()
+
+
+@pytest.fixture
+def fake_run(fake_backend):
+    def run_fn():
+        s = wandb.Settings()
+        run = wandb_sdk.wandb_run.Run(settings=s)
+        run._set_backend(fake_backend)
+        return run
+
+    yield run_fn
+
+
+@pytest.fixture
+def records_util():
+    def records_fn(q):
+        ru = utils.RecordsUtil(q)
+        return ru
+
+    yield records_fn
+
+
+# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+# def pytest_runtest_makereport(item, call):
+#     outcome = yield
+#     rep = outcome.get_result()
+#     if rep.when == "call" and rep.failed:
+#         print("DEBUG PYTEST", rep, item, call, outcome)
+
+
+@pytest.fixture
+def log_debug(caplog):
+    caplog.set_level(logging.DEBUG)
+    yield
+    # for rec in caplog.records:
+    #     print("LOGGER", rec.message, file=sys.stderr)

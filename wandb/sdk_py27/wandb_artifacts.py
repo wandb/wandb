@@ -8,6 +8,7 @@ import requests
 
 from six.moves.urllib.parse import urlparse, quote
 
+import wandb
 from wandb.compat import tempfile as compat_tempfile
 from .interface.artifacts import *
 from wandb.apis import InternalApi, PublicApi
@@ -16,6 +17,9 @@ from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -32,6 +36,10 @@ _REQUEST_POOL_MAXSIZE = 64
 
 class Artifact(object):
     """An artifact object you can write files into, and pass to log_artifact."""
+
+    # name: str
+    # description: Optional[str]
+    # distributed_id: Optional[str]
 
     def __init__(self, name, type, description=None, metadata=None):
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
@@ -67,6 +75,7 @@ class Artifact(object):
         self.name = name
         self.description = description
         self.metadata = metadata
+        self.distributed_id = None
 
     @property
     def id(self):
@@ -107,7 +116,7 @@ class Artifact(object):
             )
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with open(path, mode) as f:
+        with util.fsync_open(path, mode) as f:
             yield f
 
         self.add_file(path, name=name)
@@ -228,8 +237,8 @@ class Artifact(object):
 
         # If the object is coming from another artifact, save it as a reference
         if obj.artifact_source is not None:
-            ref_path = obj.artifact_source["artifact"].get_path(
-                type(obj).with_suffix(obj.artifact_source["name"])
+            ref_path = obj.artifact_source.artifact.get_path(
+                type(obj).with_suffix(obj.artifact_source.name)
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
@@ -454,7 +463,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
@@ -489,7 +498,9 @@ class WandbStoragePolicy(StoragePolicy):
         else:
             raise Exception("unrecognized storage layout: {}".format(storage_layout))
 
-    def store_file(self, artifact_id, entry, preparer, progress_callback=None):
+    def store_file(
+        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
+    ):
         # write-through cache
         cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
         if not hit:
@@ -498,6 +509,7 @@ class WandbStoragePolicy(StoragePolicy):
         resp = preparer.prepare(
             lambda: {
                 "artifactID": artifact_id,
+                "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
@@ -1106,7 +1118,7 @@ class HTTPHandler(StorageHandler):
                 % (manifest_entry.ref, manifest_entry.digest, digest)
             )
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
