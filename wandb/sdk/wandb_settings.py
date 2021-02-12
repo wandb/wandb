@@ -227,6 +227,7 @@ class Settings(object):
     email: Optional[str] = None
     save_code: Optional[bool] = None
     program_relpath: Optional[str] = None
+    host: Optional[str]
 
     # Public attributes
     entity: Optional[str] = None
