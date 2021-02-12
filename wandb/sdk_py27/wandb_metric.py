@@ -26,7 +26,12 @@ class Metric(object):
     # _metric: Union[str, Sequence[str]]
     # _metric_value: MetricValue
 
-    def __init__(self, metric):
+    def __init__(
+        self,
+        metric,
+        x_axis = None,
+        auto = None,
+    ):
         self._metric = metric
         self._metric_value = MetricValue()
         self._callback = None
@@ -50,6 +55,9 @@ class Metric(object):
 
         # Keep track of metric locally
         self._metric_value.MergeFrom(metric_value)
+
+    def _commit(self):
+        pass
 
     def set_default_xaxis(self):
         mv = MetricValue()

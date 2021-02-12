@@ -1718,7 +1718,7 @@ class Run(object):
         else:
             wandb.termlog("Run history:")
             history_lines = ""
-            format_str = u"  {:>%s} {}\n" % max_len
+            format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
@@ -1775,9 +1775,17 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def define_metric(self, metric: str) -> wandb_metric.Metric:
-        m = wandb_metric.Metric(metric=metric)
+    def define_metric(
+        self,
+        metric: str,
+        x_axis: Union[str, wandb_metric.Metric, None] = None,
+        auto: bool = None,
+        **kwargs: Any,
+    ) -> wandb_metric.Metric:
+        # TODO(jhr): warn kwargs
+        m = wandb_metric.Metric(metric=metric, x_axis=x_axis, auto=auto)
         m._set_callback(self._metric_callback)
+        m._commit()
         return m
 
     # TODO(jhr): annotate this
