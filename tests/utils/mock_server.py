@@ -785,6 +785,18 @@ index 30d74d2..9a2c773 100644
         else:
             return b"", 500
 
+    @app.route("/api/sessions")
+    def jupyter_sessions():
+        return json.dumps([
+            {
+                "kernel": {"id": "12345"},
+                "notebook": {
+                    "path": "test.ipynb",
+                    "name": "test.ipynb"
+                }
+            }
+        ])
+
     @app.route("/pypi/<library>/json")
     def pypi(library):
         version = getattr(wandb, "__hack_pypi_latest_version__", wandb.__version__)

@@ -351,6 +351,23 @@ def notebook(live_mock_server, test_dir):
     return notebook_loader
 
 
+@pytest.fixture
+def mocked_module(monkeypatch):
+    """This allows us to mock modules loaded via wandb.util.get_module"""
+    def mock_get_module(module):
+        orig_get_module = wandb.util.get_module
+        mocked_module = MagicMock()
+
+        def get_module(mod):
+            if mod == module:
+                return mocked_module
+            else:
+                return orig_get_module(mod)
+        monkeypatch.setattr(wandb.util, "get_module", get_module)
+        return mocked_module
+    return mock_get_module
+
+
 def default_wandb_args():
     """This allows us to parameterize the wandb_init_run fixture
     The most general arg is "env", you can call:

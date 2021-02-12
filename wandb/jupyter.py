@@ -116,7 +116,7 @@ def notebook_metadata(silent):
 
         servers, kernel_id = jupyter_servers_and_kernel_id()
         for s in servers:
-            if s["password"]:
+            if s.get("password"):
                 raise ValueError("Can't query password protected kernel")
             res = requests.get(
                 urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
@@ -144,29 +144,6 @@ def notebook_metadata(silent):
         if not silent:
             logger.error(error_message)
         return {}
-
-
-def best_guess_notebook_metadata():
-    """This is our last ditch effort to find the notebook.  We look for all ipynb
-    files in the current directory sorted by modified time, and choose the first
-    notebook with `wandb` in the source.
-
-    Raises:
-        ValueError if no notebooks found
-
-    Returns:
-        notebook metadata with root, path, and name keys
-    """
-    files = list(filter(os.path.isfile, glob.glob("*.ipynb")))
-    files.sort(key=lambda x: -os.path.getmtime(x))
-    for file in files:
-        with open(file) as f:
-            for cell in json.load(f)["cells"]:
-                if cell["cell_type"] == "code":
-                    for source in cell["source"]:
-                        if "wandb" in source:
-                            return {"root": os.getcwd(), "path": file, "name": file}
-    raise ValueError("No notebooks found")
 
 
 def jupyter_servers_and_kernel_id():
