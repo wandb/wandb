@@ -62,6 +62,9 @@ def test_wb_value(live_mock_server, test_settings):
     assert wbvalue != data_types.WBValue()
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="numpy doesn't support py3.9 yet"
+)
 def test_wb_summary_df(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
