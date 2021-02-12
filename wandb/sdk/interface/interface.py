@@ -406,15 +406,15 @@ class BackendSender(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def _make_login(self, api_key: str = None) -> pb.LoginRequest:
-        login = pb.LoginRequest()
-        if api_key:
-            login.api_key = api_key
-        return login
+    # def _make_login(self, api_key: str = None) -> pb.LoginRequest:
+    #     login = pb.LoginRequest()
+    #     if api_key:
+    #         login.api_key = api_key
+    #     return login
 
     def _make_request(
         self,
-        login: pb.LoginRequest = None,
+        # login: pb.LoginRequest = None,
         get_summary: pb.GetSummaryRequest = None,
         pause: pb.PauseRequest = None,
         resume: pb.ResumeRequest = None,
@@ -426,10 +426,10 @@ class BackendSender(object):
         defer: pb.DeferRequest = None,
     ) -> pb.Record:
         request = pb.Request()
-        if login:
-            request.login.CopyFrom(login)
-        elif get_summary:
+        if get_summary:
             request.get_summary.CopyFrom(get_summary)
+        # elif login:
+        #     request.login.CopyFrom(login)
         elif pause:
             request.pause.CopyFrom(pause)
         elif resume:
@@ -522,20 +522,20 @@ class BackendSender(object):
         f = future.get(timeout)
         return f
 
-    def communicate_login(
-        self, api_key: str = None, timeout: Optional[int] = 15
-    ) -> pb.LoginResponse:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        result = self._communicate(rec, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
-            )
-        login_response = result.response.login_response
-        assert login_response
-        return login_response
+    # def communicate_login(
+    #     self, api_key: str = None, timeout: Optional[int] = 15
+    # ) -> pb.LoginResponse:
+    #     login = self._make_login(api_key)
+    #     rec = self._make_request(login=login)
+    #     result = self._communicate(rec, timeout=timeout)
+    #     if result is None:
+    #         # TODO: friendlier error message here
+    #         raise wandb.Error(
+    #             "Couldn't communicate with backend after %s seconds" % timeout
+    #         )
+    #     login_response = result.response.login_response
+    #     assert login_response
+    #     return login_response
 
     def _publish_defer(self, state: "pb.DeferRequest.DeferStateValue") -> None:
         defer = pb.DeferRequest(state=state)
@@ -560,10 +560,10 @@ class BackendSender(object):
         rec = self._make_record(final=final)
         self._publish(rec)
 
-    def publish_login(self, api_key: str = None) -> None:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        self._publish(rec)
+    # def publish_login(self, api_key: str = None) -> None:
+    #     login = self._make_login(api_key)
+    #     rec = self._make_request(login=login)
+    #     self._publish(rec)
 
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
