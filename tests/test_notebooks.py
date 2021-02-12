@@ -47,6 +47,14 @@ def test_code_saving(notebook, live_mock_server):
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
 
 
+def test_notebook_not_exists(mocked_ipython, live_mock_server, capsys, test_settings):
+    os.environ["WANDB_NOTEBOOK_NAME"] = "fake.ipynb"
+    wandb.init(settings=test_settings)
+    _, err = capsys.readouterr()
+    assert "WANDB_NOTEBOOK_NAME should be a path" in err
+    del os.environ["WANDB_NOTEBOOK_NAME"]
+
+
 def test_notebook_metadata_jupyter(mocker, mocked_module, live_mock_server):
     ipyconnect = mocker.patch("ipykernel.connect")
     ipyconnect.get_connection_file.return_value = "kernel-12345.json"

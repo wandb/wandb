@@ -371,6 +371,17 @@ def mocked_module(monkeypatch):
     return mock_get_module
 
 
+@pytest.fixture
+def mocked_ipython(monkeypatch):
+    monkeypatch.setattr(wandb.wandb_sdk.wandb_settings, "_get_python_type", lambda: "jupyter")
+    ipython = MagicMock()
+    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
+    orig_get_ipython = wandb.jupyter.get_ipython
+    wandb.jupyter.get_ipython = lambda: ipython
+    yield ipython
+    wandb.jupyter.get_ipython = orig_get_ipython
+
+
 def default_wandb_args():
     """This allows us to parameterize the wandb_init_run fixture
     The most general arg is "env", you can call:
