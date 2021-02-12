@@ -1,12 +1,17 @@
+from __future__ import print_function
+
 import pytest
 import time
 import datetime
 import requests
 import os
 import sys
+import logging
 import shutil
 from contextlib import contextmanager
 from tests import utils
+from six.moves import queue
+from wandb import wandb_sdk
 
 # from multiprocessing import Process
 import subprocess
@@ -25,9 +30,13 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     from wandb.sdk.lib.module import unset_globals
     from wandb.sdk.lib.git import GitRepo
+    from wandb.sdk.interface.interface import BackendSender
 else:
     from wandb.sdk_py27.lib.module import unset_globals
     from wandb.sdk_py27.lib.git import GitRepo
+    from wandb.sdk_py27.interface.interface import BackendSender
+
+from wandb.proto import wandb_internal_pb2
 
 try:
     import nbformat
@@ -87,15 +96,17 @@ def start_mock_server():
     server.reset_ctx = reset_ctx
 
     started = False
-    for i in range(5):
+    for i in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, timeout=1)
+            res = requests.get("%s/ctx" % server.base_url, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
             print("Attempting to connect but got: %s" % res)
         except requests.exceptions.RequestException:
-            print("Timed out waiting for server to start...")
+            print(
+                "Timed out waiting for server to start...", server.base_url, time.time()
+            )
             if server.poll() is None:
                 time.sleep(1)
             else:
@@ -108,6 +119,14 @@ def start_mock_server():
     else:
         server.terminate()
         print("Server failed to launch, see tests/logs/live_mock_server.log")
+        try:
+            print("=" * 40)
+            with open("tests/logs/live_mock_server.log") as f:
+                for l in f.readlines():
+                    print(l.strip())
+            print("=" * 40)
+        except Exception as e:
+            print("EXCEPTION:", e)
         raise ValueError("Failed to start server!  Exit code %s" % server.returncode)
     return server
 
@@ -117,10 +136,17 @@ atexit.register(test_cleanup)
 
 
 @pytest.fixture
-def test_dir(request):
+def test_name(request):
+    # change "test[1]" to "test__1__"
+    name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
+    return name
+
+
+@pytest.fixture
+def test_dir(test_name):
     orig_dir = os.getcwd()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    test_dir = os.path.join(root, "tests", "logs", request.node.name)
+    test_dir = os.path.join(root, "tests", "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)
@@ -140,6 +166,22 @@ def git_repo(runner):
         open("README", "wb").close()
         r.index.add(["README"])
         r.index.commit("Initial commit")
+        yield GitRepo(lazy=False)
+
+
+@pytest.fixture
+def git_repo_with_remote(runner):
+    with runner.isolated_filesystem():
+        r = git.Repo.init(".")
+        r.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
+        yield GitRepo(lazy=False)
+
+
+@pytest.fixture
+def git_repo_with_remote_and_empty_pass(runner):
+    with runner.isolated_filesystem():
+        r = git.Repo.init(".")
+        r.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
         yield GitRepo(lazy=False)
 
 
@@ -366,3 +408,68 @@ def disable_console():
     os.environ["WANDB_CONSOLE"] = "off"
     yield
     del os.environ["WANDB_CONSOLE"]
+
+
+@pytest.fixture()
+def parse_ctx():
+    """Fixture providing class to parse context data."""
+
+    def parse_ctx_fn(ctx):
+        return utils.ParseCTX(ctx)
+
+    yield parse_ctx_fn
+
+
+@pytest.fixture()
+def record_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def fake_interface(record_q):
+    return BackendSender(record_q=record_q)
+
+
+@pytest.fixture
+def fake_backend(fake_interface):
+    class FakeBackend:
+        def __init__(self):
+            self.interface = fake_interface
+
+    yield FakeBackend()
+
+
+@pytest.fixture
+def fake_run(fake_backend):
+    def run_fn():
+        s = wandb.Settings()
+        run = wandb_sdk.wandb_run.Run(settings=s)
+        run._set_backend(fake_backend)
+        return run
+
+    yield run_fn
+
+
+@pytest.fixture
+def records_util():
+    def records_fn(q):
+        ru = utils.RecordsUtil(q)
+        return ru
+
+    yield records_fn
+
+
+# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+# def pytest_runtest_makereport(item, call):
+#     outcome = yield
+#     rep = outcome.get_result()
+#     if rep.when == "call" and rep.failed:
+#         print("DEBUG PYTEST", rep, item, call, outcome)
+
+
+@pytest.fixture
+def log_debug(caplog):
+    caplog.set_level(logging.DEBUG)
+    yield
+    # for rec in caplog.records:
+    #     print("LOGGER", rec.message, file=sys.stderr)

@@ -3,37 +3,93 @@ version: 2.1
 orbs:
   win: circleci/windows@2.4.0
 
+parameters:
+  manual:
+    type: boolean
+    default: false
+  manual_test:
+    type: boolean
+    default: false
+  manual_win:
+    type: boolean
+    default: false
+  manual_mac:
+    type: boolean
+    default: false
+  manual_test_image:
+    type: string
+    default: "python:3.7"
+  manual_test_toxenv:
+    type: string
+    default: "py37"
+  manual_win_toxenv:
+    type: string
+    default: "py37"
+  manual_mac_toxenv:
+    type: string
+    default: "py37"
+  manual_test_name:
+    type: string
+    default: "Python 3.7 [MANUAL]"
+  manual_win_name:
+    type: string
+    default: "Windows (Python 3.7) [MANUAL]"
+  manual_mac_name:
+    type: string
+    default: "MacOS (Python 3.7) [MANUAL]"
+
 commands:
   save-tox-cache:
     description: "Save tox environment to cache"
     steps:
-      - save_cache:
-            paths:
-                - ./.tox
-            key: v0.5-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+      - unless:
+          condition: << pipeline.parameters.manual >>
+          steps:
+            - save_cache:
+                paths:
+                  - ./.tox
+                key: v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.5-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.5-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.5-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
-              - v0.5-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.5-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.5-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+  save-test-results:
+    description: "Save test results"
+    steps:
+      - unless:
+          condition: << pipeline.parameters.manual >>
+          steps:
+            - store_test_results:
+                path: test-results
+            - store_artifacts:
+                path: test-results
+            - store_artifacts:
+                path: mypy-results
 
 workflows:
   main:
+    unless: << pipeline.parameters.manual >>
     jobs:
       - test:
          name: "Linters"
          image: "python:3.6"
-         toxenv: "codemodcheck,mypy,black,flake8"
+         toxenv: "codemodcheck,protocheck,mypy,black,flake8"
       - test:
          name: "Python 2.7"
          image: "python:2.7"
          toxenv: "py27,covercircle"
+# Disable python3.5 for now
+#      - test:
+#         name: "Python 3.5"
+#         image: "python:3.5"
+#         toxenv: "py35"
       - test:
          name: "Python 3.6"
          image: "python:3.6"
@@ -52,13 +108,29 @@ workflows:
          toxenv: "py39"
       - win:
          name: "Windows (Python 3.7)"
+         toxenv: "py37"
       - mac:
          name: "MacOS (Python 3.7)"
-      - final:
-         name: "Upload Coverage"
-         requires:
-            - "Python 2.7"
-            - "Python 3.6"
+         toxenv: "py37"
+  manual_test:
+    when: << pipeline.parameters.manual_test >>
+    jobs:
+      - test:
+         name: << pipeline.parameters.manual_test_name >>
+         image: << pipeline.parameters.manual_test_image >>
+         toxenv: << pipeline.parameters.manual_test_toxenv >>
+  manual_win:
+    when: << pipeline.parameters.manual_win >>
+    jobs:
+      - win:
+         name: << pipeline.parameters.manual_win_name >>
+         toxenv: << pipeline.parameters.manual_win_toxenv >>
+  manual_mac:
+    when: << pipeline.parameters.manual_mac >>
+    jobs:
+      - mac:
+         name: << pipeline.parameters.manual_mac_name >>
+         toxenv: << pipeline.parameters.manual_mac_toxenv >>
 
 jobs:
     test:
@@ -86,7 +158,11 @@ jobs:
                       tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
+            - save-test-results
     win:
+        parameters:
+            toxenv:
+              type: string
         executor: win/default
         steps:
             - checkout
@@ -104,11 +180,14 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -vv -e py37
+                      tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
-
+            - save-test-results
     mac:
+        parameters:
+            toxenv:
+              type: string
         macos:
             xcode: 11.4.1
         steps:
@@ -123,14 +202,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 1024
-                      python3 -m tox -vv -e py37
+                      python3 -m tox -vv -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
-    final:
-        docker:
-            - image: python:3.7
-        steps:
-            - run:
-                  name: Call coveralls webhook
-                  command: |
-                      curl -k https://coveralls.io/webhook?repo_token=$COVERALLS_REPO_TOKEN -d "payload[build_num]=$CIRCLE_WORKFLOW_ID&payload[status]=done"
+            - save-test-results

@@ -8,6 +8,7 @@ import os
 
 import wandb
 
+from .lib import telemetry
 from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
@@ -21,16 +22,19 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     to accept arbitrary ML models.
 
     Args:
-        models (torch.Module): The model to hook, can be a tuple
-        criterion (torch.F): An optional loss value being optimized
-        log (str): One of "gradients", "parameters", "all", or None
-        log_freq (int): log gradients and parameters every N batches
-        idx (int): an index to be used when calling wandb.watch on multiple models
+        models: (torch.Module) The model to hook, can be a tuple
+        criterion: (torch.F) An optional loss value being optimized
+        log: (str) One of "gradients", "parameters", "all", or None
+        log_freq: (int) log gradients and parameters every N batches
+        idx: (int) an index to be used when calling wandb.watch on multiple models
 
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
+
+    with telemetry.context() as tel:
+        tel.feature.watch = True
 
     logger.info("Watching")
     # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
@@ -98,7 +102,7 @@ def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
 
     Args:
-        models (list): Optional list of pytorch models that have had watch called on them
+        models: (list) Optional list of pytorch models that have had watch called on them
     """
     if models:
         if not isinstance(models, (tuple, list)):

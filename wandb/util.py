@@ -5,12 +5,14 @@ from __future__ import division
 import base64
 import binascii
 import colorsys
+import contextlib
 import codecs
 import errno
 import hashlib
 import json
 import getpass
 import logging
+import math
 import os
 import re
 import shlex
@@ -432,6 +434,8 @@ def json_friendly(obj):
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
         obj = obj.item()
+        if isinstance(obj, float) and math.isnan(obj):
+            obj = None
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -993,7 +997,7 @@ def download_file_from_url(dest_path, source_url, api_key=None):
 
     if os.sep in dest_path:
         mkdir_exists_ok(os.path.dirname(dest_path))
-    with open(dest_path, "wb") as file:
+    with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
 
@@ -1159,6 +1163,19 @@ def uri_from_path(path):
     """returns the URI of the path"""
     url = urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+@contextlib.contextmanager
+def fsync_open(path, mode="w"):
+    """
+    Opens a path for I/O, guaranteeing that the file is flushed and
+    fsynced when the file's context expires.
+    """
+    with open(path, mode) as f:
+        yield f
+
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def _is_kaggle():

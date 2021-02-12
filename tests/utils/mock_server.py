@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 import json
 import yaml
+import six
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -68,6 +69,7 @@ def run(ctx):
         fileNames = None
     if fileNames == ["nofile.h5"]:
         fileNode = {
+            "id": "file123",
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
@@ -75,10 +77,13 @@ def run(ctx):
         }
     else:
         fileNode = {
+            "id": "file123",
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
             "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": request.url_root
+            + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
     return {
@@ -254,18 +259,29 @@ def create_app(user_ctx=None):
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
         test_name = request.headers.get("X-WANDB-USERNAME")
-        app.logger.info("Test request from: %s", test_name)
+        if test_name:
+            app.logger.info("Test request from: %s", test_name)
+        app.logger.info("graphql post")
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
         body = request.get_json()
+        app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
+        if "mutation UpsertBucket(" in body["query"]:
+            param_config = body["variables"].get("config")
+            if param_config:
+                ctx.setdefault("config", []).append(json.loads(param_config))
+            param_summary = body["variables"].get("summaryMetrics")
+            if param_summary:
+                ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
-            ctx["requested_file"] = body["variables"]["files"][0]
+            requested_file = body["variables"]["files"][0]
+            ctx["requested_file"] = requested_file
             url = request.url_root + "/storage?file={}&run={}".format(
-                urllib.parse.quote(ctx["requested_file"]), ctx["current_run"]
+                urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
                 {
@@ -278,8 +294,9 @@ def create_app(user_ctx=None):
                                     "edges": [
                                         {
                                             "node": {
-                                                "name": ctx["requested_file"],
+                                                "name": requested_file,
                                                 "url": url,
+                                                "directUrl": url + "&direct=true",
                                             }
                                         }
                                     ],
@@ -475,6 +492,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation DeleteRun(" in body["query"]:
+            return json.dumps({"data": {}})
         if "mutation CreateAnonymousApiKey " in body["query"]:
             return json.dumps(
                 {
@@ -483,6 +502,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation DeleteFiles(" in body["query"]:
+            return json.dumps({"data": {"deleteFiles": {"success": True}}})
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
@@ -624,14 +645,37 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if file == "wandb_manifest.json":
-            return {
-                "version": 1,
-                "storagePolicy": "wandb-storage-policy-v1",
-                "storagePolicyConfig": {},
-                "contents": {
-                    "digits.h5": {"digest": "TeSJ4xxXg0ohuL5xEdq2Ew==", "size": 81299},
-                },
-            }
+            if (
+                len(ctx.get("graphql", [])) >= 3
+                and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
+            ):
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "dataset.partitioned-table.json": {
+                            "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
+                        "parts/1.table.json": {
+                            "digest": "1aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
+                    },
+                }
+            else:
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "digits.h5": {
+                            "digest": "TeSJ4xxXg0ohuL5xEdq2Ew==",
+                            "size": 81299,
+                        },
+                    },
+                }
         elif file == "wandb-metadata.json":
             return {
                 "docker": "test/docker",
@@ -657,6 +701,62 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
+        if entity == "entity":
+            if (
+                digest == "d1a69a69a69a69a69a69a69a69a69a69"
+            ):  # "dataset.partitioned-table.json"
+                return (
+                    json.dumps({"_type": "partitioned-table", "parts_path": "parts"}),
+                    200,
+                )
+            elif digest == "d5a69a69a69a69a69a69a69a69a69a69":  # "parts/1.table.json"
+                return (
+                    json.dumps(
+                        {
+                            "_type": "table",
+                            "column_types": {
+                                "params": {
+                                    "type_map": {
+                                        "A": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                        "B": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                        "C": {
+                                            "params": {
+                                                "allowed_types": [
+                                                    {"wb_type": "none"},
+                                                    {"wb_type": "number"},
+                                                ]
+                                            },
+                                            "wb_type": "union",
+                                        },
+                                    }
+                                },
+                                "wb_type": "dictionary",
+                            },
+                            "columns": ["A", "B", "C"],
+                            "data": [[0, 0, 1]],
+                            "ncols": 3,
+                            "nrows": 1,
+                        }
+                    ),
+                    200,
+                )
+
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
@@ -706,6 +806,53 @@ index 30d74d2..9a2c773 100644
         return "Not Found", 404
 
     return app
+
+
+class ParseCTX(object):
+    def __init__(self, ctx):
+        self._ctx = ctx
+
+    def get_filestream_file_updates(self):
+        data = {}
+        file_stream_updates = self._ctx["file_stream"]
+        for update in file_stream_updates:
+            files = update.get("files")
+            if not files:
+                continue
+            for k, v in six.iteritems(files):
+                data.setdefault(k, []).append(v)
+        return data
+
+    def get_filestream_file_items(self):
+        data = {}
+        fs_file_updates = self.get_filestream_file_updates()
+        for k, v in six.iteritems(fs_file_updates):
+            l = []
+            for d in v:
+                offset = d.get("offset")
+                content = d.get("content")
+                assert offset is not None
+                assert content is not None
+                assert offset == 0 or offset == len(l), (k, v, l, d)
+                if not offset:
+                    l = []
+                l.extend(map(json.loads, content))
+            data[k] = l
+        return data
+
+    @property
+    def summary(self):
+        fs_files = self.get_filestream_file_items()
+        summary = fs_files["wandb-summary.json"][-1]
+        return summary
+
+    @property
+    def config(self):
+        return self._ctx["config"][-1]
+
+    @property
+    def config_wandb(self):
+        return self.config["_wandb"]["value"]
 
 
 if __name__ == "__main__":

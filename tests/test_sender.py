@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import pytest
 from six.moves import queue
@@ -8,6 +10,7 @@ import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -20,20 +23,12 @@ else:
     from wandb.sdk_py27.internal.sender import SendManager
     from wandb.sdk_py27.interface.interface import BackendSender
 
-
-@pytest.fixture()
-def record_q():
-    return queue.Queue()
+from wandb.proto import wandb_internal_pb2
 
 
 @pytest.fixture()
 def result_q():
     return queue.Queue()
-
-
-@pytest.fixture()
-def interface(record_q):
-    return BackendSender(record_q=record_q)
 
 
 @pytest.fixture()
@@ -67,7 +62,7 @@ def sender(record_q, result_q, process):
 
 @pytest.fixture()
 def sm(
-    runner, sender_q, result_q, test_settings, mock_server, interface,
+    runner, sender_q, result_q, test_settings, mock_server, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -75,21 +70,14 @@ def sm(
             settings=test_settings,
             record_q=sender_q,
             result_q=result_q,
-            interface=interface,
+            interface=sender,
         )
         yield sm
 
 
 @pytest.fixture()
 def hm(
-    runner,
-    record_q,
-    result_q,
-    test_settings,
-    mock_server,
-    sender_q,
-    writer_q,
-    interface,
+    runner, record_q, result_q, test_settings, mock_server, sender_q, writer_q, sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -101,7 +89,7 @@ def hm(
             stopped=stopped,
             sender_q=sender_q,
             writer_q=writer_q,
-            interface=interface,
+            interface=sender,
         )
         yield hm
 
@@ -162,7 +150,7 @@ def start_handle_thread(record_q, get_record):
 
 @pytest.fixture()
 def start_backend(
-    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
+    mocked_run, hm, sm, sender, start_handle_thread, start_send_thread, log_debug,
 ):
     def start_backend_func(initial_run=True):
         start_handle_thread(hm)
@@ -178,7 +166,15 @@ def stop_backend(
     mocked_run, hm, sm, sender, start_handle_thread, start_send_thread,
 ):
     def stop_backend_func():
-        sender.communicate_exit(0, timeout=5)
+        sender.publish_exit(0)
+        for _ in range(10):
+            poll_exit_resp = sender.communicate_poll_exit()
+            assert poll_exit_resp, "poll exit timedout"
+            done = poll_exit_resp.done
+            if done:
+                break
+            time.sleep(1)
+        assert done, "backend didnt shutdown"
 
     yield stop_backend_func
 
@@ -558,6 +554,43 @@ def test_upgrade_removed(
         ret.delete_message == "wandb version 0.0.4 has been retired!  Please upgrade."
     )
     assert not ret.yank_message
+
+
+@pytest.fixture
+def gen_metrics(
+    mocked_run, mock_server, sender, start_backend, stop_backend, parse_ctx,
+):
+    def fn(md, metrics=None):
+        if metrics is None:
+            metrics = []
+            metrics.append(dict(v1=1, v2=2, v3="dog", mystep=1))
+            metrics.append(dict(v1=3, v2=8, v3="cat", mystep=2))
+            metrics.append(dict(v1=2, v2=3, v3="pizza", mystep=3))
+
+        start_backend()
+        # if md:
+        #     metric = wandb_internal_pb2.MetricRecord()
+        #     for mk, mv in md.items():
+        #         mi = metric.update.add()
+        #         mi.metric = mk
+        #         mi.val.CopyFrom(mv)
+        #     sender.publish_metric(metric)
+        for num, m in enumerate(metrics):
+            sender.publish_history(m, run=mocked_run, step=num)
+        stop_backend()
+
+        ctx_util = parse_ctx(mock_server.ctx)
+        return ctx_util
+
+    yield fn
+
+
+def test_metric_none(gen_metrics):
+    ctx_util = gen_metrics(None)
+    assert "x_axis" not in ctx_util.config_wandb
+    summary = ctx_util.summary
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
 
 
 # TODO: test other sender methods

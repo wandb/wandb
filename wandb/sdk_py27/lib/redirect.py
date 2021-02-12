@@ -64,7 +64,15 @@ class StreamFork(object):
         return getattr(output_streams[0], attr)
 
 
-class StreamWrapper(object):
+class RedirectBase(object):
+    def install(self):
+        raise NotImplementedError
+
+    def uninstall(self):
+        raise NotImplementedError
+
+
+class StreamWrapper(RedirectBase):
     def __init__(self, name, cb, output_writer=None):
         self.name = name
         self.cb = cb
@@ -137,7 +145,7 @@ def _pipe_relay(stopped, fd, name, cb, tee, output_writer):
     logger.info("relay done done: %s", name)
 
 
-class Redirect(object):
+class Redirect(RedirectBase):
     def __init__(self, src, dest, unbuffered=False, tee=False):
         self._installed = False
         self._stream = src

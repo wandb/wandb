@@ -1,6 +1,5 @@
 pytest
 coverage
-coveralls
 tox==3.7
 pip
 Pillow
@@ -24,3 +23,4 @@ torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform
 torch==1.5.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
 torchvision==0.6.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
 plotly; python_version < '3.9'
+bokeh
