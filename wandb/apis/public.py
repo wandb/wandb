@@ -2532,15 +2532,15 @@ class Artifact(artifacts.Artifact):
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._attrs["id"]
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict:
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata):
+    def metadata(self, metadata: dict):
         self._metadata = metadata
 
     @property
@@ -2548,39 +2548,47 @@ class Artifact(artifacts.Artifact):
         return self._load_manifest()
 
     @property
-    def digest(self):
+    def digest(self) -> str:
         return self._attrs["digest"]
 
     @property
-    def state(self):
+    def state(self) -> str:
         return self._attrs["state"]
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._attrs["size"]
 
     @property
-    def created_at(self):
+    def created_at(self) -> datetime.datetime:
+        """
+        Returns:
+            (datetime): The time at which the artifact was created.
+        """
         return self._attrs["createdAt"]
 
     @property
-    def updated_at(self):
+    def updated_at(self) -> datetime.datetime:
+        """
+        Returns:
+            (datetime): The time at which the artifact was last updated.
+        """
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
-    def description(self):
+    def description(self) -> str:
         return self._description
 
     @description.setter
-    def description(self, desc):
+    def description(self, desc: str):
         self._description = desc
 
     @property
-    def type(self):
+    def type(self) -> str:
         return self._attrs["artifactType"]["name"]
 
     @property
-    def name(self):
+    def name(self) -> str:
         if self._version_index is None:
             return self.digest
         return "%s:v%s" % (self._sequence_name, self._version_index)

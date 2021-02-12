@@ -93,7 +93,6 @@ class ArtifactManifest(object):
 
 
 class Artifact(object):
-    @property
     def id(self):
         """
         Returns:
@@ -101,7 +100,17 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    @property
+    def metadata(self):
+        """
+        Arguments:
+            metadata: (dict) Structured data associated with the artifact,
+                for example class distribution of a dataset. This will eventually be queryable
+                and plottable in the UI. There is a hard limit of 100 total keys.
+        Returns:
+            (dict): Structured data associated with the artifact.
+        """
+        raise NotImplementedError
+
     def entity(self):
         """
         Returns:
@@ -109,7 +118,6 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    @property
     def project(self):
         """
         Returns:
@@ -117,7 +125,6 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    @property
     def manifest(self):
         """
         Returns:
@@ -127,13 +134,28 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    @property
     def digest(self):
         """
         Returns:
             (str): The artifact's logical digest, a checksum of its contents. If
                 an artifact has the same digest as the current `latest` version,
                 then `log_artifact` is a no-op.
+        """
+        raise NotImplementedError
+
+    def state(self):
+        """
+        Returns:
+            (str): The state of the artifact, which can be one of "PENDING",
+                "COMMITTED", or "DELETED".
+        """
+        raise NotImplementedError
+
+    def size(self):
+        """
+        Returns:
+            (int): The size in bytes of the artifact. Includes any references
+                tracked by this artifact.
         """
         raise NotImplementedError
 

@@ -38,10 +38,6 @@ _REQUEST_POOL_MAXSIZE = 64
 class Artifact(ArtifactInterface):
     """An artifact object you can write files into, and pass to log_artifact."""
 
-    name: str
-    description: Optional[str]
-    distributed_id: Optional[str]
-
     def __init__(
         self,
         name: str,
@@ -115,11 +111,11 @@ class Artifact(ArtifactInterface):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
         )
-        self.type = type
-        self.name = name
-        self.description = description
-        self.metadata = metadata
-        self.distributed_id = None
+        self._type = type
+        self._name = name
+        self._description = description
+        self._metadata = metadata
+        self._distributed_id = None
 
     @property
     def id(self) -> Optional[str]:
@@ -145,6 +141,38 @@ class Artifact(ArtifactInterface):
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @description.setter
+    def description(self, desc: str) -> None:
+        self._description = desc
+
+    @property
+    def metadata(self) -> dict:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        self._metadata = metadata
+
+    @property
+    def type(self) -> str:
+        return self._type
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def distributed_id(self) -> str:
+        return self._distributed_id
+
+    @distributed_id.setter
+    def distributed_id(self, distributed_id: str) -> None:
+        self._distributed_id = distributed_id
 
     def _ensure_can_add(self):
         if self._final:
