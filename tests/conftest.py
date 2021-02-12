@@ -55,7 +55,7 @@ server = None
 
 def test_cleanup(*args, **kwargs):
     global server
-    print("Shutting down mock server")
+    print("XXXX Shutting down mock server")
     server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
@@ -65,6 +65,7 @@ def test_cleanup(*args, **kwargs):
 def start_mock_server():
     """We start a server on boot for use by tests"""
     global server
+    print("(((((((((((((((((((((((((9 START")
     port = utils.free_port()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     path = os.path.join(root, "tests", "utils", "mock_server.py")
@@ -133,6 +134,7 @@ def start_mock_server():
     return server
 
 
+print("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
 start_mock_server()
 atexit.register(test_cleanup)
 
