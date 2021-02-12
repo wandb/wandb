@@ -27,17 +27,12 @@ if wandb.TYPE_CHECKING:  # type: ignore
 np = wandb.util.get_module("numpy")
 
 
-def human_size(bytes):
-    units = ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-    return str(bytes) + units[0] if bytes < 1024 else human_size(bytes >> 10, units[1:])
-
-
 class ArgType(NamedTuple):
-    # key: Union[str, int]
-    # source: str
-    # bytes: int
-    # data_type: Optional[str]
-    # shape: Optional[Tuple[int]]
+    key: Union[str, int]
+    source: str
+    bytes: int
+    data_type: Optional[str]
+    shape: Optional[Tuple[int]]
     pass
 
 
@@ -55,17 +50,17 @@ class Prediction(object):
 
     def __init__(
         self,
-        args,
-        kwargs,
-        results,
-        millis = None,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+        results: Tuple[Any],
+        millis: Optional[int] = None,
     ):
         self.args = args
         self.kwargs = kwargs
         self.results = results
         self.millis = millis
 
-    def to_numpy(self, arg_type):
+    def to_numpy(self, arg_type: ArgType):
         """
         Used internally to find arguments and return values that we can compute
         histograms from.
@@ -123,25 +118,30 @@ class Monitor(object):
 
     def __init__(
         self,
-        func = lambda: (),
-        to_table = None,
-        name_or_artifact = None,
-        max_pred_samples = 64,
-        flush_interval = 60 * 5,
+        func: Optional[Callable[..., Any]] = None,
+        to_table: Optional[Callable[[Tuple[Prediction]], Table]] = None,
+        name_or_artifact: Optional[Union[str, Artifact]] = None,
+        max_pred_samples: int = 64,
+        flush_interval: int = 60 * 5,
     ):
-        self._func = func
+        self._func: Callable[..., Any]
+        if func is None:
+            self._func = lambda *args, **kwargs: ()
+        else:
+            self._func = func
         self._flush_interval = flush_interval
         self._max_samples = max_pred_samples
         # TODO: actually make this max_samples?
         self._sampled_preds = sample.UniformSampleAccumulator(max_pred_samples // 2)
         self._counter = 0
         self._flush_count = 0
-        self._schema = None
+        # TODO: type the schema
+        self._schema: Dict[str, Any] = {}
         self._join_event = threading.Event()
         self._to_table = to_table
         self.disabled = False
         self._last_args = ()
-        self._last_kwargs = {}
+        self._last_kwargs: Dict[str, Any] = {}
         self._last_input = None
         if isinstance(name_or_artifact, wandb.Artifact):
             self._artifact = name_or_artifact
@@ -176,7 +176,7 @@ class Monitor(object):
         self._last_kwargs = kwargs
         self._last_input = timer()
 
-    def output(self, result):
+    def output(self, result: Tuple[Any]):
         """Records a Prediction, you must call .input before calling this method"""
         if self.disabled:
             return None
@@ -189,7 +189,7 @@ class Monitor(object):
         self._last_input = None
         return result
 
-    def prediction(self, result, *args, millis = None, **kwargs):
+    def prediction(self, result: Tuple[Any], *args, millis: int = None, **kwargs):
         """
         Records a prediction
 
@@ -270,8 +270,8 @@ class Monitor(object):
 
     def ensure_run(
         self,
-        config = None,
-        settings = None,
+        config: Union[Dict, str, None] = None,
+        settings: Union[Settings, Dict[str, Any], None] = None,
     ):
         if wandb.run is None:
             if not isinstance(settings, Settings) and settings is not None:
@@ -298,7 +298,7 @@ class Monitor(object):
                     total += arg.bytes
         return total
 
-    def _data_type(self, obj, source = None, key = None):
+    def _data_type(self, obj: Any, source: str, key: Union[str, int]):
         # TODO: handle sequences / tensors
         if wandb.util.is_numpy_array(obj):
             return ArgType(key, source, obj.nbytes, "np", obj.shape)
@@ -308,32 +308,32 @@ class Monitor(object):
             return ArgType(key, source, sys.getsizeof(obj), None, None)
 
     def _detect_schema(
-        self, results, args, kwargs
+        self, results: Tuple[Any], args: Tuple[Any, ...], kwargs: Dict[str, Any]
     ):
         self._schema = {"inputs": []}
-        for key, obj in enumerate(args):
-            self._schema["inputs"].append(self._data_type(obj, "args", key))
+        for index, obj in enumerate(args):
+            self._schema["inputs"].append(self._data_type(obj, "args", index))
         for key, obj in kwargs.items():
             self._schema["inputs"].append(self._data_type(obj, "kwargs", key))
         self._schema["outputs"] = []
-        for key, _ in enumerate(results):
-            self._schema["outputs"].append(self._data_type(results, "results", key))
+        for index, _ in enumerate(results):
+            self._schema["outputs"].append(self._data_type(results, "results", index))
         estimated_bytes = self.estimated_buffer_bytes
         if estimated_bytes > self.BUFFER_WARNING_BYTES:
             wandb.termwarn(
                 "@wandb.monitor estimates {} of memory will be consumed.\nConsider reducing max_pred_samples (currently {}) or use monitor.input(...) and monitor.output(...)".format(
-                    human_size(estimated_bytes), self._max_samples
+                    wandb.util.sizeof_fmt(estimated_bytes), self._max_samples
                 )
             )
 
 
 def monitor(
-    to_table = None,
-    name_or_artifact = None,
-    max_pred_samples = 64,
-    flush_interval = 60 * 5,
-    config = None,
-    settings = None,
+    to_table: Optional[Callable[[Tuple[Prediction]], Table]] = None,
+    name_or_artifact: Optional[Union[str, Artifact]] = None,
+    max_pred_samples: int = 64,
+    flush_interval: int = 60 * 5,
+    config: Union[Dict, str, None] = None,
+    settings: Union[Settings, Dict[str, Any], None] = None,
 ):
     """
     Function or class decorator for performantely monitoring predictions during inference.
@@ -407,7 +407,7 @@ def monitor(
             enable: enable wandb monitoring
     """
 
-    def decorator(func = None):
+    def decorator(func: Optional[Callable[..., Any]] = None):
         if np is None:
             raise AttributeError("@wandb.monitor requires numpy")
 
@@ -425,7 +425,7 @@ def monitor(
         )
 
         # If someone calls wandb.monitor(...) not as a decorator, just return the
-        # equivalent of wandb.Monitor(...)
+        # equivalent of wandb.Monitor(...), # TODO: test this...
         if func is None:
             return monitor
 
@@ -444,7 +444,7 @@ def monitor(
             else:
                 return monitor(*args, **kwargs)
 
-        wrapper.wandb_monitor = monitor
+        wrapper.wandb_monitor = monitor  # type: ignore
         return wrapper
 
     return decorator
