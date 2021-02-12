@@ -373,7 +373,9 @@ def mocked_module(monkeypatch):
 
 @pytest.fixture
 def mocked_ipython(monkeypatch):
-    monkeypatch.setattr(wandb.wandb_sdk.wandb_settings, "_get_python_type", lambda: "jupyter")
+    monkeypatch.setattr(
+        wandb.wandb_sdk.wandb_settings, "_get_python_type", lambda: "jupyter"
+    )
     ipython = MagicMock()
     # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
     orig_get_ipython = wandb.jupyter.get_ipython
