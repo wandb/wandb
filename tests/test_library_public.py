@@ -34,6 +34,7 @@ SYMBOLS_ROOT_SDK = {
     "log",
     "log_artifact",
     "use_artifact",
+    "define_metric",
     "summary",
     "config",
     "join",  # deprecate in favor of finish()
