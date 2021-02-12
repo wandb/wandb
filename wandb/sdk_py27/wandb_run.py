@@ -1780,7 +1780,7 @@ class Run(object):
         metric,
         x_axis = None,
         auto = None,
-        **kwargs,
+        **kwargs
     ):
         # TODO(jhr): warn kwargs
         m = wandb_metric.Metric(metric=metric, x_axis=x_axis, auto=auto)

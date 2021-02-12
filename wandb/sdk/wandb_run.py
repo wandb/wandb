@@ -1780,7 +1780,7 @@ class Run(object):
         metric: str,
         x_axis: Union[str, wandb_metric.Metric, None] = None,
         auto: bool = None,
-        **kwargs: Any,
+        **kwargs: Any
     ) -> wandb_metric.Metric:
         # TODO(jhr): warn kwargs
         m = wandb_metric.Metric(metric=metric, x_axis=x_axis, auto=auto)
