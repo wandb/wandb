@@ -278,9 +278,10 @@ def create_app(user_ctx=None):
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
-            ctx["requested_file"] = body["variables"]["files"][0]
+            requested_file = body["variables"]["files"][0]
+            ctx["requested_file"] = requested_file
             url = request.url_root + "/storage?file={}&run={}".format(
-                urllib.parse.quote(ctx["requested_file"]), ctx["current_run"]
+                urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
                 {
@@ -293,7 +294,7 @@ def create_app(user_ctx=None):
                                     "edges": [
                                         {
                                             "node": {
-                                                "name": ctx["requested_file"],
+                                                "name": requested_file,
                                                 "url": url,
                                                 "directUrl": url + "&direct=true",
                                             }
