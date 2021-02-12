@@ -2532,7 +2532,7 @@ class Artifact(artifacts.Artifact):
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
-    def id(self) -> str:
+    def id(self):
         return self._attrs["id"]
 
     @property
@@ -2544,11 +2544,11 @@ class Artifact(artifacts.Artifact):
         return self._project
 
     @property
-    def metadata(self) -> dict:
+    def metadata(self):
         return self._metadata
 
     @metadata.setter
-    def metadata(self, metadata: dict):
+    def metadata(self, metadata):
         self._metadata = metadata
 
     @property
@@ -2556,19 +2556,19 @@ class Artifact(artifacts.Artifact):
         return self._load_manifest()
 
     @property
-    def digest(self) -> str:
+    def digest(self):
         return self._attrs["digest"]
 
     @property
-    def state(self) -> str:
+    def state(self):
         return self._attrs["state"]
 
     @property
-    def size(self) -> int:
+    def size(self):
         return self._attrs["size"]
 
     @property
-    def created_at(self) -> datetime.datetime:
+    def created_at(self):
         """
         Returns:
             (datetime): The time at which the artifact was created.
@@ -2576,7 +2576,7 @@ class Artifact(artifacts.Artifact):
         return self._attrs["createdAt"]
 
     @property
-    def updated_at(self) -> datetime.datetime:
+    def updated_at(self):
         """
         Returns:
             (datetime): The time at which the artifact was last updated.
@@ -2584,19 +2584,19 @@ class Artifact(artifacts.Artifact):
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
-    def description(self) -> str:
+    def description(self):
         return self._description
 
     @description.setter
-    def description(self, desc: str):
+    def description(self, desc):
         self._description = desc
 
     @property
-    def type(self) -> str:
+    def type(self):
         return self._attrs["artifactType"]["name"]
 
     @property
-    def name(self) -> str:
+    def name(self):
         if self._version_index is None:
             return self.digest
         return "%s:v%s" % (self._sequence_name, self._version_index)
