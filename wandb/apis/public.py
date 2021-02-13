@@ -2446,7 +2446,64 @@ class ArtifactCollection(object):
 
 class Artifact(artifacts.Artifact):
     """
-    An artifact that has been logged.
+    An artifact that has been logged, including all its attributes, links to the runs
+    that use it, and a link to the run that logged it.
+
+    Examples:
+        Basic usage
+        ```
+        api = wandb.Api()
+        artifact = api.artifact('project/artifact:alias')
+
+        # Get information about the artifact...
+        artifact.digest
+        artifact.aliases
+        ```
+
+        Updating an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Update the description
+        artifact.description = 'My new description'
+
+        # Selectively update metadata keys
+        artifact.metadata["oldKey"] = "new value"
+
+        # Replace the metadata entirely
+        artifact.metadata = {"newKey": "new value"}
+
+        # Add an alias
+        artifact.aliases.append('best')
+
+        # Remove an alias
+        artifact.aliases.remove('latest')
+
+        # Completely replace the aliases
+        artifact.aliases = ['replaced']
+
+        # Persist all artifact modifications
+        artifact.save()
+        ```
+
+        Artifact graph traversal
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Walk up and down the graph from an artifact:
+        producer_run = artifact.logged_by()
+        consumer_runs = artifact.used_by()
+
+        # Walk up and down the graph from a run:
+        logged_artifacts = run.logged_artifacts()
+        used_artifacts = run.used_artifacts()
+        ```
+
+        Deleting an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+        artifact.delete()
+        ```
     """
 
     QUERY = gql(
@@ -2607,6 +2664,13 @@ class Artifact(artifacts.Artifact):
 
     @property
     def aliases(self):
+        """
+        The aliases associated with this artifact.
+
+        Returns:
+            List[str]: The aliases associated with this artifact.
+
+        """
         return self._aliases
 
     @aliases.setter
