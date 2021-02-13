@@ -1777,13 +1777,48 @@ class Run(object):
 
     def define_metric(
         self,
-        metric,
+        name,
         x_axis = None,
         auto = None,
+        summary = None,
         **kwargs
     ):
-        # TODO(jhr): warn kwargs
-        m = wandb_metric.Metric(metric=metric, x_axis=x_axis, auto=auto)
+        for k in kwargs:
+            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+        if isinstance(x_axis, wandb_metric.Metric):
+            x_axis = x_axis.name
+        for arg_name, arg_val in (
+            ("name", name),
+            ("x_axis", x_axis),
+            ("summary", summary),
+        ):
+            if not isinstance(name, str):
+                arg_type = type(arg_val).__name__
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: {} type: {}".format(
+                        arg_name, arg_type
+                    )
+                )
+        if "*" in name and not name.endswith("*"):
+            raise wandb.Error(
+                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
+                    name
+                )
+            )
+        summary_ops = None
+        if summary:
+            summary_items = summary.split(",")
+            summary_ops = []
+            valid = {"min", "max"}
+            for i in summary_items:
+                if i not in valid:
+                    raise wandb.Error(
+                        "Unhandled define_metric() arg: summary op: {}".format(i)
+                    )
+                summary_ops.append(i)
+        m = wandb_metric.Metric(
+            name=name, x_axis=x_axis, auto=auto, summary=summary_ops
+        )
         m._set_callback(self._metric_callback)
         m._commit()
         return m

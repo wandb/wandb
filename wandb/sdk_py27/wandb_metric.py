@@ -6,13 +6,12 @@ metric.
 
 import logging
 
-import six
 import wandb
-from wandb.proto.wandb_internal_pb2 import MetricRecord, MetricValue
+from wandb.proto import wandb_internal_pb2 as pb
 
 
 if wandb.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence, Union
+    from typing import Callable, Optional, Sequence
 
 logger = logging.getLogger("wandb")
 
@@ -22,58 +21,56 @@ class Metric(object):
     Metric object
     """
 
-    # _callback: Optional[Callable[[MetricRecord], None]]
-    # _metric: Union[str, Sequence[str]]
-    # _metric_value: MetricValue
+    # _callback: Optional[Callable[[pb.MetricRecord], None]]
+    # _name: str
+    # _x_axis: Optional[str]
+    # _auto: Optional[bool]
+    # _summary: Optional[Sequence[str]]
 
     def __init__(
         self,
-        metric,
+        name,
         x_axis = None,
         auto = None,
+        summary = None,
     ):
-        self._metric = metric
-        self._metric_value = MetricValue()
         self._callback = None
+        self._name = name
+        self._x_axis = x_axis
+        self._auto = auto
+        self._summary = summary
 
     def _set_callback(self, cb):
         self._callback = cb
 
-    def _update_metric(self, metric_value):
-        # Create a metric record update
-        m = MetricRecord()
-        mi = m.update.add()
-        if isinstance(self._metric, six.string_types):
-            mi.metric = self._metric
-        else:
-            mi.nested_metric.extend(self._metric)
-        mi.val.MergeFrom(metric_value)
+    @property
+    def name(self):
+        return self._name
 
-        # Sent it to the internal process
-        if self._callback:
-            self._callback(m)
+    @property
+    def x_axis(self):
+        return self._x_axis
 
-        # Keep track of metric locally
-        self._metric_value.MergeFrom(metric_value)
+    @property
+    def auto(self):
+        return self._auto
 
     def _commit(self):
-        pass
-
-    def set_default_xaxis(self):
-        mv = MetricValue()
-        mv.default_xaxis = True
-        self._update_metric(mv)
-        return self
-
-    def set_summary(
-        self, min = None, max = None, last = None
-    ):
-        mv = MetricValue()
-        if min:
-            mv.summary_min = True
-        if max:
-            mv.summary_max = True
-        if last:
-            mv.summary_last = True
-        self._update_metric(mv)
-        return self
+        mr = pb.MetricRecord()
+        m = mr.update.add()
+        if self._name.endswith("*"):
+            m.glob_name = self._name
+        else:
+            m.name = self._name
+        if self._x_axis:
+            m.x_axis = self._x_axis
+        if self._auto:
+            m.auto = self._auto
+        if self._summary:
+            summary_set = set(self._summary)
+            if "min" in summary_set:
+                m.summary.min = True
+            if "max" in summary_set:
+                m.summary.max = True
+        if self._callback:
+            self._callback(mr)

@@ -25,8 +25,6 @@ if wandb.TYPE_CHECKING:
         Dict,
         Iterable,
         Optional,
-        Tuple,
-        Union,
     )
     from .settings_static import SettingsStatic
     from six.moves.queue import Queue
@@ -53,8 +51,9 @@ class HandleManager(object):
     # _interface: BackendSender
     # _system_stats: Optional[stats.SystemStats]
     # _tb_watcher: Optional[tb_watcher.TBWatcher]
-    # _metric_defines: Dict[Union[str, Tuple[str, ...]], wandb_internal_pb2.MetricValue]
-    # _metric_track: Dict[Union[str, Tuple[str, ...]], float]
+    # _metric_defines: Dict[str, wandb_internal_pb2.MetricItem]
+    # _metric_globs: Dict[str, wandb_internal_pb2.MetricItem]
+    # _metric_track: Dict[str, float]
 
     def __init__(
         self,
@@ -180,28 +179,40 @@ class HandleManager(object):
             return True
         updated = False
         for k, v in six.iteritems(history_dict):
-            d = self._metric_defines.get(k, None)
             # TODO(jhr): handle nested metrics
-            if not d:
-                continue
-            if d.summary_last:
+            d = self._metric_defines.get(k, None)
+            float_v = float(v)
+
+            # Always store last metric (for now)
+            last_key = k + ".last"
+            old_last = self._metric_track.get(last_key, None)
+            if old_last is None or float_v != old_last:
+                self._metric_track[last_key] = float_v
                 self._consolidated_summary[k] = v
                 updated = True
+
+            if not d:
                 continue
             if not isinstance(v, numbers.Real):
                 continue
-            if d.summary_max:
-                oldmax = self._metric_track.get(k, None)
-                if oldmax is None or float(v) > oldmax:
-                    self._metric_track[k] = float(v)
-                    self._consolidated_summary[k] = v
-                    updated = True
-            if d.summary_min:
-                oldmin = self._metric_track.get(k, None)
-                if oldmin is None or float(v) < oldmin:
-                    self._metric_track[k] = float(v)
-                    self._consolidated_summary[k] = v
-                    updated = True
+
+            if d.summary:
+                s = d.summary
+                if s.max:
+                    max_key = k + ".max"
+                    old_max = self._metric_track.get(max_key, None)
+                    if old_max is None or float_v > old_max:
+                        self._metric_track[max_key] = float_v
+                        self._consolidated_summary[max_key] = v
+                        updated = True
+
+                if s.min:
+                    min_key = k + ".min"
+                    old_min = self._metric_track.get(min_key, None)
+                    if old_min is None or float_v < old_min:
+                        self._metric_track[min_key] = float_v
+                        self._consolidated_summary[min_key] = v
+                        updated = True
         return updated
 
     def _history_assign_step(self, record, history_dict):
@@ -218,12 +229,16 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def handle_history(self, record):
-        history_dict = proto_util.dict_from_proto_list(record.history.item)
+    def _update_history(self, record, history_dict):
         # if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(record, history_dict)
 
+        # TODO(jhr): look for wildcard records and publish record to handler?
+
+    def handle_history(self, record):
+        history_dict = proto_util.dict_from_proto_list(record.history.item)
+        self._update_history(record, history_dict)
         self._dispatch_record(record)
         self._save_history(record)
 
@@ -350,14 +365,14 @@ class HandleManager(object):
 
     def handle_metric(self, record):
         for metric_item in record.metric.update:
-            # metric: Union[str, Tuple[str, ...]]
-            # TODO(jhr): handle nested metrics
-            # metric = metric_item.metric or metric_item.nested_metric
-            metric = metric_item.metric
-            self._metric_defines.setdefault(
-                metric, wandb_internal_pb2.MetricValue()
-            ).MergeFrom(metric_item.val)
-
+            if metric_item.name:
+                self._metric_defines.setdefault(
+                    metric_item.name, wandb_internal_pb2.MetricItem()
+                ).MergeFrom(metric_item)
+            if metric_item.glob_name:
+                self._metric_globs.setdefault(
+                    metric_item.glob_name, wandb_internal_pb2.MetricItem()
+                ).MergeFrom(metric_item)
         self._dispatch_record(record)
 
     def handle_request_sampled_history(self, record):

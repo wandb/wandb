@@ -684,21 +684,22 @@ class SendManager(object):
         self._update_config()
 
     def send_metric(self, data: wandb_internal_pb2.Record) -> None:
-        metric = data.metric
+        pass
+        # metric = data.metric
         # we only care about default_xaxis for now
-        default_xaxis: Optional[str] = None
-        for metric_item in metric.update:
-            if metric_item.val.default_xaxis:
-                metric_key: str
-                if metric_item.metric:
-                    metric_key = metric_item.metric
-                else:
-                    # TODO: figure out if the backend can handle this
-                    metric_key = ".".join(metric_item.metric)
-                default_xaxis = metric_key
-        if default_xaxis:
-            self._config_default_xaxis = default_xaxis
-            self._update_config()
+        # default_xaxis: Optional[str] = None
+        # for metric_item in metric.update:
+        #     if metric_item.val.default_xaxis:
+        #         metric_key: str
+        #         if metric_item.metric:
+        #             metric_key = metric_item.metric
+        #         else:
+        #             # TODO: figure out if the backend can handle this
+        #             metric_key = ".".join(metric_item.metric)
+        #         default_xaxis = metric_key
+        # if default_xaxis:
+        #     self._config_default_xaxis = default_xaxis
+        #     self._update_config()
 
     def send_telemetry(self, data):
         telem = data.telemetry
