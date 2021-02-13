@@ -1787,13 +1787,19 @@ class Run(object):
             wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
         if isinstance(step, wandb_metric.Metric):
             step = step.name
-        for arg_name, arg_val, exp_type in (
-            ("name", name, str),
-            ("step", step, str),
-            ("auto_step", auto_step, bool),
-            ("summary", summary, str),
+        for arg_name, arg_val, exp_type, arg_req in (
+            ("name", name, str, True),
+            ("step", step, str, False),
+            ("auto_step", auto_step, bool, False),
+            ("summary", summary, str, False),
         ):
-            if not isinstance(name, exp_type):
+            if arg_val is None:
+                if not arg_req:
+                    continue
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: {} not provided".format(arg_name)
+                )
+            if not isinstance(arg_name, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
                     "Unhandled define_metric() arg: {} type: {}".format(
