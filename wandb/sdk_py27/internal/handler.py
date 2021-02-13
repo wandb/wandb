@@ -206,7 +206,6 @@ class HandleManager(object):
                         self._metric_track[max_key] = float_v
                         self._consolidated_summary[max_key] = v
                         updated = True
-
                 if s.min:
                     min_key = k + ".min"
                     old_min = self._metric_track.get(min_key, None)
@@ -214,6 +213,17 @@ class HandleManager(object):
                         self._metric_track[min_key] = float_v
                         self._consolidated_summary[min_key] = v
                         updated = True
+                if s.mean:
+                    tot_key = k + ".tot"
+                    num_key = k + ".num"
+                    avg_key = k + ".mean"
+                    tot = self._metric_track.get(tot_key, 0)
+                    num = self._metric_track.get(num_key, 0)
+                    tot += float(v)
+                    num += 1
+                    self._metric_track[tot_key] = tot
+                    self._metric_track[num_key] = num
+                    self._consolidated_summary[avg_key] = tot / num
         return updated
 
     def _history_assign_step(self, record, history_dict):

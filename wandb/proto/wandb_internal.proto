@@ -209,6 +209,7 @@ message MetricItem {
 message MetricSummary {
   bool min = 1;
   bool max = 2;
+  bool mean = 3;
 }
 
 /*

@@ -77,5 +77,7 @@ class Metric(object):
                 m.summary.min = True
             if "max" in summary_set:
                 m.summary.max = True
+            if "mean" in summary_set:
+                m.summary.mean = True
         if self._callback:
             self._callback(mr)

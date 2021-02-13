@@ -1818,7 +1818,7 @@ class Run(object):
         if summary:
             summary_items = summary.split(",")
             summary_ops = []
-            valid = {"min", "max"}
+            valid = {"min", "max", "mean"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(
