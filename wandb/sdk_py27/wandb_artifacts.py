@@ -485,13 +485,13 @@ class Artifact(ArtifactInterface):
 
     def get_added_local_path_name(self, local_path):
         """
-        Get the artifact relative path of a file added by a local filesystem path.
+        Get the artifact relative name of a file added by a local filesystem path.
 
         Arguments:
-            local_path: (str) The local path to resolve into an artifact relative path.
+            local_path: (str) The local path to resolve into an artifact relative name.
 
         Returns:
-            str: The artifact relative path.
+            str: The artifact relative name.
 
         Examples:
             Basic usage

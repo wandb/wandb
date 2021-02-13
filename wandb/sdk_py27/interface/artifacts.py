@@ -221,6 +221,24 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def download(self, root = None, recursive = False):
+        """
+        Downloads the contents of the artifact to the specified root directory.
+
+        NOTE: Any existing files at `root` are left untouched. Explicitly delete
+        root before calling `download` if you want the contents of `root` to exactly
+        match the artifact.
+
+        Arguments:
+            root: (str, optional) The directory in which to download this artifact's files
+            recursive: (bool, optional) If true, then all dependent artifacts are eagerly
+                downloaded. Otherwise, the dependent artifacts are downloaded as needed.
+
+        Returns:
+            The path to the downloaded contents.
+        """
+        raise NotImplementedError
+
 
 class StorageLayout(object):
     V1 = "V1"
