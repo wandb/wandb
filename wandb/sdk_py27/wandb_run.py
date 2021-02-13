@@ -1780,6 +1780,7 @@ class Run(object):
         name,
         step = None,
         auto_step = None,
+        hide = None,
         summary = None,
         **kwargs
     ):
@@ -1791,6 +1792,7 @@ class Run(object):
             ("name", name, str, True),
             ("step", step, str, False),
             ("auto_step", auto_step, bool, False),
+            ("hide", hide, bool, False),
             ("summary", summary, str, False),
         ):
             if arg_val is None:
@@ -1824,7 +1826,7 @@ class Run(object):
                     )
                 summary_ops.append(i)
         m = wandb_metric.Metric(
-            name=name, step=step, auto_step=auto_step, summary=summary_ops
+            name=name, step=step, auto_step=auto_step, summary=summary_ops, hide=hide
         )
         m._set_callback(self._metric_callback)
         m._commit()

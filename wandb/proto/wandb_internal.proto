@@ -203,6 +203,7 @@ message MetricItem {
   string          step = 8;
   bool            auto_step = 9;
   MetricSummary   summary = 10;
+  bool            hide = 11;
 }
 
 message MetricSummary {

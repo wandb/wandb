@@ -25,6 +25,7 @@ class Metric(object):
     # _name: str
     # _step: Optional[str]
     # _auto_step: Optional[bool]
+    # _hide: Optional[bool]
     # _summary: Optional[Sequence[str]]
 
     def __init__(
@@ -32,12 +33,14 @@ class Metric(object):
         name,
         step = None,
         auto_step = None,
+        hide = None,
         summary = None,
     ):
         self._callback = None
         self._name = name
         self._step = step
         self._auto_step = auto_step
+        self._hide = hide
         self._summary = summary
 
     def _set_callback(self, cb):
@@ -66,6 +69,8 @@ class Metric(object):
             m.step = self._step
         if self._auto_step:
             m.auto_step = self._auto_step
+        if self._hide:
+            m.hide = self._hide
         if self._summary:
             summary_set = set(self._summary)
             if "min" in summary_set:
