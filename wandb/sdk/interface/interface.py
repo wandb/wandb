@@ -607,7 +607,7 @@ class BackendSender(object):
         rec = self._make_record(summary=summary)
         self._publish(rec)
 
-    def publish_metric(self, metric: pb.MetricRecord) -> None:
+    def _publish_metric(self, metric: pb.MetricRecord) -> None:
         rec = self._make_record(metric=metric)
         self._publish(rec)
 

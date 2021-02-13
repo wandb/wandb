@@ -679,7 +679,7 @@ class Run(object):
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
         if self._backend:
-            self._backend.interface.publish_metric(metric_record)
+            self._backend.interface._publish_metric(metric_record)
 
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend:
@@ -1778,21 +1778,22 @@ class Run(object):
     def define_metric(
         self,
         name: str,
-        x_axis: Union[str, wandb_metric.Metric, None] = None,
-        auto: bool = None,
+        step: Union[str, wandb_metric.Metric, None] = None,
+        auto_step: bool = None,
         summary: str = None,
         **kwargs: Any
     ) -> wandb_metric.Metric:
         for k in kwargs:
             wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
-        if isinstance(x_axis, wandb_metric.Metric):
-            x_axis = x_axis.name
-        for arg_name, arg_val in (
-            ("name", name),
-            ("x_axis", x_axis),
-            ("summary", summary),
+        if isinstance(step, wandb_metric.Metric):
+            step = step.name
+        for arg_name, arg_val, exp_type in (
+            ("name", name, str),
+            ("step", step, str),
+            ("auto_step", auto_step, bool),
+            ("summary", summary, str),
         ):
-            if not isinstance(name, str):
+            if not isinstance(name, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
                     "Unhandled define_metric() arg: {} type: {}".format(
@@ -1817,7 +1818,7 @@ class Run(object):
                     )
                 summary_ops.append(i)
         m = wandb_metric.Metric(
-            name=name, x_axis=x_axis, auto=auto, summary=summary_ops
+            name=name, step=step, auto_step=auto_step, summary=summary_ops
         )
         m._set_callback(self._metric_callback)
         m._commit()

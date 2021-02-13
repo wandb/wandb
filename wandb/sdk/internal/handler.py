@@ -81,6 +81,7 @@ class HandleManager(object):
         self._consolidated_summary = dict()
         self._sampled_history = dict()
         self._metric_defines = dict()
+        self._metric_globs = dict()
         self._metric_track = dict()
 
     def handle(self, record: Record) -> None:

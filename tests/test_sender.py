@@ -24,6 +24,7 @@ else:
     from wandb.sdk_py27.interface.interface import BackendSender
 
 from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2 as pb
 
 
 @pytest.fixture()
@@ -556,27 +557,37 @@ def test_upgrade_removed(
     assert not ret.yank_message
 
 
+def _gen_history():
+    history = []
+    history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1)))
+    history.append(dict(step=1, data=dict(v1=3, v2=8, v3="cat", mystep=2)))
+    history.append(dict(step=2, data=dict(v1=2, v2=3, v3="pizza", mystep=3)))
+    return history
+
+
+def _make_metrics(mitems):
+    metrics = []
+    for mitem in mitems:
+        m = pb.MetricRecord()
+        mi = m.update.add()
+        mi.CopyFrom(mitem)
+        metrics.append(m)
+    return metrics
+
+
 @pytest.fixture
-def gen_metrics(
+def publish_util(
     mocked_run, mock_server, sender, start_backend, stop_backend, parse_ctx,
 ):
-    def fn(md, metrics=None):
-        if metrics is None:
-            metrics = []
-            metrics.append(dict(v1=1, v2=2, v3="dog", mystep=1))
-            metrics.append(dict(v1=3, v2=8, v3="cat", mystep=2))
-            metrics.append(dict(v1=2, v2=3, v3="pizza", mystep=3))
+    def fn(metrics=None, history=None):
+        metrics = metrics or []
+        history = history or []
 
         start_backend()
-        if md:
-            metric = wandb_internal_pb2.MetricRecord()
-            for mk, mv in md.items():
-                mi = metric.update.add()
-                mi.metric = mk
-                mi.val.CopyFrom(mv)
-            sender.publish_metric(metric)
-        for num, m in enumerate(metrics):
-            sender.publish_history(m, run=mocked_run, step=num)
+        for m in metrics:
+            sender._publish_metric(m)
+        for h in history:
+            sender.publish_history(**h)
         stop_backend()
 
         ctx_util = parse_ctx(mock_server.ctx)
@@ -585,18 +596,22 @@ def gen_metrics(
     yield fn
 
 
-def test_metric_none(gen_metrics):
-    ctx_util = gen_metrics(None)
+def test_metric_none(publish_util):
+    history = _gen_history()
+    ctx_util = publish_util(history=history)
     assert "x_axis" not in ctx_util.config_wandb
     summary = ctx_util.summary
     assert summary["v1"] == 2
     assert summary["v2"] == 3
 
 
-def test_metric_xaxis(gen_metrics):
-    mv = wandb_internal_pb2.MetricValue()
-    mv.default_xaxis = True
-    ctx_util = gen_metrics(dict(mystep=mv))
+def test_metric_xaxis(publish_util):
+    history = _gen_history()
+    metrics = [
+        pb.MetricItem(glob_name="*", step="mystep"),
+    ]
+    metrics = _make_metrics(metrics)
+    ctx_util = publish_util(history=history, metrics=metrics)
     config_wandb = ctx_util.config_wandb
     assert config_wandb["x_axis"] == "mystep"
     assert "v1" not in ctx_util.summary

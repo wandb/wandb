@@ -199,10 +199,10 @@ message MetricRecord {
 message MetricItem {
   string          name = 1;
   repeated string nested_name = 2;
-  string          x_axis = 3;
-  bool            auto = 4;
-  MetricSummary   summary = 5;
-  string          glob_name = 6;
+  string          glob_name = 3;
+  string          step = 8;
+  bool            auto_step = 9;
+  MetricSummary   summary = 10;
 }
 
 message MetricSummary {
