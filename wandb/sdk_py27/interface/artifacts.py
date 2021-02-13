@@ -8,7 +8,6 @@ import os
 import wandb
 from wandb import env
 from wandb import util
-from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional

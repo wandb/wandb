@@ -1,5 +1,7 @@
 #
+import base64
 import contextlib
+import hashlib
 import re
 import os
 import time
@@ -9,9 +11,19 @@ import requests
 from six.moves.urllib.parse import urlparse, quote
 
 import wandb
+from wandb import env
 from wandb.compat import tempfile as compat_tempfile
-from .interface.artifacts import *
-from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.artifacts import (
+    Artifact as ArtifactInterface,
+    ArtifactEntry,
+    ArtifactManifest,
+    StoragePolicy,
+    StorageLayout,
+    StorageHandler,
+    get_artifacts_cache,
+    md5_file_b64,
+    b64_string_to_hex,
+)
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
@@ -20,7 +32,7 @@ from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import Optional, Union
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -37,6 +49,11 @@ _REQUEST_POOL_MAXSIZE = 64
 
 class Artifact(ArtifactInterface):
     """An artifact object you can write files into, and pass to log_artifact."""
+
+    _added_objs: dict
+    _added_local_paths: dict
+    _distributed_id: Optional[str]
+    _metadata: dict
 
     def __init__(
         self,
@@ -101,7 +118,7 @@ class Artifact(ArtifactInterface):
         )
         self._api = InternalApi()
         self._final = False
-        self._digest = None
+        self._digest = ""
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
@@ -114,7 +131,7 @@ class Artifact(ArtifactInterface):
         self._type = type
         self._name = name
         self._description = description
-        self._metadata = metadata
+        self._metadata = metadata or {}
         self._distributed_id = None
 
     @property
@@ -143,11 +160,11 @@ class Artifact(ArtifactInterface):
         return self._digest
 
     @property
-    def description(self) -> str:
+    def description(self) -> Optional[str]:
         return self._description
 
     @description.setter
-    def description(self, desc: str) -> None:
+    def description(self, desc: Optional[str]) -> None:
         self._description = desc
 
     @property
@@ -175,11 +192,11 @@ class Artifact(ArtifactInterface):
         return sum([entry.size for entry in self._manifest.entries])
 
     @property
-    def distributed_id(self) -> str:
+    def distributed_id(self) -> Optional[str]:
         return self._distributed_id
 
     @distributed_id.setter
-    def distributed_id(self, distributed_id: str) -> None:
+    def distributed_id(self, distributed_id: Optional[str]) -> None:
         self._distributed_id = distributed_id
 
     def _ensure_can_add(self):
@@ -221,7 +238,7 @@ class Artifact(ArtifactInterface):
         self.add_file(path, name=name)
 
     def add_file(
-        self, local_path: str, name: Optional[str] = None, is_tmp: bool = False
+        self, local_path: str, name: Optional[str] = None, is_tmp: Optional[bool] = False
     ):
         """
         Adds a local file to the artifact.
@@ -328,7 +345,7 @@ class Artifact(ArtifactInterface):
 
     def add_reference(
         self,
-        uri: str,
+        uri: Union[ArtifactEntry, str],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -395,13 +412,12 @@ class Artifact(ArtifactInterface):
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
         if (
-            isinstance(uri, object)
-            and hasattr(uri, "parent_artifact")
-            and uri.parent_artifact != self
+            isinstance(uri, ArtifactEntry)
+            and uri.parent_artifact() != self
         ):
             ref_url_fn = getattr(uri, "ref_url")
             uri = ref_url_fn()
-        url = urlparse(uri)
+        url = urlparse(str(uri))
         if not url.scheme:
             raise ValueError(
                 "References must be URIs. To reference a local file, use file://"
@@ -518,6 +534,14 @@ class Artifact(ArtifactInterface):
         raise ValueError("Cannot call download on an artifact before it has been saved")
 
     def finalize(self):
+        """
+        Marks this artifact as final, which disallows further additions to the artifact.
+        This happens automatically when calling `log_artifact`.
+
+
+        Returns:
+            None
+        """
         if self._final:
             return self._file_entries
 

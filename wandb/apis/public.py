@@ -2719,11 +2719,14 @@ class Artifact(artifacts.Artifact):
             else:
                 name = entry.path
 
-        class ArtifactEntry(object):
+        class ArtifactEntry(artifacts.ArtifactEntry):
             def __init__(self):
-                self.parent_artifact = parent_self
                 self.name = name
                 self.entry = entry
+                self._parent_artifact = parent_self
+
+            def parent_artifact(self):
+                return self._parent_artifact
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2743,8 +2746,7 @@ class Artifact(artifacts.Artifact):
                     shutil.copy2(cache_path, target_path)
                 return target_path
 
-            @staticmethod
-            def download(root=None):
+            def download(self, root=None):
                 root = root or default_root
                 if entry.ref is not None:
                     cache_path = storage_policy.load_reference(
@@ -2757,16 +2759,14 @@ class Artifact(artifacts.Artifact):
 
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
-            @staticmethod
-            def ref():
+            def ref(self):
                 if entry.ref is not None:
                     return storage_policy.load_reference(
                         parent_self, name, manifest.entries[name], local=False
                     )
                 raise ValueError("Only reference entries support ref().")
 
-            @staticmethod
-            def ref_url():
+            def ref_url(self):
                 return (
                     "wandb-artifact://"
                     + util.b64_to_hex_id(parent_self.id)

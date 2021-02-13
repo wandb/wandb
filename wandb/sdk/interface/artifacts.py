@@ -8,7 +8,6 @@ import os
 import wandb
 from wandb import env
 from wandb import util
-from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional
@@ -92,6 +91,61 @@ class ArtifactManifest(object):
         ]
 
 
+class ArtifactEntry(object):
+
+    def parent_artifact(self):
+        """
+        Get the artifact to which this artifact entry belongs.
+
+        Returns:
+            (Artifact): The parent artifact
+        """
+        raise NotImplementedError
+
+    def download(self, root: Optional[str] = None) -> str:
+        """
+        Downloads this artifact entry to the specified root path.
+
+        Arguments:
+            root: (str, optional) The root path in which to download this
+                artifact entry. Defaults to the artifact's root.
+
+        Returns:
+            (str): The path of the downloaded artifact entry.
+
+        """
+        raise NotImplementedError
+
+    def ref(self) -> str:
+        """
+        Gets the reference URL of this artifact entry.
+
+        Returns:
+            (str): The reference URL of this artifact entry.
+
+        Raises:
+            ValueError: If this artifact entry was not a reference.
+        """
+        raise NotImplementedError
+
+    def ref_url(self) -> str:
+        """
+        Gets a URL to this artifact entry such that it can be referenced
+        by another artifact.
+
+        Returns:
+            (str): A URL representing this artifact entry.
+
+        Examples:
+            Basic usage
+            ```
+            ref_url = source_artifact.get_path('file.txt').ref_url()
+            derived_artifact.add_reference(ref_url)
+            ```
+        """
+        raise NotImplementedError
+
+
 class Artifact(object):
     def id(self) -> Optional[str]:
         """
@@ -141,7 +195,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def state(self):
+    def state(self) -> str:
         """
         Returns:
             (str): The state of the artifact, which can be one of "PENDING",
@@ -149,7 +203,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def size(self):
+    def size(self) -> int:
         """
         Returns:
             (int): The size in bytes of the artifact. Includes any references
@@ -157,7 +211,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def get_path(self, name: str):
+    def get_path(self, name: str) -> ArtifactEntry:
         """
         Gets the path to the file located at the artifact relative `name`.
 
@@ -221,7 +275,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None, recursive: bool = False):
+    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
         """
         Downloads the contents of the artifact to the specified root directory.
 
