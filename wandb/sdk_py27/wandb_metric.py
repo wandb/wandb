@@ -11,7 +11,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 
 
 if wandb.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence
+    from typing import Callable, Optional, Sequence, Tuple
 
 logger = logging.getLogger("wandb")
 
@@ -35,6 +35,7 @@ class Metric(object):
         auto_step = None,
         hide = None,
         summary = None,
+        goal = None,
     ):
         self._callback = None
         self._name = name
@@ -42,6 +43,7 @@ class Metric(object):
         self._auto_step = auto_step
         self._hide = hide
         self._summary = summary
+        self._goal = goal
 
     def _set_callback(self, cb):
         self._callback = cb
@@ -55,8 +57,22 @@ class Metric(object):
         return self._step
 
     @property
-    def auto(self):
+    def auto_step(self):
         return self._auto_step
+
+    @property
+    def summary(self):
+        if self._summary is None:
+            return None
+        return tuple(self._summary)
+
+    @property
+    def hide(self):
+        return self._hide
+
+    @property
+    def goal(self):
+        return self._goal
 
     def _commit(self):
         mr = pb.MetricRecord()
@@ -79,5 +95,7 @@ class Metric(object):
                 m.summary.max = True
             if "mean" in summary_set:
                 m.summary.mean = True
+            if "best" in summary_set:
+                m.summary.best = True
         if self._callback:
             self._callback(mr)

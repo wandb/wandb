@@ -174,6 +174,53 @@ class HandleManager(object):
                 self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
+    def _update_summary_metrics(
+        self,
+        s: wandb_internal_pb2.MetricSummary,
+        k: str,
+        v: "numbers.Real",
+        float_v: float,
+        goal_max: Optional[bool],
+    ) -> bool:
+        updated = False
+        best_key: Optional[str] = None
+        if s.best and goal_max is not None:
+            best_key = k + ".best"
+        if s.max or goal_max and best_key:
+            max_key = k + ".max"
+            old_max = self._metric_track.get(max_key, None)
+            if old_max is None or float_v > old_max:
+                self._metric_track[max_key] = float_v
+                if s.max:
+                    self._consolidated_summary[max_key] = v
+                    updated = True
+                if best_key:
+                    self._consolidated_summary[best_key] = v
+                    updated = True
+        if s.min or not goal_max and best_key:
+            min_key = k + ".min"
+            old_min = self._metric_track.get(min_key, None)
+            if old_min is None or float_v < old_min:
+                self._metric_track[min_key] = float_v
+                if s.min:
+                    self._consolidated_summary[min_key] = v
+                    updated = True
+                if best_key:
+                    self._consolidated_summary[best_key] = v
+                    updated = True
+        if s.mean:
+            tot_key = k + ".tot"
+            num_key = k + ".num"
+            avg_key = k + ".mean"
+            tot = self._metric_track.get(tot_key, 0)
+            num = self._metric_track.get(num_key, 0)
+            tot += float_v
+            num += 1
+            self._metric_track[tot_key] = tot
+            self._metric_track[num_key] = num
+            self._consolidated_summary[avg_key] = tot / num
+        return updated
+
     def _update_summary(self, history_dict: Dict[str, Any]) -> bool:
         if not self._metric_defines:
             self._consolidated_summary.update(history_dict)
@@ -191,39 +238,18 @@ class HandleManager(object):
                 self._metric_track[last_key] = float_v
                 self._consolidated_summary[k] = v
                 updated = True
-
             if not d:
                 continue
             if not isinstance(v, numbers.Real):
                 continue
-
             if d.summary:
-                s = d.summary
-                if s.max:
-                    max_key = k + ".max"
-                    old_max = self._metric_track.get(max_key, None)
-                    if old_max is None or float_v > old_max:
-                        self._metric_track[max_key] = float_v
-                        self._consolidated_summary[max_key] = v
-                        updated = True
-                if s.min:
-                    min_key = k + ".min"
-                    old_min = self._metric_track.get(min_key, None)
-                    if old_min is None or float_v < old_min:
-                        self._metric_track[min_key] = float_v
-                        self._consolidated_summary[min_key] = v
-                        updated = True
-                if s.mean:
-                    tot_key = k + ".tot"
-                    num_key = k + ".num"
-                    avg_key = k + ".mean"
-                    tot = self._metric_track.get(tot_key, 0)
-                    num = self._metric_track.get(num_key, 0)
-                    tot += float(v)
-                    num += 1
-                    self._metric_track[tot_key] = tot
-                    self._metric_track[num_key] = num
-                    self._consolidated_summary[avg_key] = tot / num
+                goal_max = None
+                if d.goal:
+                    goal_max = d.goal.type == d.goal.GoalType.MAXIMIZE
+                if self._update_summary_metrics(
+                    d.summary, k=k, v=v, float_v=float_v, goal_max=goal_max
+                ):
+                    updated = True
         return updated
 
     def _history_assign_step(self, record: Record, history_dict: Dict) -> None:

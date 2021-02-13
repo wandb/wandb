@@ -204,12 +204,23 @@ message MetricItem {
   bool            auto_step = 9;
   MetricSummary   summary = 10;
   bool            hide = 11;
+  MetricGoal      goal = 12;
+}
+
+message MetricGoal {
+  enum GoalType {
+    UNSET = 0;
+    MINIMIZE = 1;
+    MAXIMIZE = 2;
+  }
+  GoalType type = 1;
 }
 
 message MetricSummary {
   bool min = 1;
   bool max = 2;
   bool mean = 3;
+  bool best = 4;
 }
 
 /*

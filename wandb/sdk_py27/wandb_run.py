@@ -1782,6 +1782,7 @@ class Run(object):
         auto_step = None,
         hide = None,
         summary = None,
+        goal = None,
         **kwargs
     ):
         for k in kwargs:
@@ -1794,6 +1795,7 @@ class Run(object):
             ("auto_step", auto_step, bool, False),
             ("hide", hide, bool, False),
             ("summary", summary, str, False),
+            ("goal", goal, str, False),
         ):
             if arg_val is None:
                 if not arg_req:
@@ -1818,7 +1820,7 @@ class Run(object):
         if summary:
             summary_items = summary.split(",")
             summary_ops = []
-            valid = {"min", "max", "mean"}
+            valid = {"min", "max", "mean", "best"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(
@@ -1826,7 +1828,12 @@ class Run(object):
                     )
                 summary_ops.append(i)
         m = wandb_metric.Metric(
-            name=name, step=step, auto_step=auto_step, summary=summary_ops, hide=hide
+            name=name,
+            step=step,
+            auto_step=auto_step,
+            summary=summary_ops,
+            hide=hide,
+            goal=goal,
         )
         m._set_callback(self._metric_callback)
         m._commit()
