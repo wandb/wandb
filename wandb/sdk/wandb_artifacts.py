@@ -48,7 +48,43 @@ _REQUEST_POOL_MAXSIZE = 64
 
 
 class Artifact(ArtifactInterface):
-    """An artifact object you can write files into, and pass to log_artifact."""
+    """
+    Constructs an empty artifact whose contents can be populated using its
+    `add` family of functions. Once the artifact has all the desired files,
+    you can call `wandb.log_artifact()` to log it.
+
+
+    Arguments:
+        name: (str) A human-readable name for this artifact, which is how you
+            can identify this artifact in the UI or reference it in `use_artifact`
+            calls. Names can contain letters, numbers, underscores, hyphens, and
+            dots. The name must be unique across a project.
+        type: (str) The type of the artifact, which is used to organize and differentiate
+            artifacts. Common types include `dataset` or `model`, but you can use any string
+            containing letters, numbers, underscores, hyphens, and dots.
+        description: (str, optional) Free text that offers a description of the artifact. The
+            description is markdown rendered in the UI, so this is a good place to place tables,
+            links, etc.
+        metadata: (dict, optional) Structured data associated with the artifact,
+            for example class distribution of a dataset. This will eventually be queryable
+            and plottable in the UI. There is a hard limit of 100 total keys.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+
+        artifact = wandb.Artifact('mnist', type='dataset')
+        artifact.add_dir('mnist/')
+        wandb.log_artifact(artifact)
+        ```
+
+    Raises:
+        Exception: if problem.
+
+    Returns:
+        An `Artifact` object.
+    """
 
     _added_objs: dict
     _added_local_paths: dict
@@ -62,43 +98,6 @@ class Artifact(ArtifactInterface):
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
     ) -> None:
-        """
-        Constructs an empty artifact whose contents can be populated using its
-        `add` family of functions. Once the artifact has all the desired files,
-        you can call `wandb.log_artifact()` to log it.
-
-
-        Arguments:
-            name: (str) A human-readable name for this artifact, which is how you
-                can identify this artifact in the UI or reference it in `use_artifact`
-                calls. Names can contain letters, numbers, underscores, hyphens, and
-                dots. The name must be unique across a project.
-            type: (str) The type of the artifact, which is used to organize and differentiate
-                artifacts. Common types include `dataset` or `model`, but you can use any string
-                containing letters, numbers, underscores, hyphens, and dots.
-            description: (str, optional) Free text that offers a description of the artifact. The
-                description is markdown rendered in the UI, so this is a good place to place tables,
-                links, etc.
-            metadata: (dict, optional) Structured data associated with the artifact,
-                for example class distribution of a dataset. This will eventually be queryable
-                and plottable in the UI. There is a hard limit of 100 total keys.
-
-        Examples:
-            Basic usage
-            ```
-            wandb.init()
-
-            artifact = wandb.Artifact('mnist', type='dataset')
-            artifact.add_dir('mnist/')
-            wandb.log_artifact(artifact)
-            ```
-
-        Raises:
-            Exception: if problem.
-
-        Returns:
-            An `Artifact` object.
-        """
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
@@ -205,25 +204,6 @@ class Artifact(ArtifactInterface):
 
     @contextlib.contextmanager
     def new_file(self, name: str, mode: str = "w"):
-        """
-        Open a new temporary file that will be automatically added to the artifact.
-
-        Arguments:
-            name: (str) The name of the new file being added to the artifact.
-            mode: (str, optional) The mode in which to open the new file.
-
-        Examples:
-            ```
-            artifact = wandb.Artifact('my_data', type='dataset')
-            with artifact.new_file('hello.txt') as f:
-                f.write('hello!')
-            wandb.log_artifact(artifact)
-            ```
-
-        Returns:
-            (file): A new file object that can be written to. Upon closing,
-                the file will be automatically added to the artifact.
-        """
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
@@ -238,36 +218,11 @@ class Artifact(ArtifactInterface):
         self.add_file(path, name=name)
 
     def add_file(
-        self, local_path: str, name: Optional[str] = None, is_tmp: Optional[bool] = False
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        is_tmp: Optional[bool] = False,
     ):
-        """
-        Adds a local file to the artifact.
-
-        Arguments:
-            local_path: (str) The path to the file being added.
-            name: (str, optional) The path within the artifact to use for the file being added. Defaults
-                to the basename of the file.
-            is_tmp: (bool, optional) If true, then the file is renamed deterministically to avoid collisions.
-                (default: False)
-
-        Examples:
-            Adding a file without an explicit name:
-            ```
-            artifact.add_file('path/to/file.txt') # Added as `file.txt'
-            ```
-
-            Adding a file with an explicit name:
-            ```
-            artifact.add_file('path/to/file.txt', name='new/path/file.txt') # Added as 'new/path/file.txt'
-            ```
-
-        Raises:
-            Exception: if problem
-
-        Returns:
-            ArtifactManifestEntry: the added manifest entry
-
-        """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
@@ -284,31 +239,6 @@ class Artifact(ArtifactInterface):
         return self._add_local_file(name, local_path, digest=digest)
 
     def add_dir(self, local_path: str, name: Optional[str] = None):
-        """
-        Adds a local directory to the artifact.
-
-        Arguments:
-            local_path: (str) The path to the directory being added.
-            name: (str, optional) The path within the artifact to use for the directory being added. Defaults
-                to files being added under the root of the artifact.
-
-        Examples:
-            Adding a directory without an explicit name:
-            ```
-            artifact.add_dir('my_dir/') # All files in `my_dir/` are added at the root of the artifact.
-            ```
-
-            Adding a directory without an explicit name:
-            ```
-            artifact.add_dir('my_dir/', path='destination') # All files in `my_dir/` are added under `destination/`.
-            ```
-
-        Raises:
-            Exception: if problem.
-
-        Returns:
-            None
-        """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
             raise ValueError("Path is not a directory: %s" % local_path)
@@ -350,71 +280,12 @@ class Artifact(ArtifactInterface):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ):
-        """
-        Adds a reference denoted by a URI to the artifact. Unlike adding files or directories,
-        references are NOT uploaded to W&B. However, artifact methods such as `download()` can
-        be used regardless of whether the artifact contains references or uploaded files.
-
-        By default, W&B offers special
-        handling for the following schemes:
-
-        - http(s): The size and digest of the file will be inferred by the `Content-Length` and
-            the `ETag` response headers returned by the server.
-        - s3: The checksum and size will be pulled from the object metadata. If bucket versioning
-            is enabled, then the version ID is also tracked.
-        - gs: The checksum and size will be pulled from the object metadata. If bucket versioning
-            is enabled, then the version ID is also tracked.
-        - file: The checksum and size will be pulled from the file system. This scheme is useful if
-            you have an NFS share or other externally mounted volume containing files you wish to track
-            but not necessarily upload.
-
-        For any other scheme, the digest is just a hash of the URI and the size is left blank.
-
-        Arguments:
-            uri: (str) The URI path of the reference to add. Can be an object returned from
-                Artifact.get_path to store a reference to another artifact's entry.
-            name: (str) The path within the artifact to place the contents of this reference
-            checksum: (bool, optional) Whether or not to checksum the resource(s) located at the
-                reference URI. Checksumming is strongly recommended as it enables automatic integrity
-                validation, however it can be disabled to speed up artifact creation. (default: True)
-            max_objects: (int, optional) The maximum number of objects to consider when adding a
-                reference that points to directory or bucket store prefix. For S3 and GCS, this limit
-                is 10,000 by default but is uncapped for other URI schemes. (default: None)
-
-        Raises:
-            Exception: If problem.
-
-        Returns:
-            List[ArtifactManifestEntry]: The added manifest entries.
-
-        Examples:
-            Adding an HTTP link:
-            ```
-            # Adds `file.txt` to the root of the artifact as a reference
-            artifact.add_reference('http://myserver.com/file.txt')
-            ```
-
-            Adding an S3 prefix without an explicit name:
-            ```
-            # All objects under `prefix/` will be added at the root of the artifact.
-            artifact.add_reference('s3://mybucket/prefix')
-            ```
-
-            Adding a GCS prefix with an explicit name:
-            ```
-            # All objects under `prefix/` will be added under `path/` at the top of the artifact.
-            artifact.add_reference('gs://mybucket/prefix', name='path')
-            ```
-        """
         self._ensure_can_add()
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
-        if (
-            isinstance(uri, ArtifactEntry)
-            and uri.parent_artifact() != self
-        ):
+        if isinstance(uri, ArtifactEntry) and uri.parent_artifact() != self:
             ref_url_fn = getattr(uri, "ref_url")
             uri = ref_url_fn()
         url = urlparse(str(uri))
@@ -432,37 +303,6 @@ class Artifact(ArtifactInterface):
         return manifest_entries
 
     def add(self, obj: WBValue, name: str):
-        """
-        Adds `obj` to the artifact, where the object is a W&B histogram or
-        media type.
-
-        ```
-        obj = artifact.get(name)
-        ```
-
-        Arguments:
-            obj: (wandb.WBValue) The object to add.
-            name: (str) The path within the artifact to add the object.
-
-        Returns:
-            ArtifactManifestEntry: the added manifest entry
-
-        Examples:
-            Basic usage
-            ```
-            artifact = wandb.Artifact('my_table', 'dataset')
-            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
-            artifact.add(table, "my_table")
-
-            wandb.log_artifact(artifact)
-            ```
-
-            Retrieving an object:
-            ```
-            artifact = wandb.use_artifact('my_table:latest')
-            table = artifact.get("my_table")
-            ```
-        """
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
@@ -499,6 +339,15 @@ class Artifact(ArtifactInterface):
 
         return entry
 
+    def get_path(self, name: str):
+        raise ValueError("Cannot load paths from an artifact before it has been saved")
+
+    def get(self, name: str):
+        raise ValueError("Cannot call get on an artifact before it has been saved")
+
+    def download(self, root: str = None, recursive: bool = False):
+        raise ValueError("Cannot call download on an artifact before it has been saved")
+
     def get_added_local_path_name(self, local_path: str):
         """
         Get the artifact relative name of a file added by a local filesystem path.
@@ -523,15 +372,6 @@ class Artifact(ArtifactInterface):
         if entry is None:
             return None
         return entry.path
-
-    def get_path(self, name: str):
-        raise ValueError("Cannot load paths from an artifact before it has been saved")
-
-    def get(self, name: str):
-        raise ValueError("Cannot call get on an artifact before it has been saved")
-
-    def download(self, root: str = None, recursive: bool = False):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
 
     def finalize(self):
         """

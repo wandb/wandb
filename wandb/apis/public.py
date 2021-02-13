@@ -2445,6 +2445,10 @@ class ArtifactCollection(object):
 
 
 class Artifact(artifacts.Artifact):
+    """
+    An artifact that has been logged.
+    """
+
     QUERY = gql(
         """
         query Artifact(
@@ -2676,23 +2680,27 @@ class Artifact(artifacts.Artifact):
     def new_file(self, name, mode=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_file(self, path, name=None):
+    def add_file(self, local_path, name=None, is_tmp=False):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def add_dir(self, path, name=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_reference(self, path, name=None):
+    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+        raise ValueError("Cannot add files to an artifact once it has been saved")
+
+    def add(self, obj, name):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def _get_obj_entry(self, name):
-        """When objects are added with `.add(obj, name)`, the name is typically
+        """
+        When objects are added with `.add(obj, name)`, the name is typically
         changed to include the suffix of the object type when serializing to JSON. So we need
         to be able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
         Args:
-            name (str): name used when adding
+            name: (str) name used when adding
         """
         self._load_manifest()
 
@@ -2777,14 +2785,6 @@ class Artifact(artifacts.Artifact):
         return ArtifactEntry()
 
     def get(self, name):
-        """Returns the wandb.Media resource stored in the artifact. Media can be
-        stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
-        Arguments:
-            name (str): name of resource.
-
-        Returns:
-            A `wandb.Media` which has been stored at `name`
-        """
         entry, wb_class = self._get_obj_entry(name)
         if entry is not None:
             # If the entry is a reference from another artifact, then get it directly from that artifact
@@ -2813,18 +2813,6 @@ class Artifact(artifacts.Artifact):
             return result
 
     def download(self, root=None, recursive=False):
-        """Download the artifact to dir specified by the <root>
-
-        Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-            recursive (bool, optional): if set to true, then all dependent artifacts are
-                eagerly downloaded as well. If false, then the dependent artifact will
-                only be downloaded when needed.
-
-        Returns:
-            The path to the downloaded contents.
-        """
         dirpath = root or self._default_root()
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2860,11 +2848,10 @@ class Artifact(artifacts.Artifact):
         """Download a single file artifact to dir specified by the <root>
 
         Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
+            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/<self.name>/'.
 
         Returns:
-            The full path of the downloaded file
+            (str): The full path of the downloaded file.
         """
 
         if root is None:
@@ -2874,7 +2861,8 @@ class Artifact(artifacts.Artifact):
         nfiles = len(manifest.entries)
         if nfiles > 1:
             raise ValueError(
-                'This artifact contains more than one file, call `.download()` to get all files or call .get_path("filename").download()'
+                "This artifact contains more than one file, call `.download()` to get all files or call "
+                '.get_path("filename").download()'
             )
 
         return self._download_file(list(manifest.entries)[0], root=root)
@@ -2931,14 +2919,17 @@ class Artifact(artifacts.Artifact):
         return True
 
     def verify(self, root=None):
-        """Verify an artifact by checksumming its downloaded contents.
+        """
+        Verify an artifact by checksumming its downloaded contents.
 
-        Raises a ValueError if the verification fails. Does not verify downloaded
-        reference files.
+        NOTE: References are not verified.
 
         Arguments:
-            root (str, optional): directory to download artifact to. If None
+            root: (str, optional) directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
+
+        Raises:
+            (ValueError): If the verification fails.
         """
         dirpath = root
         if dirpath is None:

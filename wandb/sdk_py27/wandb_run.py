@@ -2080,7 +2080,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend:
+            self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(
         self,

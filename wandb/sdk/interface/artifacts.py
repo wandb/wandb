@@ -8,9 +8,10 @@ import os
 import wandb
 from wandb import env
 from wandb import util
+from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import Optional, Union
 
 
 def md5_string(string):
@@ -92,7 +93,6 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
-
     def parent_artifact(self):
         """
         Get the artifact to which this artifact entry belongs.
@@ -211,6 +211,191 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def new_file(self, name: str, mode: str = "w"):
+        """
+        Open a new temporary file that will be automatically added to the artifact.
+
+        Arguments:
+            name: (str) The name of the new file being added to the artifact.
+            mode: (str, optional) The mode in which to open the new file.
+
+        Examples:
+            ```
+            artifact = wandb.Artifact('my_data', type='dataset')
+            with artifact.new_file('hello.txt') as f:
+                f.write('hello!')
+            wandb.log_artifact(artifact)
+            ```
+
+        Returns:
+            (file): A new file object that can be written to. Upon closing,
+                the file will be automatically added to the artifact.
+        """
+        raise NotImplementedError
+
+    def add_file(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        is_tmp: Optional[bool] = False,
+    ):
+        """
+        Adds a local file to the artifact.
+
+        Arguments:
+            local_path: (str) The path to the file being added.
+            name: (str, optional) The path within the artifact to use for the file being added. Defaults
+                to the basename of the file.
+            is_tmp: (bool, optional) If true, then the file is renamed deterministically to avoid collisions.
+                (default: False)
+
+        Examples:
+            Adding a file without an explicit name:
+            ```
+            artifact.add_file('path/to/file.txt') # Added as `file.txt'
+            ```
+
+            Adding a file with an explicit name:
+            ```
+            artifact.add_file('path/to/file.txt', name='new/path/file.txt') # Added as 'new/path/file.txt'
+            ```
+
+        Raises:
+            Exception: if problem
+
+        Returns:
+            ArtifactManifestEntry: the added manifest entry
+
+        """
+        raise NotImplementedError
+
+    def add_dir(self, local_path: str, name: Optional[str] = None):
+        """
+        Adds a local directory to the artifact.
+
+        Arguments:
+            local_path: (str) The path to the directory being added.
+            name: (str, optional) The path within the artifact to use for the directory being added. Defaults
+                to files being added under the root of the artifact.
+
+        Examples:
+            Adding a directory without an explicit name:
+            ```
+            artifact.add_dir('my_dir/') # All files in `my_dir/` are added at the root of the artifact.
+            ```
+
+            Adding a directory without an explicit name:
+            ```
+            artifact.add_dir('my_dir/', path='destination') # All files in `my_dir/` are added under `destination/`.
+            ```
+
+        Raises:
+            Exception: if problem.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
+    def add_reference(
+        self,
+        uri: Union[ArtifactEntry, str],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ):
+        """
+        Adds a reference denoted by a URI to the artifact. Unlike adding files or directories,
+        references are NOT uploaded to W&B. However, artifact methods such as `download()` can
+        be used regardless of whether the artifact contains references or uploaded files.
+
+        By default, W&B offers special
+        handling for the following schemes:
+
+        - http(s): The size and digest of the file will be inferred by the `Content-Length` and
+            the `ETag` response headers returned by the server.
+        - s3: The checksum and size will be pulled from the object metadata. If bucket versioning
+            is enabled, then the version ID is also tracked.
+        - gs: The checksum and size will be pulled from the object metadata. If bucket versioning
+            is enabled, then the version ID is also tracked.
+        - file: The checksum and size will be pulled from the file system. This scheme is useful if
+            you have an NFS share or other externally mounted volume containing files you wish to track
+            but not necessarily upload.
+
+        For any other scheme, the digest is just a hash of the URI and the size is left blank.
+
+        Arguments:
+            uri: (str) The URI path of the reference to add. Can be an object returned from
+                Artifact.get_path to store a reference to another artifact's entry.
+            name: (str) The path within the artifact to place the contents of this reference
+            checksum: (bool, optional) Whether or not to checksum the resource(s) located at the
+                reference URI. Checksumming is strongly recommended as it enables automatic integrity
+                validation, however it can be disabled to speed up artifact creation. (default: True)
+            max_objects: (int, optional) The maximum number of objects to consider when adding a
+                reference that points to directory or bucket store prefix. For S3 and GCS, this limit
+                is 10,000 by default but is uncapped for other URI schemes. (default: None)
+
+        Raises:
+            Exception: If problem.
+
+        Returns:
+            List[ArtifactManifestEntry]: The added manifest entries.
+
+        Examples:
+            Adding an HTTP link:
+            ```
+            # Adds `file.txt` to the root of the artifact as a reference
+            artifact.add_reference('http://myserver.com/file.txt')
+            ```
+
+            Adding an S3 prefix without an explicit name:
+            ```
+            # All objects under `prefix/` will be added at the root of the artifact.
+            artifact.add_reference('s3://mybucket/prefix')
+            ```
+
+            Adding a GCS prefix with an explicit name:
+            ```
+            # All objects under `prefix/` will be added under `path/` at the top of the artifact.
+            artifact.add_reference('gs://mybucket/prefix', name='path')
+            ```
+        """
+        raise NotImplementedError
+
+    def add(self, obj: WBValue, name: str):
+        """
+        Adds `obj` to the artifact, where the object is a W&B histogram or
+        media type.
+
+        ```
+        obj = artifact.get(name)
+        ```
+
+        Arguments:
+            obj: (wandb.WBValue) The object to add.
+            name: (str) The path within the artifact to add the object.
+
+        Returns:
+            ArtifactManifestEntry: the added manifest entry
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_table', 'dataset')
+            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            artifact.add(table, "my_table")
+
+            wandb.log_artifact(artifact)
+            ```
+
+            Retrieving an object:
+            ```
+            artifact = wandb.use_artifact('my_table:latest')
+            table = artifact.get("my_table")
+            ```
+        """
+        raise NotImplementedError
+
     def get_path(self, name: str) -> ArtifactEntry:
         """
         Gets the path to the file located at the artifact relative `name`.
@@ -244,7 +429,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def get(self, name: str):
+    def get(self, name: str) -> WBValue:
         """
         Gets the WBValue object located at the artifact relative `name`.
 
