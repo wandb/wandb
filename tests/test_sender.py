@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import pytest
+import six
 from six.moves import queue
 import threading
 import time
@@ -601,8 +602,8 @@ def test_metric_none(publish_util):
     ctx_util = publish_util(history=history)
     assert "x_axis" not in ctx_util.config_wandb
     summary = ctx_util.summary
-    assert summary["v1"] == 2
-    assert summary["v2"] == 3
+    # assert six.viewitems(dict(v1=2, v2=3)) <= six.viewitems(summary)
+    assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
 
 def test_metric_xaxis(publish_util):
@@ -613,11 +614,14 @@ def test_metric_xaxis(publish_util):
     metrics = _make_metrics(metrics)
     ctx_util = publish_util(history=history, metrics=metrics)
     config_wandb = ctx_util.config_wandb
-    assert config_wandb["x_axis"] == "mystep"
-    assert "v1" not in ctx_util.summary
+    # TODO(jhr): remove this when UI updated
+    # assert "x_axis" in config_wandb
+    # assert "mystep" in config_wandb["x_axis"]
+    summary = ctx_util.summary
+    assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
 
-def test_metric_max(gen_metrics):
+def _test_metric_max(publish_util):
     mv = wandb_internal_pb2.MetricValue()
     mv.summary_max = True
     ctx_util = gen_metrics(dict(v2=mv))
@@ -626,7 +630,7 @@ def test_metric_max(gen_metrics):
     assert summary["v2"] == 8
 
 
-def test_metric_min(gen_metrics):
+def _test_metric_min(publish_util):
     mv = wandb_internal_pb2.MetricValue()
     mv.summary_min = True
     ctx_util = gen_metrics(dict(v2=mv))
@@ -635,7 +639,7 @@ def test_metric_min(gen_metrics):
     assert summary["v2"] == 2
 
 
-def test_metric_min_str(gen_metrics):
+def _test_metric_min_str(publish_util):
     mv = wandb_internal_pb2.MetricValue()
     mv.summary_min = True
     ctx_util = gen_metrics(dict(v3=mv))
@@ -644,7 +648,7 @@ def test_metric_min_str(gen_metrics):
     assert "v3" not in summary
 
 
-def test_metric_last(gen_metrics):
+def _test_metric_last(publish_util):
     mv = wandb_internal_pb2.MetricValue()
     mv.summary_last = True
     ctx_util = gen_metrics(dict(v2=mv))
@@ -653,7 +657,7 @@ def test_metric_last(gen_metrics):
     assert summary["v2"] == 3
 
 
-def test_metric_mult(gen_metrics):
+def _test_metric_mult(publish_util):
     mv = wandb_internal_pb2.MetricValue()
     mv.default_xaxis = True
     mv1 = wandb_internal_pb2.MetricValue()
