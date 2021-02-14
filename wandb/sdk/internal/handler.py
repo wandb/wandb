@@ -400,6 +400,20 @@ class HandleManager(object):
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
+    def _handle_defined_metric(self, record: wandb_internal_pb2.Record) -> None:
+        metric = record.metric
+        self._metric_defines.setdefault(
+            metric.name, wandb_internal_pb2.MetricRecord()
+        ).MergeFrom(metric)
+        self._dispatch_record(record)
+
+    def _handle_glob_metric(self, record: wandb_internal_pb2.Record) -> None:
+        metric = record.metric
+        self._metric_globs.setdefault(
+            metric.glob_name, wandb_internal_pb2.MetricRecord()
+        ).MergeFrom(metric)
+        self._dispatch_record(record)
+
     def handle_metric(self, record: Record) -> None:
         """Handle MetricRecord.
 
@@ -424,16 +438,10 @@ class HandleManager(object):
         Args:
             record (Record): Metric record to process
         """
-        metric = record.metric
-        if metric.name:
-            self._metric_defines.setdefault(
-                metric.name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
-        if metric.glob_name:
-            self._metric_globs.setdefault(
-                metric.glob_name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
-        self._dispatch_record(record)
+        if record.metric.name:
+            self._handle_defined_metric(record)
+        elif record.metric.glob_name:
+            self._handle_glob_metric(record)
 
     def handle_request_sampled_history(self, record: Record) -> None:
         result = wandb_internal_pb2.Result(uuid=record.uuid)

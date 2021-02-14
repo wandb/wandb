@@ -570,8 +570,7 @@ def _make_metrics(mitems):
     metrics = []
     for mitem in mitems:
         m = pb.MetricRecord()
-        mi = m.update.add()
-        mi.CopyFrom(mitem)
+        m.CopyFrom(mitem)
         metrics.append(m)
     return metrics
 
@@ -609,7 +608,7 @@ def test_metric_none(publish_util):
 def test_metric_step(publish_util):
     history = _gen_history()
     metrics = [
-        pb.MetricItem(glob_name="*", step="mystep"),
+        pb.MetricRecord(glob_name="*", step="mystep"),
     ]
     metrics = _make_metrics(metrics)
     ctx_util = publish_util(history=history, metrics=metrics)
