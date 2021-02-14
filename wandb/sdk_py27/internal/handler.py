@@ -297,7 +297,7 @@ class HandleManager(object):
                 mr.control.local = True  # Dont store this, just send it
                 self._handle_defined_metric(mr)
 
-            if m.auto_step and m.step_metric:
+            if m.step_sync and m.step_metric:
                 if m.step_metric not in history_dict:
                     step = self._metric_track.get(m.step_metric)
                     if step is not None:
