@@ -363,7 +363,7 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
 
     # no default axis
     config_wandb = ctx_util.config_wandb
-    # assert "x_axis" not in config_wandb
+    assert "x_axis" not in config_wandb
 
     # by default we use last value
     summary = ctx_util.summary
@@ -372,18 +372,20 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_xaxis(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("mystep")
+    run.define_metric("*", step="mystep")
     run.log(dict(mystep=1, val=2))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     config_wandb = ctx_util.config_wandb
-    # assert config_wandb["x_axis"] == "mystep"
-    # assert "val" not in ctx_util.summary
+    summary = ctx_util.summary
+
+    assert six.viewitems({"x_axis": "mystep"}) <= six.viewitems(config_wandb)
+    assert six.viewitems(dict(val=2)) <= six.viewitems(summary)
 
 
-def _test_metric_last(live_mock_server, test_settings, parse_ctx):
+def test_metric_sum_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("val").set_summary(last=True)
+    run.define_metric("val")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
@@ -392,30 +394,29 @@ def _test_metric_last(live_mock_server, test_settings, parse_ctx):
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    # if we set any metric, last is disabled for all other metrics
-    assert summary["val"] == 3
-    assert "val2" not in summary
+    # if we set a metric, last is NOT disabled
+    assert six.viewitems(dict(val=3, val2=1)) <= six.viewitems(summary)
 
 
-def _test_metric_max(live_mock_server, test_settings, parse_ctx):
+def test_metric_max(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("val").set_summary(max=True)
+    run.define_metric("val", summary="max")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert summary["val"] == 8
+    assert six.viewitems({"val": 3, "val.max": 8}) <= six.viewitems(summary)
 
 
-def _test_metric_min(live_mock_server, test_settings, parse_ctx):
+def test_metric_min(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("val").set_summary(min=True)
+    run.define_metric("val", summary="min")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert summary["val"] == 2
+    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)

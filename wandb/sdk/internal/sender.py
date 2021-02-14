@@ -684,22 +684,16 @@ class SendManager(object):
         self._update_config()
 
     def send_metric(self, data: wandb_internal_pb2.Record) -> None:
-        pass
-        # metric = data.metric
-        # we only care about default_xaxis for now
-        # default_xaxis: Optional[str] = None
-        # for metric_item in metric.update:
-        #     if metric_item.val.default_xaxis:
-        #         metric_key: str
-        #         if metric_item.metric:
-        #             metric_key = metric_item.metric
-        #         else:
-        #             # TODO: figure out if the backend can handle this
-        #             metric_key = ".".join(metric_item.metric)
-        #         default_xaxis = metric_key
-        # if default_xaxis:
-        #     self._config_default_xaxis = default_xaxis
-        #     self._update_config()
+        metric = data.metric
+        if metric.glob_name:
+            logger.warning("Seen metric with glob (shouldnt happen)")
+            return
+        # TODO(jhr): remove this code before shipping (only for prototype UI)
+        if metric.step:
+            if metric.step != self._config_default_xaxis:
+                self._config_default_xaxis = metric.step
+                self._update_config()
+        # TODO(jhr): format new protobuf
 
     def send_telemetry(self, data):
         telem = data.telemetry
