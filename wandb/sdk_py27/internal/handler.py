@@ -229,19 +229,19 @@ class HandleManager(object):
         for k, v in six.iteritems(history_dict):
             # TODO(jhr): handle nested metrics
             d = self._metric_defines.get(k, None)
-            float_v = float(v)
 
             # Always store last metric (for now)
             last_key = k + ".last"
             old_last = self._metric_track.get(last_key, None)
-            if old_last is None or float_v != old_last:
-                self._metric_track[last_key] = float_v
+            if old_last is None or v != old_last:
+                self._metric_track[last_key] = v
                 self._consolidated_summary[k] = v
                 updated = True
             if not d:
                 continue
             if not isinstance(v, numbers.Real):
                 continue
+            float_v = float(v)
             if d.summary:
                 goal_max = None
                 if d.goal:
@@ -270,6 +270,14 @@ class HandleManager(object):
         self, hkey
     ):
         """check for hkey match in glob metrics, return defined metric."""
+        for k, mglob in six.iteritems(self._metric_globs):
+            if k.endswith("*"):
+                if hkey.startswith(k[:-1]):
+                    m = wandb_internal_pb2.MetricRecord()
+                    m.CopyFrom(mglob)
+                    m.ClearField("glob_name")
+                    m.name = hkey
+                    return m
         return None
 
     def _history_update(self, record, history_dict):
@@ -284,7 +292,14 @@ class HandleManager(object):
                 m = self._history_define_metric(hkey)
                 if not m:
                     continue
+                mr = wandb_internal_pb2.Record()
+                mr.metric.CopyFrom(m)
+                mr.control.local = True  # Dont store this, just send it
+                self._handle_defined_metric(mr)
             # if here, m is a defined metric
+            if m.auto_step:
+                pass
+                # print("AUTOSTEP", m.name, m.step)
 
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
