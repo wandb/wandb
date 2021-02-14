@@ -46,7 +46,7 @@ class BackendSenderMock(BackendSender):
 
 
 class InjectUtil:
-    def __init__(self) -> None:
+    def __init__(self):
         self._patcher = None
 
     def install(self, mock_class):
