@@ -266,16 +266,29 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _update_history(self, record: Record, history_dict: Dict) -> None:
+    def _history_define_metric(
+        self, hkey: str
+    ) -> Optional[wandb_internal_pb2.MetricRecord]:
+        """check for hkey match in glob metrics, return defined metric."""
+        return None
+
+    def _history_update(self, record: Record, history_dict: Dict) -> None:
         # if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(record, history_dict)
 
-        # TODO(jhr): look for wildcard records and publish record to handler?
+        # Look for metric matches
+        for hkey in history_dict:
+            m = self._metric_defines.get(hkey)
+            if not m:
+                m = self._history_define_metric(hkey)
+                if not m:
+                    continue
+            # if here, m is a defined metric
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-        self._update_history(record, history_dict)
+        self._history_update(record, history_dict)
         self._dispatch_record(record)
         self._save_history(record)
 
