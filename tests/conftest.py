@@ -459,6 +459,18 @@ def records_util():
     yield records_fn
 
 
+@pytest.fixture
+def user_test(fake_run, record_q, records_util):
+    class UserTest:
+        pass
+
+    ut = UserTest()
+    ut.get_run = fake_run
+    ut.get_records = lambda: records_util(record_q)
+
+    yield ut
+
+
 # @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 # def pytest_runtest_makereport(item, call):
 #     outcome = yield

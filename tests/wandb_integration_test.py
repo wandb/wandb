@@ -422,18 +422,6 @@ def test_metric_min(live_mock_server, test_settings, parse_ctx):
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
 
 
-def test_metric_min(live_mock_server, test_settings, parse_ctx):
-    run = wandb.init()
-    run.define_metric("val", summary="min")
-    run.log(dict(mystep=1, val=2))
-    run.log(dict(mystep=1, val=8))
-    run.log(dict(mystep=1, val=3))
-    run.finish()
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
-    summary = ctx_util.summary
-    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
-
-
 def _gen_metric_auto_step(run):
     run.log(dict(val=2, val2=5, mystep=1))
     run.log(dict(mystep=3))
