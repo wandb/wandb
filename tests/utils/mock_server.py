@@ -847,6 +847,12 @@ class ParseCTX(object):
         return summary
 
     @property
+    def history(self):
+        fs_files = self.get_filestream_file_items()
+        history = fs_files["wandb-history.jsonl"]
+        return history
+
+    @property
     def config(self):
         return self._ctx["config"][-1]
 

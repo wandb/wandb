@@ -420,3 +420,49 @@ def test_metric_min(live_mock_server, test_settings, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+
+
+def test_metric_min(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init()
+    run.define_metric("val", summary="min")
+    run.log(dict(mystep=1, val=2))
+    run.log(dict(mystep=1, val=8))
+    run.log(dict(mystep=1, val=3))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+
+
+def _gen_metric_auto_step(run):
+    run.log(dict(val=2, val2=5, mystep=1))
+    run.log(dict(mystep=3))
+    run.log(dict(val=8))
+    run.log(dict(val2=8))
+    run.log(dict(val=3, mystep=5))
+    run.finish()
+
+
+def test_metric_no_auto_step(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init()
+    run.define_metric("val", summary="min", step="mystep")
+    _gen_metric_auto_step(run)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    history = ctx_util.history
+    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+    history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
+    assert history_val == [(2, 1), (8, None), (3, 5)]
+
+
+def test_metric_auto_step(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init()
+    run.define_metric("val", summary="min", step="mystep", auto_step=True)
+    _gen_metric_auto_step(run)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    history = ctx_util.history
+    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+    history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
+    assert history_val == [(2, 1), (8, 3), (3, 5)]
+    assert not any([item[1] is None for item in history_val])

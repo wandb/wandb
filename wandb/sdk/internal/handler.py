@@ -188,7 +188,7 @@ class HandleManager(object):
             best_key = k + ".best"
         if s.max or goal_max and best_key:
             max_key = k + ".max"
-            old_max = self._metric_track.get(max_key, None)
+            old_max = self._metric_track.get(max_key)
             if old_max is None or float_v > old_max:
                 self._metric_track[max_key] = float_v
                 if s.max:
@@ -199,7 +199,7 @@ class HandleManager(object):
                     updated = True
         if s.min or not goal_max and best_key:
             min_key = k + ".min"
-            old_min = self._metric_track.get(min_key, None)
+            old_min = self._metric_track.get(min_key)
             if old_min is None or float_v < old_min:
                 self._metric_track[min_key] = float_v
                 if s.min:
@@ -231,10 +231,9 @@ class HandleManager(object):
             d = self._metric_defines.get(k, None)
 
             # Always store last metric (for now)
-            last_key = k + ".last"
-            old_last = self._metric_track.get(last_key, None)
+            old_last = self._metric_track.get(k)
             if old_last is None or v != old_last:
-                self._metric_track[last_key] = v
+                self._metric_track[k] = v
                 self._consolidated_summary[k] = v
                 updated = True
             if not d:
@@ -285,6 +284,7 @@ class HandleManager(object):
         if history_dict.get("_step") is None:
             self._history_assign_step(record, history_dict)
 
+        update_history = {}
         # Look for metric matches
         for hkey in history_dict:
             m = self._metric_defines.get(hkey)
@@ -296,10 +296,19 @@ class HandleManager(object):
                 mr.metric.CopyFrom(m)
                 mr.control.local = True  # Dont store this, just send it
                 self._handle_defined_metric(mr)
-            # if here, m is a defined metric
-            if m.auto_step:
-                pass
-                # print("AUTOSTEP", m.name, m.step)
+
+            if m.auto_step and m.step:
+                if m.step not in history_dict:
+                    step = self._metric_track.get(m.step)
+                    if step is not None:
+                        update_history[m.step] = step
+
+        if update_history:
+            history_dict.update(update_history)
+            for k, v in six.iteritems(update_history):
+                item = record.history.item.add()
+                item.key = k
+                item.value_json = json.dumps(v)
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
