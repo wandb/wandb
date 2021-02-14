@@ -606,7 +606,7 @@ def test_metric_none(publish_util):
     assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
 
-def test_metric_xaxis(publish_util):
+def test_metric_step(publish_util):
     history = _gen_history()
     metrics = [
         pb.MetricItem(glob_name="*", step="mystep"),

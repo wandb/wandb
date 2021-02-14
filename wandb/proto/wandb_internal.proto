@@ -193,10 +193,6 @@ message OutputResult {
  * MetricRecord: wandb/sdk/wandb_metric/Metric
  */
 message MetricRecord {
-  repeated MetricItem update = 1;
-}
-
-message MetricItem {
   string          name = 1;
   repeated string nested_name = 2;
   string          glob_name = 3;

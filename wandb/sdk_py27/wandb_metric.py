@@ -75,8 +75,7 @@ class Metric(object):
         return self._goal
 
     def _commit(self):
-        mr = pb.MetricRecord()
-        m = mr.update.add()
+        m = pb.MetricRecord()
         if self._name.endswith("*"):
             m.glob_name = self._name
         else:
@@ -98,4 +97,4 @@ class Metric(object):
             if "best" in summary_set:
                 m.summary.best = True
         if self._callback:
-            self._callback(mr)
+            self._callback(m)

@@ -51,8 +51,8 @@ class HandleManager(object):
     _interface: BackendSender
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
-    _metric_defines: Dict[str, wandb_internal_pb2.MetricItem]
-    _metric_globs: Dict[str, wandb_internal_pb2.MetricItem]
+    _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
+    _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[str, float]
 
     def __init__(
@@ -401,15 +401,38 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:
-        for metric_item in record.metric.update:
-            if metric_item.name:
-                self._metric_defines.setdefault(
-                    metric_item.name, wandb_internal_pb2.MetricItem()
-                ).MergeFrom(metric_item)
-            if metric_item.glob_name:
-                self._metric_globs.setdefault(
-                    metric_item.glob_name, wandb_internal_pb2.MetricItem()
-                ).MergeFrom(metric_item)
+        """Handle MetricRecord.
+
+        Walkthrough of the life of a MetricRecord:
+
+        Metric defined:
+        - run.define_metric() parses arguments create wandb_metric.Metric
+        - build MetricRecord publish to interface
+        - handler (this function) keeps list of metrics published:
+          - self._metric_defines: Fully defined metrics
+          - self._metric_globs: metrics that have a wildcard
+        - dispatch writer and sender thread
+          - writer: records are saved to persistent store
+          - sender: fully defined metrics get mapped into metadata for UI
+
+        History logged:
+        - handle_history
+        - check if metric matches _metric_defines
+        - if not, check if metric matches _metric_globs
+        - if _metric globs match, generate defined metric and call _handle_metric
+
+        Args:
+            record (Record): Metric record to process
+        """
+        metric = record.metric
+        if metric.name:
+            self._metric_defines.setdefault(
+                metric.name, wandb_internal_pb2.MetricRecord()
+            ).MergeFrom(metric)
+        if metric.glob_name:
+            self._metric_globs.setdefault(
+                metric.glob_name, wandb_internal_pb2.MetricRecord()
+            ).MergeFrom(metric)
         self._dispatch_record(record)
 
     def handle_request_sampled_history(self, record: Record) -> None:
