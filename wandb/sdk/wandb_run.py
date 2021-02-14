@@ -1778,7 +1778,7 @@ class Run(object):
     def define_metric(
         self,
         name: str,
-        step: Union[str, wandb_metric.Metric, None] = None,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
         auto_step: bool = None,
         hide: bool = None,
         summary: str = None,
@@ -1787,11 +1787,11 @@ class Run(object):
     ) -> wandb_metric.Metric:
         for k in kwargs:
             wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
-        if isinstance(step, wandb_metric.Metric):
-            step = step.name
+        if isinstance(step_metric, wandb_metric.Metric):
+            step_metric = step_metric.name
         for arg_name, arg_val, arg_req, exp_type in (
             ("name", name, True, string_types),
-            ("step", step, False, string_types),
+            ("step_metric", step_metric, False, string_types),
             ("auto_step", auto_step, False, bool),
             ("hide", hide, False, bool),
             ("summary", summary, False, string_types),
@@ -1828,7 +1828,7 @@ class Run(object):
                 summary_ops.append(i)
         m = wandb_metric.Metric(
             name=name,
-            step=step,
+            step_metric=step_metric,
             auto_step=auto_step,
             summary=summary_ops,
             hide=hide,

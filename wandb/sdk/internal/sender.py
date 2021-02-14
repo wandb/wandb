@@ -689,9 +689,9 @@ class SendManager(object):
             logger.warning("Seen metric with glob (shouldnt happen)")
             return
         # TODO(jhr): remove this code before shipping (only for prototype UI)
-        if metric.step:
-            if metric.step != self._config_default_xaxis:
-                self._config_default_xaxis = metric.step
+        if metric.step_metric:
+            if metric.step_metric != self._config_default_xaxis:
+                self._config_default_xaxis = metric.step_metric
                 self._update_config()
         # TODO(jhr): format new protobuf
 

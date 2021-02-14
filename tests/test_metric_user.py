@@ -10,6 +10,5 @@ def test_metric_none(user_test):
 
     r = user_test.get_records()
     assert len(r.records) == 2
+    assert len(r.history) == 2
     assert len(r.summary) == 0
-    history = r.history
-    assert len(history) == 2

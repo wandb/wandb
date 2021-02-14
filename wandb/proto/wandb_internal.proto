@@ -196,7 +196,7 @@ message MetricRecord {
   string          name = 1;
   repeated string nested_name = 2;
   string          glob_name = 3;
-  string          step = 8;
+  string          step_metric = 8;
   bool            auto_step = 9;
   MetricSummary   summary = 10;
   bool            hide = 11;

@@ -31,7 +31,7 @@ class Metric(object):
     def __init__(
         self,
         name,
-        step = None,
+        step_metric = None,
         auto_step = None,
         hide = None,
         summary = None,
@@ -39,7 +39,7 @@ class Metric(object):
     ):
         self._callback = None
         self._name = name
-        self._step = step
+        self._step_metric = step_metric
         self._auto_step = auto_step
         self._hide = hide
         self._summary = summary
@@ -53,8 +53,8 @@ class Metric(object):
         return self._name
 
     @property
-    def step(self):
-        return self._step
+    def step_metric(self):
+        return self._step_metric
 
     @property
     def auto_step(self):
@@ -80,8 +80,8 @@ class Metric(object):
             m.glob_name = self._name
         else:
             m.name = self._name
-        if self._step:
-            m.step = self._step
+        if self._step_metric:
+            m.step_metric = self._step_metric
         if self._auto_step:
             m.auto_step = self._auto_step
         if self._hide:
