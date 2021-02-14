@@ -32,8 +32,12 @@ except ImportError:
 _PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if _PY3:
     from wandb.sdk.interface.interface import BackendSender
+
+    BACKEND_SENDER_CLASS = "wandb.sdk.interface.interface.BackendSender"
 else:
     from wandb.sdk_py27.interface.interface import BackendSender
+
+    BACKEND_SENDER_CLASS = "wandb.sdk_py27.interface.interface.BackendSender"
 
 
 class BackendSenderMock(BackendSender):
@@ -53,9 +57,7 @@ class InjectUtil:
         assert issubclass(
             mock_class, BackendSenderMock
         ), "Must install a class derived from BackendSenderMock"
-        self._patcher = mock.patch(
-            "wandb.sdk.interface.interface.BackendSender", mock_class
-        )
+        self._patcher = mock.patch(BACKEND_SENDER_CLASS, mock_class)
         MockClass = self._patcher.start()
 
     def uninstall(self):
