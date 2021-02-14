@@ -1779,7 +1779,7 @@ class Run(object):
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
-        auto_step: bool = None,
+        step_sync: bool = None,
         hide: bool = None,
         summary: str = None,
         goal: str = None,
@@ -1792,7 +1792,7 @@ class Run(object):
         for arg_name, arg_val, arg_req, exp_type in (
             ("name", name, True, string_types),
             ("step_metric", step_metric, False, string_types),
-            ("auto_step", auto_step, False, bool),
+            ("step_sync", step_sync, False, bool),
             ("hide", hide, False, bool),
             ("summary", summary, False, string_types),
             ("goal", goal, False, string_types),
@@ -1829,7 +1829,7 @@ class Run(object):
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
-            auto_step=auto_step,
+            step_sync=step_sync,
             summary=summary_ops,
             hide=hide,
             goal=goal,

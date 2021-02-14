@@ -23,8 +23,8 @@ class Metric(object):
 
     _callback: Optional[Callable[[pb.MetricRecord], None]]
     _name: str
-    _step: Optional[str]
-    _auto_step: Optional[bool]
+    _step_metric: Optional[str]
+    _step_sync: Optional[bool]
     _hide: Optional[bool]
     _summary: Optional[Sequence[str]]
 
@@ -32,7 +32,7 @@ class Metric(object):
         self,
         name: str,
         step_metric: str = None,
-        auto_step: bool = None,
+        step_sync: bool = None,
         hide: bool = None,
         summary: Sequence[str] = None,
         goal: str = None,
@@ -40,7 +40,7 @@ class Metric(object):
         self._callback = None
         self._name = name
         self._step_metric = step_metric
-        self._auto_step = auto_step
+        self._step_sync = step_sync
         self._hide = hide
         self._summary = summary
         self._goal = goal
@@ -57,8 +57,8 @@ class Metric(object):
         return self._step_metric
 
     @property
-    def auto_step(self) -> Optional[bool]:
-        return self._auto_step
+    def step_sync(self) -> Optional[bool]:
+        return self._step_sync
 
     @property
     def summary(self) -> Optional[Tuple[str, ...]]:
@@ -82,8 +82,8 @@ class Metric(object):
             m.name = self._name
         if self._step_metric:
             m.step_metric = self._step_metric
-        if self._auto_step:
-            m.auto_step = self._auto_step
+        if self._step_sync:
+            m.step_sync = self._step_sync
         if self._hide:
             m.hide = self._hide
         if self._summary:

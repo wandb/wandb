@@ -372,7 +372,7 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_xaxis(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("*", step="mystep")
+    run.define_metric("*", step_metric="mystep")
     run.log(dict(mystep=1, val=2))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -422,7 +422,7 @@ def test_metric_min(live_mock_server, test_settings, parse_ctx):
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
 
 
-def _gen_metric_auto_step(run):
+def _gen_metric_sync_step(run):
     run.log(dict(val=2, val2=5, mystep=1))
     run.log(dict(mystep=3))
     run.log(dict(val=8))
@@ -431,10 +431,10 @@ def _gen_metric_auto_step(run):
     run.finish()
 
 
-def test_metric_no_auto_step(live_mock_server, test_settings, parse_ctx):
+def test_metric_no_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("val", summary="min", step="mystep")
-    _gen_metric_auto_step(run)
+    run.define_metric("val", summary="min", step_metric="mystep")
+    _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history
@@ -443,10 +443,10 @@ def test_metric_no_auto_step(live_mock_server, test_settings, parse_ctx):
     assert history_val == [(2, 1), (8, None), (3, 5)]
 
 
-def test_metric_auto_step(live_mock_server, test_settings, parse_ctx):
+def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
-    run.define_metric("val", summary="min", step="mystep", auto_step=True)
-    _gen_metric_auto_step(run)
+    run.define_metric("val", summary="min", step_metric="mystep", step_sync=True)
+    _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history

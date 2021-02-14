@@ -610,7 +610,7 @@ def test_metric_none(publish_util):
 def test_metric_step(publish_util):
     history = _gen_history()
     metrics = [
-        pb.MetricRecord(glob_name="*", step="mystep"),
+        pb.MetricRecord(glob_name="*", step_metric="mystep"),
     ]
     metrics = _make_metrics(metrics)
     ctx_util = publish_util(history=history, metrics=metrics)
@@ -705,9 +705,9 @@ def test_metric_sum_none(publish_util):
 def test_metric_mult(publish_util):
     history = _gen_history()
     m1 = pb.MetricRecord(name="mystep")
-    m2 = pb.MetricRecord(name="v1", step="mystep")
+    m2 = pb.MetricRecord(name="v1", step_metric="mystep")
     m2.summary.max = True
-    m3 = pb.MetricRecord(name="v2", step="mystep")
+    m3 = pb.MetricRecord(name="v2", step_metric="mystep")
     m3.summary.min = True
     metrics = _make_metrics([m1, m2, m3])
     ctx_util = publish_util(history=history, metrics=metrics)
