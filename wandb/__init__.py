@@ -95,7 +95,6 @@ from wandb.integration.sagemaker import sagemaker_auth
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
-_INJECT = False
 
 
 def _set_internal_process():

@@ -7,6 +7,7 @@ from tests.utils.mock_server import mock_server, default_ctx, create_app, ParseC
 from tests.utils.mock_backend import BackendMock
 from tests.utils.records import RecordsUtil
 from tests.utils.notebook_client import WandbNotebookClient
+from tests.utils import inject_backend
 from tests.utils.utils import (
     subdict,
     free_port,
@@ -30,6 +31,7 @@ __all__ = [
     "notebook_path",
     "mock_sagemaker",
     "mock_k8s",
+    "inject_backend",
     "assert_deep_lists_equal",
     "subdict",
     "matplotlib_multiple_axes_figures",

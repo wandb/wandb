@@ -27,7 +27,6 @@ from wandb.util import (
 )
 
 from .artifacts import ArtifactManifest
-from ..lib import _inject
 from ..wandb_artifacts import Artifact
 
 if wandb.TYPE_CHECKING:
@@ -523,8 +522,6 @@ class BackendSender(object):
         self, rec: pb.Record, timeout: Optional[int] = 5, local: bool = None
     ) -> Optional[pb.Result]:
         assert self._router
-        if wandb._INJECT and _inject.communicate(rec):
-            return None
         future = self._router.send_and_receive(rec, local=local)
         f = future.get(timeout)
         return f
