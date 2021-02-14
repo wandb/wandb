@@ -1785,22 +1785,20 @@ class Run(object):
         goal = None,
         **kwargs
     ):
+        if not name:
+            raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
             wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
-        for arg_name, arg_val, arg_req, exp_type in (
-            ("name", name, True, string_types),
-            ("step_metric", step_metric, False, string_types),
-            ("step_sync", step_sync, False, bool),
-            ("hide", hide, False, bool),
-            ("summary", summary, False, string_types),
-            ("goal", goal, False, string_types),
+        for arg_name, arg_val, exp_type in (
+            ("name", name, string_types),
+            ("step_metric", step_metric, string_types),
+            ("step_sync", step_sync, bool),
+            ("hide", hide, bool),
+            ("summary", summary, string_types),
+            ("goal", goal, string_types),
         ):
-            if arg_val is None and arg_req:
-                raise wandb.Error(
-                    "Unhandled define_metric() arg: {} not provided".format(arg_name)
-                )
             # NOTE: type checking is broken for isinstance and string_types
             if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
                 arg_type = type(arg_val).__name__
