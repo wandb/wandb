@@ -12,6 +12,8 @@ class RecordsUtil:
         for r in self._data:
             r_type = r.WhichOneof("record_type")
             if not record_type or r_type == record_type:
+                if r_type:
+                    r = getattr(r, r_type)
                 yield r
 
     @property

@@ -5,6 +5,8 @@ metric user tests.
 import pytest
 import wandb
 
+from wandb.proto import wandb_internal_pb2 as pb
+
 
 def test_metric_run_none(user_test):
     run = user_test.get_run()
@@ -25,6 +27,10 @@ def test_metric_run_metric_obj(user_test):
     r = user_test.get_records()
     assert len(r.records) == 2
     assert len(r.metric) == 2
+
+    mr1, mr2 = r.metric
+    assert mr1 == pb.MetricRecord(name="glob")
+    assert mr2 == pb.MetricRecord(name="val", step_metric="glob")
 
 
 def test_metric_run_hide(user_test):
