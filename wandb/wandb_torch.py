@@ -83,6 +83,7 @@ class TorchHistory(object):
         self._jupyter_run = None
         self._mode = "manual"
         self._step = history._step
+        self._step_changed = False
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -265,6 +266,8 @@ class TorchHistory(object):
             history._row_update(
                 {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
             )
+            if history._step != self._step:
+                self._step_changed = True
         elif self._mode == "auto":
             if self._step != history._step:
                 wandb.termwarn(

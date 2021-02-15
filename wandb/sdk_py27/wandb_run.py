@@ -1064,6 +1064,14 @@ class Run(object):
         """
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
+        if (
+            wandb.run.history._torch
+            and wandb.run.history._torch.mode == "manual"
+            and not wandb.run.history._torch._step_changed
+        ):
+            wandb.termwarn(
+                "Gradients and/or parameters not logged. Use wandb.watch(..., mode='auto') when wandb.watch() is used without wandb.log()."
+            )
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
