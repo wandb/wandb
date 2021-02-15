@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
-from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.proto import wandb_internal_pb2
 
 from . import artifacts
 from . import file_stream
@@ -367,20 +367,6 @@ class SendManager(object):
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
-    def _telemetry_format(self):
-        data = dict()
-        fields = self._telemetry_obj.ListFields()
-        for desc, value in fields:
-            if desc.type == desc.TYPE_STRING:
-                data[desc.number] = value
-            elif desc.type == desc.TYPE_MESSAGE:
-                nested = value.ListFields()
-                bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
-                if bool_msg:
-                    items = [d.number for d, v in nested if v]
-                    data[desc.number] = items
-        return data
-
     def _telemetry_get_framework(self):
         """Get telemetry data for internal config structure."""
         # detect framework by checking what is loaded
@@ -418,7 +404,7 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
-        t = self._telemetry_format()
+        t = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
 
     def _config_default_xaxis_update(self, config_dict):
