@@ -4,11 +4,11 @@ import json
 import wandb
 
 
-if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+if wandb.TYPE_CHECKING:
     from typing import Any, Dict, Union
     from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:
+    if TYPE_CHECKING:  # pragma: no_cover
         from wandb.proto import wandb_internal_pb2 as pb
         from wandb.proto import wandb_telemetry_pb2 as tpb
 

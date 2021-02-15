@@ -200,3 +200,50 @@ def test_metric_again(publish_util):
 
     metrics = ctx_util.metrics
     assert metrics and len(metrics) == 3
+
+
+def test_metric_mean(publish_util):
+    history = _gen_history()
+    m1 = pb.MetricRecord(name="v2", step_metric="mystep")
+    m1.summary.mean = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+
+    assert {
+        "v1": 2,
+        "v2": 3,
+        "v2.mean": 13.0 / 3,
+        "v3": "pizza",
+        "mystep": 3,
+        "_step": 2,
+    } == summary
+
+
+def test_metric_stepsync(publish_util):
+    history = []
+    history.append(dict(step=0, data=dict(a1=1,)))
+    history.append(dict(step=1, data=dict(s1=2)))
+    history.append(dict(step=2, data=dict(a1=3,)))
+    history.append(dict(step=3, data=dict(a1=5, s1=4)))
+    history.append(dict(step=3, data=dict(s1=6)))
+    history.append(dict(step=4, data=dict(a1=7,)))
+    history.append(dict(step=5, data=dict(a1=9, s1=8)))
+
+    m0 = pb.MetricRecord(name="s1")
+    m1 = pb.MetricRecord(name="a1", step_metric="s1")
+    m1.options.step_sync = True
+
+    metrics = _make_metrics([m0, m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+    history = ctx_util.history
+
+    assert {"a1": 9, "s1": 8, "_step": 5,} == summary
+
+    history_val = [(h.get("a1"), h.get("s1")) for h in history if "a1" in h]
+    assert history_val == [(1, None), (3, 2), (5, 4), (7, 6), (9, 8)]
