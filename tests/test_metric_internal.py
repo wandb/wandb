@@ -4,16 +4,6 @@ metric internal tests.
 
 from __future__ import print_function
 
-import os
-import pytest
-import six
-from six.moves import queue
-import threading
-import time
-import shutil
-import sys
-
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 
 
@@ -166,3 +156,47 @@ def test_metric_mult(publish_util):
         "mystep": 3,
         "_step": 2,
     } == summary
+
+
+def test_metric_best(publish_util):
+    history = _gen_history()
+    m1 = pb.MetricRecord(name="mystep")
+    m2 = pb.MetricRecord(name="v1", step_metric="mystep")
+    m2.summary.best = True
+    m2.goal = m2.GOAL_MAXIMIZE
+    m3 = pb.MetricRecord(name="v2", step_metric="mystep")
+    m3.summary.best = True
+    m3.goal = m3.GOAL_MINIMIZE
+    metrics = _make_metrics([m1, m2, m3])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+
+    assert {
+        "v1": 2,
+        "v1.best": 3,
+        "v2": 3,
+        "v2.best": 2,
+        "v3": "pizza",
+        "mystep": 3,
+        "_step": 2,
+    } == summary
+
+
+def test_metric_again(publish_util):
+    history = _gen_history()
+    m1 = pb.MetricRecord(name="mystep")
+    m2 = pb.MetricRecord(name="v1", step_metric="mystep")
+    m3 = pb.MetricRecord(name="v2")
+    m4 = pb.MetricRecord(name="v2", step_metric="mystep")
+    metrics = _make_metrics([m1, m2, m3, m4])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+
+    assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
+
+    metrics = ctx_util.metrics
+    assert metrics and len(metrics) == 3
