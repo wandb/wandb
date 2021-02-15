@@ -77,7 +77,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         PollExitResponse,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi
+    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -1827,7 +1827,6 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    # TODO(jhr): annotate this
     def log_artifact(
         self,
         artifact_or_path,
@@ -1980,9 +1979,14 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            self._backend.interface.publish_artifact(
-                self, artifact, aliases, finalize=finalize
-            )
+            if not self._settings._offline:
+                self._backend.interface.communicate_artifact(
+                    self, artifact, aliases, finalize=finalize,
+                )
+            else:
+                self._backend.interface.publish_artifact(
+                    self, artifact, aliases, finalize=finalize
+                )
         return artifact
 
     def _public_api(self):
@@ -2195,6 +2199,25 @@ class WriteSerializingFile(object):
             self.f.close()
         finally:
             self.lock.release()
+
+
+class _LazyArtifact(PublicArtifact):
+
+    # _api: PublicApi
+    _instance = None
+    # _future: Any
+
+    def __init__(self, api, future):
+        self._api = api
+        self._future = future
+
+    def __getattr__(self, item):
+        if not self._instance:
+            resp = self._future.get().log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api)
+        return getattr(self._instance, item)
 
 
 def finish(exit_code = None):

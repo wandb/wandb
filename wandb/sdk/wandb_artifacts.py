@@ -26,6 +26,7 @@ from .interface.artifacts import (
 )
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
+from wandb.apis.decorators import delegate
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
@@ -90,6 +91,7 @@ class Artifact(ArtifactInterface):
     _added_local_paths: dict
     _distributed_id: Optional[str]
     _metadata: dict
+    _logged_artifact: Optional[PublicArtifact]
 
     def __init__(
         self,
@@ -132,9 +134,13 @@ class Artifact(ArtifactInterface):
         self._description = description
         self._metadata = metadata or {}
         self._distributed_id = None
+        self._logged_artifact = None
 
     @property
     def id(self) -> Optional[str]:
+        if self._logged_artifact:
+            return self._logged_artifact.id
+
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
 

@@ -4,7 +4,7 @@ normalize.
 """
 
 import ast
-from functools import wraps
+from functools import wraps, partial
 import sys
 
 from gql.client import RetryError
@@ -62,3 +62,17 @@ def normalize_exceptions(func):
                 six.reraise(CommError, CommError(message, err), sys.exc_info()[2])
 
     return wrapper
+
+
+def delegate(obj):
+    """Function decorator to delegate"""
+    def inner_decorater(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if obj:
+                return getattr(obj, func.__name__)(*args, **kwargs)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return inner_decorater

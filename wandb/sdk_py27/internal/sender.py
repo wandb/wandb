@@ -699,8 +699,34 @@ class SendManager(object):
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_request_log_artifact(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        artifact = record.request.log_artifact.artifact
+
+        try:
+            result.response.log_artifact_response.artifact_id = self._send_artifact(
+                artifact
+            )
+        except Exception as e:
+            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
+            )
+
+        self._result_q.put(result)
+
     def send_artifact(self, data):
         artifact = data.artifact
+        try:
+            self._send_artifact(artifact)
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
+
+    def _send_artifact(self, artifact):
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -721,23 +747,16 @@ class SendManager(object):
                 return
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        try:
-            saver.save(
-                type=artifact.type,
-                name=artifact.name,
-                metadata=metadata,
-                description=artifact.description,
-                aliases=artifact.aliases,
-                use_after_commit=artifact.use_after_commit,
-                distributed_id=artifact.distributed_id,
-                finalize=artifact.finalize,
-            )
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
-            )
+        return saver.save(
+            type=artifact.type,
+            name=artifact.name,
+            metadata=metadata,
+            description=artifact.description,
+            aliases=artifact.aliases,
+            use_after_commit=artifact.use_after_commit,
+            distributed_id=artifact.distributed_id,
+            finalize=artifact.finalize,
+        )
 
     def send_alert(self, data):
         alert = data.alert

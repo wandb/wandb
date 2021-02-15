@@ -423,6 +423,7 @@ class BackendSender(object):
         sampled_history = None,
         run_start = None,
         check_version = None,
+        log_artifact = None,
         defer = None,
     ):
         request = pb.Request()
@@ -444,6 +445,8 @@ class BackendSender(object):
             request.run_start.CopyFrom(run_start)
         elif check_version:
             request.check_version.CopyFrom(check_version)
+        elif log_artifact:
+            request.log_artifact.CopyFrom(log_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
         else:
@@ -517,10 +520,12 @@ class BackendSender(object):
     def _communicate(
         self, rec, timeout = 5, local = None
     ):
+        return self._communicate_async(rec, local=local).get(timeout=timeout)
+
+    def _communicate_async(self, rec, local = None):
         assert self._router
         future = self._router.send_and_receive(rec, local=local)
-        f = future.get(timeout)
-        return f
+        return future
 
     def communicate_login(
         self, api_key = None, timeout = 15
@@ -641,6 +646,31 @@ class BackendSender(object):
         files = self._make_files(files_dict)
         rec = self._make_record(files=files)
         self._publish(rec)
+
+    def communicate_artifact(
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created = False,
+        use_after_commit = False,
+        finalize = True,
+    ):
+        proto_run = self._make_run(run)
+        proto_artifact = self._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = is_user_created
+        proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
+        for alias in aliases:
+            proto_artifact.aliases.append(alias)
+
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
+        rec = self._make_request(log_artifact=log_artifact)
+        return self._communicate_async(rec)
 
     def publish_artifact(
         self,

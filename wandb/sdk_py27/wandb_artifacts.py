@@ -90,6 +90,7 @@ class Artifact(ArtifactInterface):
     # _added_local_paths: dict
     # _distributed_id: Optional[str]
     # _metadata: dict
+    # _logged_artifact: PublicArtifact
 
     def __init__(
         self,

@@ -147,6 +147,7 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
+
     def id(self):
         """
         Returns:
@@ -192,6 +193,15 @@ class Artifact(object):
             (str): The artifact's logical digest, a checksum of its contents. If
                 an artifact has the same digest as the current `latest` version,
                 then `log_artifact` is a no-op.
+        """
+        raise NotImplementedError
+
+    def description(self):
+        """
+        Returns:
+            (str): Free text that offers a description of the artifact. The
+                description is markdown rendered in the UI, so this is a good place
+                to put links, etc.
         """
         raise NotImplementedError
 

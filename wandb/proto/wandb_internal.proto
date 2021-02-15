@@ -343,6 +343,7 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
+    LogArtifactRequest    log_artifact = 13;
     ShutdownRequest       shutdown = 64;
     TestInjectRequest     test_inject = 1000;
   }
@@ -360,6 +361,7 @@ message Response {
     SampledHistoryResponse sampled_history_response = 27;
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
+    LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
     TestInjectResponse     test_inject_response = 1000;
   }
@@ -524,3 +526,15 @@ message CheckVersionResponse {
   string yank_message = 2;
   string delete_message = 3;
 }
+
+/*
+ * LogArtifact:
+ */
+ message LogArtifactRequest {
+    ArtifactRecord artifact = 1;
+ }
+
+ message LogArtifactResponse {
+    string artifact_id = 1;
+    string error_message = 2;
+ }
