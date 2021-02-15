@@ -244,7 +244,7 @@ class HandleManager(object):
             if d.summary:
                 goal_max = None
                 if d.goal:
-                    goal_max = d.goal.type == d.goal.GoalType.MAXIMIZE
+                    goal_max = d.goal == d.GOAL_MAXIMIZE
                 if self._update_summary_metrics(
                     d.summary, k=k, v=v, float_v=float_v, goal_max=goal_max
                 ):
@@ -297,7 +297,7 @@ class HandleManager(object):
                 mr.control.local = True  # Dont store this, just send it
                 self._handle_defined_metric(mr)
 
-            if m.step_sync and m.step_metric:
+            if m.options.step_sync and m.step_metric:
                 if m.step_metric not in history_dict:
                     step = self._metric_track.get(m.step_metric)
                     if step is not None:

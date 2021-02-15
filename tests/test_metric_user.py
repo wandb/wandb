@@ -34,6 +34,8 @@ def test_metric_run_goal(user_test):
     run = user_test.get_run()
     m1 = run.define_metric("glob", goal="maximize")
     assert m1.goal == "maximize"
+    m1 = run.define_metric("glob", goal="minimize")
+    assert m1.goal == "minimize"
     with pytest.raises(wandb.Error):
         run.define_metric("m2", goal="nothing")
 

@@ -193,23 +193,32 @@ message OutputResult {
  * MetricRecord: wandb/sdk/wandb_metric/Metric
  */
 message MetricRecord {
+  // only name or globname is set
   string          name = 1;
-  repeated string nested_name = 2;
-  string          glob_name = 3;
-  string          step_metric = 8;
-  bool            step_sync = 9;
-  MetricSummary   summary = 10;
-  bool            hide = 11;
-  MetricGoal      goal = 12;
+  string          glob_name = 2;
+
+  // nested metrics not supported yet
+  // repeated string nested_name = 3;
+
+  // step metric index can be used instead of step_metric when
+  // MetricRecord is encoded in a list of MetricRecords
+  string          step_metric = 4;
+  int32           step_metric_index = 5;
+
+  MetricOptions   options = 6;
+  MetricSummary   summary = 7;
+  MetricGoal      goal = 8;
+
+  enum MetricGoal {
+    GOAL_UNSET = 0;
+    GOAL_MINIMIZE = 1;
+    GOAL_MAXIMIZE = 2;
+  }
 }
 
-message MetricGoal {
-  enum GoalType {
-    UNSET = 0;
-    MINIMIZE = 1;
-    MAXIMIZE = 2;
-  }
-  GoalType type = 1;
+message MetricOptions {
+  bool step_sync = 1;
+  bool hide = 2;
 }
 
 message MetricSummary {

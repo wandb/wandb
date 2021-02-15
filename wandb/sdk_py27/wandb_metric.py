@@ -83,9 +83,9 @@ class Metric(object):
         if self._step_metric:
             m.step_metric = self._step_metric
         if self._step_sync:
-            m.step_sync = self._step_sync
+            m.options.step_sync = self._step_sync
         if self._hide:
-            m.hide = self._hide
+            m.options.hide = self._hide
         if self._summary:
             summary_set = set(self._summary)
             if "min" in summary_set:
@@ -97,8 +97,8 @@ class Metric(object):
             if "best" in summary_set:
                 m.summary.best = True
         if self._goal == "minimize":
-            m.goal.type = m.goal.MINIMIZE
+            m.goal = m.GOAL_MINIMIZE
         if self._goal == "maximize":
-            m.goal.type = m.goal.MAXIMIZE
+            m.goal = m.GOAL_MAXIMIZE
         if self._callback:
             self._callback(m)
