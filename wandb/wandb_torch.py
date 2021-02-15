@@ -81,6 +81,7 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        self._mode = "manual"
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -91,6 +92,7 @@ class TorchHistory(object):
         log_gradients=True,
         log_freq=0,
         jupyter_run=None,
+        mode="manual",
     ):
         """ This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
@@ -102,6 +104,8 @@ class TorchHistory(object):
 
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
+
+        self._mode = mode
 
         module._wandb_hook_names = []
 
@@ -256,10 +260,14 @@ class TorchHistory(object):
             tensor_np[bin_idx] += sparse_zeros
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
-
-        history._row_update(
-            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
-        )
+        if self._mode == "manual":
+            history._row_update(
+                {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+            )
+        elif self._mode == "auto":
+            history._row_add(
+                {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+            )
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
         """Logs a Variable's gradient's distribution statistics next time backward()

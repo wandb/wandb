@@ -16,7 +16,9 @@ logger = logging.getLogger("wandb")
 _global_watch_idx = 0
 
 
-def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
+def watch(
+    models, criterion=None, log="gradients", log_freq=1000, idx=None, mode="manual"
+):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
@@ -27,6 +29,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         log: (str) One of "gradients", "parameters", "all", or None
         log_freq: (int) log gradients and parameters every N batches
         idx: (int) an index to be used when calling wandb.watch on multiple models
+        mode: (str) One of "manual" or "auto". Use "auto" if watch() is used by itself without wandb.log() calls in training loop
 
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
@@ -55,6 +58,22 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         log_gradients = False
     elif log is None:
         log_gradients = False
+    else:
+        raise ValueError(
+            "Invalid value for `log` argument. Expected one of 'gradients', 'parameters', 'all' or None. Received "
+            + str(log)
+            + "."
+        )
+
+    if mode is None:
+        mode = "manual"
+
+    if mode not in ("auto", "manual"):
+        raise ValueError(
+            "Invalid value for `mode` argument. Expected one of 'manual', 'auto' or None. Received "
+            + str(mode)
+            + "."
+        )
 
     if not isinstance(models, (tuple, list)):
         models = (models,)
@@ -88,6 +107,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
             prefix=prefix,
             log_freq=log_freq,
             jupyter_run=wandb.run if in_jupyter else None,
+            mode=mode,
         )
 
         graph = wandb.wandb_torch.TorchGraph.hook_torch(
