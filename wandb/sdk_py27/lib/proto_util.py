@@ -5,10 +5,10 @@ import wandb
 
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+    from typing import Any, Dict, Union
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
-        from typing import Any, Dict, Union
         from wandb.proto import wandb_internal_pb2 as pb
         from wandb.proto import wandb_telemetry_pb2 as tpb
 

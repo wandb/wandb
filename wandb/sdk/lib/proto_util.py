@@ -5,10 +5,10 @@ import wandb
 
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+    from typing import Any, Dict, Union
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
-        from typing import Any, Dict, Union
         from wandb.proto import wandb_internal_pb2 as pb
         from wandb.proto import wandb_telemetry_pb2 as tpb
 
@@ -21,7 +21,7 @@ def dict_from_proto_list(obj_list):
 
 
 def proto_encode_to_dict(
-    pb_obj: Union[tpb.TelemetryRecord, pb.MetricRecord]
+    pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"]
 ) -> Dict[int, Any]:
     data: Dict[int, Any] = dict()
     fields = pb_obj.ListFields()
