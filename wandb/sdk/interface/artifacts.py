@@ -147,6 +147,8 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
+
+    @property
     def id(self) -> Optional[str]:
         """
         Returns:
@@ -154,6 +156,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def metadata(self) -> dict:
         """
         Returns:
@@ -163,6 +166,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def entity(self) -> str:
         """
         Returns:
@@ -170,6 +174,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def project(self) -> str:
         """
         Returns:
@@ -177,6 +182,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def manifest(self) -> ArtifactManifest:
         """
         Returns:
@@ -186,6 +192,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def digest(self) -> str:
         """
         Returns:
@@ -195,6 +202,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def description(self) -> Optional[str]:
         """
         Returns:
@@ -204,6 +212,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def state(self) -> str:
         """
         Returns:
@@ -212,6 +221,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def size(self) -> int:
         """
         Returns:

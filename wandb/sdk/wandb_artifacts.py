@@ -26,7 +26,6 @@ from .interface.artifacts import (
 )
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.apis.decorators import delegate
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
@@ -91,7 +90,7 @@ class Artifact(ArtifactInterface):
     _added_local_paths: dict
     _distributed_id: Optional[str]
     _metadata: dict
-    _logged_artifact: Optional[PublicArtifact]
+    _logged_artifact: Optional[ArtifactInterface]
 
     def __init__(
         self,
