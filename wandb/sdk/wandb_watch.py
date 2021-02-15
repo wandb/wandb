@@ -58,6 +58,8 @@ def watch(
         log_gradients = False
     elif log is None:
         log_gradients = False
+    elif log == "gradients":
+        pass
     else:
         raise ValueError(
             "Invalid value for `log` argument. Expected one of 'gradients', 'parameters', 'all' or None. Received "
