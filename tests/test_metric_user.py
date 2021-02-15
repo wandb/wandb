@@ -100,3 +100,9 @@ def test_metric_prop_summary(user_test):
     assert m1.summary == ("min", "max")
     m2 = run.define_metric("metric")
     assert not m2.summary
+    m3 = run.define_metric("metric", summary="best")
+    assert m3.summary == ("best",)
+    m4 = run.define_metric("metric", summary="mean")
+    assert m4.summary == ("mean",)
+    m5 = run.define_metric("metric", summary="")
+    assert not m5.summary

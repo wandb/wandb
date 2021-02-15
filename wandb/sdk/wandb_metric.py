@@ -96,5 +96,9 @@ class Metric(object):
                 m.summary.mean = True
             if "best" in summary_set:
                 m.summary.best = True
+        if self._goal == "minimize":
+            m.goal.type = m.goal.MINIMIZE
+        if self._goal == "maximize":
+            m.goal.type = m.goal.MAXIMIZE
         if self._callback:
             self._callback(m)
