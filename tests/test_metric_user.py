@@ -14,7 +14,6 @@ def test_metric_run_none(user_test):
     r = user_test.get_records()
     assert len(r.records) == 2
     assert len(r.history) == 2
-    assert len(r.summary) == 0
 
 
 def test_metric_run_metric_obj(user_test):
@@ -23,21 +22,33 @@ def test_metric_run_metric_obj(user_test):
     m2 = run.define_metric("val", step_metric=m1)
     assert m2.step_metric == "glob"
 
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
+
 
 def test_metric_run_hide(user_test):
     run = user_test.get_run()
     m = run.define_metric("glob", hide=True)
     assert m.hide is True
 
+    r = user_test.get_records()
+    assert len(r.records) == 1
+    assert len(r.metric) == 1
+
 
 def test_metric_run_goal(user_test):
     run = user_test.get_run()
     m1 = run.define_metric("glob", goal="maximize")
     assert m1.goal == "maximize"
-    m1 = run.define_metric("glob", goal="minimize")
-    assert m1.goal == "minimize"
+    m2 = run.define_metric("glob", goal="minimize")
+    assert m2.goal == "minimize"
     with pytest.raises(wandb.Error):
         run.define_metric("m2", goal="nothing")
+
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
 
 
 def test_metric_run_invalid_name(user_test):
@@ -45,11 +56,17 @@ def test_metric_run_invalid_name(user_test):
     with pytest.raises(wandb.Error):
         run.define_metric("")
 
+    r = user_test.get_records()
+    assert len(r.records) == 0
+
 
 def test_metric_run_invalid_stepmetric(user_test):
     run = user_test.get_run()
     with pytest.raises(wandb.Error):
         run.define_metric("junk", step_metric=1)
+
+    r = user_test.get_records()
+    assert len(r.records) == 0
 
 
 def test_metric_run_invalid_glob(user_test):
@@ -57,11 +74,17 @@ def test_metric_run_invalid_glob(user_test):
     with pytest.raises(wandb.Error):
         run.define_metric("*invalidprefix")
 
+    r = user_test.get_records()
+    assert len(r.records) == 0
+
 
 def test_metric_run_invalid_summary(user_test):
     run = user_test.get_run()
     with pytest.raises(wandb.Error):
         run.define_metric("metric", summary="doesnotexist")
+
+    r = user_test.get_records()
+    assert len(r.records) == 0
 
 
 def test_metric_run_ignored_extraargs(user_test, capsys):
@@ -73,11 +96,19 @@ def test_metric_run_ignored_extraargs(user_test, capsys):
     assert "Unhandled define_metric() arg: extra" in captured.err
     assert "Unhandled define_metric() arg: another" in captured.err
 
+    r = user_test.get_records()
+    assert len(r.records) == 1
+    assert len(r.metric) == 1
+
 
 def test_metric_prop_name(user_test):
     run = user_test.get_run()
     m = run.define_metric("metric")
     assert m.name == "metric"
+
+    r = user_test.get_records()
+    assert len(r.records) == 1
+    assert len(r.metric) == 1
 
 
 def test_metric_prop_stepmetric(user_test):
@@ -87,6 +118,10 @@ def test_metric_prop_stepmetric(user_test):
     m2 = run.define_metric("metric")
     assert not m2.step_metric
 
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
+
 
 def test_metric_prop_stepsync(user_test):
     run = user_test.get_run()
@@ -94,6 +129,10 @@ def test_metric_prop_stepsync(user_test):
     assert m.step_sync is True
     m2 = run.define_metric("metric2", step_metric="globalstep")
     assert not m2.step_sync
+
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
 
 
 def test_metric_prop_summary(user_test):
@@ -108,3 +147,7 @@ def test_metric_prop_summary(user_test):
     assert m4.summary == ("mean",)
     m5 = run.define_metric("metric", summary="")
     assert not m5.summary
+
+    r = user_test.get_records()
+    assert len(r.records) == 5
+    assert len(r.metric) == 5
