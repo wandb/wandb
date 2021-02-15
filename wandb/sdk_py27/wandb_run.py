@@ -1783,6 +1783,7 @@ class Run(object):
         hide = None,
         summary = None,
         goal = None,
+        overwrite = None,
         **kwargs
     ):
         """Define metric properties which will later be logged with `wandb.log()`.
@@ -1814,6 +1815,7 @@ class Run(object):
             ("hide", hide, bool),
             ("summary", summary, string_types),
             ("goal", goal, string_types),
+            ("overwrite", overwrite, bool),
         ):
             # NOTE: type checking is broken for isinstance and string_types
             if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
@@ -1854,6 +1856,7 @@ class Run(object):
             summary=summary_ops,
             hide=hide,
             goal=goal,
+            overwrite=overwrite,
         )
         m._set_callback(self._metric_callback)
         m._commit()

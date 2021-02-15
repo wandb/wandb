@@ -157,3 +157,23 @@ def test_metric_prop_summary(user_test):
     r = user_test.get_records()
     assert len(r.records) == 5
     assert len(r.metric) == 5
+
+
+def test_metric_twice(user_test):
+    run = user_test.get_run()
+    m1a = run.define_metric("metric", summary="best,max", step_metric="thestep")
+    m1b = run.define_metric("metric", summary="min")
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
+    # merging or overwriting happens in handler (internal)
+
+
+def test_metric_twice_overwrite(user_test):
+    run = user_test.get_run()
+    m1a = run.define_metric("metric", summary="best,max", step_metric="thestep")
+    m1b = run.define_metric("metric", summary="min", overwrite=True)
+    r = user_test.get_records()
+    assert len(r.records) == 2
+    assert len(r.metric) == 2
+    # merging or overwriting happens in handler (internal)

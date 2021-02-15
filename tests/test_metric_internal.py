@@ -247,3 +247,40 @@ def test_metric_stepsync(publish_util):
 
     history_val = [(h.get("a1"), h.get("s1")) for h in history if "a1" in h]
     assert history_val == [(1, None), (3, 2), (5, 4), (7, 6), (9, 8)]
+
+
+def test_metric_twice_norm(publish_util):
+    m1a = pb.MetricRecord(name="metric")
+    m1a.summary.best = True
+    m1a.summary.max = True
+    m1a.step_metric = "thestep"
+    m1b = pb.MetricRecord(name="metric")
+    m1b.summary.min = True
+
+    metrics = _make_metrics([m1a, m1b])
+    ctx_util = publish_util(metrics=metrics)
+
+    metrics = ctx_util.metrics
+    assert len(metrics) == 2
+    mstep, mmetric = metrics
+    assert mstep == {"1": "thestep"}
+    assert mmetric == {"1": "metric", "5": 1, "7": [1, 2, 4]}
+
+
+def test_metric_twice_overwrite(publish_util):
+    m1a = pb.MetricRecord(name="metric")
+    m1a.summary.best = True
+    m1a.summary.max = True
+    m1a.step_metric = "thestep"
+    m1b = pb.MetricRecord(name="metric")
+    m1b.summary.min = True
+    m1b._control.overwrite = True
+
+    metrics = _make_metrics([m1a, m1b])
+    ctx_util = publish_util(metrics=metrics)
+
+    metrics = ctx_util.metrics
+    assert len(metrics) == 2
+    mstep, mmetric = metrics
+    assert mstep == {"1": "thestep"}
+    assert mmetric == {"1": "metric", "7": [1]}

@@ -83,7 +83,8 @@ class SendManager(object):
         # TODO: remove default_xaxis
         self._config_default_xaxis: str = None
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
-        self._config_metric_name_dict: Dict[str, int] = {}
+        self._config_metric_index_dict: Dict[str, int] = {}
+        self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
         # State updated by resuming
         self._resume_state = {
@@ -681,6 +682,17 @@ class SendManager(object):
             logger.warning("Seen metric with glob (shouldnt happen)")
             return
 
+        # merge or overwrite
+        old_metric = self._config_metric_dict.get(
+            metric.name, wandb_internal_pb2.MetricRecord()
+        )
+        if metric._control.overwrite:
+            old_metric.CopyFrom(metric)
+        else:
+            old_metric.MergeFrom(metric)
+        self._config_metric_dict[metric.name] = old_metric
+        metric = old_metric
+
         # TODO(jhr): remove this code before shipping (only for prototype UI)
         if metric.step_metric:
             if metric.step_metric != self._config_default_xaxis:
@@ -689,7 +701,7 @@ class SendManager(object):
 
         # convert step_metric to index
         if metric.step_metric:
-            find_step_idx = self._config_metric_name_dict.get(metric.step_metric)
+            find_step_idx = self._config_metric_index_dict.get(metric.step_metric)
             if find_step_idx is not None:
                 # make a copy of this metric as we will be modifying it
                 rec = wandb_internal_pb2.Record()
@@ -700,13 +712,13 @@ class SendManager(object):
                 metric.step_metric_index = find_step_idx + 1
 
         md: Dict[int, Any] = proto_util.proto_encode_to_dict(metric)
-        find_idx = self._config_metric_name_dict.get(metric.name)
+        find_idx = self._config_metric_index_dict.get(metric.name)
         if find_idx is not None:
             self._config_metric_pbdict_list[find_idx] = md
         else:
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
-            self._config_metric_name_dict[metric.name] = next_idx
+            self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
     def send_telemetry(self, data):

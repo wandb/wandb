@@ -208,6 +208,7 @@ message MetricRecord {
   MetricOptions   options = 6;
   MetricSummary   summary = 7;
   MetricGoal      goal = 8;
+  MetricControl   _control = 9;
 
   enum MetricGoal {
     GOAL_UNSET = 0;
@@ -219,6 +220,10 @@ message MetricRecord {
 message MetricOptions {
   bool step_sync = 1;
   bool hide = 2;
+}
+
+message MetricControl {
+  bool overwrite = 1;
 }
 
 message MetricSummary {

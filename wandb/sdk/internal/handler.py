@@ -443,12 +443,18 @@ class HandleManager(object):
 
     def _handle_defined_metric(self, record: wandb_internal_pb2.Record) -> None:
         metric = record.metric
-        self._metric_defines.setdefault(
-            metric.name, wandb_internal_pb2.MetricRecord()
-        ).MergeFrom(metric)
+        if metric._control.overwrite:
+            self._metric_defines.setdefault(
+                metric.name, wandb_internal_pb2.MetricRecord()
+            ).CopyFrom(metric)
+        else:
+            self._metric_defines.setdefault(
+                metric.name, wandb_internal_pb2.MetricRecord()
+            ).MergeFrom(metric)
 
         # before dispatching, make sure step_metric is defined, if not define it and
         # dispatch it locally first
+        metric = self._metric_defines[metric.name]
         if metric.step_metric and metric.step_metric not in self._metric_defines:
             m = wandb_internal_pb2.MetricRecord(name=metric.step_metric)
             self._metric_defines[metric.step_metric] = m
@@ -461,9 +467,14 @@ class HandleManager(object):
 
     def _handle_glob_metric(self, record: wandb_internal_pb2.Record) -> None:
         metric = record.metric
-        self._metric_globs.setdefault(
-            metric.glob_name, wandb_internal_pb2.MetricRecord()
-        ).MergeFrom(metric)
+        if metric._control.overwrite:
+            self._metric_globs.setdefault(
+                metric.glob_name, wandb_internal_pb2.MetricRecord()
+            ).CopyFrom(metric)
+        else:
+            self._metric_globs.setdefault(
+                metric.glob_name, wandb_internal_pb2.MetricRecord()
+            ).MergeFrom(metric)
         self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:

@@ -27,6 +27,8 @@ class Metric(object):
     _step_sync: Optional[bool]
     _hide: Optional[bool]
     _summary: Optional[Sequence[str]]
+    _goal: Optional[str]
+    _overwrite: Optional[bool]
 
     def __init__(
         self,
@@ -36,6 +38,7 @@ class Metric(object):
         hide: bool = None,
         summary: Sequence[str] = None,
         goal: str = None,
+        overwrite: bool = None,
     ) -> None:
         self._callback = None
         self._name = name
@@ -44,6 +47,7 @@ class Metric(object):
         self._hide = hide
         self._summary = summary
         self._goal = goal
+        self._overwrite = overwrite
 
     def _set_callback(self, cb: Callable[[pb.MetricRecord], None]) -> None:
         self._callback = cb
@@ -100,5 +104,7 @@ class Metric(object):
             m.goal = m.GOAL_MINIMIZE
         if self._goal == "maximize":
             m.goal = m.GOAL_MAXIMIZE
+        if self._overwrite:
+            m._control.overwrite = self._overwrite
         if self._callback:
             self._callback(m)

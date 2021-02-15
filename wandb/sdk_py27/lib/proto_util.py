@@ -26,6 +26,8 @@ def proto_encode_to_dict(
     data = dict()
     fields = pb_obj.ListFields()
     for desc, value in fields:
+        if desc.name.startswith("_"):
+            continue
         if desc.type == desc.TYPE_STRING:
             data[desc.number] = value
         elif desc.type == desc.TYPE_INT32:
