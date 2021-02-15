@@ -9,8 +9,8 @@ if wandb.TYPE_CHECKING:
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:  # pragma: no cover
-        from wandb.proto import wandb_internal_pb2 as pb  # pragma: no cover
-        from wandb.proto import wandb_telemetry_pb2 as tpb  # pragma: no cover
+        from wandb.proto import wandb_internal_pb2 as pb
+        from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
 def dict_from_proto_list(obj_list):
