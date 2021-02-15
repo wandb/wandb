@@ -1066,7 +1066,7 @@ class Run(object):
             tel.feature.finish = True
         if (
             wandb.run.history._torch
-            and wandb.run.history._torch.mode == "manual"
+            and wandb.run.history._torch._mode == "manual"
             and not wandb.run.history._torch._step_changed
         ):
             wandb.termwarn(
