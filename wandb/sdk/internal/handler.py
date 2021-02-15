@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import json
 import logging
+import math
 import numbers
 import os
 
@@ -240,6 +241,8 @@ class HandleManager(object):
             if not d:
                 continue
             if not isinstance(v, numbers.Real):
+                continue
+            if math.isnan(v):
                 continue
             float_v = float(v)
             if d.summary:
