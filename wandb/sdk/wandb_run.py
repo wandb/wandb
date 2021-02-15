@@ -1807,7 +1807,8 @@ class Run(object):
                         arg_name, arg_type
                     )
                 )
-        if "*" in name and not name.endswith("*"):
+        stripped = name[:-1] if name.endswith("*") else name
+        if "*" in stripped:
             raise wandb.Error(
                 "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
                     name
@@ -1824,6 +1825,12 @@ class Run(object):
                         "Unhandled define_metric() arg: summary op: {}".format(i)
                     )
                 summary_ops.append(i)
+        if goal is not None:
+            valid_goal = {"minimize", "maximize"}
+            if goal not in valid_goal:
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: goal: {}".format(goal)
+                )
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
