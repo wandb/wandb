@@ -147,7 +147,6 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
-
     def id(self):
         """
         Returns:

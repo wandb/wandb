@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import time
+import traceback
 
 from pkg_resources import parse_version
 import wandb
@@ -707,7 +708,7 @@ class SendManager(object):
         try:
             result.response.log_artifact_response.artifact_id = self._send_artifact(
                 artifact
-            )
+            ).get("id")
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e

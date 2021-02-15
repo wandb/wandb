@@ -1980,9 +1980,10 @@ class Run(object):
         self._assert_can_log_artifact(artifact)
         if self._backend:
             if not self._settings._offline:
-                self._backend.interface.communicate_artifact(
+                future = self._backend.interface.communicate_artifact(
                     self, artifact, aliases, finalize=finalize,
                 )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
                     self, artifact, aliases, finalize=finalize
@@ -2213,10 +2214,10 @@ class _LazyArtifact(PublicArtifact):
 
     def __getattr__(self, item):
         if not self._instance:
-            resp = self._future.get().log_artifact_response
+            resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
         return getattr(self._instance, item)
 
 

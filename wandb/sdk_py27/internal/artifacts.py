@@ -189,4 +189,4 @@ class ArtifactSaver(object):
             before_commit=before_commit,
             on_commit=on_commit,
         )
-        return self._server_artifact["id"]
+        return self._server_artifact

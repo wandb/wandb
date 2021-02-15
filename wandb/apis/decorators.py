@@ -66,6 +66,7 @@ def normalize_exceptions(func):
 
 def delegate(obj):
     """Function decorator to delegate"""
+
     def inner_decorater(func):
         @wraps(func)
         def wrapper(*args, **kwargs):

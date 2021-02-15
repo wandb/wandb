@@ -26,7 +26,7 @@ from wandb import env
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
-from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.decorators import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
