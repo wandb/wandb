@@ -864,6 +864,10 @@ class ParseCTX(object):
     def telemetry(self):
         return self.config.get("_wandb", {}).get("value", {}).get("t")
 
+    @property
+    def metrics(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("m")
+
 
 if __name__ == "__main__":
     app = create_app()

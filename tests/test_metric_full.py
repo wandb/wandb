@@ -96,9 +96,12 @@ def test_metric_no_sync_step(live_mock_server, test_settings, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history
+    metrics = ctx_util.metrics
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
     history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
     assert history_val == [(2, 1), (8, None), (3, 5)]
+
+    assert metrics and len(metrics) == 2
 
 
 def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
@@ -109,6 +112,7 @@ def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
     summary = ctx_util.summary
     history = ctx_util.history
     telemetry = ctx_util.telemetry
+    metrics = ctx_util.metrics
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
     history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
     assert history_val == [(2, 1), (8, 3), (3, 5)]
@@ -116,3 +120,24 @@ def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
 
     # metric in telemetry options
     assert telemetry and 7 in telemetry.get("3", [])
+    assert metrics and len(metrics) == 2
+
+
+def test_metric_mult(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init()
+    run.define_metric("mystep", hide=True)
+    run.define_metric("*", step_metric="mystep")
+    _gen_metric_sync_step(run)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    metrics = ctx_util.metrics
+    assert metrics and len(metrics) == 3
+
+
+def test_metric_goal(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init()
+    run.define_metric("mystep", hide=True)
+    run.define_metric("*", step_metric="mystep", goal="maximize")
+    _gen_metric_sync_step(run)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    metrics = ctx_util.metrics
+    assert metrics and len(metrics) == 3

@@ -269,6 +269,9 @@ class HandleManager(object):
         self, hkey
     ):
         """check for hkey match in glob metrics, return defined metric."""
+        # Dont define metric for internal metrics
+        if hkey.startswith("_"):
+            return None
         for k, mglob in six.iteritems(self._metric_globs):
             if k.endswith("*"):
                 if hkey.startswith(k[:-1]):
@@ -442,6 +445,17 @@ class HandleManager(object):
         self._metric_defines.setdefault(
             metric.name, wandb_internal_pb2.MetricRecord()
         ).MergeFrom(metric)
+
+        # before dispatching, make sure step_metric is defined, if not define it and
+        # dispatch it locally first
+        if metric.step_metric and metric.step_metric not in self._metric_defines:
+            m = wandb_internal_pb2.MetricRecord(name=metric.step_metric)
+            self._metric_defines[metric.step_metric] = m
+            mr = wandb_internal_pb2.Record()
+            mr.metric.CopyFrom(m)
+            mr.control.local = True  # Dont store this, just send it
+            self._dispatch_record(mr)
+
         self._dispatch_record(record)
 
     def _handle_glob_metric(self, record):

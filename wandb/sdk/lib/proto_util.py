@@ -28,6 +28,10 @@ def proto_encode_to_dict(
     for desc, value in fields:
         if desc.type == desc.TYPE_STRING:
             data[desc.number] = value
+        elif desc.type == desc.TYPE_INT32:
+            data[desc.number] = value
+        elif desc.type == desc.TYPE_ENUM:
+            data[desc.number] = value
         elif desc.type == desc.TYPE_MESSAGE:
             nested = value.ListFields()
             bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
