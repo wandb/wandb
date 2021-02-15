@@ -1785,6 +1785,22 @@ class Run(object):
         goal = None,
         **kwargs
     ):
+        """Define metric properties which will later be logged with `wandb.log()`.
+
+        Arguments:
+            name: Name of the metric.
+            step_metric: Independent variable associated with the metric.
+            step_sync: Automatically add `step_metric` to history if needed.
+            hide: Hide this metric from automatic plots.
+            summary: Specify aggregate metrics added to summary.
+                Supported aggregations: "min,max,mean,best"
+            goal: Specify direction for optimizing the metric.
+                Supported direections: "minimize,maximize"
+
+        Returns:
+            A metric object is returned that can be further specified.
+
+        """
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
