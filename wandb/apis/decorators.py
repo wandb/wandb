@@ -4,7 +4,7 @@ normalize.
 """
 
 import ast
-from functools import wraps, partial
+from functools import wraps
 import sys
 
 from gql.client import RetryError
