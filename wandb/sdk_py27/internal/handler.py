@@ -184,9 +184,9 @@ class HandleManager(object):
     ):
         updated = False
         best_key = None
-        if s.best and goal_max is not None:
+        if s.best:
             best_key = k + ".best"
-        if s.max or goal_max and best_key:
+        if s.max or best_key and goal_max:
             max_key = k + ".max"
             old_max = self._metric_track.get(max_key)
             if old_max is None or float_v > old_max:
@@ -197,7 +197,8 @@ class HandleManager(object):
                 if best_key:
                     self._consolidated_summary[best_key] = v
                     updated = True
-        if s.min or not goal_max and best_key:
+        # defaulting to minimize if goal is not supecified
+        if s.min or best_key and not goal_max:
             min_key = k + ".min"
             old_min = self._metric_track.get(min_key)
             if old_min is None or float_v < old_min:
