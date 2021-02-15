@@ -1841,6 +1841,8 @@ class Run(object):
         )
         m._set_callback(self._metric_callback)
         m._commit()
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this

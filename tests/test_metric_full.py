@@ -5,6 +5,8 @@ metric full tests.
 import six
 import wandb
 
+from wandb.proto import wandb_telemetry_pb2 as tpb
+
 
 def test_metric_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init()
@@ -106,7 +108,11 @@ def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history
+    telemetry = ctx_util.telemetry
     assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
     history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
     assert history_val == [(2, 1), (8, 3), (3, 5)]
     assert not any([item[1] is None for item in history_val])
+
+    # metric in telemetry options
+    assert telemetry and 7 in telemetry.get("3", [])

@@ -860,6 +860,10 @@ class ParseCTX(object):
     def config_wandb(self):
         return self.config["_wandb"]["value"]
 
+    @property
+    def telemetry(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("t")
+
 
 if __name__ == "__main__":
     app = create_app()
