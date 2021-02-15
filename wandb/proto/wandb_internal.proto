@@ -203,7 +203,7 @@ message MetricRecord {
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string          step_metric = 4;
-  int32           step_metric_index = 5;
+  int32           step_metric_index = 5;  // one-based array index
 
   MetricOptions   options = 6;
   MetricSummary   summary = 7;
