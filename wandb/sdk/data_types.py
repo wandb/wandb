@@ -357,8 +357,8 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, str)
-        assert isinstance(self._sha256, str)
+        assert isinstance(self._path, six.string_types)
+        assert isinstance(self._sha256, six.string_types)
 
         if run is None:
             raise TypeError('Argument "run" must not be None.')
@@ -420,7 +420,7 @@ class Media(WBValue):
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
+            assert isinstance(self._path, six.string_types)
 
             json_obj.update(
                 {
@@ -437,8 +437,8 @@ class Media(WBValue):
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
-                assert isinstance(self._path, str)
-                assert isinstance(self._sha256, str)
+                assert isinstance(self._path, six.string_types)
+                assert isinstance(self._sha256, six.string_types)
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -813,14 +813,14 @@ class Html(BatchableMedia):
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_is_path = isinstance(data, six.string_types) and os.path.exists(data)
         data_path = ""
         if data_is_path:
-            assert isinstance(data, str)
+            assert isinstance(data, six.string_types)
             data_path = data
             with open(data_path, "r") as file:
                 self.html = file.read()
-        elif isinstance(data, str):
+        elif isinstance(data, six.string_types):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
