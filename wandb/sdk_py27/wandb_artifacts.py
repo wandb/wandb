@@ -26,7 +26,6 @@ from .interface.artifacts import (
 )
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.apis.decorators import delegate
 from wandb.errors.error import CommError
 from wandb import util
 from wandb.errors.term import termwarn, termlog
@@ -91,7 +90,7 @@ class Artifact(ArtifactInterface):
     # _added_local_paths: dict
     # _distributed_id: Optional[str]
     # _metadata: dict
-    # _logged_artifact: Optional[PublicArtifact]
+    # _logged_artifact: Optional[ArtifactInterface]
 
     def __init__(
         self,
@@ -146,54 +145,92 @@ class Artifact(ArtifactInterface):
 
     @property
     def entity(self):
-        # TODO: querying for default entity a good idea here?
+        if self._logged_artifact:
+            return self._logged_artifact.entity
+
         return self._api.settings("entity") or self._api.viewer().get("entity")
 
     @property
     def project(self):
+        if self._logged_artifact:
+            return self._logged_artifact.project
+
         return self._api.settings("project")
 
     @property
     def manifest(self):
+        if self._logged_artifact:
+            return self._logged_artifact.manifest
+
         self.finalize()
         return self._manifest
 
     @property
     def digest(self):
+        if self._logged_artifact:
+            return self._logged_artifact.digest
+
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
     @property
     def description(self):
+        if self._logged_artifact:
+            return self._logged_artifact.description
+
         return self._description
 
     @description.setter
     def description(self, desc):
+        if self._logged_artifact:
+            # TODO: figure this out
+            # self._logged_artifact.description = desc
+            pass
+
         self._description = desc
 
     @property
     def metadata(self):
+        if self._logged_artifact:
+            return self._logged_artifact.metadata
+
         return self._metadata
 
     @metadata.setter
     def metadata(self, metadata):
+        if self._logged_artifact:
+            # TODO: figure this out
+            # return self._logged_artifact.metadata
+            pass
+
         self._metadata = metadata
 
     @property
     def type(self):
+        if self._logged_artifact:
+            return self._logged_artifact.type
+
         return self._type
 
     @property
     def name(self):
+        if self._logged_artifact:
+            return self._logged_artifact.name
+
         return self._name
 
     @property
     def state(self):
+        if self._logged_artifact:
+            return self._logged_artifact.state
         return "PENDING"
 
     @property
     def size(self):
+        if self._logged_artifact:
+            return self._logged_artifact.size
+
         return sum([entry.size for entry in self._manifest.entries])
 
     @property
@@ -346,13 +383,30 @@ class Artifact(ArtifactInterface):
         return entry
 
     def get_path(self, name):
-        raise ValueError("Cannot load paths from an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.get_path(name)
+
+        raise ValueError("Cannot load paths from an artifact before it has been logged")
 
     def get(self, name):
-        raise ValueError("Cannot call get on an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.get(name)
+
+        raise ValueError("Cannot call get on an artifact before it has been logged")
 
     def download(self, root = None, recursive = False):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.download(root=root, recursive=recursive)
+
+        raise ValueError(
+            "Cannot call download on an artifact before it has been logged"
+        )
+
+    def save(self):
+        if self._logged_artifact:
+            return self._logged_artifact.save()
+
+        raise ValueError("Cannot call save on an artifact before it has been logged")
 
     def get_added_local_path_name(self, local_path):
         """

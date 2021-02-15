@@ -147,12 +147,27 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
-
     @property
     def id(self) -> Optional[str]:
         """
         Returns:
             (str): The artifact's ID
+        """
+        raise NotImplementedError
+
+    @property
+    def name(self) -> str:
+        """
+        Returns:
+            (str): The artifact's name
+        """
+        raise NotImplementedError
+
+    @property
+    def type(self) -> str:
+        """
+        Returns:
+            (str): The artifact's type
         """
         raise NotImplementedError
 
@@ -494,6 +509,15 @@ class Artifact(object):
 
         Returns:
             The path to the downloaded contents.
+        """
+        raise NotImplementedError
+
+    def save(self) -> None:
+        """
+        Persists any changes made to the artifact.
+
+        Returns:
+            None
         """
         raise NotImplementedError
 

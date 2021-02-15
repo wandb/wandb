@@ -2202,7 +2202,7 @@ class WriteSerializingFile(object):
             self.lock.release()
 
 
-class _LazyArtifact(PublicArtifact):
+class _LazyArtifact(wandb_artifacts.Artifact):
 
     # _api: PublicApi
     _instance = None

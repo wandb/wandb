@@ -147,6 +147,7 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
+    @property
     def id(self):
         """
         Returns:
@@ -154,6 +155,23 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
+    def name(self):
+        """
+        Returns:
+            (str): The artifact's name
+        """
+        raise NotImplementedError
+
+    @property
+    def type(self):
+        """
+        Returns:
+            (str): The artifact's type
+        """
+        raise NotImplementedError
+
+    @property
     def metadata(self):
         """
         Returns:
@@ -163,6 +181,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def entity(self):
         """
         Returns:
@@ -170,6 +189,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def project(self):
         """
         Returns:
@@ -177,6 +197,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def manifest(self):
         """
         Returns:
@@ -186,6 +207,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def digest(self):
         """
         Returns:
@@ -195,6 +217,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def description(self):
         """
         Returns:
@@ -204,6 +227,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def state(self):
         """
         Returns:
@@ -212,6 +236,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def size(self):
         """
         Returns:
@@ -484,6 +509,15 @@ class Artifact(object):
 
         Returns:
             The path to the downloaded contents.
+        """
+        raise NotImplementedError
+
+    def save(self):
+        """
+        Persists any changes made to the artifact.
+
+        Returns:
+            None
         """
         raise NotImplementedError
 
