@@ -82,6 +82,7 @@ class TorchHistory(object):
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
         self._mode = "manual"
+        self._step = history._step
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -265,9 +266,14 @@ class TorchHistory(object):
                 {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
             )
         elif self._mode == "auto":
+            if self._step != history._step:
+                wandb.termwarn(
+                    "Use wandb.watch(..., mode='manual') if metrics are logged manually using wandb.log()."
+                )
             history._row_add(
                 {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
             )
+            self._step = history._step
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
         """Logs a Variable's gradient's distribution statistics next time backward()
