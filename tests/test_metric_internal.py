@@ -267,7 +267,7 @@ def test_metric_twice_norm(publish_util):
     assert mmetric == {"1": "metric", "5": 1, "7": [1, 2, 4]}
 
 
-def test_metric_twice_overwrite(publish_util):
+def test_metric_twice_over(publish_util):
     m1a = pb.MetricRecord(name="metric")
     m1a.summary.best = True
     m1a.summary.max = True
@@ -284,3 +284,55 @@ def test_metric_twice_overwrite(publish_util):
     mstep, mmetric = metrics
     assert mstep == {"1": "thestep"}
     assert mmetric == {"1": "metric", "7": [1]}
+
+
+def test_metric_glob_twice_norm(publish_util):
+    history = []
+    history.append(dict(step=0, data=dict(metric=1,)))
+
+    m1a = pb.MetricRecord(glob_name="*")
+    m1a.summary.best = True
+    m1a.summary.max = True
+    m1a.step_metric = "thestep"
+    m1b = pb.MetricRecord(glob_name="*")
+    m1b.summary.min = True
+
+    metrics = _make_metrics([m1a, m1b])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 2
+    mstep, mmetric = metrics
+    assert mstep == {"1": "thestep"}
+    assert mmetric == {"1": "metric", "5": 1, "7": [1, 2, 4]}
+    assert summary == {
+        "_step": 0,
+        "metric": 1,
+        "metric.best": 1,
+        "metric.max": 1,
+        "metric.min": 1,
+    }
+
+
+def test_metric_glob_twice_over(publish_util):
+    history = []
+    history.append(dict(step=0, data=dict(metric=1,)))
+
+    m1a = pb.MetricRecord(glob_name="*")
+    m1a.summary.best = True
+    m1a.summary.max = True
+    m1a.step_metric = "thestep"
+    m1b = pb.MetricRecord(glob_name="*")
+    m1b.summary.min = True
+    m1b._control.overwrite = True
+
+    metrics = _make_metrics([m1a, m1b])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 1
+    mmetric = metrics[0]
+    assert mmetric == {"1": "metric", "7": [1]}
+    assert summary == {"_step": 0, "metric": 1, "metric.min": 1}
