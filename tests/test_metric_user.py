@@ -35,8 +35,8 @@ def test_metric_run_metric_obj(user_test):
 
 def test_metric_run_hide(user_test):
     run = user_test.get_run()
-    m = run.define_metric("glob", hide=True)
-    assert m.hide is True
+    m = run.define_metric("glob", hidden=True)
+    assert m.hidden is True
 
     r = user_test.get_records()
     assert len(r.records) == 1
