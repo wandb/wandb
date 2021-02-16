@@ -25,7 +25,7 @@ class Metric(object):
     _name: str
     _step_metric: Optional[str]
     _step_sync: Optional[bool]
-    _hide: Optional[bool]
+    _hidden: Optional[bool]
     _summary: Optional[Sequence[str]]
     _goal: Optional[str]
     _overwrite: Optional[bool]
@@ -35,7 +35,7 @@ class Metric(object):
         name: str,
         step_metric: str = None,
         step_sync: bool = None,
-        hide: bool = None,
+        hidden: bool = None,
         summary: Sequence[str] = None,
         goal: str = None,
         overwrite: bool = None,
@@ -44,7 +44,7 @@ class Metric(object):
         self._name = name
         self._step_metric = step_metric
         self._step_sync = step_sync
-        self._hide = hide
+        self._hidden = hidden
         self._summary = summary
         self._goal = goal
         self._overwrite = overwrite
@@ -71,8 +71,8 @@ class Metric(object):
         return tuple(self._summary)
 
     @property
-    def hide(self) -> Optional[bool]:
-        return self._hide
+    def hidden(self) -> Optional[bool]:
+        return self._hidden
 
     @property
     def goal(self) -> Optional[str]:
@@ -89,8 +89,8 @@ class Metric(object):
             m.step_metric = self._step_metric
         if self._step_sync:
             m.options.step_sync = self._step_sync
-        if self._hide:
-            m.options.hide = self._hide
+        if self._hidden:
+            m.options.hidden = self._hidden
         if self._summary:
             summary_set = set(self._summary)
             if "min" in summary_set:

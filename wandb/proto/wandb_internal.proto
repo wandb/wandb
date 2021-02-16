@@ -219,7 +219,7 @@ message MetricRecord {
 
 message MetricOptions {
   bool step_sync = 1;
-  bool hide = 2;
+  bool hidden = 2;
 }
 
 message MetricControl {

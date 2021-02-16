@@ -1780,7 +1780,7 @@ class Run(object):
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
         step_sync: bool = None,
-        hide: bool = None,
+        hidden: bool = None,
         summary: str = None,
         goal: str = None,
         overwrite: bool = None,
@@ -1792,7 +1792,7 @@ class Run(object):
             name: Name of the metric.
             step_metric: Independent variable associated with the metric.
             step_sync: Automatically add `step_metric` to history if needed.
-            hide: Hide this metric from automatic plots.
+            hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations: "min,max,mean,best"
                 (best defaults to goal==minimize)
@@ -1813,7 +1813,7 @@ class Run(object):
             ("name", name, string_types),
             ("step_metric", step_metric, string_types),
             ("step_sync", step_sync, bool),
-            ("hide", hide, bool),
+            ("hidden", hidden, bool),
             ("summary", summary, string_types),
             ("goal", goal, string_types),
             ("overwrite", overwrite, bool),
@@ -1857,7 +1857,7 @@ class Run(object):
             step_metric=step_metric,
             step_sync=step_sync,
             summary=summary_ops,
-            hide=hide,
+            hidden=hidden,
             goal=goal_cleaned,
             overwrite=overwrite,
         )
