@@ -18,7 +18,7 @@ import six
 from six.moves import urllib
 import wandb
 from wandb import __version__, env, util
-from wandb.apis.decorators import normalize_exceptions
+from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.internal import Api as InternalApi
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
@@ -2983,18 +2983,6 @@ class Artifact(artifacts.Artifact):
         return True
 
     def verify(self, root=None):
-        """
-        Verify an artifact by checksumming its downloaded contents.
-
-        NOTE: References are not verified.
-
-        Arguments:
-            root: (str, optional) directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-
-        Raises:
-            (ValueError): If the verification fails.
-        """
         dirpath = root
         if dirpath is None:
             dirpath = os.path.join(".", "artifacts", self.name)

@@ -32,7 +32,7 @@ from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import List, Optional, Union
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -175,6 +175,34 @@ class Artifact(ArtifactInterface):
         return self._digest
 
     @property
+    def type(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.type
+
+        return self._type
+
+    @property
+    def name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.name
+
+        return self._name
+
+    @property
+    def state(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.state
+
+        return "PENDING"
+
+    @property
+    def size(self) -> int:
+        if self._logged_artifact:
+            return self._logged_artifact.size
+
+        return sum([entry.size for entry in self._manifest.entries])
+
+    @property
     def description(self) -> Optional[str]:
         if self._logged_artifact:
             return self._logged_artifact.description
@@ -207,32 +235,13 @@ class Artifact(ArtifactInterface):
         self._metadata = metadata
 
     @property
-    def type(self) -> str:
+    def aliases(self) -> List[str]:
         if self._logged_artifact:
-            return self._logged_artifact.type
+            return self._logged_artifact.aliases
 
-        return self._type
-
-    @property
-    def name(self) -> str:
-        if self._logged_artifact:
-            return self._logged_artifact.name
-
-        return self._name
-
-    @property
-    def state(self) -> str:
-        if self._logged_artifact:
-            return self._logged_artifact.state
-
-        return "PENDING"
-
-    @property
-    def size(self) -> int:
-        if self._logged_artifact:
-            return self._logged_artifact.size
-
-        return sum([entry.size for entry in self._manifest.entries])
+        raise ValueError(
+            "Cannot call aliases on an artifact before it has been logged or in offline mode"
+        )
 
     @property
     def distributed_id(self) -> Optional[str]:
@@ -242,9 +251,21 @@ class Artifact(ArtifactInterface):
     def distributed_id(self, distributed_id: Optional[str]) -> None:
         self._distributed_id = distributed_id
 
-    def _ensure_can_add(self):
-        if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+    def used_by(self) -> List["wandb.apis.public.Run"]:
+        if self._logged_artifact:
+            return self._logged_artifact.used_by()
+
+        raise ValueError(
+            "Cannot call used_by on an artifact before it has been logged or in offline mode"
+        )
+
+    def logged_by(self) -> "wandb.apis.public.Run":
+        if self._logged_artifact:
+            return self._logged_artifact.logged_by()
+
+        raise ValueError(
+            "Cannot call logged_by on an artifact before it has been logged or in offline mode"
+        )
 
     @contextlib.contextmanager
     def new_file(self, name: str, mode: str = "w"):
@@ -387,13 +408,17 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
-        raise ValueError("Cannot load paths from an artifact before it has been logged or in offline mode")
+        raise ValueError(
+            "Cannot load paths from an artifact before it has been logged or in offline mode"
+        )
 
     def get(self, name: str):
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
-        raise ValueError("Cannot call get on an artifact before it has been logged or in offline mode")
+        raise ValueError(
+            "Cannot call get on an artifact before it has been logged or in offline mode"
+        )
 
     def download(self, root: str = None, recursive: bool = False):
         if self._logged_artifact:
@@ -403,11 +428,29 @@ class Artifact(ArtifactInterface):
             "Cannot call download on an artifact before it has been logged or in offline mode"
         )
 
+    def verify(self, root: Optional[str] = None):
+        if self._logged_artifact:
+            return self._logged_artifact.verify(root=root)
+
+        raise ValueError(
+            "Cannot call verify on an artifact before it has been logged or in offline mode"
+        )
+
     def save(self) -> None:
         if self._logged_artifact:
             return self._logged_artifact.save()
 
-        raise ValueError("Cannot call save on an artifact before it has been logged or in offline mode")
+        raise ValueError(
+            "Cannot call save on an artifact before it has been logged or in offline mode"
+        )
+
+    def delete(self) -> None:
+        if self._logged_artifact:
+            return self._logged_artifact.delete()
+
+        raise ValueError(
+            "Cannot call delete on an artifact before it has been logged or in offline mode"
+        )
 
     def get_added_local_path_name(self, local_path: str):
         """
@@ -449,6 +492,10 @@ class Artifact(ArtifactInterface):
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+
+    def _ensure_can_add(self):
+        if self._final:
+            raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)

@@ -16,7 +16,7 @@ from six import BytesIO
 import wandb
 from wandb import __version__, env, util
 from wandb import wandb_lib
-from wandb.apis.decorators import normalize_exceptions
+from wandb.apis.normalize import normalize_exceptions
 from wandb.errors.error import CommError, UsageError
 from wandb.old import retry
 from wandb.old.settings import Settings
