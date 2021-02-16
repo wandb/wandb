@@ -62,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
@@ -79,6 +78,11 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from .wandb_setup import _WandbSetup
     from .wandb_artifacts import Artifact
     from wandb.apis.public import Api as PublicApi
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -2106,16 +2110,21 @@ class Run(object):
         artifact.finalize()
         return artifact, aliases
 
-    # TODO(jhr): annotate this
-    def alert(self, title, text, level=None, wait_duration=None):  # type: ignore
+    def alert(
+        self,
+        title,
+        text,
+        level = None,
+        wait_duration = None,
+    ):
         """Launch an alert with the given title and text.
 
         Arguments:
-            title (str): The title of the alert, must be less than 64 characters long
-            text (str): The text body of the alert
-            level (str or wandb.AlertLevel, optional): The alert level to use, either: `INFO`, `WARN`, or `ERROR`
-            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
-                with this title
+            title: (str) The title of the alert, must be less than 64 characters long.
+            text: (str) The text body of the alert.
+            level: (str or wandb.AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+                alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
         if isinstance(level, wandb.AlertLevel):
@@ -2136,7 +2145,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend:
+            self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(
         self,
