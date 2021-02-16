@@ -4,6 +4,8 @@ metric internal tests.
 
 from __future__ import print_function
 
+import math
+
 from wandb.proto import wandb_internal_pb2 as pb
 
 
@@ -336,3 +338,21 @@ def test_metric_glob_twice_over(publish_util):
     mmetric = metrics[0]
     assert mmetric == {"1": "metric", "7": [1]}
     assert summary == {"_step": 0, "metric": 1, "metric.min": 1}
+
+
+def test_metric_nan_max(publish_util):
+    history = []
+    history.append(dict(step=0, data=dict(v2=2)))
+    history.append(dict(step=1, data=dict(v2=8)))
+    history.append(dict(step=2, data=dict(v2=float("nan"))))
+
+    m1 = pb.MetricRecord(name="v2")
+    m1.summary.max = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    config_wandb = ctx_util.config_wandb
+    summary = ctx_util.summary
+
+    assert math.isnan(summary.get("v2"))
+    assert summary.get("v2.max") == 8
