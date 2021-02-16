@@ -214,7 +214,7 @@ class HandleManager(object):
             tot_key = k + ".tot"
             num_key = k + ".num"
             avg_key = k + ".mean"
-            tot = self._metric_track.get(tot_key, 0)
+            tot = self._metric_track.get(tot_key, 0.0)
             num = self._metric_track.get(num_key, 0)
             tot += float_v
             num += 1

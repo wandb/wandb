@@ -1795,6 +1795,7 @@ class Run(object):
             hide: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations: "min,max,mean,best"
+                (best defaults to goal==minimize)
             goal: Specify direction for optimizing the metric.
                 Supported direections: "minimize,maximize"
 
@@ -1834,7 +1835,7 @@ class Run(object):
             )
         summary_ops: Optional[Sequence[str]] = None
         if summary:
-            summary_items = summary.split(",")
+            summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best"}
             for i in summary_items:
@@ -1843,9 +1844,11 @@ class Run(object):
                         "Unhandled define_metric() arg: summary op: {}".format(i)
                     )
                 summary_ops.append(i)
+        goal_cleaned: Optional[str] = None
         if goal is not None:
-            valid_goal = {"minimize", "maximize"}
-            if goal not in valid_goal:
+            goal_cleaned = goal[:3].lower()
+            valid_goal = {"min", "max"}
+            if goal_cleaned not in valid_goal:
                 raise wandb.Error(
                     "Unhandled define_metric() arg: goal: {}".format(goal)
                 )
@@ -1855,7 +1858,7 @@ class Run(object):
             step_sync=step_sync,
             summary=summary_ops,
             hide=hide,
-            goal=goal,
+            goal=goal_cleaned,
             overwrite=overwrite,
         )
         m._set_callback(self._metric_callback)

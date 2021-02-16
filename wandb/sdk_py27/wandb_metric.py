@@ -76,7 +76,8 @@ class Metric(object):
 
     @property
     def goal(self):
-        return self._goal
+        goal_dict = dict(min="minimize", max="maximize")
+        return goal_dict[self._goal] if self._goal else None
 
     def _commit(self):
         m = pb.MetricRecord()
@@ -100,9 +101,9 @@ class Metric(object):
                 m.summary.mean = True
             if "best" in summary_set:
                 m.summary.best = True
-        if self._goal == "minimize":
+        if self._goal == "min":
             m.goal = m.GOAL_MINIMIZE
-        if self._goal == "maximize":
+        if self._goal == "max":
             m.goal = m.GOAL_MAXIMIZE
         if self._overwrite:
             m._control.overwrite = self._overwrite
