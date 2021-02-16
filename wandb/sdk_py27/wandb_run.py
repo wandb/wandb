@@ -598,15 +598,16 @@ class Run(object):
         """
         return self.project_name()
 
-    def commit_code(
+    def log_code(
         self,
         root = ".",
         name = None,
-        include = lambda path: path.endswith(".py"),
-        exclude = lambda path: "wandb" + os.sep in path,
+        include_fn = lambda path: path.endswith(".py"),
+        exclude_fn = lambda path: os.sep + "wandb" + os.sep
+        in path,
     ):
         """
-        commit_code() saves the current state of your code to a W&B artifact.  By
+        log_code() saves the current state of your code to a W&B artifact.  By
         default it walks the current directory and logs all files that end with ".py".
 
         Arguments:
@@ -615,22 +616,22 @@ class Run(object):
             name (str, optional): The name of our code artifact.  By default we'll name
                 the artifact "source-$RUN_ID".  There may be scenarios where you want
                 many runs to share the same artifact.  Specifying name allows you to achieve that.
-            include (callable, optional): A callable that accepts a file path and
+            include_fn (callable, optional): A callable that accepts a file path and
                 returns True when it should be included and False otherwise.  This
                 defaults to: `lambda path: path.endswith(".py")`
-            exclude (callable, optional): A callable that accepts a file path and
+            exclude_fn (callable, optional): A callable that accepts a file path and
                 returns True when it should be excluded and False otherwise.  This
                 defaults to: `lambda path: False`
 
         Examples:
             Basic usage
             ```
-            run.commit_code()
+            run.log_code()
             ```
 
             Advanced usage
             ```
-            run.commit_code("../", include=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
             ```
 
         Returns:
@@ -642,13 +643,10 @@ class Run(object):
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
-            for dirpath, _, files in os.walk(root):
-                for fname in files:
-                    file_path = os.path.join(dirpath, fname)
-                    if include(file_path) and not exclude(file_path):
-                        save_name = os.path.relpath(file_path, root)
-                        files_added = True
-                        art.add_file(file_path, name=save_name)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
         # Add any manually staged files such is ipynb notebooks
         for dirpath, _, files in os.walk(self._settings.code_dir):
             for fname in files:

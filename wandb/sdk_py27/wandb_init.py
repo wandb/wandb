@@ -240,7 +240,7 @@ class _WandbInit(object):
             logger.info("pausing backend")
             # Attempt to save the code on every execution
             if self.notebook.save_ipynb():
-                res = self.run.commit_code(root=None)
+                res = self.run.log_code(root=None)
                 logger.info("saved code: %s", res)
             self.backend.interface.publish_pause()
 
@@ -254,7 +254,7 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.commit_code(root=None)
+            self.run.log_code(root=None)
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister

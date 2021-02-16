@@ -124,6 +124,7 @@ summary = _preinit.PreInitCallable(
     _preinit.PreInitObject("wandb.summary"), wandb_sdk.wandb_summary.Summary
 )
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
+log_code = _preinit.PreInitCallbable("wandb.log_code", wandb_sdk.wandb_run.Run.log_code)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
 restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
