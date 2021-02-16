@@ -243,6 +243,20 @@ class Artifact(ArtifactInterface):
             "Cannot call aliases on an artifact before it has been logged or in offline mode"
         )
 
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        """
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
+        """
+        if self._logged_artifact:
+            # TODO: figure this out
+            pass
+
+        raise ValueError(
+            "Cannot set aliases on an artifact before it has been logged or in offline mode"
+        )
+
     @property
     def distributed_id(self) -> Optional[str]:
         return self._distributed_id

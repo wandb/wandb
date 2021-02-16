@@ -235,11 +235,31 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        """
+        Arguments:
+            desc: Free text that offers a description of the artifact. The
+                description is markdown rendered in the UI, so this is a good place
+                to put links, etc.
+        """
+        raise NotImplementedError
+
     @property
     def metadata(self) -> dict:
         """
         Returns:
             (dict): Structured data associated with the artifact,
+                for example class distribution of a dataset. This will eventually be queryable
+                and plottable in the UI. There is a hard limit of 100 total keys.
+        """
+        raise NotImplementedError
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        """
+        Arguments:
+            metadata: (dict) Structured data associated with the artifact,
                 for example class distribution of a dataset. This will eventually be queryable
                 and plottable in the UI. There is a hard limit of 100 total keys.
         """
@@ -251,6 +271,14 @@ class Artifact(object):
         Returns:
             (list): A list of the aliases associated with this artifact. The list is
                 mutable and calling `save()` will persist all alias changes.
+        """
+        raise NotImplementedError
+
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        """
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
         """
         raise NotImplementedError
 
