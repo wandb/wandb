@@ -80,7 +80,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
     from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:  # pragma: no cover
+    if TYPE_CHECKING:
         from typing import NoReturn
 
 logger = logging.getLogger("wandb")
