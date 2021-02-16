@@ -23,6 +23,8 @@ coverage:
       tests:
         target: 100%
         paths:
+          - "!tests/utils/"
+          - "!tests/conftest.py"
           - tests/
 
 parsers:
