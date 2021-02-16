@@ -1,3 +1,9 @@
+## 0.10.19 (February 14, 2021)
+
+#### :bug: Bug Fix
+
+- Fix artifact manifest files incorrectly named with patch suffix
+
 ## 0.10.18 (February 8, 2021)
 
 #### :nail_care: Enhancement
