@@ -144,6 +144,15 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
+    def version_index(self):
+        if self._logged_artifact:
+            return self._logged_artifact.version_index
+
+        raise ValueError(
+            "Cannot call version_index on an artifact before it has been logged or in offline mode"
+        )
+
+    @property
     def entity(self):
         if self._logged_artifact:
             return self._logged_artifact.entity
@@ -212,9 +221,8 @@ class Artifact(ArtifactInterface):
     @description.setter
     def description(self, desc):
         if self._logged_artifact:
-            # TODO: figure this out
-            # self._logged_artifact.description = desc
-            pass
+            self._logged_artifact.description = desc
+            return
 
         self._description = desc
 
@@ -228,9 +236,8 @@ class Artifact(ArtifactInterface):
     @metadata.setter
     def metadata(self, metadata):
         if self._logged_artifact:
-            # TODO: figure this out
-            # return self._logged_artifact.metadata
-            pass
+            self._metadata = metadata
+            return
 
         self._metadata = metadata
 
@@ -250,8 +257,8 @@ class Artifact(ArtifactInterface):
             aliases: (list) The list of aliases associated with this artifact.
         """
         if self._logged_artifact:
-            # TODO: figure this out
-            pass
+            self._logged_artifact.aliases = aliases
+            return
 
         raise ValueError(
             "Cannot set aliases on an artifact before it has been logged or in offline mode"
