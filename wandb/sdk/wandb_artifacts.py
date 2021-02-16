@@ -224,6 +224,7 @@ class Artifact(ArtifactInterface):
     def state(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.state
+
         return "PENDING"
 
     @property
@@ -386,27 +387,27 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
-        raise ValueError("Cannot load paths from an artifact before it has been logged")
+        raise ValueError("Cannot load paths from an artifact before it has been logged or in offline mode")
 
     def get(self, name: str):
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
-        raise ValueError("Cannot call get on an artifact before it has been logged")
+        raise ValueError("Cannot call get on an artifact before it has been logged or in offline mode")
 
     def download(self, root: str = None, recursive: bool = False):
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
         raise ValueError(
-            "Cannot call download on an artifact before it has been logged"
+            "Cannot call download on an artifact before it has been logged or in offline mode"
         )
 
     def save(self) -> None:
         if self._logged_artifact:
             return self._logged_artifact.save()
 
-        raise ValueError("Cannot call save on an artifact before it has been logged")
+        raise ValueError("Cannot call save on an artifact before it has been logged or in offline mode")
 
     def get_added_local_path_name(self, local_path: str):
         """
