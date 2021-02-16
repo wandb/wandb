@@ -62,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
@@ -78,6 +77,11 @@ if wandb.TYPE_CHECKING:  # type: ignore
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -97,7 +101,7 @@ class ExitHooks(object):
         sys.exit = self.exit
         sys.excepthook = self.exc_handler
 
-    def exit(self, code: object = 0) -> NoReturn:
+    def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
         if code is None:
             code = 0
