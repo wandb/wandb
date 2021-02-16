@@ -32,7 +32,6 @@ SYMBOLS_ROOT_SDK = {
     "login",
     "init",
     "log",
-    "log_code",
     "log_artifact",
     "use_artifact",
     "summary",
