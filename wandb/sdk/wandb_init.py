@@ -30,6 +30,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
+from .wandb_mp import start_mp_server, Proxy
 from .wandb_run import Run
 from .wandb_settings import Settings
 
@@ -548,6 +549,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    mp_mode: Optional[str] = None,
 ) -> Union[Run, Dummy, None]:
     """
     Start a new tracked run with `wandb.init()`.
@@ -706,6 +708,16 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
+    print("ok")
+    if mp_mode:
+        if mp_mode == "parent":
+            start_mp_server()
+        elif mp_mode == "child":
+            print("child!")
+            wandb.run = Proxy("wandb.run")
+            print("proxy created!")
+            return wandb.run
+    kwargs.pop("mp_mode")
     error_seen = None
     except_exit = None
     try:
