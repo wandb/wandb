@@ -2597,7 +2597,7 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
-    def version_index(self):
+    def version(self):
         return "v%d" % self._version_index
 
     @property

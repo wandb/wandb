@@ -144,12 +144,12 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
-    def version_index(self):
+    def version(self):
         if self._logged_artifact:
-            return self._logged_artifact.version_index
+            return self._logged_artifact.version
 
         raise ValueError(
-            "Cannot call version_index on an artifact before it has been logged or in offline mode"
+            "Cannot call version on an artifact before it has been logged or in offline mode"
         )
 
     @property
