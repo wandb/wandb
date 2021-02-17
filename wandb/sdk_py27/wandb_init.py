@@ -375,6 +375,7 @@ class _WandbInit(object):
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
+            define_metric=drun._define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
         )
@@ -548,6 +549,7 @@ class _WandbInit(object):
             save=run.save,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
+            define_metric=run._define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
         )
