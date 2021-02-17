@@ -356,3 +356,64 @@ def test_metric_nan_max(publish_util):
 
     assert math.isnan(summary.get("v2"))
     assert summary.get("v2.max") == 8
+
+
+def test_metric_dot_flat_escaped(publish_util):
+    """match works if flat string was escaped."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+
+    assert False
+
+
+def test_metric_dot_flat_nonescaped(publish_util):
+    """match still works if flat string was not escaped (but meta is escaped)."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+
+    assert False
+
+
+def test_metric_dot_flat_nonescaped(publish_util):
+    """metric that doesnt match is not sent."""
+    history = []
+    history.append(dict(step=0, data={"this.metric.is.not.matched": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+
+    assert False
+
+
+def test_metric_dot_step_metric(publish_util):
+    """step metric works if escaped."""
+
+    assert False
+
+
+def test_metric_dot_step_metric(publish_util):
+    """step metric works if not escaped."""
+
+    assert False
+
+
+def test_metric_dot_step_sync(publish_util):
+    """step sync must unescape history keys."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+
+    assert False
+
+
+def test_metric_dot_glob(publish_util):
+    """glob should escape the defined metric name."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+
+    assert False
