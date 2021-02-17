@@ -63,7 +63,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
@@ -80,6 +79,11 @@ if wandb.TYPE_CHECKING:  # type: ignore
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
