@@ -118,7 +118,7 @@ def test_bad_url(test_settings):
 def test_login(test_settings):
     s = wandb.Settings(mode="disabled")
     test_settings._apply_settings(s)
-    wandb.login('')
+    wandb.login("")
 
 
 if __name__ == "__main__":
