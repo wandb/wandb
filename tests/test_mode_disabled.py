@@ -90,3 +90,36 @@ def test_disabled_can_pickle():
     with open("test.pkl", "wb") as file:
         pickle.dump(obj, file)
     os.remove("test.pkl")
+
+
+def test_disabled_globals():
+    # Test wandb.* attributes
+    run = wandb.init(config={"foo": {"bar": {"x": "y"}}}, mode="disabled")
+    wandb.log({"x": {"y": "z"}})
+    wandb.log({"foo": {"bar": {"x": "y"}}})
+    assert wandb.run == run
+    assert wandb.config == run.config
+    assert wandb.summary == run.summary
+    assert wandb.config.foo["bar"]["x"] == "y"
+    assert wandb.summary["x"].y == "z"
+    assert wandb.summary["foo"].bar.x == "y"
+    wandb.summary.foo["bar"].update({"a": "b"})
+    assert wandb.summary.foo.bar.a == "b"
+
+
+def test_bad_url(test_settings):
+    s = wandb.Settings(mode="disabled", base_url="localhost:9000")
+    test_settings._apply_settings(s)
+    run = wandb.init(settings=test_settings)
+    run.log({"acc": 0.9})
+    wandb.join()
+
+
+def test_login(test_settings):
+    s = wandb.Settings(mode="disabled")
+    test_settings._apply_settings(s)
+    wandb.login('')
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
