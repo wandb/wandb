@@ -120,7 +120,3 @@ def test_login(test_settings):
     test_settings._apply_settings(s)
     wandb.setup(test_settings)
     wandb.login("")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
