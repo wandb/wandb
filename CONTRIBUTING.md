@@ -17,7 +17,7 @@ pip install --upgrade git+git://github.com/wandb/client.git
 
 Or from pypi:
 ```
-pip install --upgrade wandb`
+pip install --upgrade wandb
 ```
 
 ## Code organization
