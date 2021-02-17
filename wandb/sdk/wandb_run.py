@@ -24,8 +24,8 @@ from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
+from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
@@ -62,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
@@ -78,6 +77,11 @@ if wandb.TYPE_CHECKING:  # type: ignore
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -97,7 +101,7 @@ class ExitHooks(object):
         sys.exit = self.exit
         sys.excepthook = self.exc_handler
 
-    def exit(self, code: object = 0) -> NoReturn:
+    def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
         if code is None:
             code = 0
@@ -309,7 +313,9 @@ class Run(object):
                 os.path.join("code", settings.program_relpath)
             )
         if sweep_config:
-            self._config.update_locked(sweep_config, user="sweep")
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
@@ -716,7 +722,10 @@ class Run(object):
             self._config_callback(data=self._config._as_dict())
 
         if self._backend:
-            self._backend.interface.publish_history(row, step)
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            self._backend.interface.publish_history(
+                row, step, publish_step=not_using_tensorboard
+            )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
@@ -923,6 +932,15 @@ class Run(object):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             if self.history._step > step:
                 wandb.termwarn(
                     (
@@ -2031,16 +2049,21 @@ class Run(object):
         artifact.finalize()
         return artifact, aliases
 
-    # TODO(jhr): annotate this
-    def alert(self, title, text, level=None, wait_duration=None):  # type: ignore
+    def alert(
+        self,
+        title: str,
+        text: str,
+        level: Union[str, None] = None,
+        wait_duration: Union[int, float, timedelta, None] = None,
+    ) -> None:
         """Launch an alert with the given title and text.
 
         Arguments:
-            title (str): The title of the alert, must be less than 64 characters long
-            text (str): The text body of the alert
-            level (str or wandb.AlertLevel, optional): The alert level to use, either: `INFO`, `WARN`, or `ERROR`
-            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
-                with this title
+            title: (str) The title of the alert, must be less than 64 characters long.
+            text: (str) The text body of the alert.
+            level: (str or wandb.AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+                alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
         if isinstance(level, wandb.AlertLevel):
@@ -2061,7 +2084,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend:
+            self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(
         self,
