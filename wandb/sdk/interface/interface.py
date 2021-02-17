@@ -466,6 +466,7 @@ class BackendSender(object):
         tbrecord: pb.TBRecord = None,
         alert: pb.AlertRecord = None,
         final: pb.FinalRecord = None,
+        metric: pb.MetricRecord = None,
         header: pb.HeaderRecord = None,
         footer: pb.FooterRecord = None,
         request: pb.Request = None,
@@ -502,6 +503,8 @@ class BackendSender(object):
             record.request.CopyFrom(request)
         elif telemetry:
             record.telemetry.CopyFrom(telemetry)
+        elif metric:
+            record.metric.CopyFrom(metric)
         else:
             raise Exception("Invalid record")
         return record
@@ -602,6 +605,10 @@ class BackendSender(object):
 
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         rec = self._make_record(summary=summary)
+        self._publish(rec)
+
+    def _publish_metric(self, metric: pb.MetricRecord) -> None:
+        rec = self._make_record(metric=metric)
         self._publish(rec)
 
     def _communicate_run(
