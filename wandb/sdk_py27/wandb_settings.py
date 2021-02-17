@@ -514,7 +514,7 @@ class Settings(object):
 
     @property
     def tmp_dir(self):
-        return self._path_convert(self.tmp_dir_spec)
+        return self._path_convert(self.tmp_dir_spec) or tempfile.gettempdir()
 
     @property
     def _tmp_code_dir(self):
