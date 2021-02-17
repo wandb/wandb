@@ -144,7 +144,7 @@ class Artifact(ArtifactInterface):
         return None
 
     @property
-    def version_index(self) -> int:
+    def version_index(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.version_index
 

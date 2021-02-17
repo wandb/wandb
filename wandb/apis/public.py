@@ -2598,7 +2598,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def version_index(self):
-        return self._version_index
+        return "v%d" % self._version_index
 
     @property
     def entity(self):

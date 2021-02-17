@@ -156,12 +156,12 @@ class Artifact(object):
         raise NotImplementedError
 
     @property
-    def version_index(self) -> int:
+    def version_index(self) -> str:
         """
         Returns:
             (int): The version index of this artifact. For example, if this
-                is the 'v0' version of an artifact, its `version_index` will
-                be 0.
+                is the first version of an artifact, its `version_index` will
+                be 'v0'.
         """
         raise NotImplementedError
 
