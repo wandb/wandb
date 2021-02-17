@@ -1779,7 +1779,7 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def define_metric(
+    def _define_metric(
         self,
         name,
         step_metric = None,
