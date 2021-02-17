@@ -10,6 +10,7 @@ import pytest
 import netrc
 import subprocess
 import os
+from tests import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 DOCKER_SHA = (
@@ -833,3 +834,41 @@ def test_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
+
+
+def test_sync_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        ctx = live_mock_server.get_ctx()
+        assert (
+            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
+        )
+
+        # Check the no sync tensorboard flag
+        result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
+        assert result.output == "Skipping directory: .\n"
+        assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
+
+
+def test_sync_wandb_run(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("wandb")
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        assert result.exit_code == 0
+        assert "wandb: ERROR Nothing to sync." in result.output

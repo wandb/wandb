@@ -36,7 +36,7 @@ from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
-from wandb.sync import get_run_from_path, get_runs, SyncManager
+from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -420,7 +420,12 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
-@click.option("--sync-tensorboard", is_flag=True, default=True, help="Stream tfevent files to wandb.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=True,
+    help="Stream tfevent files to wandb.",
+)
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -486,6 +491,8 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
 ):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -553,7 +560,7 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
-            sync_tensorboard=sync_tensorboard
+            sync_tensorboard=sync_tensorboard,
         )
         for p in path:
             sm.add(p)
@@ -1245,7 +1252,10 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, util.sizeof_fmt(latest.size), latest.name
+                    kind.type,
+                    latest.updated_at,
+                    util.sizeof_fmt(latest.size),
+                    latest.name,
                 )
             )
 

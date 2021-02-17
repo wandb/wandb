@@ -440,10 +440,6 @@ class Settings(object):
         return platform.system() == "Windows"
 
     @property
-    def _sync_tensorboard(self) -> bool:
-        return len(wandb.patched["tensorboard"]) > 0
-
-    @property
     def _console(self) -> SettingsConsole:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,

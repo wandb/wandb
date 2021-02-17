@@ -3,7 +3,6 @@
 tensor b watcher.
 """
 
-import json
 import logging
 import os
 import socket
@@ -16,8 +15,8 @@ from six.moves import queue
 import wandb
 from wandb import util
 
-from . import run as internal_run
 from . import file_stream
+from . import run as internal_run
 
 if wandb.TYPE_CHECKING:
     from typing import TYPE_CHECKING
@@ -160,7 +159,9 @@ class TBWatcher(object):
             )
             self._consumer.start()
 
-        tbdir_watcher = TBDirWatcher(self, logdir, save, namespace, self._watcher_queue, self._force)
+        tbdir_watcher = TBDirWatcher(
+            self, logdir, save, namespace, self._watcher_queue, self._force
+        )
         self._logdirs[logdir] = tbdir_watcher
         tbdir_watcher.start()
 
@@ -406,19 +407,26 @@ class TBHistory(object):
     def _flush(self) -> None:
         if not self._data:
             return
+        # A single tensorboard step may have too much data
+        # we just drop the largest keys in the step if it does.
+        # TODO: we could flush the data across multiple steps
         if self._step_size > file_stream.MAX_LINE_SIZE:
             metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
             metrics.sort(key=lambda t: t[1], reverse=True)
             bad = 0
             dropped_keys = []
-            for k,v in metrics:
+            for k, v in metrics:
                 if self._step_size - bad < file_stream.MAX_LINE_SIZE:
                     break
                 else:
                     bad += v
                     dropped_keys.append(k)
                     del self._data[k]
-            wandb.termwarn("Step {} exceeds max data limit, dropping {} of the largest keys:".format(self._step, len(dropped_keys)))
+            wandb.termwarn(
+                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
+                    self._step, len(dropped_keys)
+                )
+            )
             print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
         self._added.append(self._data)
@@ -430,10 +438,9 @@ class TBHistory(object):
         self._data = dict()
         self._data.update(self._track_history_dict(d))
 
-    def _track_history_dict(self, d: "HistoryDict") -> None:
+    def _track_history_dict(self, d: "HistoryDict") -> "HistoryDict":
         e = {}
         for k in d.keys():
-            # TODO: allow users to skip certain keys?
             e[k] = d[k]
             self._step_size += sys.getsizeof(e[k])
         return e

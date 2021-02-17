@@ -15,6 +15,7 @@ import time
 from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
+from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.util import check_and_warn_old
 
@@ -26,18 +27,17 @@ if PY3:
     from wandb.sdk.internal import sender
     from wandb.sdk.internal import settings_static
     from wandb.sdk.internal import tb_watcher
-    from wandb.sdk import wandb_run
 else:
     from wandb.sdk_py27.interface import interface
     from wandb.sdk_py27.internal import datastore
     from wandb.sdk_py27.internal import sender
     from wandb.sdk_py27.internal import settings_static
     from wandb.sdk_py27.internal import tb_watcher
-    from wandb.sdk_py27 import wandb_run
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
 TFEVENT_SUBSTRING = ".tfevents."
+TMPDIR = tempfile.TemporaryDirectory()
 
 
 class _LocalRun(object):
@@ -113,7 +113,9 @@ class SyncThread(threading.Thread):
         if self._sync_tensorboard:
             # TODO: complain if there are too many dirs...
             if os.path.isdir(sync_item):
-                glob_str = os.path.join(sync_item, "**", "*{}*".format(TFEVENT_SUBSTRING))
+                glob_str = os.path.join(
+                    sync_item, "**", "*{}*".format(TFEVENT_SUBSTRING)
+                )
                 files = glob.glob(glob_str, recursive=True)
                 for tfevent in files:
                     tb_event_files += 1
@@ -146,12 +148,12 @@ class SyncThread(threading.Thread):
         sys.stdout.flush()
         record = publish_interface._make_record(run=proto_run)
         sm.send(record)
-        # TODO: use a windows, unix, temp directory not working
+        # TODO: temp directory not working?
         settings = wandb.Settings(
-            root_dir="/tmp",
+            root_dir=TMPDIR.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
-            _start_time=time.time()
+            _start_time=time.time(),
         )
         tb_watcher.TBHistory.ignore = lambda key: "bert" in key
         watcher = tb_watcher.TBWatcher(settings, proto_run, publish_interface, True)
@@ -172,15 +174,21 @@ class SyncThread(threading.Thread):
             if os.path.isdir(sync_item):
                 files = os.listdir(sync_item)
                 filtered_files = list(filter(lambda f: f.endswith(WANDB_SUFFIX), files))
-                if tb_root is None and (check_and_warn_old(files) or len(filtered_files) != 1):
+                if tb_root is None and (
+                    check_and_warn_old(files) or len(filtered_files) != 1
+                ):
                     print("Skipping directory: {}".format(sync_item))
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
             dirname = os.path.dirname(sync_item)
             files_dir = os.path.join(dirname, "files")
+            # If we're syncing tensorboard, let's use a tmpdir
+            if not os.path.exists(files_dir):
+                files_dir = os.path.join(TMPDIR.name, "files")
             sd = dict(
                 files_dir=files_dir,
+                root_dir=TMPDIR.name,
                 _start_time=0,
                 git_remote=None,
                 resume=None,
@@ -211,10 +219,16 @@ class SyncThread(threading.Thread):
 
             if tb_root is not None:
                 if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
-                    wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
+                    wandb.termwarn(
+                        "Found .wandb file, not streaming tensorboard metrics."
+                    )
                 else:
-                    print("Found {} tfevent files in {}".format(tb_event_files, tb_root))
-                    self._send_tensorboard(tb_root, tb_logdirs, sm, publish_interface, record_q)
+                    print(
+                        "Found {} tfevent files in {}".format(tb_event_files, tb_root)
+                    )
+                    self._send_tensorboard(
+                        tb_root, tb_logdirs, sm, publish_interface, record_q
+                    )
                     continue
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
@@ -325,7 +339,6 @@ def get_runs(
         base = ".wandb"
     if not os.path.exists(base):
         return ()
-
     all_dirs = os.listdir(base)
     dirs = []
     if include_offline:
