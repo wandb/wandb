@@ -550,6 +550,7 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
     mp_mode: Optional[str] = None,
+    mp_port: int = 6000
 ) -> Union[Run, Dummy, None]:
     """
     Start a new tracked run with `wandb.init()`.
@@ -708,16 +709,25 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
-    print("ok")
     if mp_mode:
         if mp_mode == "parent":
-            start_mp_server()
+            start_mp_server(port=mp_port)
         elif mp_mode == "child":
-            print("child!")
-            wandb.run = Proxy("wandb.run")
-            print("proxy created!")
-            return wandb.run
+            run = Proxy("wandb.run", port=mp_port)
+            module.set_global(
+            run = run,
+            config=run.config,
+            summary=run.summary,
+            log=run.log,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            alert=run.alert,
+            plot_table=run.plot_table
+            )
+            return run
     kwargs.pop("mp_mode")
+    kwargs.pop("mp_port")
     error_seen = None
     except_exit = None
     try:

@@ -6,6 +6,7 @@ import socketserver
 import threading
 import time
 import uuid
+from six.moves import cPickle as pickle
 
 
 class Server(object):
@@ -32,13 +33,19 @@ class Server(object):
                 for conn in self._connections:
                     try:
                         conn.send(msg)
-                    except  Exception:
-                        pass  # TODO(frz)
+                    except  Exception as e:
+                        try:
+                            conn.send(e)
+                        except Exception:
+                            conn.send(Exception())
             else:
-                try:
-                    conn.send(msg)
-                except  Exception:
-                    pass  # TODO(frz) 
+                    try:
+                        conn.send(msg)
+                    except  Exception as e:
+                        try:
+                            conn.send(e)
+                        except Exception:
+                            conn.send(Exception())
 
     def _receiver_loop(self, connection):
         while not self._stop.is_set():
@@ -94,6 +101,10 @@ class SyncClient(object):
                 self._connected.set()
             except Exception:
                 pass
+
+    def send(self, req):
+        with self._lock:
+            self._client.send(req)
 
     def get(self, req):
         self._connected.wait()
@@ -169,86 +180,109 @@ class AsyncClient(object):
         self._sender_thread.join(timeout=5)
         self._client.close()
 
-    def get(self, request):
-        pass
 
 def _get_port():
     with socketserver.TCPServer(("localhost", 0), None) as s:
         free_port = s.server_address[1]
 
-def start_mp_server():
-    server = Server(('localhost', 6000), responder=_response)
+
+def start_mp_server(port):
+    server = Server(('localhost', port), responder=_response)
+
+
+_cache = {}
+def _ret_obj(obj):
+    if callable(obj):
+        key = str(uuid.uuid1())
+        _cache[key] = obj
+        return {"type": "reference", "key": key}
+    else:
+        try:
+            return {"type": "value", "value": obj}
+        except Exception:
+            key = str(uuid.uuid1())
+            _cache[key] = obj
+            return {"type": "reference", "key": key}
 
 
 def _response(req):
-    req_type = req["type"]
-    if req_type == "eval":
-        s = req["code"]
-        assert s.startswith("wandb.")
-        try:
-            obj = eval(s)
-        except Exception as e:
-            return {"type":"error", "error": e}
-        if callable(obj):
-            key = str(uuid.uuid1())
-            _cache[key] = obj
-            return {"type": "reference", "key": key}
-        else:
+        req_type = req["type"]
+        if req_type == "getattr":
+            obj = eval(req["code"])
+            attr = req["attr"]
+            ret = getattr(obj, attr)
+            return _ret_obj(ret)
+        elif req_type == "setattr":
+            obj = eval(req["code"])
+            attr = req["attr"]
+            val = req["val"]
+            setattr(obj, attr, val)
+        elif req_type == "getitem":
+            obj = eval(req["code"])
+            attr = req["attr"]
+            ret = obj[attr]
+            return _ret_obj(ret)
+        elif req_type == "setitem":
+            obj = eval(req["code"])
+            attr = req["attr"]
+            val = req["val"]
+            obj[attr] = val
+        elif req_type == "call":
+            f = req["func"]
+            assert f.startswith("wandb.")
+            f = eval(f)
+            args = req.get("args", ())
+            kwargs = req.get("kwargs", {})
             try:
-                return {"type": "value", "value": obj}
-            except TypeError:
-                key = str(uuid.uuid1())
-                _cache[key] = obj
-                return {"type": "reference", "key": key}
-    elif req_type == "call":
-        f = req["func"]
-        assert f.startswith("wandb.")
-        f = eval(f)
-        args = req.get("args", ())
-        kwargs = req.get("kwargs", {})
-        try:
-            obj = f(*args, **kwargs)
-        except Exception as e:
-            return {"type":"error", "error": e}
-        if callable(obj):
-            key = str(uuid.uuid1())
-            _cache[key] = obj
-            return {"type": "reference", "key": key}
-        else:
-            try:
-                return {"type": "value", "value": obj}
-            except TypeError:
-                key = str(uuid.uuid1())
-                _cache[key] = obj
-                return {"type": "reference", "key": key}
+                obj = f(*args, **kwargs)
+            except Exception as e:
+                return e
+            return _ret_obj(obj)
 
 
 class Proxy(object):
-    def __init__(self, base=''):
-        self.base = base
-        self._client = SyncClient(('localhost', 6000))
+    def __init__(self, base, port=None):
+        object.__setattr__(self, 'base', base)
+        if port is not None:
+            object.__setattr__(self, '_client', SyncClient(('localhost', port)))
+
+    def _ret_resp(self, resp):
+        if isinstance(resp, Exception):
+            raise resp
+        typ = resp["type"]
+        if typ == "error":
+            raise resp["error"]
+        elif typ == "value":
+            return resp["value"]
+        elif typ == "reference":
+            p = Proxy("_cache[%s]" % resp["key"])
+            object.__setattr__(p, '_client', object.__getattribute__(self, '_client'))
+            return p
 
     def __getattr__(self, attr):
-        s = self.base + '.' + attr
-        req = {"type": "eval", "code": s}
-        resp = self._client.get(req)
-        typ = resp["type"]
-        if typ == "error":
-            raise resp["error"]
-        elif typ == "value":
-            return resp["value"]
-        elif typ == "reference":
-            p = Proxy("_cache[%s]" % resp["key"])
-            return p
+        client = object.__getattribute__(self, '_client')
+        ret = object.__getattribute__(self, '_ret_resp')
+        base = object.__getattribute__(self, 'base')
+        req = {"type": "getattr", "code": base, "attr": attr}
+        resp = client.get(req)
+        return ret(resp)
 
     def __call__(self, *args, **kwargs):
-        req = {"type": "call", "func": self.base, "args": args, "kwargs": kwargs}
-        resp = self._client.get(req)
-        typ = resp["type"]
-        if typ == "error":
-            raise resp["error"]
-        elif typ == "value":
-            return resp["value"]
-        elif typ == "reference":
-            p = Proxy("_cache[%s]" % resp["key"])
-            return p
+        client = object.__getattribute__(self, '_client')
+        ret = object.__getattribute__(self, '_ret_resp')
+        base = object.__getattribute__(self, 'base')
+        req = {"type": "call", "func": base, "args": args, "kwargs": kwargs}
+        resp = client.get(req)
+        return ret(resp)
+
+    def __setattr__(self, attr, val):
+        client = object.__getattribute__(self, '_client')
+        base = object.__getattribute__(self, 'base')
+        req = {"type": "setattr", "code": base, "attr": attr, "val": val}
+        client.send(req)
+
+    def __setitem__(self, attr, val):
+        client = object.__getattribute__(self, '_client')
+        base = object.__getattribute__(self, 'base')
+        req = {"type": "setitem", "code": base, "attr": attr, "val": val}
+        client.send(req)
