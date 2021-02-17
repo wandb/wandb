@@ -5,6 +5,7 @@ import logging
 import numbers
 import os
 import shutil
+import sys
 
 import six
 from six.moves.collections_abc import Sequence as SixSequence
@@ -277,6 +278,12 @@ class Histogram(WBValue):
 
     def to_json(self, run = None):
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
+
+    def __sizeof__(self):
+        """This returns an estimated size in bytes, currently the factor of 1.7
+        is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory
+        """
+        return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)
 
 
 class Media(WBValue):
