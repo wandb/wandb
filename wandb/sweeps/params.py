@@ -26,7 +26,11 @@ class HyperParameter():
 
     def _load_parameter(self, param_config, param_name):
         if param_name in param_config:
-            setattr(self, param_name, param_config[param_name])
+            if (self.type == HyperParameter.LOG_UNIFORM or
+                  self.type == HyperParameter.Q_LOG_UNIFORM):
+                setattr(self, param_name, np.log(param_config[param_name]))
+            else:
+                setattr(self, param_name, param_config[param_name])
         else:
             raise ValueError("Need to specify {} \
                 with distribution: {}.".format(param_name, param_config['distribution']))
