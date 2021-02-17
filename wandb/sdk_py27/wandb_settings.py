@@ -85,6 +85,7 @@ env_settings = dict(
     host=None,
     username=None,
     disable_code=None,
+    code_dir=None,
     anonymous=None,
     ignore_globs=None,
     resume=None,
@@ -216,7 +217,6 @@ class Settings(object):
     sync_dir_spec = None
     files_dir_spec = None
     tmp_dir_spec = None
-    code_dir_spec = None
     log_symlink_user_spec = None
     log_symlink_internal_spec = None
     sync_symlink_latest_spec = None
@@ -228,6 +228,7 @@ class Settings(object):
     show_errors = True
     email = None
     save_code = None
+    code_dir = None
     program_relpath = None
     # host: Optional[str]
 
@@ -321,11 +322,10 @@ class Settings(object):
         resume_fname_spec="{wandb_dir}/wandb-resume.json",
         files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
         tmp_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
-        code_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp/code",
         symlink=None,  # probed
         # where files are temporary stored when saving
         # files_dir=None,
-        # code_dir=None,
+        # tmp_dir=None,
         # data_base_dir="wandb",
         # data_dir="",
         # data_spec="wandb-{timespec}-{pid}-data.bin",
@@ -336,6 +336,7 @@ class Settings(object):
         disable_code=None,
         ignore_globs=None,
         save_code=None,
+        code_dir=None,
         program_relpath=None,
         git_remote=None,
         dev_prod=None,  # in old settings files, TODO: support?
@@ -516,8 +517,8 @@ class Settings(object):
         return self._path_convert(self.tmp_dir_spec)
 
     @property
-    def code_dir(self):
-        return self._path_convert(self.code_dir_spec)
+    def _tmp_code_dir(self):
+        return os.path.join(self.tmp_dir, "code")
 
     @property
     def log_symlink_user(self):

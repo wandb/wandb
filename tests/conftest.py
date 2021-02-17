@@ -193,7 +193,7 @@ def dummy_api_key():
 
 
 @pytest.fixture
-def test_settings(test_dir, mocker):
+def test_settings(test_dir, mocker, live_mock_server):
     """ Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
@@ -202,10 +202,9 @@ def test_settings(test_dir, mocker):
     wandb_dir = os.path.join(os.getcwd(), "wandb")
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    # TODO: consider making a debugable directory that stays around...
     settings = wandb.Settings(
         _start_time=time.time(),
-        base_url="http://localhost",
+        base_url=live_mock_server.base_url,
         root_dir=os.getcwd(),
         save_code=True,
         project="test",

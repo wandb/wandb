@@ -641,7 +641,6 @@ class Run(object):
         Returns:
             An `Artifact` object if code was logged
         """
-        # TODO: should this type be a special wandb type?
         name = name or "{}-{}".format("source", self.id)
         art = wandb.Artifact(name, "code")
         files_added = False
@@ -652,10 +651,10 @@ class Run(object):
                 save_name = os.path.relpath(file_path, root)
                 art.add_file(file_path, name=save_name)
         # Add any manually staged files such is ipynb notebooks
-        for dirpath, _, files in os.walk(self._settings.code_dir):
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
-                save_name = os.path.relpath(file_path, self._settings.code_dir)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
                 files_added = True
                 art.add_file(file_path, name=save_name)
         if not files_added:
@@ -1498,15 +1497,14 @@ class Run(object):
     def _on_start(self) -> None:
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
-            wandb.termlog("Offline run mode, not syncing to the cloud.")
-
-        if self._settings._offline:
             wandb.termlog(
                 (
                     "W&B syncing is set to `offline` in this directory.  "
-                    "Run `wandb online` to enable cloud syncing."
+                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
                 )
             )
+        if self._settings.code_dir is not None:
+            self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:

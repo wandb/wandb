@@ -267,7 +267,9 @@ class Notebook(object):
             if os.path.exists(relpath):
                 shutil.copy(
                     relpath,
-                    os.path.join(self.settings.code_dir, os.path.basename(relpath)),
+                    os.path.join(
+                        self.settings._tmp_code_dir, os.path.basename(relpath)
+                    ),
                 )
                 return True
 
@@ -276,7 +278,8 @@ class Notebook(object):
         if colab_ipynb:
             with open(
                 os.path.join(
-                    self.settings.code_dir, colab_ipynb["metadata"]["colab"]["name"]
+                    self.settings._tmp_code_dir,
+                    colab_ipynb["metadata"]["colab"]["name"],
                 ),
                 "w",
                 encoding="utf-8",
@@ -287,7 +290,9 @@ class Notebook(object):
         kaggle_ipynb = attempt_kaggle_load_ipynb()
         if kaggle_ipynb and len(kaggle_ipynb["cells"]) > 0:
             with open(
-                os.path.join(self.settings.code_dir, kaggle_ipynb["metadata"]["name"]),
+                os.path.join(
+                    self.settings._tmp_code_dir, kaggle_ipynb["metadata"]["name"]
+                ),
                 "w",
                 encoding="utf-8",
             ) as f:
@@ -355,7 +360,7 @@ class Notebook(object):
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
             with open(
-                os.path.join(self.settings.code_dir, "_session_history.ipynb"),
+                os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
                 "w",
                 encoding="utf-8",
             ) as f:

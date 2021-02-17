@@ -298,7 +298,7 @@ class _WandbInit(object):
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
         filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
         filesystem._safe_makedirs(settings.files_dir)
-        filesystem._safe_makedirs(settings.code_dir)
+        filesystem._safe_makedirs(settings._tmp_code_dir)
 
         if settings.symlink:
             self._safe_symlink(

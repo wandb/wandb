@@ -59,6 +59,17 @@ def test_run_pub_history(fake_run, record_q, records_util):
     # TODO(jhr): check history vals
 
 
+def test_log_code_settings(live_mock_server, test_settings):
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    test_settings.code_dir = "."
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    artifact_name = list(ctx["artifacts"].keys())[0]
+    assert artifact_name == "source-" + run.id
+
+
 def test_log_code(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     with open("test.py", "w") as f:
