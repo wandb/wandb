@@ -28,5 +28,11 @@ def test_bad_url(test_settings):
     wandb.join()
 
 
+def test_login(test_settings):
+    s = wandb.Settings(mode="disabled")
+    test_settings._apply_settings(s)
+    wandb.login('')
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
