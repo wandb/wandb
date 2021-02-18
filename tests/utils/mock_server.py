@@ -92,6 +92,8 @@ def run(ctx):
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
+        "group": "A",
+        "jobType": "test"
         "description": "",
         "systemMetrics": '{"cpu": 100}',
         "summaryMetrics": '{"acc": 100, "loss": 0}',
