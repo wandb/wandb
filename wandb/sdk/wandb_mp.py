@@ -198,6 +198,7 @@ def _ret_obj(obj):
         return {"type": "reference", "key": key}
     else:
         try:
+            pickle.dumps(obj)
             return {"type": "value", "value": obj}
         except Exception:
             key = str(uuid.uuid1())
@@ -229,7 +230,6 @@ def _response(req):
             obj[attr] = val
         elif req_type == "call":
             f = req["func"]
-            assert f.startswith("wandb.")
             f = eval(f)
             args = req.get("args", ())
             kwargs = req.get("kwargs", {})
@@ -255,7 +255,7 @@ class Proxy(object):
         elif typ == "value":
             return resp["value"]
         elif typ == "reference":
-            p = Proxy("_cache[%s]" % resp["key"])
+            p = Proxy("_cache['%s']" % resp["key"])
             object.__setattr__(p, '_client', object.__getattribute__(self, '_client'))
             return p
 
