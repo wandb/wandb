@@ -365,9 +365,6 @@ class SendManager(object):
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
-        self._resume_state["tags"] = (
-            resume_status["tags"] if resume_status["tags"] is not None else []
-        )
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
