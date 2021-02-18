@@ -15,7 +15,6 @@ from six.moves import queue
 import wandb
 from wandb import util
 
-from . import file_stream
 from . import run as internal_run
 
 if wandb.TYPE_CHECKING:
@@ -410,13 +409,13 @@ class TBHistory(object):
         # A single tensorboard step may have too much data
         # we just drop the largest keys in the step if it does.
         # TODO: we could flush the data across multiple steps
-        if self._step_size > file_stream.MAX_LINE_SIZE:
+        if self._step_size > util.MAX_LINE_SIZE:
             metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
             metrics.sort(key=lambda t: t[1], reverse=True)
             bad = 0
             dropped_keys = []
             for k, v in metrics:
-                if self._step_size - bad < file_stream.MAX_LINE_SIZE:
+                if self._step_size - bad < util.MAX_LINE_SIZE:
                     break
                 else:
                     bad += v

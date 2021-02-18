@@ -872,3 +872,29 @@ def test_sync_wandb_run(runner, live_mock_server):
         result = runner.invoke(cli.sync, ["--sync-all"])
         assert result.exit_code == 0
         assert "wandb: ERROR Nothing to sync." in result.output
+
+
+def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
+        utils.fixture_copy("wandb")
+        utils.fixture_copy(
+            "events.out.tfevents.1585769947.cvp",
+            os.path.join(run_dir, "events.out.tfevents.1585769947.cvp"),
+        )
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, [run_dir])
+        assert result.exit_code == 0
+        assert (
+            "WARNING Found .wandb file, not streaming tensorboard metrics"
+            in result.output
+        )

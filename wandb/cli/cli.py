@@ -423,7 +423,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
-    default=True,
+    default=None,
     help="Stream tfevent files to wandb.",
 )
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
@@ -548,7 +548,7 @@ def sync(
                 )
             )
 
-    def _sync_path(path):
+    def _sync_path(path, sync_tensorboard):
         if run_id and len(path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
@@ -581,7 +581,9 @@ def sync(
         if not sync_items:
             wandb.termerror("Nothing to sync.")
         else:
-            _sync_path(sync_items)
+            # When syncing run directories, default to not syncing tensorboard
+            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
+            _sync_path(sync_items, sync_tb)
 
     def _clean():
         if path:
@@ -640,7 +642,9 @@ def sync(
     elif clean:
         _clean()
     elif path:
-        _sync_path(path)
+        # When syncing a specific path, default to syncing tensorboard
+        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path, sync_tb)
     else:
         _summary()
 

@@ -21,11 +21,11 @@ def fixture_open(path, mode="r"):
     return open(fixture_path(path), mode)
 
 
-def fixture_copy(path):
+def fixture_copy(path, dst=None):
     if os.path.isfile(fixture_path(path)):
-        return shutil.copy(fixture_path(path), path)
+        return shutil.copy(fixture_path(path), dst or path)
     else:
-        return shutil.copytree(fixture_path(path), path)
+        return shutil.copytree(fixture_path(path), dst or path)
 
 
 def notebook_path(path):

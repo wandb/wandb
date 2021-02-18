@@ -13,6 +13,7 @@ import os
 import time
 
 from pkg_resources import parse_version
+from six.moves import queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -21,6 +22,7 @@ from wandb.proto import wandb_internal_pb2  # type: ignore
 from . import artifacts
 from . import file_stream
 from . import internal_api
+from . import settings_static
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
@@ -106,6 +108,43 @@ class SendManager(object):
         self._partial_output = dict()
 
         self._exit_code = 0
+
+    @classmethod
+    def setup(cls, root_dir):
+        """This is a helper class method to setup a standalone SendManager.
+        Currently we're using this primarily for `sync.py`.
+        """
+        files_dir = os.path.join(root_dir, "files")
+        sd = dict(
+            files_dir=files_dir,
+            root_dir=root_dir,
+            _start_time=0,
+            git_remote=None,
+            resume=None,
+            program=None,
+            ignore_globs=(),
+            run_id=None,
+            entity=None,
+            project=None,
+            run_group=None,
+            job_type=None,
+            run_tags=None,
+            run_name=None,
+            run_notes=None,
+            save_code=None,
+            email=None,
+            silent=None,
+        )
+        settings = settings_static.SettingsStatic(sd)
+        record_q = queue.Queue()
+        result_q = queue.Queue()
+        publish_interface = interface.BackendSender(record_q=record_q)
+        return SendManager(
+            settings=settings,
+            record_q=record_q,
+            result_q=result_q,
+            interface=publish_interface,
+        )
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")

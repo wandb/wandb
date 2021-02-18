@@ -12,7 +12,6 @@ import sys
 import threading
 import time
 
-from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
@@ -22,16 +21,12 @@ from wandb.util import check_and_warn_old
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
-    from wandb.sdk.interface import interface
     from wandb.sdk.internal import datastore
     from wandb.sdk.internal import sender
-    from wandb.sdk.internal import settings_static
     from wandb.sdk.internal import tb_watcher
 else:
-    from wandb.sdk_py27.interface import interface
     from wandb.sdk_py27.internal import datastore
     from wandb.sdk_py27.internal import sender
-    from wandb.sdk_py27.internal import settings_static
     from wandb.sdk_py27.internal import tb_watcher
 
 WANDB_SUFFIX = ".wandb"
@@ -111,7 +106,6 @@ class SyncThread(threading.Thread):
         tb_logdirs = []
         tb_root = None
         if self._sync_tensorboard:
-            # TODO: complain if there are too many dirs...
             if os.path.isdir(sync_item):
                 glob_str = os.path.join(
                     sync_item, "**", "*{}*".format(TFEVENT_SUBSTRING)
@@ -130,9 +124,9 @@ class SyncThread(threading.Thread):
                 tb_event_files = 1
         return tb_event_files, tb_logdirs, tb_root
 
-    def _send_tensorboard(self, tb_root, tb_logdirs, sm, publish_interface, record_q):
+    def _send_tensorboard(self, tb_root, tb_logdirs, send_manager):
         if self._entity is None:
-            viewer, server_info = sm._api.viewer_server_info()
+            viewer, server_info = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
         proto_run.run_id = self._run_id or wandb.util.generate_id()
@@ -146,27 +140,27 @@ class SyncThread(threading.Thread):
         )
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
-        record = publish_interface._make_record(run=proto_run)
-        sm.send(record)
-        # TODO: temp directory not working?
+        record = send_manager._interface._make_record(run=proto_run)
+        send_manager.send(record)
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
-        tb_watcher.TBHistory.ignore = lambda key: "bert" in key
-        watcher = tb_watcher.TBWatcher(settings, proto_run, publish_interface, True)
+        watcher = tb_watcher.TBWatcher(
+            settings, proto_run, send_manager._interface, True
+        )
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
         # send all of our records like a boss
-        while not record_q.empty():
-            data = record_q.get(block=True)
-            sm.send(data)
+        while not send_manager._interface.record_q.empty():
+            data = send_manager._interface.record_q.get(block=True)
+            send_manager.send(data)
         sys.stdout.flush()
-        sm.finish()
+        send_manager.finish()
 
     def run(self):
         for sync_item in self._sync_list:
@@ -181,41 +175,11 @@ class SyncThread(threading.Thread):
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
-            dirname = os.path.dirname(sync_item)
-            files_dir = os.path.join(dirname, "files")
+            root_dir = os.path.dirname(sync_item)
             # If we're syncing tensorboard, let's use a tmpdir
-            if not os.path.exists(files_dir):
-                files_dir = os.path.join(TMPDIR.name, "files")
-            sd = dict(
-                files_dir=files_dir,
-                root_dir=TMPDIR.name,
-                _start_time=0,
-                git_remote=None,
-                resume=None,
-                program=None,
-                ignore_globs=(),
-                run_id=None,
-                entity=None,
-                project=None,
-                run_group=None,
-                job_type=None,
-                run_tags=None,
-                run_name=None,
-                run_notes=None,
-                save_code=None,
-                email=None,
-                silent=None,
-            )
-            settings = settings_static.SettingsStatic(sd)
-            record_q = queue.Queue()
-            result_q = queue.Queue()
-            publish_interface = interface.BackendSender(record_q=record_q)
-            sm = sender.SendManager(
-                settings=settings,
-                record_q=record_q,
-                result_q=result_q,
-                interface=publish_interface,
-            )
+            if tb_event_files > 0:
+                root_dir = TMPDIR.name
+            sm = sender.SendManager.setup(root_dir)
 
             if tb_root is not None:
                 if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
@@ -226,9 +190,13 @@ class SyncThread(threading.Thread):
                     print(
                         "Found {} tfevent files in {}".format(tb_event_files, tb_root)
                     )
-                    self._send_tensorboard(
-                        tb_root, tb_logdirs, sm, publish_interface, record_q
-                    )
+                    if len(tb_logdirs) > 3:
+                        wandb.termwarn(
+                            "Found {} directories containing tfevent files. "
+                            "If these represent multiple experiments, sync them "
+                            "individually or pass a list of paths."
+                        )
+                    self._send_tensorboard(tb_root, tb_logdirs, sm)
                     continue
             ds = datastore.DataStore()
             ds.open_for_scan(sync_item)
@@ -246,12 +214,12 @@ class SyncThread(threading.Thread):
                     continue
                 sm.send(pb)
                 # send any records that were added in previous send
-                while not record_q.empty():
-                    data = record_q.get(block=True)
+                while not sm._record_q.empty():
+                    data = sm._record_q.get(block=True)
                     sm.send(data)
 
                 if pb.control.req_resp:
-                    result = result_q.get(block=True)
+                    result = sm._result_q.get(block=True)
                     result_type = result.WhichOneof("result_type")
                     if not shown and result_type == "run_result":
                         r = result.run_result.run
