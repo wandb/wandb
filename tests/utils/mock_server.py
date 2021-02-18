@@ -849,12 +849,26 @@ class ParseCTX(object):
         return summary
 
     @property
+    def history(self):
+        fs_files = self.get_filestream_file_items()
+        history = fs_files["wandb-history.jsonl"]
+        return history
+
+    @property
     def config(self):
         return self._ctx["config"][-1]
 
     @property
     def config_wandb(self):
         return self.config["_wandb"]["value"]
+
+    @property
+    def telemetry(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("t")
+
+    @property
+    def metrics(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("m")
 
 
 if __name__ == "__main__":
