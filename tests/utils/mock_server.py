@@ -93,7 +93,7 @@ def run(ctx):
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
         "group": "A",
-        "jobType": "test"
+        "jobType": "test",
         "description": "",
         "systemMetrics": '{"cpu": 100}',
         "summaryMetrics": '{"acc": 100, "loss": 0}',
