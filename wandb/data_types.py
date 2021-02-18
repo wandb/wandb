@@ -988,9 +988,7 @@ class Audio(BatchableMedia):
             return self._path
 
         source_artifact = self.artifact_source["artifact"]
-        return source_artifact.get_path(
-            self._path.split("./artifacts/" + source_artifact.name + "/")[-1]
-        ).ref()
+        return source_artifact.manifest.get_entry_by_path(self._path).ref
 
     def __eq__(self, other):
         if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
