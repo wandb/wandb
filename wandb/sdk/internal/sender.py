@@ -365,6 +365,9 @@ class SendManager(object):
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
+        self._resume_state["tags"] = (
+            resume_status["tags"] if resume_status["tags"] is not None else []
+        )
         self._resume_state["config"] = config
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
@@ -469,11 +472,8 @@ class SendManager(object):
 
         # Save the resumed config
         if self._resume_state["config"] is not None:
-            # TODO: should we merge this with resumed config?
-            config_override = self._consolidated_config
             config_dict = self._resume_state["config"]
             config_dict = config_util.dict_strip_value_dict(config_dict)
-            config_dict.update(config_override)
             self._consolidated_config.update(config_dict)
             config_value_dict = self._config_format(self._consolidated_config)
             self._config_save(config_value_dict)
