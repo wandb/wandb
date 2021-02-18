@@ -203,7 +203,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _setup(self):
         # TODO: use fork context if unix and frozen?
         # if py34+, else fall back
-        if hasattr(multiprocessing, "get_context"):
+        if (
+            hasattr(multiprocessing, "get_context")
+            and self._settings.start_method != "thread"
+        ):
             all_methods = multiprocessing.get_all_start_methods()
             logger.info(
                 "multiprocessing start_methods={}, using: {}".format(
