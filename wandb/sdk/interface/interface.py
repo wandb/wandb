@@ -253,10 +253,12 @@ class BackendSender(object):
         if key:
             update = config.update.add()
             if isinstance(key, tuple):
-                update.nested_key = key
+                update.nested_key.extend(key)
             else:
                 update.key = key
             update.value_json = json_dumps_safer(json_friendly(val)[0])
+        print("interface config", config)
+        print()
         return config
 
     def _make_stats(self, stats_dict):

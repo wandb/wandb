@@ -115,6 +115,7 @@ class TBWatcher(object):
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
+        #print(self._run_proto._config)
 
     def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
         namespace: "Optional[str]"
@@ -324,7 +325,7 @@ class TBEventConsumer(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
         self._delay = delay
-        self._config = {"_wandb": {"visualize": {}}}
+        self._config = run_proto.config
 
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
@@ -381,16 +382,19 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
+        print("TBWATCHER CONFIG", self._config)
         chart_keys = []
         for key, item in row.items():
             if isinstance(item, CustomChart):
                 table = item.table
                 panel_config = custom_chart_panel_config(item, key, key + "_table")
-                self._config["_wandb"]["visualize"].update({
+                config = { 
                     key: {"panel_type": "Vega2", "panel_config": panel_config}
-                })
+                }
+                #config = {"panel_type": "Vega2", "panel_config": panel_config}
                 chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(data=self._config)
+                self._tbwatcher._interface.publish_config(data=config, key=("_wandb", "visualize"))
+                #self._tbwatcher._interface.publish_config(data=panel_config, key=("_wandb", "visualize", key, "panel_config"))
         for chart_key in chart_keys:
             table = row[chart_key].table
             row.pop(chart_key)
