@@ -379,7 +379,9 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row):
-        self._tbwatcher._interface.publish_history(row, run=self._internal_run)
+        self._tbwatcher._interface.publish_history(
+            row, run=self._internal_run, publish_step=False
+        )
 
 
 class TBHistory(object):

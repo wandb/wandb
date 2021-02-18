@@ -249,6 +249,14 @@ def test_projects(mock_server, api):
     assert count == 2
 
 
+def test_delete_file(runner, mock_server, api):
+    run = api.run("test/test/test")
+    file = run.files()[0]
+    file.delete()
+
+    assert mock_server.ctx["graphql"][-1]["variables"] == {"files": [file.id]}
+
+
 def test_artifact_versions(runner, mock_server, api):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 2

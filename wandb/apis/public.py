@@ -1024,6 +1024,7 @@ class Run(Attrs):
         )
         self.summary.update()
 
+    @normalize_exceptions
     def delete(self, delete_artifacts=False):
         """
         Deletes the given run from the wandb backend.
@@ -1051,7 +1052,7 @@ class Run(Attrs):
             )
         )
 
-        return self.client.execute(
+        self.client.execute(
             mutation,
             variable_values={
                 "id": self.storage_id,
@@ -1621,6 +1622,10 @@ class File(object):
         #        "File {} does not exist.".format(self._attrs["name"]))
 
     @property
+    def id(self):
+        return self._attrs["id"]
+
+    @property
     def name(self):
         return self._attrs["name"]
 
@@ -1677,6 +1682,21 @@ class File(object):
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path, "r")
+
+    @normalize_exceptions
+    def delete(self):
+        mutation = gql(
+            """
+        mutation deleteFiles($files: [ID!]!) {
+            deleteFiles(input: {
+                files: $files
+            }) {
+                success
+            }
+        }
+        """
+        )
+        self.client.execute(mutation, variable_values={"files": [self.id]})
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
@@ -2424,7 +2444,68 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-class Artifact(object):
+class Artifact(artifacts.Artifact):
+    """
+    An artifact that has been logged, including all its attributes, links to the runs
+    that use it, and a link to the run that logged it.
+
+    Examples:
+        Basic usage
+        ```
+        api = wandb.Api()
+        artifact = api.artifact('project/artifact:alias')
+
+        # Get information about the artifact...
+        artifact.digest
+        artifact.aliases
+        ```
+
+        Updating an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Update the description
+        artifact.description = 'My new description'
+
+        # Selectively update metadata keys
+        artifact.metadata["oldKey"] = "new value"
+
+        # Replace the metadata entirely
+        artifact.metadata = {"newKey": "new value"}
+
+        # Add an alias
+        artifact.aliases.append('best')
+
+        # Remove an alias
+        artifact.aliases.remove('latest')
+
+        # Completely replace the aliases
+        artifact.aliases = ['replaced']
+
+        # Persist all artifact modifications
+        artifact.save()
+        ```
+
+        Artifact graph traversal
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Walk up and down the graph from an artifact:
+        producer_run = artifact.logged_by()
+        consumer_runs = artifact.used_by()
+
+        # Walk up and down the graph from a run:
+        logged_artifacts = run.logged_artifacts()
+        used_artifacts = run.used_artifacts()
+        ```
+
+        Deleting an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+        artifact.delete()
+        ```
+    """
+
     QUERY = gql(
         """
         query Artifact(
@@ -2490,9 +2571,9 @@ class Artifact(object):
 
     def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
-        self.entity = entity
-        self.project = project
-        self.artifact_name = name
+        self._entity = entity
+        self._project = project
+        self._artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -2514,6 +2595,14 @@ class Artifact(object):
     @property
     def id(self):
         return self._attrs["id"]
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def project(self):
+        return self._project
 
     @property
     def metadata(self):
@@ -2541,10 +2630,18 @@ class Artifact(object):
 
     @property
     def created_at(self):
+        """
+        Returns:
+            (datetime): The time at which the artifact was created.
+        """
         return self._attrs["createdAt"]
 
     @property
     def updated_at(self):
+        """
+        Returns:
+            (datetime): The time at which the artifact was last updated.
+        """
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
@@ -2567,6 +2664,13 @@ class Artifact(object):
 
     @property
     def aliases(self):
+        """
+        The aliases associated with this artifact.
+
+        Returns:
+            List[str]: The aliases associated with this artifact.
+
+        """
         return self._aliases
 
     @aliases.setter
@@ -2620,8 +2724,9 @@ class Artifact(object):
 
         return None
 
+    @normalize_exceptions
     def delete(self):
-        """Delete artifact and it's files."""
+        """Delete artifact and its files."""
         mutation = gql(
             """
         mutation deleteArtifact($id: ID!) {
@@ -2639,23 +2744,27 @@ class Artifact(object):
     def new_file(self, name, mode=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_file(self, path, name=None):
+    def add_file(self, local_path, name=None, is_tmp=False):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def add_dir(self, path, name=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_reference(self, path, name=None):
+    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
+        raise ValueError("Cannot add files to an artifact once it has been saved")
+
+    def add(self, obj, name):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def _get_obj_entry(self, name):
-        """When objects are added with `.add(obj, name)`, the name is typically
+        """
+        When objects are added with `.add(obj, name)`, the name is typically
         changed to include the suffix of the object type when serializing to JSON. So we need
         to be able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
         Args:
-            name (str): name used when adding
+            name: (str) name used when adding
         """
         self._load_manifest()
 
@@ -2682,11 +2791,14 @@ class Artifact(object):
             else:
                 name = entry.path
 
-        class ArtifactEntry(object):
+        class ArtifactEntry(artifacts.ArtifactEntry):
             def __init__(self):
-                self.parent_artifact = parent_self
                 self.name = name
                 self.entry = entry
+                self._parent_artifact = parent_self
+
+            def parent_artifact(self):
+                return self._parent_artifact
 
             @staticmethod
             def copy(cache_path, target_path):
@@ -2706,8 +2818,7 @@ class Artifact(object):
                     shutil.copy2(cache_path, target_path)
                 return target_path
 
-            @staticmethod
-            def download(root=None):
+            def download(self, root=None):
                 root = root or default_root
                 if entry.ref is not None:
                     cache_path = storage_policy.load_reference(
@@ -2720,16 +2831,14 @@ class Artifact(object):
 
                 return ArtifactEntry().copy(cache_path, os.path.join(root, name))
 
-            @staticmethod
-            def ref():
+            def ref(self):
                 if entry.ref is not None:
                     return storage_policy.load_reference(
                         parent_self, name, manifest.entries[name], local=False
                     )
                 raise ValueError("Only reference entries support ref().")
 
-            @staticmethod
-            def ref_url():
+            def ref_url(self):
                 return (
                     "wandb-artifact://"
                     + util.b64_to_hex_id(parent_self.id)
@@ -2740,14 +2849,6 @@ class Artifact(object):
         return ArtifactEntry()
 
     def get(self, name):
-        """Returns the wandb.Media resource stored in the artifact. Media can be
-        stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
-        Arguments:
-            name (str): name of resource.
-
-        Returns:
-            A `wandb.Media` which has been stored at `name`
-        """
         entry, wb_class = self._get_obj_entry(name)
         if entry is not None:
             # If the entry is a reference from another artifact, then get it directly from that artifact
@@ -2772,22 +2873,10 @@ class Artifact(object):
             with open(item_path, "r") as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
-            result.artifact_source = {"artifact": self, "name": name}
+            result.set_artifact_source(self, name)
             return result
 
     def download(self, root=None, recursive=False):
-        """Download the artifact to dir specified by the <root>
-
-        Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-            recursive (bool, optional): if set to true, then all dependent artifacts are
-                eagerly downloaded as well. If false, then the dependent artifact will
-                only be downloaded when needed.
-
-        Returns:
-            The path to the downloaded contents.
-        """
         dirpath = root or self._default_root()
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
@@ -2796,7 +2885,7 @@ class Artifact(object):
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self.artifact_name, size / (1024 * 1024), nfiles),
+                % (self._artifact_name, size / (1024 * 1024), nfiles),
                 newline=False,
             )
         start_time = time.time()
@@ -2823,11 +2912,10 @@ class Artifact(object):
         """Download a single file artifact to dir specified by the <root>
 
         Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
+            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/<self.name>/'.
 
         Returns:
-            The full path of the downloaded file
+            (str): The full path of the downloaded file.
         """
 
         if root is None:
@@ -2837,7 +2925,8 @@ class Artifact(object):
         nfiles = len(manifest.entries)
         if nfiles > 1:
             raise ValueError(
-                'This artifact contains more than one file, call `.download()` to get all files or call .get_path("filename").download()'
+                "This artifact contains more than one file, call `.download()` to get all files or call "
+                '.get_path("filename").download()'
             )
 
         return self._download_file(list(manifest.entries)[0], root=root)
@@ -2894,14 +2983,17 @@ class Artifact(object):
         return True
 
     def verify(self, root=None):
-        """Verify an artifact by checksumming its downloaded contents.
+        """
+        Verify an artifact by checksumming its downloaded contents.
 
-        Raises a ValueError if the verification fails. Does not verify downloaded
-        reference files.
+        NOTE: References are not verified.
 
         Arguments:
-            root (str, optional): directory to download artifact to. If None
+            root: (str, optional) directory to download artifact to. If None
                 artifact will be downloaded to './artifacts/<self.name>/'
+
+        Raises:
+            (ValueError): If the verification fails.
         """
         dirpath = root
         if dirpath is None:
@@ -2953,13 +3045,13 @@ class Artifact(object):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
         except Exception:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
-            if ":" not in self.artifact_name and len(self.artifact_name) != 32:
+            if ":" not in self._artifact_name and len(self._artifact_name) != 32:
                 raise ValueError(
                     'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
                 )
@@ -2970,7 +3062,7 @@ class Artifact(object):
         ):
             raise ValueError(
                 'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self.artifact_name)
+                % (self.entity, self.project, self._artifact_name)
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -3007,7 +3099,7 @@ class Artifact(object):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
 

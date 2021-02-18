@@ -34,6 +34,7 @@ SYMBOLS_ROOT_SDK = {
     "log",
     "log_artifact",
     "use_artifact",
+    "define_metric",
     "summary",
     "config",
     "join",  # deprecate in favor of finish()
@@ -158,6 +159,7 @@ SYMBOLS_RUN = {
     "finish_artifact",
     "use_artifact",
     "alert",
+    "define_metric",
     # "summary",   # really this should be here
     # mode stuff
     "mode",
