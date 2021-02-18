@@ -12,7 +12,7 @@ STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
 RATE_LIMIT_SECONDS = None
-IGNORE_KINDS = []
+IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
 
@@ -113,14 +113,12 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
-        print(kind)
         if kind in IGNORE_KINDS:
             continue
         if kind == "simple_value":
             values[namespaced_tag(value.tag, namespace)] = value.simple_value
         elif kind == "tensor":
             plugin_name = value.metadata.plugin_data.plugin_name
-            print(plugin_name)
             if plugin_name == "scalars" or plugin_name == "":
                 values[namespaced_tag(value.tag, namespace)] = make_ndarray(
                     value.tensor
@@ -138,9 +136,9 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 # true_neg = pr_curve_data[1,:]
                 # false_neg = pr_curve_data[1,:]
                 # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
-                data = []
                 # min of each in case tensorboard ever changes their pr_curve
                 # to allow for different length outputs
+                data = []
                 for i in range(min(len((precision)), len(recall))):
                     # drop additional threshold values if they exist
                     if precision[i] != 0 or recall[i] != 0:
@@ -156,14 +154,12 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     {"title": "Precision v. Recall"},
                 )
                 continue
-            elif plugin_name == "graphs":
-                print([field.full_name for field in value.tensor.DESCRIPTOR.fields])
-                print(value.tensor.tensor_content)
-                data = make_ndarray(value.tensor.string_val)
-                print(data)
             img_str = value.image.encoded_image_string
+            # tensorboard.plugins.prcurve produces empty byte strings
+            # of kind tensor, we should just ignore these
+            if img_str == b'':
+                continue
             encode_images([img_str], value)
-
         # Coming soon...
         # elif kind == "audio":
         #     audio = wandb.Audio(

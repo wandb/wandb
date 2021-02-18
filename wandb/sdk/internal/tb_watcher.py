@@ -324,6 +324,7 @@ class TBEventConsumer(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
         self._delay = delay
+        self._config = {"_wandb": {"visualize": {}}}
 
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
@@ -385,16 +386,13 @@ class TBEventConsumer(object):
             if isinstance(item, CustomChart):
                 table = item.table
                 panel_config = custom_chart_panel_config(item, key, key + "_table")
-                config = {
-                    "_wandb": {
-                        "visualize": {
-                            key: {"panel_type": "Vega2", "panel_config": panel_config}
-                        }
-                    }
-                }
+                self._config["_wandb"]["visualize"].update({
+                    key: {"panel_type": "Vega2", "panel_config": panel_config}
+                })
                 chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(config)
+                self._tbwatcher._interface.publish_config(data=self._config)
         for chart_key in chart_keys:
+            table = row[chart_key].table
             row.pop(chart_key)
             row[chart_key + "_table"] = table
 
