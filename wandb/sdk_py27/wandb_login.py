@@ -38,6 +38,8 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     Raises:
         UsageError - if api_key can not configured and no tty
     """
+    if wandb.setup()._settings._noop:
+        return True
     kwargs = dict(locals())
     configured = _login(**kwargs)
     return True if configured else False

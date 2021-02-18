@@ -24,8 +24,8 @@ from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import trigger
+from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
@@ -35,8 +35,10 @@ from wandb.viz import (
     Visualize,
 )
 
+from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
+from . import wandb_metric
 from . import wandb_summary
 from .lib import (
     apikey,
@@ -61,7 +63,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         BinaryIO,
         Tuple,
         Union,
-        NoReturn,
         Type,
         Callable,
     )
@@ -74,9 +75,15 @@ if wandb.TYPE_CHECKING:  # type: ignore
         RunRecord,
         FilePusherStats,
         PollExitResponse,
+        MetricRecord,
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -96,7 +103,7 @@ class ExitHooks(object):
         sys.exit = self.exit
         sys.excepthook = self.exc_handler
 
-    def exit(self, code: object = 0) -> NoReturn:
+    def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
         if code is None:
             code = 0
@@ -308,7 +315,9 @@ class Run(object):
                 os.path.join("code", settings.program_relpath)
             )
         if sweep_config:
-            self._config.update_locked(sweep_config, user="sweep")
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
@@ -672,6 +681,10 @@ class Run(object):
         ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
 
+    def _metric_callback(self, metric_record: MetricRecord) -> None:
+        if self._backend:
+            self._backend.interface._publish_metric(metric_record)
+
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend:
             return
@@ -715,7 +728,10 @@ class Run(object):
             self._config_callback(data=self._config._as_dict())
 
         if self._backend:
-            self._backend.interface.publish_history(row, step)
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            self._backend.interface.publish_history(
+                row, step, publish_step=not_using_tensorboard
+            )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
@@ -924,6 +940,15 @@ class Run(object):
         data = Run._sanitize_history_dict(data)
 
         if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             if self.history._step > step:
                 wandb.termwarn(
                     (
@@ -1714,7 +1739,7 @@ class Run(object):
         else:
             wandb.termlog("Run history:")
             history_lines = ""
-            format_str = u"  {:>%s} {}\n" % max_len
+            format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
@@ -1770,6 +1795,98 @@ class Run(object):
         with open(spec_filename, "w") as f:
             print(s, file=f)
         self.save(spec_filename)
+
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any
+    ) -> wandb_metric.Metric:
+        """Define metric properties which will later be logged with `wandb.log()`.
+
+        Arguments:
+            name: Name of the metric.
+            step_metric: Independent variable associated with the metric.
+            step_sync: Automatically add `step_metric` to history if needed.
+            hidden: Hide this metric from automatic plots.
+            summary: Specify aggregate metrics added to summary.
+                Supported aggregations: "min,max,mean,best"
+                (best defaults to goal==minimize)
+            goal: Specify direction for optimizing the metric.
+                Supported direections: "minimize,maximize"
+
+        Returns:
+            A metric object is returned that can be further specified.
+
+        """
+        if not name:
+            raise wandb.Error("define_metric() requires non-empty name argument")
+        for k in kwargs:
+            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+        if isinstance(step_metric, wandb_metric.Metric):
+            step_metric = step_metric.name
+        for arg_name, arg_val, exp_type in (
+            ("name", name, string_types),
+            ("step_metric", step_metric, string_types),
+            ("step_sync", step_sync, bool),
+            ("hidden", hidden, bool),
+            ("summary", summary, string_types),
+            ("goal", goal, string_types),
+            ("overwrite", overwrite, bool),
+        ):
+            # NOTE: type checking is broken for isinstance and string_types
+            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+                arg_type = type(arg_val).__name__
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: {} type: {}".format(
+                        arg_name, arg_type
+                    )
+                )
+        stripped = name[:-1] if name.endswith("*") else name
+        if "*" in stripped:
+            raise wandb.Error(
+                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
+                    name
+                )
+            )
+        summary_ops: Optional[Sequence[str]] = None
+        if summary:
+            summary_items = [s.lower() for s in summary.split(",")]
+            summary_ops = []
+            valid = {"min", "max", "mean", "best"}
+            for i in summary_items:
+                if i not in valid:
+                    raise wandb.Error(
+                        "Unhandled define_metric() arg: summary op: {}".format(i)
+                    )
+                summary_ops.append(i)
+        goal_cleaned: Optional[str] = None
+        if goal is not None:
+            goal_cleaned = goal[:3].lower()
+            valid_goal = {"min", "max"}
+            if goal_cleaned not in valid_goal:
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: goal: {}".format(goal)
+                )
+        m = wandb_metric.Metric(
+            name=name,
+            step_metric=step_metric,
+            step_sync=step_sync,
+            summary=summary_ops,
+            hidden=hidden,
+            goal=goal_cleaned,
+            overwrite=overwrite,
+        )
+        m._set_callback(self._metric_callback)
+        m._commit()
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+        return m
 
     # TODO(jhr): annotate this
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
@@ -1830,7 +1947,13 @@ class Run(object):
                 )
 
     # TODO(jhr): annotate this
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):  # type: ignore
+    def log_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> wandb_artifacts.Artifact:
         """ Declare an artifact as output of a run.
 
         Arguments:
@@ -1855,6 +1978,164 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
+        return self._log_artifact(artifact_or_path, name, type, aliases)
+
+    def upsert_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
+        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
+        run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
+        need to all contribute to the same artifact.
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot upsert artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=False,
+        )
+
+    def finish_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
+        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
+        the same distributed ID will result in a new version
+
+        Arguments:
+            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+                can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name (str, optional): An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type (str): The type of artifact to log, examples include `dataset`, `model`
+            aliases (list, optional): Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot finish artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=True,
+        )
+
+    def _log_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+    ) -> wandb_artifacts.Artifact:
+        if not finalize and distributed_id is None:
+            raise TypeError("Must provide distributed_id if artifact is not finalize")
+        artifact, aliases = self._prepare_artifact(
+            artifact_or_path, name, type, aliases
+        )
+        artifact.distributed_id = distributed_id
+        self._assert_can_log_artifact(artifact)
+        if self._backend:
+            self._backend.interface.publish_artifact(
+                self, artifact, aliases, finalize=finalize
+            )
+        return artifact
+
+    def _public_api(self) -> PublicApi:
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return public.Api(overrides)
+
+    # TODO(jhr): annotate this
+    def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
+        if not self._settings._offline:
+            public_api = self._public_api()
+            expected_type = public.Artifact.expected_type(
+                public_api.client,
+                artifact.name,
+                public_api.settings["entity"],
+                public_api.settings["project"],
+            )
+            if expected_type is not None and artifact.type != expected_type:
+                raise ValueError(
+                    "Expected artifact type {}, got {}".format(
+                        expected_type, artifact.type
+                    )
+                )
+
+    def _prepare_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
@@ -1881,45 +2162,23 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
-        self._assert_can_log_artifact(artifact)
-        self._backend.interface.publish_artifact(self, artifact, aliases)
-        return artifact
+        return artifact, aliases
 
-    # TODO(jhr): annotate this
-    def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
-                )
-
-    def _public_api(self) -> PublicApi:
-        overrides = {"run": self.id}
-        run_obj = self._run_obj
-        if run_obj is not None:
-            overrides["entity"] = run_obj.entity
-            overrides["project"] = run_obj.project
-        return public.Api(overrides)
-
-    # TODO(jhr): annotate this
-    def alert(self, title, text, level=None, wait_duration=None):  # type: ignore
+    def alert(
+        self,
+        title: str,
+        text: str,
+        level: Union[str, None] = None,
+        wait_duration: Union[int, float, timedelta, None] = None,
+    ) -> None:
         """Launch an alert with the given title and text.
 
         Arguments:
-            title (str): The title of the alert, must be less than 64 characters long
-            text (str): The text body of the alert
-            level (str or wandb.AlertLevel, optional): The alert level to use, either: `INFO`, `WARN`, or `ERROR`
-            wait_duration (int, float, or timedelta, optional): The time to wait (in seconds) before sending another alert
-                with this title
+            title: (str) The title of the alert, must be less than 64 characters long.
+            text: (str) The text body of the alert.
+            level: (str or wandb.AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+                alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
         if isinstance(level, wandb.AlertLevel):
@@ -1940,7 +2199,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend:
+            self._backend.interface.publish_alert(title, text, level, wait_duration)
 
     def _set_console(
         self,
