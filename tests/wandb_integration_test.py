@@ -14,6 +14,7 @@ import sys
 import shutil
 from .utils import fixture_open
 import sys
+import six
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:

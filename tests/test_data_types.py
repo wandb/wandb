@@ -13,11 +13,61 @@ from click.testing import CliRunner
 from . import utils
 from .utils import dummy_data
 import matplotlib
+from wandb import Api
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
+
+
+@pytest.fixture
+def api(runner):
+    return Api()
+
+
+def test_wb_value(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    local_art = wandb.Artifact("N", "T")
+    public_art = run.use_artifact("N:latest")
+
+    wbvalue = data_types.WBValue()
+    with pytest.raises(NotImplementedError):
+        wbvalue.to_json(local_art)
+
+    with pytest.raises(NotImplementedError):
+        data_types.WBValue.from_json({}, public_art)
+
+    assert data_types.WBValue.with_suffix("item") == "item.json"
+
+    table = data_types.WBValue.init_from_json(
+        {
+            "_type": "table",
+            "data": [[]],
+            "columns": [],
+            "column_types": wandb.data_types._dtypes.DictType({}).to_json(),
+        },
+        public_art,
+    )
+    assert isinstance(table, data_types.WBValue) and isinstance(
+        table, wandb.data_types.Table
+    )
+
+    type_mapping = data_types.WBValue.type_mapping()
+    assert all(
+        [issubclass(type_mapping[key], data_types.WBValue) for key in type_mapping]
+    )
+
+    assert wbvalue == wbvalue
+    assert wbvalue != data_types.WBValue()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="fastparqet not for py2")
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="numpy not in py3.9 yet")
+def test_wb_summary_df(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
+    run.summary.update({"data-frame-summary": data_frame})
 
 
 def test_raw_data():
@@ -155,7 +205,7 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        data_types.prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
     )
     expected = {
         "_type": "images/separated",
@@ -401,6 +451,17 @@ def test_molecule(runner, mocked_run):
         assert os.path.exists(mol._path)
 
 
+def test_molecule_file(runner, mocked_run):
+    with runner.isolated_filesystem():
+        with open("test.pdb", "w") as f:
+            f.write("00000")
+        mol = wandb.Molecule(open("test.pdb", "r"))
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
 def test_html_str(mocked_run):
     html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
     html.bind_to_run(mocked_run, "rad", "summary")
@@ -434,6 +495,16 @@ def test_html_file(mocked_run):
     with open("test.html", "w") as f:
         f.write("<html><body><h1>Hello</h1></body></html>")
     html = wandb.Html(open("test.html"))
+    html.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
+
+    assert os.path.exists(html._path)
+
+
+def test_html_file_path(mocked_run):
+    with open("test.html", "w") as f:
+        f.write("<html><body><h1>Hello</h1></body></html>")
+    html = wandb.Html("test.html")
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
 
@@ -486,6 +557,22 @@ def test_object3d_numpy(mocked_run):
     assert obj1.to_json(mocked_run)["_type"] == "object3D-file"
     assert obj2.to_json(mocked_run)["_type"] == "object3D-file"
     assert obj3.to_json(mocked_run)["_type"] == "object3D-file"
+
+
+def test_object3d_dict(mocked_run):
+    obj = wandb.Object3D({"type": "lidar/beta",})
+    obj.bind_to_run(mocked_run, "object3D", 0)
+    assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+
+
+def test_object3d_dict_invalid(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D({"type": "INVALID",})
+
+
+def test_object3d_dict_invalid_string(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D("INVALID")
 
 
 def test_object3d_obj(mocked_run):
@@ -590,6 +677,15 @@ def test_table_from_list():
     assert table.data == table_data
 
 
+def test_table_iterator():
+    table = wandb.Table(data=table_data)
+    for ndx, row in table.iterrows():
+        assert row == table_data[ndx]
+
+    table = wandb.Table(data=[])
+    assert len([(ndx, row) for ndx, row in table.iterrows()]) == 0
+
+
 def test_table_from_numpy():
     np_data = np.array(table_data)
     table = wandb.Table(data=np_data)
@@ -636,7 +732,23 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types.numpy_arrays_to_lists
+    conv = data_types._numpy_arrays_to_lists
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
+
+
+def test_partitioned_table_from_json(runner, mock_server, api):
+    # This is mocked to return some data
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    ptable = art.get("dataset")
+    data = [[0, 0, 1]]
+    for ndx, row in ptable.iterrows():
+        assert row == data[ndx]
+
+
+def test_partitioned_table():
+    partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
+    assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
+    assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")

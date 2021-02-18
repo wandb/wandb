@@ -57,6 +57,7 @@ parser.add_argument('--num_writers', type=int, required=True)
 parser.add_argument('--files_per_version_min', type=int, required=True)
 parser.add_argument('--files_per_version_max', type=int, required=True)
 parser.add_argument('--non_overlapping_writers', default=True, action='store_true')
+parser.add_argument('--distributed_fanout', type=int, default=1)
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
@@ -68,7 +69,6 @@ parser.add_argument('--delete_period_max', type=int, default=10)
 
 # cache garbage collector args
 parser.add_argument('--cache_gc_period_max', type=int)
-
 
 def gen_files(n_files, max_small_size, max_large_size):
     bufsize = max_large_size * 100
@@ -94,6 +94,7 @@ def gen_files(n_files, max_small_size, max_large_size):
 
     return fnames
 
+
 def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max):
     while True:
         try:
@@ -111,6 +112,43 @@ def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_
                 art.add_file(version_fname)
             run.log_artifact(art)
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
+
+
+def _train(chunk, artifact_name, project_name, group_name):
+    with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
+        art = wandb.Artifact(artifact_name, type='dataset')
+        for file in chunk:
+            art.add_file(file)
+        run.upsert_artifact(art)
+
+
+def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, fanout):
+    while True:
+        try:
+            stop_queue.get_nowait()
+            print('Writer stopping')
+            return
+        except queue.Empty:
+            pass
+        print('Writer initing run')
+        group_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
+
+        files_in_version = random.randrange(files_per_version_min, files_per_version_max)
+        version_fnames = random.sample(fnames, files_in_version)
+        chunk_size = max(int(len(version_fnames) / fanout), 1)
+        chunks = [version_fnames[i:i + chunk_size] for i in range(0, len(version_fnames), chunk_size)]
+
+        # TODO: Once we resolve issues with spawn or switch to fork, we can run these in separate processes
+        # instead of running them serially.
+        for i in range(fanout):
+            _train(chunks[i], artifact_name, project_name, group_name)
+
+        with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
+            print('Committing {}'.format(group_name))
+            art = wandb.Artifact(artifact_name, type='dataset')
+            run.finish_artifact(art)
+            stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
+
 
 def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, reader_id):
     api = wandb.Api()
@@ -156,6 +194,7 @@ def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, re
             version.verify('read-%s' % reader_id)
             print('Reader verified: ', version)
 
+
 def proc_version_deleter(stop_queue, stats_queue, artifact_name, min_versions, delete_period_max):
     api = wandb.Api()
     # initial sleep to ensure we've created the sequence. Public API fails
@@ -181,6 +220,7 @@ def proc_version_deleter(stop_queue, stats_queue, artifact_name, min_versions, d
             print('Delete version complete', version)
         time.sleep(random.randrange(delete_period_max))
 
+
 def proc_cache_garbage_collector(stop_queue, cache_gc_period_max):
     while True:
         try:
@@ -193,11 +233,13 @@ def proc_cache_garbage_collector(stop_queue, cache_gc_period_max):
         print('Cache GC')
         os.system('rm -rf ~/.cache/wandb/artifacts')
 
+
 def proc_bucket_garbage_collector(stop_queue, bucket_gc_period_max):
     while True:
         time.sleep(random.randrange(cache_gc_period_max))
         print('Bucket GC')
         # TODO: implement bucket gc
+
 
 def main(argv):
     args = parser.parse_args()
@@ -254,16 +296,31 @@ def main(argv):
         if args.non_overlapping_writers:
             chunk_size = int(len(source_file_names) / args.num_writers)
             file_names = source_file_names[i * chunk_size: (i+1) * chunk_size]
-        p = multiprocessing.Process(
-            target=proc_version_writer,
-            args=(
-                stop_queue,
-                stats_queue,
-                project_name,
-                file_names,
-                artifact_name,
-                args.files_per_version_min,
-                args.files_per_version_max))
+        if args.distributed_fanout > 1:
+            p = multiprocessing.Process(
+                target=proc_version_writer_distributed,
+                args=(
+                    stop_queue,
+                    stats_queue,
+                    project_name,
+                    file_names,
+                    artifact_name,
+                    args.files_per_version_min,
+                    args.files_per_version_max,
+                    args.distributed_fanout)
+            )
+        else:
+            p = multiprocessing.Process(
+                target=proc_version_writer,
+                args=(
+                    stop_queue,
+                    stats_queue,
+                    project_name,
+                    file_names,
+                    artifact_name,
+                    args.files_per_version_min,
+                    args.files_per_version_max)
+            )
         p.start()
         procs.append(p)
 

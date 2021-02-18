@@ -1,12 +1,18 @@
+from __future__ import print_function
+
 import pytest
 import time
 import datetime
 import requests
 import os
 import sys
+import threading
+import logging
 import shutil
 from contextlib import contextmanager
 from tests import utils
+from six.moves import queue
+from wandb import wandb_sdk
 
 # from multiprocessing import Process
 import subprocess
@@ -25,9 +31,19 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     from wandb.sdk.lib.module import unset_globals
     from wandb.sdk.lib.git import GitRepo
+    from wandb.sdk.internal.handler import HandleManager
+    from wandb.sdk.internal.sender import SendManager
+    from wandb.sdk.interface.interface import BackendSender
 else:
     from wandb.sdk_py27.lib.module import unset_globals
     from wandb.sdk_py27.lib.git import GitRepo
+    from wandb.sdk_py27.internal.handler import HandleManager
+    from wandb.sdk_py27.internal.sender import SendManager
+    from wandb.sdk_py27.interface.interface import BackendSender
+
+from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2 as pb
+
 
 try:
     import nbformat
@@ -399,3 +415,284 @@ def disable_console():
     os.environ["WANDB_CONSOLE"] = "off"
     yield
     del os.environ["WANDB_CONSOLE"]
+
+
+@pytest.fixture()
+def parse_ctx():
+    """Fixture providing class to parse context data."""
+
+    def parse_ctx_fn(ctx):
+        return utils.ParseCTX(ctx)
+
+    yield parse_ctx_fn
+
+
+@pytest.fixture()
+def record_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def fake_interface(record_q):
+    return BackendSender(record_q=record_q)
+
+
+@pytest.fixture
+def fake_backend(fake_interface):
+    class FakeBackend:
+        def __init__(self):
+            self.interface = fake_interface
+
+    yield FakeBackend()
+
+
+@pytest.fixture
+def fake_run(fake_backend):
+    def run_fn():
+        s = wandb.Settings()
+        run = wandb_sdk.wandb_run.Run(settings=s)
+        run._set_backend(fake_backend)
+        return run
+
+    yield run_fn
+
+
+@pytest.fixture
+def records_util():
+    def records_fn(q):
+        ru = utils.RecordsUtil(q)
+        return ru
+
+    yield records_fn
+
+
+@pytest.fixture
+def user_test(fake_run, record_q, records_util):
+    class UserTest:
+        pass
+
+    ut = UserTest()
+    ut.get_run = fake_run
+    ut.get_records = lambda: records_util(record_q)
+
+    yield ut
+
+
+# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+# def pytest_runtest_makereport(item, call):
+#     outcome = yield
+#     rep = outcome.get_result()
+#     if rep.when == "call" and rep.failed:
+#         print("DEBUG PYTEST", rep, item, call, outcome)
+
+
+@pytest.fixture
+def log_debug(caplog):
+    caplog.set_level(logging.DEBUG)
+    yield
+    # for rec in caplog.records:
+    #     print("LOGGER", rec.message, file=sys.stderr)
+
+
+# ----------------------
+# internal test fixtures
+# ----------------------
+
+
+@pytest.fixture()
+def internal_result_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def internal_sender_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def internal_writer_q():
+    return queue.Queue()
+
+
+@pytest.fixture()
+def internal_process():
+    # FIXME: return mocked process (needs is_alive())
+    return MockProcess()
+
+
+class MockProcess:
+    def __init__(self):
+        pass
+
+    def is_alive(self):
+        return True
+
+
+@pytest.fixture()
+def internal_sender(record_q, internal_result_q, internal_process):
+    return BackendSender(
+        record_q=record_q, result_q=internal_result_q, process=internal_process,
+    )
+
+
+@pytest.fixture()
+def internal_sm(
+    runner,
+    internal_sender_q,
+    internal_result_q,
+    test_settings,
+    mock_server,
+    internal_sender,
+):
+    with runner.isolated_filesystem():
+        test_settings.root_dir = os.getcwd()
+        sm = SendManager(
+            settings=test_settings,
+            record_q=internal_sender_q,
+            result_q=internal_result_q,
+            interface=internal_sender,
+        )
+        yield sm
+
+
+@pytest.fixture()
+def internal_hm(
+    runner,
+    record_q,
+    internal_result_q,
+    test_settings,
+    mock_server,
+    internal_sender_q,
+    internal_writer_q,
+    internal_sender,
+):
+    with runner.isolated_filesystem():
+        test_settings.root_dir = os.getcwd()
+        stopped = threading.Event()
+        hm = HandleManager(
+            settings=test_settings,
+            record_q=record_q,
+            result_q=internal_result_q,
+            stopped=stopped,
+            sender_q=internal_sender_q,
+            writer_q=internal_writer_q,
+            interface=internal_sender,
+        )
+        yield hm
+
+
+@pytest.fixture()
+def internal_get_record():
+    def _get_record(input_q, timeout=None):
+        try:
+            i = input_q.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        return i
+
+    return _get_record
+
+
+@pytest.fixture()
+def start_send_thread(internal_sender_q, internal_get_record):
+    stop_event = threading.Event()
+
+    def start_send(send_manager):
+        def target():
+            while True:
+                payload = internal_get_record(input_q=internal_sender_q, timeout=0.1)
+                if payload:
+                    send_manager.send(payload)
+                elif stop_event.is_set():
+                    break
+
+        t = threading.Thread(target=target)
+        t.daemon = True
+        t.start()
+
+    yield start_send
+    stop_event.set()
+
+
+@pytest.fixture()
+def start_handle_thread(record_q, internal_get_record):
+    stop_event = threading.Event()
+
+    def start_handle(handle_manager):
+        def target():
+            while True:
+                payload = internal_get_record(input_q=record_q, timeout=0.1)
+                if payload:
+                    handle_manager.handle(payload)
+                elif stop_event.is_set():
+                    break
+
+        t = threading.Thread(target=target)
+        t.daemon = True
+        t.start()
+
+    yield start_handle
+    stop_event.set()
+
+
+@pytest.fixture()
+def start_backend(
+    mocked_run,
+    internal_hm,
+    internal_sm,
+    internal_sender,
+    start_handle_thread,
+    start_send_thread,
+    log_debug,
+):
+    def start_backend_func(initial_run=True):
+        start_handle_thread(internal_hm)
+        start_send_thread(internal_sm)
+        if initial_run:
+            _ = internal_sender.communicate_run(mocked_run)
+
+    yield start_backend_func
+
+
+@pytest.fixture()
+def stop_backend(
+    mocked_run,
+    internal_hm,
+    internal_sm,
+    internal_sender,
+    start_handle_thread,
+    start_send_thread,
+):
+    def stop_backend_func():
+        internal_sender.publish_exit(0)
+        for _ in range(10):
+            poll_exit_resp = internal_sender.communicate_poll_exit()
+            assert poll_exit_resp, "poll exit timedout"
+            done = poll_exit_resp.done
+            if done:
+                break
+            time.sleep(1)
+        assert done, "backend didnt shutdown"
+
+    yield stop_backend_func
+
+
+@pytest.fixture
+def publish_util(
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend, parse_ctx,
+):
+    def fn(metrics=None, history=None):
+        metrics = metrics or []
+        history = history or []
+
+        start_backend()
+        for m in metrics:
+            internal_sender._publish_metric(m)
+        for h in history:
+            internal_sender.publish_history(**h)
+        stop_backend()
+
+        ctx_util = parse_ctx(mock_server.ctx)
+        return ctx_util
+
+    yield fn
