@@ -1,5 +1,7 @@
 #
+import base64
 import contextlib
+import hashlib
 import re
 import os
 import time
@@ -9,8 +11,19 @@ import requests
 from six.moves.urllib.parse import urlparse, quote
 
 import wandb
+from wandb import env
 from wandb.compat import tempfile as compat_tempfile
-from .interface.artifacts import *
+from .interface.artifacts import (
+    Artifact as ArtifactInterface,
+    ArtifactEntry,
+    ArtifactManifest,
+    StoragePolicy,
+    StorageLayout,
+    StorageHandler,
+    get_artifacts_cache,
+    md5_file_b64,
+    b64_string_to_hex,
+)
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.errors.error import CommError
@@ -19,7 +32,7 @@ from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import Optional, Union
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -34,14 +47,57 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 
-class Artifact(object):
-    """An artifact object you can write files into, and pass to log_artifact."""
+class Artifact(ArtifactInterface):
+    """
+    Constructs an empty artifact whose contents can be populated using its
+    `add` family of functions. Once the artifact has all the desired files,
+    you can call `wandb.log_artifact()` to log it.
 
-    name: str
-    description: Optional[str]
-    distributed_id: Optional[str]
 
-    def __init__(self, name, type, description=None, metadata=None):
+    Arguments:
+        name: (str) A human-readable name for this artifact, which is how you
+            can identify this artifact in the UI or reference it in `use_artifact`
+            calls. Names can contain letters, numbers, underscores, hyphens, and
+            dots. The name must be unique across a project.
+        type: (str) The type of the artifact, which is used to organize and differentiate
+            artifacts. Common types include `dataset` or `model`, but you can use any string
+            containing letters, numbers, underscores, hyphens, and dots.
+        description: (str, optional) Free text that offers a description of the artifact. The
+            description is markdown rendered in the UI, so this is a good place to place tables,
+            links, etc.
+        metadata: (dict, optional) Structured data associated with the artifact,
+            for example class distribution of a dataset. This will eventually be queryable
+            and plottable in the UI. There is a hard limit of 100 total keys.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+
+        artifact = wandb.Artifact('mnist', type='dataset')
+        artifact.add_dir('mnist/')
+        wandb.log_artifact(artifact)
+        ```
+
+    Raises:
+        Exception: if problem.
+
+    Returns:
+        An `Artifact` object.
+    """
+
+    _added_objs: dict
+    _added_local_paths: dict
+    _distributed_id: Optional[str]
+    _metadata: dict
+
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        description: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
@@ -61,7 +117,7 @@ class Artifact(object):
         )
         self._api = InternalApi()
         self._final = False
-        self._digest = None
+        self._digest = ""
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
@@ -71,43 +127,83 @@ class Artifact(object):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
         )
-        self.type = type
-        self.name = name
-        self.description = description
-        self.metadata = metadata
-        self.distributed_id = None
+        self._type = type
+        self._name = name
+        self._description = description
+        self._metadata = metadata or {}
+        self._distributed_id = None
 
     @property
-    def id(self):
+    def id(self) -> Optional[str]:
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         # TODO: querying for default entity a good idea here?
         return self._api.settings("entity") or self._api.viewer().get("entity")
 
     @property
-    def project(self):
+    def project(self) -> str:
         return self._api.settings("project")
 
     @property
-    def manifest(self):
+    def manifest(self) -> ArtifactManifest:
         self.finalize()
         return self._manifest
 
     @property
-    def digest(self):
+    def digest(self) -> str:
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
+
+    @property
+    def description(self) -> Optional[str]:
+        return self._description
+
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        self._description = desc
+
+    @property
+    def metadata(self) -> dict:
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        self._metadata = metadata
+
+    @property
+    def type(self) -> str:
+        return self._type
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def state(self) -> str:
+        return "PENDING"
+
+    @property
+    def size(self) -> int:
+        return sum([entry.size for entry in self._manifest.entries])
+
+    @property
+    def distributed_id(self) -> Optional[str]:
+        return self._distributed_id
+
+    @distributed_id.setter
+    def distributed_id(self, distributed_id: Optional[str]) -> None:
+        self._distributed_id = distributed_id
 
     def _ensure_can_add(self):
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
 
     @contextlib.contextmanager
-    def new_file(self, name, mode="w"):
+    def new_file(self, name: str, mode: str = "w"):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
@@ -116,22 +212,17 @@ class Artifact(object):
             )
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with open(path, mode) as f:
+        with util.fsync_open(path, mode) as f:
             yield f
 
         self.add_file(path, name=name)
 
-    def add_file(self, local_path, name=None, is_tmp=False):
-        """Adds a local file to the artifact
-
-        Args:
-            local_path (str): path to the file
-            name (str, optional): new path and filename to assign inside artifact. Defaults to None.
-            is_tmp (bool, optional): If true, then the file is renamed deterministically. Defaults to False.
-
-        Returns:
-            ArtifactManifestEntry: the added entry
-        """
+    def add_file(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        is_tmp: Optional[bool] = False,
+    ):
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
@@ -147,7 +238,7 @@ class Artifact(object):
 
         return self._add_local_file(name, local_path, digest=digest)
 
-    def add_dir(self, local_path, name=None):
+    def add_dir(self, local_path: str, name: Optional[str] = None):
         self._ensure_can_add()
         if not os.path.isdir(local_path):
             raise ValueError("Path is not a directory: %s" % local_path)
@@ -182,28 +273,22 @@ class Artifact(object):
 
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
-    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
-        """adds `uri` to the artifact via a reference, located at `name`. 
-        You can use `Artifact.get_path(name)` to retrieve this object.
-        
-        Arguments:
-            uri (str) - the URI path of the reference to add. Can be an object returned from
-                Artifact.get_path to store a reference to another artifact's entry.
-            name (str) - the path to save
-        """
+    def add_reference(
+        self,
+        uri: Union[ArtifactEntry, str],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ):
         self._ensure_can_add()
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
-        if (
-            isinstance(uri, object)
-            and hasattr(uri, "parent_artifact")
-            and uri.parent_artifact != self
-        ):
+        if isinstance(uri, ArtifactEntry) and uri.parent_artifact() != self:
             ref_url_fn = getattr(uri, "ref_url")
             uri = ref_url_fn()
-        url = urlparse(uri)
+        url = urlparse(str(uri))
         if not url.scheme:
             raise ValueError(
                 "References must be URIs. To reference a local file, use file://"
@@ -217,14 +302,7 @@ class Artifact(object):
 
         return manifest_entries
 
-    def add(self, obj, name):
-        """Adds `obj` to the artifact, located at `name`. You can
-        use `Artifact.get(name)` after downloading the artifact to retrieve this object.
-        
-        Arguments:
-            obj (wandb.WBValue): The object to save in an artifact
-            name (str): The path to save
-        """
+    def add(self, obj: WBValue, name: str):
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
@@ -236,9 +314,9 @@ class Artifact(object):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source is not None:
-            ref_path = obj.artifact_source["artifact"].get_path(
-                type(obj).with_suffix(obj.artifact_source["name"])
+        if obj.artifact_source and obj.artifact_source.name:
+            ref_path = obj.artifact_source.artifact.get_path(
+                type(obj).with_suffix(obj.artifact_source.name)
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
@@ -261,23 +339,49 @@ class Artifact(object):
 
         return entry
 
-    def get_added_local_path_name(self, local_path):
-        """If local_path was already added to artifact, return its internal name."""
+    def get_path(self, name: str):
+        raise ValueError("Cannot load paths from an artifact before it has been saved")
+
+    def get(self, name: str):
+        raise ValueError("Cannot call get on an artifact before it has been saved")
+
+    def download(self, root: str = None, recursive: bool = False):
+        raise ValueError("Cannot call download on an artifact before it has been saved")
+
+    def get_added_local_path_name(self, local_path: str):
+        """
+        Get the artifact relative name of a file added by a local filesystem path.
+
+        Arguments:
+            local_path: (str) The local path to resolve into an artifact relative name.
+
+        Returns:
+            str: The artifact relative name.
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_dataset', type='dataset')
+            artifact.add_file('path/to/file.txt', name='artifact/path/file.txt')
+
+            # Returns `artifact/path/file.txt`:
+            name = artifact.get_added_local_path_name('path/to/file.txt')
+            ```
+        """
         entry = self._added_local_paths.get(local_path, None)
         if entry is None:
             return None
         return entry.path
 
-    def get_path(self, name):
-        raise ValueError("Cannot load paths from an artifact before it has been saved")
-
-    def download(self):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
-
-    def get(self):
-        raise ValueError("Cannot call get on an artifact before it has been saved")
-
     def finalize(self):
+        """
+        Marks this artifact as final, which disallows further additions to the artifact.
+        This happens automatically when calling `log_artifact`.
+
+
+        Returns:
+            None
+        """
         if self._final:
             return self._file_entries
 
@@ -463,7 +567,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
@@ -1118,7 +1222,7 @@ class HTTPHandler(StorageHandler):
                 % (manifest_entry.ref, manifest_entry.digest, digest)
             )
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path

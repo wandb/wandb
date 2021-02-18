@@ -1,90 +1,93 @@
-class Dummy(str):
+#
+
+
+class RunDisabled(str):
     def __init__(self, *args, **kwargs):
         object.__setattr__(self, "___dict", {})
 
     def __add__(self, other):
-        return Dummy()
+        return self
 
     def __sub__(self, other):
-        return Dummy()
+        return self
 
     def __mul__(self, other):
-        return Dummy()
+        return self
 
     def __truediv__(self, other):
-        return Dummy()
+        return self
 
     def __floordiv__(self, other):
-        return Dummy()
+        return self
 
     def __mod__(self, other):
-        return Dummy()
+        return self
 
     def __pow__(self, other, modulo=None):
-        return Dummy()
+        return self
 
     def __lshift__(self, other):
-        return Dummy()
+        return self
 
     def __rshift__(self, other):
-        return Dummy()
+        return self
 
     def __and__(self, other):
-        return Dummy()
+        return self
 
     def __xor__(self, other):
-        return Dummy()
+        return self
 
     def __or__(self, other):
-        return Dummy()
+        return self
 
     def __iadd__(self, other):
-        pass
+        return self
 
     def __isub__(self, other):
-        pass
+        return self
 
     def __imul__(self, other):
-        pass
+        return self
 
     def __idiv__(self, other):
-        pass
+        return self
 
     def __ifloordiv__(self, other):
-        pass
+        return self
 
     def __imod__(self, other):
-        pass
+        return self
 
     def __ipow__(self, other, modulo=None):
-        pass
+        return self
 
     def __ilshift__(self, other):
-        pass
+        return self
 
     def __irshift__(self, other):
-        pass
+        return self
 
     def __iand__(self, other):
-        pass
+        return self
 
     def __ixor__(self, other):
-        pass
+        return self
 
     def __ior__(self, other):
-        pass
+        return self
 
     def __neg__(self):
-        return Dummy()
+        return self
 
     def __pos__(self):
-        return Dummy()
+        return self
 
     def __abs__(self):
-        return Dummy()
+        return self
 
     def __invert__(self):
-        return Dummy()
+        return self
 
     def __complex__(self):
         return 1 + 0j
@@ -134,7 +137,7 @@ class Dummy(str):
             key = str(key)
             if key in d:
                 return d[key]
-        dummy = Dummy()
+        dummy = RunDisabled()
         d[key] = dummy
         return dummy
 
@@ -145,7 +148,7 @@ class Dummy(str):
         self[key] = value
 
     def __call__(self, *args, **kwargs):
-        return Dummy()
+        return RunDisabled()
 
     def __len__(self):
         return 1
@@ -172,7 +175,7 @@ class Dummy(str):
         return 1
 
 
-class DummyDict(dict):
+class SummaryDisabled(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
@@ -181,7 +184,7 @@ class DummyDict(dict):
 
     def __getitem__(self, key):
         val = dict.__getitem__(self, key)
-        if isinstance(val, dict) and not isinstance(val, DummyDict):
-            val = DummyDict(val)
+        if isinstance(val, dict) and not isinstance(val, SummaryDisabled):
+            val = SummaryDisabled(val)
             self[key] = val
         return val

@@ -69,6 +69,7 @@ def run(ctx):
         fileNames = None
     if fileNames == ["nofile.h5"]:
         fileNode = {
+            "id": "file123",
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
@@ -76,6 +77,7 @@ def run(ctx):
         }
     else:
         fileNode = {
+            "id": "file123",
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
@@ -257,12 +259,15 @@ def create_app(user_ctx=None):
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
         test_name = request.headers.get("X-WANDB-USERNAME")
-        app.logger.info("Test request from: %s", test_name)
+        if test_name:
+            app.logger.info("Test request from: %s", test_name)
+        app.logger.info("graphql post")
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
         body = request.get_json()
+        app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
         if "mutation UpsertBucket(" in body["query"]:
@@ -273,9 +278,10 @@ def create_app(user_ctx=None):
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
-            ctx["requested_file"] = body["variables"]["files"][0]
+            requested_file = body["variables"]["files"][0]
+            ctx["requested_file"] = requested_file
             url = request.url_root + "/storage?file={}&run={}".format(
-                urllib.parse.quote(ctx["requested_file"]), ctx["current_run"]
+                urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
                 {
@@ -288,7 +294,7 @@ def create_app(user_ctx=None):
                                     "edges": [
                                         {
                                             "node": {
-                                                "name": ctx["requested_file"],
+                                                "name": requested_file,
                                                 "url": url,
                                                 "directUrl": url + "&direct=true",
                                             }
@@ -496,6 +502,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation DeleteFiles(" in body["query"]:
+            return json.dumps({"data": {"deleteFiles": {"success": True}}})
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
@@ -839,12 +847,26 @@ class ParseCTX(object):
         return summary
 
     @property
+    def history(self):
+        fs_files = self.get_filestream_file_items()
+        history = fs_files["wandb-history.jsonl"]
+        return history
+
+    @property
     def config(self):
         return self._ctx["config"][-1]
 
     @property
     def config_wandb(self):
         return self.config["_wandb"]["value"]
+
+    @property
+    def telemetry(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("t")
+
+    @property
+    def metrics(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("m")
 
 
 if __name__ == "__main__":

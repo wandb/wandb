@@ -116,7 +116,7 @@ class ArtifactSaver(object):
 
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
             "wandb_manifest.json"
-            if distributed_id is None
+            if not distributed_id
             else "wandb_manifest.patch.json",
             "",
             artifact_id,

@@ -5,9 +5,11 @@ Utilities for wandb verify
 """
 from __future__ import print_function
 
+from functools import partial
 import getpass
 import os
 import sys
+import time
 
 import click
 from gql import gql  # type: ignore
@@ -19,6 +21,7 @@ import wandb
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
         Any,
+        Callable,
         Dict,
         List,
         Optional,
@@ -31,6 +34,8 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from ...apis.internal import Api
 
 PROJECT_NAME = "verify"
+GET_RUN_MAX_TIME = 10
+MIN_RETRYS = 3
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     CHECKMARK = u"\u2705"
@@ -69,7 +74,7 @@ def check_host(host: str) -> bool:
     return True
 
 
-def check_logged_in(api: Api) -> bool:
+def check_logged_in(api: Api, host: str) -> bool:
     print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
@@ -77,6 +82,15 @@ def check_logged_in(api: Api) -> bool:
         fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
             click.style(login_doc_url, underline=True, fg="blue")
         )
+    # check that api key is correct
+    # TODO: Better check for api key is correct
+    else:
+        res = api.api.viewer()
+        if not res:
+            fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
+                host
+            )
+
     print_results(fail_string, False)
     return fail_string is None
 
@@ -90,7 +104,7 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
     print_results(fail_string, True)
 
 
-def check_run(api: Api) -> None:
+def check_run(api: Api) -> bool:
     print(
         "Checking logged metrics, saving and downloading a file".ljust(72, "."), end=""
     )
@@ -136,16 +150,14 @@ def check_run(api: Api) -> None:
             )
 
         wandb.save(filepath)
-
     public_api = wandb.Api()
-    try:
-        prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
-    except Exception:
+    prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
         )
         print_results(failed_test_strings, False)
-        return
+        return False
     for key, value in prev_run.config.items():
         if config[key] != value:
             failed_test_strings.append(
@@ -166,8 +178,10 @@ def check_run(api: Api) -> None:
         failed_test_strings.append(
             "Read summary values don't match expected value. Check database encoding, or contact W&B for support."
         )
+    # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
-        read_file = prev_run.file(filepath).download(replace=True)
+        read_file = retry_fn(partial(prev_run.file, filepath))
+        read_file = read_file.download(replace=True)
     except Exception:
         with wandb.init(
             reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
@@ -185,13 +199,14 @@ def check_run(api: Api) -> None:
                 )
 
             print_results(failed_test_strings, False)
-        return
+        return False
     contents = read_file.read()
     if contents != "test":
         failed_test_strings.append(
             "Contents of downloaded file do not match uploaded contents. Contact W&B for support."
         )
     print_results(failed_test_strings, False)
+    return len(failed_test_strings) == 0
 
 
 def try_manual_save(
@@ -318,7 +333,7 @@ def log_use_download_artifact(
     return True, used_art, failed_test_strings
 
 
-def check_artifacts() -> None:
+def check_artifacts() -> bool:
     print("Checking artifact save and download workflows".ljust(72, "."), end="")
     failed_test_strings: List[str] = []
 
@@ -332,7 +347,7 @@ def check_artifacts() -> None:
     )
     if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
-        return
+        return False
     try:
         download_artifact.verify(root=sing_art_dir)
     except ValueError:
@@ -350,7 +365,7 @@ def check_artifacts() -> None:
     )
     if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
-        return
+        return False
     if set(os.listdir(multi_art_dir)) != set(
         [
             "verify_a.txt",
@@ -375,9 +390,10 @@ def check_artifacts() -> None:
     verify_manifest(downloaded_manifest, computed_manifest, failed_test_strings)
 
     print_results(failed_test_strings, False)
+    return len(failed_test_strings) == 0
 
 
-def check_graphql_put(api: Api, host: str) -> Optional[str]:
+def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     # check graphql endpoint using an upload
     print("Checking signed URL upload".ljust(72, "."), end="")
     failed_test_strings = []
@@ -398,25 +414,25 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
             )
 
             # next test will also fail if this one failed. So terminate this test here.
-            return None
-
+            return False, None
     public_api = wandb.Api()
-    try:
-        prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
-    except Exception:
+    prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+    if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
         )
         print_results(failed_test_strings, False)
-        return None
+        return False, None
+    # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
-        read_file = prev_run.file(gql_fp).download(replace=True)
+        read_file = retry_fn(partial(prev_run.file, gql_fp))
+        read_file = read_file.download(replace=True)
     except Exception:
         failed_test_strings.append(
             "Unable to read file successfully saved through a put request. Check SQS configurations, bucket permissions and topic configs."
         )
         print_results(failed_test_strings, False)
-        return None
+        return False, None
     contents = read_file.read()
     try:
         assert contents == "test2"
@@ -426,10 +442,10 @@ def check_graphql_put(api: Api, host: str) -> Optional[str]:
         )
 
     print_results(failed_test_strings, False)
-    return url
+    return len(failed_test_strings) == 0, url
 
 
-def check_large_post() -> None:
+def check_large_post() -> bool:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
@@ -473,6 +489,7 @@ def check_large_post() -> None:
                 "Failed to send a large payload with error: {}.".format(e)
             )
     print_results(failed_test_strings, False)
+    return len(failed_test_strings) == 0
 
 
 def check_wandb_version(api: Api) -> None:
@@ -495,3 +512,18 @@ def check_wandb_version(api: Api) -> None:
         warning = True
 
     print_results(fail_string, warning)
+
+
+def retry_fn(fn: Callable):
+    ini_time = time.time()
+    res = None
+    i = 0
+    while i < MIN_RETRYS or time.time() - ini_time < GET_RUN_MAX_TIME:
+        i += 1
+        try:
+            res = fn()
+            break
+        except Exception:
+            time.sleep(1)
+            continue
+    return res
