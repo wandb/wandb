@@ -469,6 +469,8 @@ class SendManager(object):
 
         # Save the resumed config
         if self._resume_state["config"] is not None:
+            # TODO(tss): let the user know that their config values were
+            # ignored because they were already set
             config_dict = self._resume_state["config"]
             config_dict = config_util.dict_strip_value_dict(config_dict)
             self._consolidated_config.update(config_dict)
