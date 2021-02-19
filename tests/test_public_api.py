@@ -96,11 +96,11 @@ def test_run_from_tensorboard(runner, mock_server, api):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1585769947.cvp")
         run_id = wandb.util.generate_id()
-        api.sync_tensorboard(".", run_id=run_id)
+        api.sync_tensorboard(".", project="test", run_id=run_id)
         assert mock_server.ctx["graphql"][-1]["variables"] == {
             "entity": "mock_server_entity",
             "name": run_id,
-            "project": "uncategorized",
+            "project": "test",
         }
 
 
