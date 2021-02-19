@@ -664,8 +664,6 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        print()
-        print(self._consolidated_config.get("_wandb"))
         config_value_dict = self._config_format(self._consolidated_config)
         self._api.upsert_run(
             name=self._run.run_id, config=config_value_dict, **self._api_settings

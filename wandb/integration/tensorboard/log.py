@@ -157,7 +157,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             img_str = value.image.encoded_image_string
             # tensorboard.plugins.prcurve produces empty byte strings
             # of kind tensor, we should just ignore these
-            if img_str == b'':
+            if img_str == b"":
                 continue
             encode_images([img_str], value)
         # Coming soon...

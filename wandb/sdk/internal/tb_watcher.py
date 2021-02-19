@@ -115,7 +115,7 @@ class TBWatcher(object):
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
-        #print(self._run_proto._config)
+        # print(self._run_proto._config)
 
     def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
         namespace: "Optional[str]"
@@ -382,19 +382,17 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
-        print("TBWATCHER CONFIG", self._config)
         chart_keys = []
         for key, item in row.items():
             if isinstance(item, CustomChart):
                 table = item.table
                 panel_config = custom_chart_panel_config(item, key, key + "_table")
-                config = { 
-                    key: {"panel_type": "Vega2", "panel_config": panel_config}
-                }
-                #config = {"panel_type": "Vega2", "panel_config": panel_config}
+                config = {"panel_type": "Vega2", "panel_config": panel_config}
                 chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(data=config, key=("_wandb", "visualize"))
-                #self._tbwatcher._interface.publish_config(data=panel_config, key=("_wandb", "visualize", key, "panel_config"))
+                self._tbwatcher._interface.publish_config(
+                    val=config, key=("_wandb", "visualize", key)
+                )
+
         for chart_key in chart_keys:
             table = row[chart_key].table
             row.pop(chart_key)

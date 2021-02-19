@@ -140,7 +140,6 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_config(self, record: Record) -> None:
-        print(record)
         self._dispatch_record(record)
 
     def handle_output(self, record: Record) -> None:
