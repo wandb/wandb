@@ -1025,7 +1025,6 @@ class Run(Attrs):
             config=self.json_config,
             groupName=self.group
         )
-        print(response)
         self.summary.update()
 
     @normalize_exceptions
