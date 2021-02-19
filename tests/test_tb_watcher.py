@@ -91,6 +91,7 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
 
         with writer.as_default():
             tf.summary.experimental.write_raw_pb(pr_curve_summary, step=0)
+        writer.close()
 
     ctx_util = tbwatcher_util(
         write_function=write_fun,
