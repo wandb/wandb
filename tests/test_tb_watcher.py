@@ -2,8 +2,6 @@ import platform
 import pytest
 import sys
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorboard.summary.v1")
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 
@@ -75,10 +73,7 @@ class TestIsTfEventsFileCreatedBy:
         )
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows" or sys.version_info < (3, 5),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
-)
+@pytest.importorskip("tensorboard.summary.v1")
 def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     def write_fun():
         writer = tf.summary.create_file_writer(mocked_run.dir)
