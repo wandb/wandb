@@ -3,8 +3,8 @@ import pytest
 import sys
 
 if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorboard.plugins.pr_curve")
-from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
+    pytest.importorskip("tensorboard.summary.v1")
+import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 
 
@@ -81,19 +81,16 @@ class TestIsTfEventsFileCreatedBy:
 )
 def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     def write_fun():
-        with tf.compat.v1.Session() as sess:
-            summ_op = pr_curve_plugin_summary.op(
-                name="pr",
-                labels=tf.constant([True, False, True]),
-                predictions=tf.constant([0.7, 0.2, 0.3]),
-                num_thresholds=5,
-            )
-            merged_summary_op = tf.compat.v1.summary.merge([summ_op])
-            writer = tf.compat.v1.summary.FileWriter(mocked_run.dir, sess.graph)
+        writer = tf.summary.create_file_writer(mocked_run.dir)
+        pr_curve_summary = tb_summary.pr_curve(
+            "test_pr",
+            labels=tf.constant([True, False, True]),
+            predictions=tf.constant([0.7, 0.2, 0.3]),
+            num_thresholds=5,
+        )
 
-            merged_summary = sess.run(merged_summary_op)
-            writer.add_summary(merged_summary, 0)
-            writer.close()
+        with writer.as_default():
+            tf.summary.experimental.write_raw_pb(pr_curve_summary, step=0)
 
     ctx_util = tbwatcher_util(
         write_function=write_fun,
