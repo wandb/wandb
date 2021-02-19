@@ -721,7 +721,7 @@ def tbwatcher_util(
         internal_hm._tb_watcher.add(logdir, save, root_dir)
 
         # need to sleep to give time for the tb_watcher delay
-        time.sleep(11)
+        time.sleep(15)
         write_function()
         stop_backend()
         ctx_util = parse_ctx(mock_server.ctx)

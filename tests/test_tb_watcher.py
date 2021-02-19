@@ -1,5 +1,9 @@
+import platform
 import pytest
 import sys
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("tensorboard.plugins.pr_curve")
 from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
 import tensorflow as tf
 
@@ -71,6 +75,10 @@ class TestIsTfEventsFileCreatedBy:
         )
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
 def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     def write_fun():
         with tf.compat.v1.Session() as sess:

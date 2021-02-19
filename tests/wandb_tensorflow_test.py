@@ -299,3 +299,35 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
+def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
+    def write_fun():
+        with tf.compat.v1.Session() as sess:
+            summ_op = pr_curve_plugin_summary.op(
+                name="pr",
+                labels=tf.constant([True, False, True]),
+                predictions=tf.constant([0.7, 0.2, 0.3]),
+                num_thresholds=5,
+            )
+            merged_summary_op = tf.compat.v1.summary.merge([summ_op])
+            writer = tf.compat.v1.summary.FileWriter(mocked_run.dir, sess.graph)
+
+            merged_summary = sess.run(merged_summary_op)
+            writer.add_summary(merged_summary, 0)
+            writer.close()
+
+    ctx_util = tbwatcher_util(
+        write_function=write_fun,
+        logdir=mocked_run.dir,
+        save=False,
+        root_dir=mocked_run.dir,
+    )
+    assert "visualize" in [k for k in ctx_util.config["_wandb"]["value"].keys()]
+    assert "pr/pr_curves" in [
+        k for k in ctx_util.config["_wandb"]["value"]["visualize"].keys()
+    ]
