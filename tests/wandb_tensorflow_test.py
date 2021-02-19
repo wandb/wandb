@@ -263,6 +263,7 @@ def test_add_pr_curve(live_mock_server, test_settings):
         server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
+    wandb.tensorboard.unpatch()
 
 
 @pytest.mark.skipif(
@@ -297,3 +298,4 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
         server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
+    wandb.tensorboard.unpatch()
