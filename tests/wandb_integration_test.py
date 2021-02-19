@@ -165,10 +165,8 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
 
 
 def test_resume_config_merge(live_mock_server, test_settings):
-    print(live_mock_server.get_ctx())
     live_mock_server.set_ctx({"resume": True})
     live_mock_server.set_ctx({"run.config": "{}"})
-    print(live_mock_server.get_ctx())
     # Start the run without any config
     run = wandb.init(reinit=True, resume=True, settings=test_settings,)
     assert len(run.config.keys()) == 0
