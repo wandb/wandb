@@ -357,8 +357,8 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, str)
-        assert isinstance(self._sha256, str)
+        assert isinstance(self._path, six.string_types)
+        assert isinstance(self._sha256, six.string_types)
 
         if run is None:
             raise TypeError('Argument "run" must not be None.')
@@ -420,7 +420,7 @@ class Media(WBValue):
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
+            assert isinstance(self._path, six.string_types)
 
             json_obj.update(
                 {
@@ -437,8 +437,8 @@ class Media(WBValue):
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
-                assert isinstance(self._path, str)
-                assert isinstance(self._sha256, str)
+                assert isinstance(self._path, six.string_types)
+                assert isinstance(self._sha256, six.string_types)
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -813,14 +813,14 @@ class Html(BatchableMedia):
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_is_path = isinstance(data, six.string_types) and os.path.exists(data)
         data_path = ""
         if data_is_path:
-            assert isinstance(data, str)
+            assert isinstance(data, six.string_types)
             data_path = data
             with open(data_path, "r") as file:
                 self.html = file.read()
-        elif isinstance(data, str):
+        elif isinstance(data, six.string_types):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
@@ -1963,7 +1963,7 @@ class Plotly(Media):
 
 
 def history_dict_to_json(
-    run: "LocalRun", payload: dict, step: Optional[int] = None
+    run: "Optional[LocalRun]", payload: dict, step: Optional[int] = None
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -1984,7 +1984,7 @@ def history_dict_to_json(
 
 # TODO: refine this
 def val_to_json(
-    run: "LocalRun",
+    run: "Optional[LocalRun]",
     key: str,
     val: "ValToJsonType",
     namespace: Optional[Union[str, int]] = None,
@@ -1999,11 +1999,13 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
+        assert run
         assert namespace == "summary", "We don't yet support DataFrames in History."
         return _data_frame_to_json(val, run, key, namespace)
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
+        assert run
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)
@@ -2031,6 +2033,7 @@ def val_to_json(
             return [val_to_json(run, key, v, namespace=namespace) for v in val]
 
     if isinstance(val, WBValue):
+        assert run
         if isinstance(val, Media) and not val.is_bound():
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
