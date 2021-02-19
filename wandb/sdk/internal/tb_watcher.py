@@ -383,16 +383,16 @@ class TBEventConsumer(object):
         chart_keys = []
         for key, item in row.items():
             if isinstance(item, CustomChart):
-                table = item.table
                 panel_config = custom_chart_panel_config(item, key, key + "_table")
                 config = {"panel_type": "Vega2", "panel_config": panel_config}
                 chart_keys.append(key)
                 self._tbwatcher._interface.publish_config(
                     val=config, key=("_wandb", "visualize", key)
                 )
+                row[key] = item.table
 
         for chart_key in chart_keys:
-            table = row[chart_key].table
+            table = row[chart_key]
             row.pop(chart_key)
             row[chart_key + "_table"] = table
 

@@ -239,22 +239,18 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     platform.system() == "Windows" or sys.version_info < (3, 5),
     reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
 )
-def test_add_pr_curve_plugin(live_mock_server, test_settings):
-    tf.compat.v1.disable_v2_behavior()
+def test_add_pr_curve(live_mock_server, test_settings):
     wandb.init(sync_tensorboard=True, settings=test_settings)
-    summ_op = pr_curve_plugin_summary.op(
-        name="test_pr",
+    writer = tf.summary.create_file_writer(wandb.run.dir)
+    pr_curve_summary = tb_summary.pr_curve(
+        "test_pr",
         labels=tf.constant([True, False, True]),
         predictions=tf.constant([0.7, 0.2, 0.3]),
         num_thresholds=5,
     )
-    merged_summary_op = tf.compat.v1.summary.merge([summ_op])
-    sess = tf.compat.v1.Session()
-    writer = tf.compat.v1.summary.FileWriter(wandb.run.dir, sess.graph)
 
-    merged_summary = sess.run(merged_summary_op)
-    writer.add_summary(merged_summary, 0)
-    writer.close()
+    with writer.as_default():
+        tf.summary.experimental.write_raw_pb(pr_curve_summary, step=0)
 
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()
@@ -273,18 +269,22 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
     platform.system() == "Windows" or sys.version_info < (3, 5),
     reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
 )
-def test_add_pr_curve2(live_mock_server, test_settings):
+def test_add_pr_curve_plugin(live_mock_server, test_settings):
+    tf.compat.v1.disable_v2_behavior()
     wandb.init(sync_tensorboard=True, settings=test_settings)
-    writer = tf.summary.create_file_writer(wandb.run.dir)
-    pr_curve_summary = tb_summary.pr_curve(
-        "test_pr",
+    summ_op = pr_curve_plugin_summary.op(
+        name="test_pr",
         labels=tf.constant([True, False, True]),
         predictions=tf.constant([0.7, 0.2, 0.3]),
         num_thresholds=5,
     )
+    merged_summary_op = tf.compat.v1.summary.merge([summ_op])
+    sess = tf.compat.v1.Session()
+    writer = tf.compat.v1.summary.FileWriter(wandb.run.dir, sess.graph)
 
-    with writer.as_default():
-        tf.summary.experimental.write_raw_pb(pr_curve_summary, step=0)
+    merged_summary = sess.run(merged_summary_op)
+    writer.add_summary(merged_summary, 0)
+    writer.close()
 
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()

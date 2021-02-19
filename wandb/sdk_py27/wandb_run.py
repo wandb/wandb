@@ -664,7 +664,10 @@ class Run(object):
         return {"text/html": s}
 
     def _config_callback(
-        self, key = None, val = None, data = None
+        self,
+        key = None,
+        val = None,
+        data = None,
     ):
         logger.info("config_cb %s %s %s", key, val, data)
         if not self._backend or not self._backend.interface:
