@@ -81,6 +81,8 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        wandb._define_metric("*", step_metric="global_step", step_sync=True)
+        self._step = history._step
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -187,7 +189,8 @@ class TorchHistory(object):
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            history._row_update({name: wandb.Histogram(tensor)})
+            wandb.log({name: wandb.Histogram(tensor), "global_step": self._step})
+            self._step += 1
             return
 
         if flat.is_cuda:
@@ -257,9 +260,13 @@ class TorchHistory(object):
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        history._row_update(
-            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+        wandb.log(
+            {
+                name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist())),
+                "global_step": self._step,
+            }
         )
+        self._step += 1
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
         """Logs a Variable's gradient's distribution statistics next time backward()

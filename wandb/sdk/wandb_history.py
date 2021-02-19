@@ -47,6 +47,8 @@ class History(object):
     def _update_step(self):
         """Called after receiving the run from the internal process"""
         self._step = self._run.starting_step
+        if self._torch:
+            self._torch._step = self._step
 
     def _flush(self):
         if len(self._data) > 0:
