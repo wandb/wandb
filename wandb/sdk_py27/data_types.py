@@ -406,6 +406,7 @@ class Media(WBValue):
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
         from wandb.data_types import Audio
+
         json_obj = {}
         run_class, artifact_class = _safe_sdk_import()
         if isinstance(run, run_class):
