@@ -207,6 +207,7 @@ def _ret_obj(obj):
 
 
 def _response(req):
+    try:
         req_type = req["type"]
         if req_type == "getattr":
             obj = eval(req["code"])
@@ -233,12 +234,14 @@ def _response(req):
             f = eval(f)
             args = req.get("args", ())
             kwargs = req.get("kwargs", {})
-            try:
-                obj = f(*args, **kwargs)
-            except Exception as e:
-                return e
+            obj = f(*args, **kwargs)
             return _ret_obj(obj)
-
+        elif req_type == "str":
+            obj = eval(req["code"])
+            s = str(obj)
+            return _ret_obj(s)
+    except Exception as e:
+        return e
 
 class Proxy(object):
     def __init__(self, base, port=None):
@@ -267,6 +270,14 @@ class Proxy(object):
         resp = client.get(req)
         return ret(resp)
 
+    def __getitem__(self, attr):
+        client = object.__getattribute__(self, '_client')
+        ret = object.__getattribute__(self, '_ret_resp')
+        base = object.__getattribute__(self, 'base')
+        req = {"type": "getitem", "code": base, "attr": attr}
+        resp = client.get(req)
+        return ret(resp)
+
     def __call__(self, *args, **kwargs):
         client = object.__getattribute__(self, '_client')
         ret = object.__getattribute__(self, '_ret_resp')
@@ -286,3 +297,12 @@ class Proxy(object):
         base = object.__getattribute__(self, 'base')
         req = {"type": "setitem", "code": base, "attr": attr, "val": val}
         client.send(req)
+
+    def __str__(self):
+        client = object.__getattribute__(self, '_client')
+        base = object.__getattribute__(self, 'base')
+        ret = object.__getattribute__(self, '_ret_resp')
+        req = {"type": "str", "code": base}
+        s = ret(client.get(req))
+        assert isinstance(s, str)
+        return "<Proxy for %s>" % s
