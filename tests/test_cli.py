@@ -847,6 +847,7 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert result.exit_code == 0
         assert "Found 1 tfevent files" in result.output
         ctx = live_mock_server.get_ctx()
+        print(ctx)
         assert (
             len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
         )

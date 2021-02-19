@@ -6,7 +6,6 @@ from __future__ import print_function
 
 import datetime
 import fnmatch
-import glob
 import os
 import sys
 import threading
@@ -107,10 +106,11 @@ class SyncThread(threading.Thread):
         tb_root = None
         if self._sync_tensorboard:
             if os.path.isdir(sync_item):
-                glob_str = os.path.join(
-                    sync_item, "**", "*{}*".format(TFEVENT_SUBSTRING)
-                )
-                files = glob.glob(glob_str, recursive=True)
+                files = []
+                for dirpath, _, _files in os.walk(sync_item):
+                    for f in _files:
+                        if TFEVENT_SUBSTRING in f:
+                            files.append(os.path.join(dirpath, f))
                 for tfevent in files:
                     tb_event_files += 1
                     tb_dir = os.path.dirname(os.path.abspath(tfevent))
