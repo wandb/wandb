@@ -32,7 +32,7 @@ from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import Optional, Union, List
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -388,6 +388,19 @@ class Artifact(ArtifactInterface):
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+
+    def save(self, aliases: Optional[List[str]] = None):
+        # TODO: move this top level and fix circular imports
+        from . import wandb_setup, wandb_init
+
+        setup = wandb_setup._setup()
+        if len(setup._global_run_stack) > 0:
+            run = setup._global_run_stack[-1]
+            run.log_artifact(self)
+        else:
+            run = wandb_init.init()
+            run.log_artifact(self)
+            run.finish()
 
     def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)
