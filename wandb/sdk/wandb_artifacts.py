@@ -389,19 +389,6 @@ class Artifact(ArtifactInterface):
         self._final = True
         self._digest = self._manifest.digest()
 
-    def save(self, aliases: Optional[List[str]] = None):
-        # TODO: move this top level and fix circular imports
-        from . import wandb_setup, wandb_init
-
-        setup = wandb_setup._setup()
-        if len(setup._global_run_stack) > 0:
-            run = setup._global_run_stack[-1]
-            run.log_artifact(self)
-        else:
-            run = wandb_init.init()
-            run.log_artifact(self)
-            run.finish()
-
     def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
@@ -417,6 +404,9 @@ class Artifact(ArtifactInterface):
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
+
+    def __setitem__(self, key, value):
+        self.add(value, key)
 
 
 class ArtifactManifestV1(ArtifactManifest):

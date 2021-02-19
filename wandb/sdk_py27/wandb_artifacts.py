@@ -32,7 +32,7 @@ from wandb.errors.term import termwarn, termlog
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import Optional, Union, List
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -404,6 +404,9 @@ class Artifact(ArtifactInterface):
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
+
+    def __setitem__(self, key, value):
+        self.add(value, key)
 
 
 class ArtifactManifestV1(ArtifactManifest):

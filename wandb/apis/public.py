@@ -3220,6 +3220,9 @@ class Artifact(artifacts.Artifact):
                 run_obj["name"],
             )
 
+    def __getitem__(self, key):
+        return self.get(key)
+
 
 class ArtifactVersions(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
