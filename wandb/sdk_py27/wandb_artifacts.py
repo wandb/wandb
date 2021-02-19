@@ -1303,7 +1303,10 @@ class WBArtifactHandler(StorageHandler):
         dep_artifact = PublicArtifact.from_id(
             util.hex_to_b64_id(artifact_id), self.client
         )
-        link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        if local:
+            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        else:
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref()
 
         return link_target_path
 

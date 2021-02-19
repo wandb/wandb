@@ -11,10 +11,12 @@ from __future__ import print_function
 import base64
 import binascii
 import codecs
+import hashlib
 import json
 import logging
 import os
 import pprint
+import re
 import sys
 import warnings
 
