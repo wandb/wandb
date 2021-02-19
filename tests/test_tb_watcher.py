@@ -83,7 +83,7 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     def write_fun():
         writer = tf.summary.create_file_writer(mocked_run.dir)
         pr_curve_summary = tb_summary.pr_curve(
-            "test_pr",
+            "pr",
             labels=tf.constant([True, False, True]),
             predictions=tf.constant([0.7, 0.2, 0.3]),
             num_thresholds=5,
