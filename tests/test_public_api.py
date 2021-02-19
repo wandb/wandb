@@ -241,6 +241,8 @@ def test_runs_from_path(mock_server, api):
     list(runs)
     assert len(runs.objects) == 2
     assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
+    assert runs[0].group == "A"
+    assert runs[0].job_type == "test"
 
 
 def test_runs_from_path_index(mock_server, api):

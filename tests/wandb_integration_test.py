@@ -14,6 +14,7 @@ import sys
 import shutil
 from .utils import fixture_open
 import sys
+import six
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -347,24 +348,3 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
-
-
-def test_metric_none(live_mock_server, test_settings, parse_ctx):
-    run = wandb.init()
-    run.log(dict(mystep=1, val=2))
-    run.log(dict(mystep=2, val=8))
-    run.log(dict(mystep=3, val=3))
-    run.log(dict(val2=4))
-    run.log(dict(val2=1))
-    run.finish()
-
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
-
-    # no default axis
-    config_wandb = ctx_util.config_wandb
-    assert "x_axis" not in config_wandb
-
-    # by default we use last value
-    summary = ctx_util.summary
-    assert summary["val"] == 3
-    assert summary["val2"] == 1
