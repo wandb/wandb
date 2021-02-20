@@ -298,13 +298,14 @@ class Table(Media):
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
-    def bind_to_run(self, *args, **kwargs):
+    def bind_to_run(self, run, key, step, id_=None):
         data = self._to_table_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super(Table, self).bind_to_run(*args, **kwargs)
+        super(Table, self).bind_to_run(run, key, step, id_)
+        self.bound_entry = run._add_artifact_table(key, self)
 
     @classmethod
     def get_media_subdir(cls):
@@ -343,6 +344,7 @@ class Table(Media):
                     "_type": "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
+                    "artifact_path": self.bound_entry.path,
                 }
             )
 

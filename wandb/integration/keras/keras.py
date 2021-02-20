@@ -502,15 +502,10 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_end(self, logs=None):
         if self.log_evaluation:
-            # wandb.run.summary["results"] = self._log_dataframe()
-            table = self._log_dataframe()
+            # wandb.run.summary["results"] = self._log_validation_table()
+            table = self._log_validation_table()
             if table:
-                key = "results"
-                artifact = wandb.Artifact(
-                    "{}-{}".format(wandb.run.id, key), "run_table"
-                )
-                artifact.add(table, key)
-                wandb.run.log_artifact(artifact)
+                wandb.run.log({"validation_table": table})
         pass
 
     def on_test_begin(self, logs=None):
@@ -737,7 +732,7 @@ class WandbCallback(keras.callbacks.Callback):
             ] = wandb.Histogram(grad)
         return metrics
 
-    def _log_dataframe(self):
+    def _log_validation_table(self):
         x, y_true, y_pred = None, None, None
 
         if self.validation_data:
