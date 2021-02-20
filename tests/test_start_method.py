@@ -20,6 +20,8 @@ def run_full(live_mock_server, parse_ctx):
         ctx_util = parse_ctx(live_mock_server.get_ctx())
         summary = ctx_util.summary
         assert six.viewitems(dict(val=1)) <= six.viewitems(summary)
+        # TODO(jhr): check history and other things
+
         # return ctx_util for more specific checks in test
         return ctx_util
 
@@ -39,12 +41,12 @@ def test_spawn(run_full):
     run_full(settings=wandb.Settings(start_method="fork"))
 
 
-@pytest.mark.skipif(platform.system() == "Windows")
+@pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_fork(run_full):
     run_full(settings=wandb.Settings(start_method="fork"))
 
 
-@pytest.mark.skipif(platform.system() == "Windows")
+@pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_forkserver(run_full):
     run_full(settings=wandb.Settings(start_method="forkserver"))
 
@@ -57,3 +59,6 @@ def test_thread(run_full):
 # TODO(jhr): enable this when console thread issue fixed
 # def test_thread_broken(run_full):
 #     run_full(settings=wandb.Settings(start_method="thread"))
+
+
+# TODO(jhr): test sweeps?
