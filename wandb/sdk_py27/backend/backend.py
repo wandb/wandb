@@ -9,6 +9,7 @@ Manage backend.
 import logging
 import os
 import sys
+import threading
 
 import wandb
 
@@ -16,6 +17,20 @@ from ..interface import interface
 from ..internal.internal import wandb_internal
 
 logger = logging.getLogger("wandb")
+
+
+class BackendThread(threading.Thread):
+    """Class to running internal process as a thread."""
+
+    def __init__(self, target, kwargs):
+        threading.Thread.__init__(self)
+        self._target = target
+        self._kwargs = kwargs
+        self.daemon = True
+        self.pid = 0
+
+    def run(self):
+        self._target(**self._kwargs)
 
 
 class Backend(object):
@@ -51,7 +66,11 @@ class Backend(object):
 
         self.record_q = self._wl._multiprocessing.Queue()
         self.result_q = self._wl._multiprocessing.Queue()
-        self.wandb_process = self._wl._multiprocessing.Process(
+        if settings.get("start_method") != "thread":
+            process_class = self._wl._multiprocessing.Process
+        else:
+            process_class = BackendThread
+        self.wandb_process = process_class(
             target=wandb_internal,
             kwargs=dict(
                 settings=settings, record_q=self.record_q, result_q=self.result_q,
@@ -103,6 +122,10 @@ class Backend(object):
     def server_status(self):
         """Report server status."""
         pass
+
+    def abort(self):
+        self.wandb_process.terminate()
+        self.cleanup()
 
     def cleanup(self):
         # TODO: make _done atomic

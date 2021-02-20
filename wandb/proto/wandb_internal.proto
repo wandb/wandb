@@ -45,12 +45,15 @@ message Record {
     Request         request = 100;
   }
   Control          control = 16;
+  // uuid to match Record to Result in MessageRouter
   string           uuid = 19;
 }
 
 message Control {
-  bool req_resp = 1;  // record is expecting a result
-  bool local = 2;     // should not be persisted or synchronized
+  bool   req_resp = 1;   // record is expecting a result
+  bool   local = 2;      // should not be persisted or synchronized
+  string req_id = 3;     // used for cancel and poll
+  bool   immediate = 5;  // handle immediately (poll)
 }
 
 /*
@@ -67,7 +70,22 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  ErrorStatus         error_status = 16;
+  TransportStatus     transport_status = 32;
+  BackendStatus       backend_status = 33;
+  // uuid to match Record to Result in MessageRouter
   string              uuid = 24;
+}
+
+message ErrorStatus {
+  string msg = 1;
+}
+
+message TransportStatus {
+  bool  poll_needed = 1;
+}
+
+message BackendStatus {
 }
 
 /*
@@ -379,6 +397,7 @@ message AlertRecord {
 message Request {
   oneof request_type {
     StatusRequest         status = 1;
+    PollRequest           poll = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
     LoginRequest          login = 5;
@@ -388,7 +407,9 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
+    CancelRequest         canceel = 13;
     ShutdownRequest       shutdown = 64;
+    HealthRequest         health = 65;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -398,6 +419,8 @@ message Request {
  */
 message Response {
   oneof response_type {
+    PollResponse           poll_response = 2;
+    CancelResponse         cancel_response = 18;
     StatusResponse         status_response = 19;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
@@ -406,6 +429,7 @@ message Response {
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
     ShutdownResponse       shutdown_response = 64;
+    HealthResponse         health_response = 65;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -470,6 +494,27 @@ message StatusRequest {
 
 message StatusResponse {
   bool run_should_stop = 1;
+}
+
+/*
+ * PollRequest:
+ */
+message PollRequest {
+}
+
+message PollResponse {
+  bool   done = 1;
+  Result result = 2;
+  // Progress progress = 3;
+}
+
+/*
+ * CancelRequest:
+ */
+message CancelRequest {
+}
+
+message CancelResponse {
 }
 
 /*
@@ -568,4 +613,13 @@ message CheckVersionResponse {
   string upgrade_message = 1;
   string yank_message = 2;
   string delete_message = 3;
+}
+
+/*
+ * Health:
+ */
+message HealthRequest {
+}
+
+message HealthResponse {
 }

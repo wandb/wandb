@@ -14,29 +14,42 @@ import os
 import platform
 import sys
 import time
-import traceback
 
 import shortuuid  # type: ignore
 import six
 import wandb
+from wandb import errors
 from wandb import trigger
-from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
+from .interface import interface
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
+if wandb.TYPE_CHECKING:
+    from typing import (
+        Optional,
+        Type,
+        Union,
+        Sequence,
+        Dict,
+        List,
+        Iterable,
+        Callable,
+        Any,
+        NoReturn,
+    )
 
-logger = None  # logger configured during wandb.init()
+    # from .wandb_setup import _WandbSetup
+
+logger: Optional[logging.Logger] = None  # logger configured during wandb.init()
 
 
 def _set_logger(log_object):
@@ -58,6 +71,11 @@ def _huggingface_version():
 
 
 class _WandbInit(object):
+    backend: Optional[Backend]
+    _teardown_hooks: List[Callable[[], None]]
+    # _wl: Optional[_WandbSetup]
+    # kwargs: Optional[Dict[str, Any]]
+
     def __init__(self):
         self.kwargs = None
         self.settings = None
@@ -70,7 +88,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
 
-    def setup(self, kwargs) -> None:
+    def setup(self, kwargs: Dict[str, Any]):
         """
         Complete setup for wandb.init(). This includes parsing all arguments,
         applying them with settings and enabling logging.
@@ -319,6 +337,22 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+    def abort(self) -> None:
+        if not self.backend:
+            return
+        try:
+            self.backend.abort()
+        except Exception as e:
+            if logger:
+                logger.warning("problem aborting", exc_info=e)
+        self.backend = None
+
+    def _fail(self, err_class: Type[Exception], msg: str) -> "NoReturn":
+        self.abort()
+        if logger:
+            logger.error(msg)
+        raise err_class(msg)
+
     def _make_run_disabled(self) -> RunDisabled:
         drun = RunDisabled()
         drun.config = wandb.wandb_sdk.wandb_config.Config()
@@ -410,12 +444,18 @@ class _WandbInit(object):
             stderr_fd=stderr_master_fd,
             use_redirect=use_redirect,
         )
+        self.backend = backend
         backend.server_connect()
         logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
+
+        monitor = interface.Monitor()
+        result = backend.interface.communicate_health(monitor=monitor)
+        if not result:
+            self._fail(errors.InitStartError, "Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
 
@@ -486,7 +526,7 @@ class _WandbInit(object):
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
                 self.teardown()
-                raise UsageError(error_message)
+                raise errors.UsageError(error_message)
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
@@ -524,13 +564,15 @@ class _WandbInit(object):
 def getcaller():
     # py2 doesnt have stack_info
     # src, line, func, stack = logger.findCaller(stack_info=True)
-    src, line, func = logger.findCaller()[:3]
-    print("Problem at:", src, line, func)
+    # src, line, func = logger.findCaller()[:3]
+    # print("Problem at:", src, line, func)
+    # traceback.print_exc()
+    pass
 
 
 def init(
     job_type: Optional[str] = None,
-    dir=None,
+    dir: Optional[str] = None,
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -540,18 +582,18 @@ def init(
     name: Optional[str] = None,
     notes: Optional[str] = None,
     magic: Union[dict, str, bool] = None,
-    config_exclude_keys=None,
-    config_include_keys=None,
+    config_exclude_keys: Optional[Iterable[str]] = None,
+    config_include_keys: Optional[Iterable[str]] = None,
     anonymous: Optional[str] = None,
     mode: Optional[str] = None,
     allow_val_change: Optional[bool] = None,
     resume: Optional[Union[bool, str]] = None,
     force: Optional[bool] = None,
-    tensorboard=None,  # alias for sync_tensorboard
-    sync_tensorboard=None,
-    monitor_gym=None,
-    save_code=None,
-    id=None,
+    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
+    sync_tensorboard: Optional[bool] = None,
+    monitor_gym: Optional[bool] = None,
+    save_code: Optional[bool] = None,
+    id: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
     """
@@ -711,49 +753,30 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
-    error_seen = None
-    except_exit = None
+
+    wi = _WandbInit()
+    wi.setup(kwargs)
     try:
-        wi = _WandbInit()
-        wi.setup(kwargs)
-        except_exit = wi.settings._except_exit
-        try:
-            run = wi.init()
-            except_exit = wi.settings._except_exit
-        except (KeyboardInterrupt, Exception) as e:
-            if not isinstance(e, KeyboardInterrupt):
-                sentry_exc(e)
-            if not (
-                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
-            ):
-                getcaller()
-            assert logger
-            if wi.settings.problem == "fatal":
-                raise
-            if wi.settings.problem == "warn":
-                pass
-            # TODO(jhr): figure out how to make this RunDummy
-            run = None
-    except UsageError:
-        raise
+        run = wi.init()
     except KeyboardInterrupt as e:
-        assert logger
-        logger.warning("interrupted", exc_info=e)
-        raise e
+        if logger:
+            logger.warning("interrupted", exc_info=e)
+        wi.abort()
+        raise
+    except errors.UsageError as e:
+        if logger:
+            logger.warning("usage", exc_info=e)
+        wi.abort()
+        raise
     except Exception as e:
-        error_seen = e
-        traceback.print_exc()
-        assert logger
-        logger.error("error", exc_info=e)
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
+        if logger:
+            logger.error("error", exc_info=e)
         sentry_exc(e, delay=True)
-        # reraise(*sys.exc_info())
-        # six.raise_from(Exception("problem"), e)
-    finally:
-        if error_seen:
-            wandb.termerror("Abnormal program exit")
-            if except_exit:
-                os._exit(-1)
-            six.raise_from(Exception("problem"), error_seen)
+        wi.abort()
+        getcaller()
+        wandb.termerror("Abnormal program exit")
+        if isinstance(e, errors.InitError):
+            raise
+        generic_error = errors.InitGenericError("Problem in wandb.init()")
+        six.raise_from(generic_error, e)
     return run

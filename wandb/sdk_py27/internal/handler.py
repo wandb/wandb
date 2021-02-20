@@ -108,6 +108,10 @@ class HandleManager(object):
         if not record.control.local:
             self._writer_q.put(record)
 
+    def handle_request_health(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
+
     def handle_request_defer(self, record):
         defer = record.request.defer
         state = defer.state

@@ -494,6 +494,13 @@ def log_debug(caplog):
     #     print("LOGGER", rec.message, file=sys.stderr)
 
 
+@pytest.fixture
+def inject_util():
+    iu = utils.inject_backend.InjectUtil()
+    yield iu
+    iu.uninstall()
+
+
 # ----------------------
 # internal test fixtures
 # ----------------------
