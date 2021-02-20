@@ -403,6 +403,15 @@ class _WandbInit(object):
         stdout_slave_fd, stderr_slave_fd = None, None
 
         logger.info("starting backend")
+
+        # probe the active start method
+        active_start_method = None
+        if s.start_method == "thread":
+            active_start_method = s.start_method
+        else:
+            get_start_fn = getattr(self._wl._multiprocessing, "get_start_method", None)
+            active_start_method = get_start_fn() if get_start_fn else None
+
         backend = Backend()
         backend.ensure_launched(
             settings=s,
@@ -434,23 +443,13 @@ class _WandbInit(object):
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
-            # probe the active start method
-            start_method = None
-            if s.start_method == "thread":
-                start_method = s.start_method
-            else:
-                get_start_fn = getattr(
-                    self._wl._multiprocessing, "get_start_method", None
-                )
-                start_method = get_start_fn() if get_start_fn else None
-
-            if start_method == "spawn":
+            if active_start_method == "spawn":
                 tel.env.start_spawn = True
-            elif start_method == "fork":
+            elif active_start_method == "fork":
                 tel.env.start_fork = True
-            elif start_method == "forkserver":
+            elif active_start_method == "forkserver":
                 tel.env.start_forkserver = True
-            elif start_method == "thread":
+            elif active_start_method == "thread":
                 tel.env.start_thread = True
 
         logger.info("updated telemetry")
@@ -495,7 +494,7 @@ class _WandbInit(object):
             if not ret:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
-                if self.settings.start_method != "fork":
+                if active_start_method != "fork":
                     error_message += ", try setting WANDB_START_METHOD=fork"
             if ret and ret.error:
                 error_message = ret.error.message
