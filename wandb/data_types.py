@@ -204,6 +204,11 @@ class Table(Media):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def _make_column_types(self, dtype=None, optional=True):
+        if dtype == _dtypes.AnyType and optional:
+            self._skip_validation = True
+        else:
+            self._skip_validation = False
+
         if dtype is None:
             dtype = _dtypes.UnknownType()
 
@@ -267,7 +272,8 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
-        self._validate_data(data)
+        if not self._skip_validation:
+            self._validate_data(data)
         self.data.append(list(data))
 
     def _validate_data(self, data):

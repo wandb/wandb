@@ -502,7 +502,15 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_end(self, logs=None):
         if self.log_evaluation:
-            wandb.run.summary["results"] = self._log_dataframe()
+            # wandb.run.summary["results"] = self._log_dataframe()
+            table = self._log_dataframe()
+            if table:
+                key = "results"
+                artifact = wandb.Artifact(
+                    "{}-{}".format(wandb.run.id, key), "run_table"
+                )
+                artifact.add(table, key)
+                wandb.run.log_artifact(artifact)
         pass
 
     def on_test_begin(self, logs=None):
@@ -735,46 +743,52 @@ class WandbCallback(keras.callbacks.Callback):
         if self.validation_data:
             x, y_true = self.validation_data[0], self.validation_data[1]
             y_pred = self.model.predict(x)
-        elif self.generator:
-            if not self.validation_steps:
-                wandb.termwarn(
-                    "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
-                )
-                return None
-
-            for i in range(self.validation_steps):
-                bx, by_true = next(self.generator)
-                by_pred = self.model.predict(bx)
-                if x is None:
-                    x, y_true, y_pred = bx, by_true, by_pred
-                else:
-                    x, y_true, y_pred = (
-                        np.append(x, bx, axis=0),
-                        np.append(y_true, by_true, axis=0),
-                        np.append(y_pred, by_pred, axis=0),
-                    )
-
-        if self.input_type in ("image", "images") and self.output_type == "label":
-            return wandb.image_categorizer_dataframe(
-                x=x, y_true=y_true, y_pred=y_pred, labels=self.labels
-            )
-        elif (
-            self.input_type in ("image", "images")
-            and self.output_type == "segmentation_mask"
-        ):
-            return wandb.image_segmentation_dataframe(
-                x=x,
-                y_true=y_true,
-                y_pred=y_pred,
-                labels=self.labels,
-                class_colors=self.class_colors,
+            return wandb.wandb_sdk.integration_utils.table.default_validation_table(
+                x, y_pred, y_true
             )
         else:
-            wandb.termwarn(
-                "unknown dataframe type for input_type=%s and output_type=%s"
-                % (self.input_type, self.output_type)
-            )
             return None
+
+        # elif self.generator:
+        #     if not self.validation_steps:
+        #         wandb.termwarn(
+        #             "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
+        #         )
+        #         return None
+
+        #     for i in range(self.validation_steps):
+        #         bx, by_true = next(self.generator)
+        #         by_pred = self.model.predict(bx)
+        #         if x is None:
+        #             x, y_true, y_pred = bx, by_true, by_pred
+        #         else:
+        #             x, y_true, y_pred = (
+        #                 np.append(x, bx, axis=0),
+        #                 np.append(y_true, by_true, axis=0),
+        #                 np.append(y_pred, by_pred, axis=0),
+        #             )
+
+        # if self.input_type in ("image", "images") and self.output_type == "label":
+        #     return wandb.image_categorizer_dataframe(
+        #         x=x, y_true=y_true, y_pred=y_pred, labels=self.labels
+        #     )
+        # elif (
+        #     self.input_type in ("image", "images")
+        #     and self.output_type == "segmentation_mask"
+        # ):
+        #     return wandb.image_segmentation_dataframe(
+        #         x=x,
+        #         y_true=y_true,
+        #         y_pred=y_pred,
+        #         labels=self.labels,
+        #         class_colors=self.class_colors,
+        #     )
+        # else:
+        #     wandb.termwarn(
+        #         "unknown dataframe type for input_type=%s and output_type=%s"
+        #         % (self.input_type, self.output_type)
+        #     )
+        #     return None
 
     def _save_model(self, epoch):
         if wandb.run.disabled:
