@@ -80,6 +80,8 @@ class Backend(object):
             process_class = self._wl._multiprocessing.Process
         else:
             process_class = BackendThread
+            # disable interal process checks since we are one process
+            wandb._set_internal_process(disable=True)
         self.wandb_process = process_class(
             target=wandb_internal,
             kwargs=dict(

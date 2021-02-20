@@ -24,7 +24,7 @@ import struct
 import sys
 import zlib
 
-# import wandb
+import wandb
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class DataStore(object):
         for x in range(1, LEVELDBLOG_LAST + 1):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
 
-        # assert wandb._IS_INTERNAL_PROCESS
+        assert wandb._assert_is_internal_process
 
     def open_for_write(self, fname):
         self._fname = fname

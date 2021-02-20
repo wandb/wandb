@@ -727,7 +727,7 @@ def init(
     Returns:
         A `Run` object.
     """
-    assert not wandb._IS_INTERNAL_PROCESS
+    wandb._assert_is_user_process()
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
