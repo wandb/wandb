@@ -15,7 +15,9 @@ def run_full(live_mock_server, parse_ctx):
     """Test basic operation end to end."""
 
     def fn(settings=None):
-        run = wandb.init(settings=settings)
+        # TODO(jhr): make it work with wandb.init(settings=)
+        wandb.setup(settings=settings)
+        run = wandb.init()
         run.log(dict(val=1))
         run.finish()
         ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -39,23 +41,32 @@ def test_junk(run_full):
 
 
 def test_spawn(run_full):
-    run_full(settings=wandb.Settings(start_method="fork"))
+    cu = run_full(settings=wandb.Settings(start_method="spawn"))
+    telemetry = cu.telemetry
+    assert telemetry and 5 in telemetry.get("8", [])
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no fork")
 def test_fork(run_full):
-    run_full(settings=wandb.Settings(start_method="fork"))
+    cu = run_full(settings=wandb.Settings(start_method="fork"))
+    telemetry = cu.telemetry
+    assert telemetry and 6 in telemetry.get("8", [])
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no forkserver")
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_forkserver(run_full):
-    run_full(settings=wandb.Settings(start_method="forkserver"))
+    print("DEBUG 0000000000000 ABOUT TO forksreveer")
+    cu = run_full(settings=wandb.Settings(start_method="forkserver"))
+    telemetry = cu.telemetry
+    assert telemetry and 7 in telemetry.get("8", [])
 
 
 def test_thread(run_full):
     # TODO(jhr): problem with thread and console. maybe redir threads?
-    run_full(settings=wandb.Settings(start_method="thread", console="off"))
+    cu = run_full(settings=wandb.Settings(start_method="thread", console="off"))
+    telemetry = cu.telemetry
+    assert telemetry and 8 in telemetry.get("8", [])
 
 
 # TODO(jhr): enable this when console thread issue fixed

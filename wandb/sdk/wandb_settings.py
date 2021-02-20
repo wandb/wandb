@@ -203,7 +203,7 @@ class Settings(object):
     """
 
     mode: str = "online"
-    start_method: str = DEFAULT_START_METHOD
+    start_method: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     run_tags: Optional[Tuple] = None

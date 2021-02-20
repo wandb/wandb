@@ -203,7 +203,7 @@ class Settings(object):
     """
 
     mode = "online"
-    start_method = DEFAULT_START_METHOD
+    start_method = None
     console = "auto"
     disabled = False
     run_tags = None

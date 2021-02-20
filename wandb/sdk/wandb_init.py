@@ -434,6 +434,25 @@ class _WandbInit(object):
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
+            # probe the active start method
+            start_method: Optional[str] = None
+            if s.start_method == "thread":
+                start_method = s.start_method
+            else:
+                get_start_fn = getattr(
+                    self._wl._multiprocessing, "get_start_method", None
+                )
+                start_method = get_start_fn() if get_start_fn else None
+
+            if start_method == "spawn":
+                tel.env.start_spawn = True
+            elif start_method == "fork":
+                tel.env.start_fork = True
+            elif start_method == "forkserver":
+                tel.env.start_forkserver = True
+            elif start_method == "thread":
+                tel.env.start_thread = True
+
         logger.info("updated telemetry")
         run._set_console(
             use_redirect=use_redirect,

@@ -45,4 +45,8 @@ message Env {
   bool kaggle = 2;   // kaggle env detected
   bool windows = 3;  // windows detected
   bool m1_gpu = 4;   // apple silicon M1 gpu found
+  bool start_spawn = 5;       // multiprocessing spawn
+  bool start_fork = 6;        // multiprocessing fork
+  bool start_forkserver = 7;  // multiprocessing forkserver
+  bool start_thread = 8;      // thread start method
 }
