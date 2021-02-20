@@ -43,20 +43,21 @@ def test_junk(run_full):
 def test_spawn(run_full):
     cu = run_full(settings=wandb.Settings(start_method="spawn"))
     telemetry = cu.telemetry
-    assert telemetry and 5 in telemetry.get("8", [])
+    if sys.version_info >= (3, 0):
+        assert telemetry and 5 in telemetry.get("8", [])
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no fork")
 def test_fork(run_full):
     cu = run_full(settings=wandb.Settings(start_method="fork"))
     telemetry = cu.telemetry
-    assert telemetry and 6 in telemetry.get("8", [])
+    if sys.version_info >= (3, 0):
+        assert telemetry and 6 in telemetry.get("8", [])
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no forkserver")
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_forkserver(run_full):
-    print("DEBUG 0000000000000 ABOUT TO forksreveer")
     cu = run_full(settings=wandb.Settings(start_method="forkserver"))
     telemetry = cu.telemetry
     assert telemetry and 7 in telemetry.get("8", [])
