@@ -7,6 +7,7 @@ Manage backend.
 """
 
 import logging
+import multiprocessing
 import os
 import sys
 import threading
@@ -17,6 +18,13 @@ from ..interface import interface
 from ..internal.internal import wandb_internal
 
 logger = logging.getLogger("wandb")
+
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import (
+        Optional,
+        Union,
+    )
 
 
 class BackendThread(threading.Thread):
@@ -34,6 +42,8 @@ class BackendThread(threading.Thread):
 
 
 class Backend(object):
+    wandb_process: Optional[Union[BackendThread, multiprocessing.Process]] = None
+
     def __init__(self):
         self._done = False
         self.record_q = None
