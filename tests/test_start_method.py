@@ -40,22 +40,22 @@ def test_junk(run_full):
         run_full(settings=wandb.Settings(start_method="junk"))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no mp context")
 def test_spawn(run_full):
     cu = run_full(settings=wandb.Settings(start_method="spawn"))
     telemetry = cu.telemetry
-    if sys.version_info >= (3, 0):
-        assert telemetry and 5 in telemetry.get("8", [])
+    assert telemetry and 5 in telemetry.get("8", [])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no mp context")
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no fork")
 def test_fork(run_full):
     cu = run_full(settings=wandb.Settings(start_method="fork"))
     telemetry = cu.telemetry
-    if sys.version_info >= (3, 0):
-        assert telemetry and 6 in telemetry.get("8", [])
+    assert telemetry and 6 in telemetry.get("8", [])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no forkserver")
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no mp context")
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_forkserver(run_full):
     cu = run_full(settings=wandb.Settings(start_method="forkserver"))
