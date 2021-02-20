@@ -13,7 +13,7 @@ import wandb
 def run_full(live_mock_server, parse_ctx):
     """Test basic operation end to end."""
 
-    def fn(settings = None):
+    def fn(settings=None):
         run = wandb.init(settings=settings)
         run.log(dict(val=1))
         run.finish()
