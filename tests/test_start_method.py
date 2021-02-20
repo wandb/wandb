@@ -3,6 +3,7 @@ start method tests.
 """
 
 import platform
+import sys
 
 import six
 import pytest
@@ -41,11 +42,12 @@ def test_spawn(run_full):
     run_full(settings=wandb.Settings(start_method="fork"))
 
 
-@pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
+@pytest.mark.skipif(platform.system() == "Windows", reason="win has no fork")
 def test_fork(run_full):
     run_full(settings=wandb.Settings(start_method="fork"))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 has no forkserver")
 @pytest.mark.skipif(platform.system() == "Windows", reason="win has no forkserver")
 def test_forkserver(run_full):
     run_full(settings=wandb.Settings(start_method="forkserver"))
