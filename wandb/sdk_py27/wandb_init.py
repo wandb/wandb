@@ -432,20 +432,12 @@ class _WandbInit(object):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
-        use_redirect = True
-        stdout_master_fd, stderr_master_fd = None, None
-        stdout_slave_fd, stderr_slave_fd = None, None
-
         logger.info("starting backend")
-        backend = Backend()
-        backend.ensure_launched(
-            settings=s,
-            stdout_fd=stdout_master_fd,
-            stderr_fd=stderr_master_fd,
-            use_redirect=use_redirect,
-        )
-        self.backend = backend
+        backend = Backend(settings=s)
+        backend.ensure_launched()
         backend.server_connect()
+        self.backend = backend  # is this needed here?
+
         logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
@@ -458,6 +450,14 @@ class _WandbInit(object):
             self._fail(errors.InitStartError, "Could not talk to internal process")
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # probe the active start method
+        active_start_method = None
+        if s.start_method == "thread":
+            active_start_method = s.start_method
+        else:
+            get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
+            active_start_method = get_start_fn() if get_start_fn else None
 
         # Populate intial telemetry
         with telemetry.context(run=run) as tel:
@@ -474,12 +474,17 @@ class _WandbInit(object):
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
+            if active_start_method == "spawn":
+                tel.env.start_spawn = True
+            elif active_start_method == "fork":
+                tel.env.start_fork = True
+            elif active_start_method == "forkserver":
+                tel.env.start_forkserver = True
+            elif active_start_method == "thread":
+                tel.env.start_thread = True
+
         logger.info("updated telemetry")
-        run._set_console(
-            use_redirect=use_redirect,
-            stdout_slave_fd=stdout_slave_fd,
-            stderr_slave_fd=stderr_slave_fd,
-        )
+
         run._set_library(self._wl)
         run._set_backend(backend)
         run._set_reporter(self._reporter)
@@ -516,8 +521,10 @@ class _WandbInit(object):
             if not ret:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
-                if self.settings.start_method != "fork":
-                    error_message += ", try setting WANDB_START_METHOD=fork"
+                if active_start_method != "fork":
+                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
+                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
+                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
@@ -751,7 +758,7 @@ def init(
     Returns:
         A `Run` object.
     """
-    assert not wandb._IS_INTERNAL_PROCESS
+    wandb._assert_is_user_process()
     kwargs = dict(locals())
 
     wi = _WandbInit()

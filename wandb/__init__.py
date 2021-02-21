@@ -97,13 +97,26 @@ from wandb.integration.sagemaker import sagemaker_auth
 _IS_INTERNAL_PROCESS = False
 
 
-def _set_internal_process():
+def _set_internal_process(disable=False):
     global _IS_INTERNAL_PROCESS
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    if disable:
+        _IS_INTERNAL_PROCESS = None
+        return
     _IS_INTERNAL_PROCESS = True
 
 
-def _is_internal_process():
-    return _IS_INTERNAL_PROCESS
+def _assert_is_internal_process():
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    assert _IS_INTERNAL_PROCESS
+
+
+def _assert_is_user_process():
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    assert not _IS_INTERNAL_PROCESS
 
 
 # toplevel:

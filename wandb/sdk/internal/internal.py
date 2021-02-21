@@ -69,7 +69,7 @@ def wandb_internal(
 
     """
     # mark this process as internal
-    # wandb._IS_INTERNAL_PROCESS = True
+    wandb._set_internal_process()
     started = time.time()
 
     # register the exit handler only when wandb_internal is called, not on import
