@@ -160,8 +160,9 @@ class _WandbInit(object):
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
 
-        # hack to ensure that user settings don't override save code set through env vars
-        if not os.getenv(wandb.env.SAVE_CODE) or os.getenv(wandb.env.DISABLE_CODE):
+        # hack to ensure that user settings don't set saving to true
+        # if user explicitly set these to false
+        if os.getenv(wandb.env.SAVE_CODE) is False or os.getenv(wandb.env.DISABLE_CODE):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
