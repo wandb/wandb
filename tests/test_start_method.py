@@ -67,15 +67,6 @@ def test_forkserver(run_full):
 
 
 def test_thread(run_full):
-    # TODO(jhr): problem with thread and console. maybe redir threads?
-    cu = run_full(settings=wandb.Settings(start_method="thread", console="off"))
+    cu = run_full(settings=wandb.Settings(start_method="thread"))
     telemetry = cu.telemetry
     assert telemetry and 8 in telemetry.get("8", [])
-
-
-# TODO(jhr): enable this when console thread issue fixed
-# def test_thread_broken(run_full):
-#     run_full(settings=wandb.Settings(start_method="thread"))
-
-
-# TODO(jhr): test sweeps?
