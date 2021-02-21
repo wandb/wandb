@@ -215,6 +215,7 @@ class Settings(object):
     sync_file_spec: Optional[str] = None
     sync_dir_spec: Optional[str] = None
     files_dir_spec: Optional[str] = None
+    symlink: Optional[bool] = None
     log_symlink_user_spec: Optional[str] = None
     log_symlink_internal_spec: Optional[str] = None
     sync_symlink_latest_spec: Optional[str] = None

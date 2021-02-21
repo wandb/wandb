@@ -1,3 +1,5 @@
+import os
+import platform
 import wandb
 import torch
 import torch.nn as nn
@@ -28,11 +30,17 @@ class ConvNet(nn.Module):
 
 writer = SummaryWriter()
 net = ConvNet()
-wandb.watch(net, log_freq=2)
+run = wandb.watch(net, log_freq=2)
 for i in range(10):
     output = net(torch.ones((64, 1, 28, 28)))
     loss = F.mse_loss(output, torch.ones((64, 10)))
     output.backward(torch.ones(64, 10))
-    writer.add_scalar("loss", loss / 64, i+1)
-    writer.add_image("example", torch.ones((1, 28, 28)), i+1)
+    writer.add_scalar("loss", loss / 64, i + 1)
+    writer.add_image("example", torch.ones((1, 28, 28)), i + 1)
 writer.close()
+
+files = os.listdir(wandb.run.dir)
+if platform.system() == "Windows":
+    for f in files:
+        assert not os.islink(os.path.join(wandb.run.dir, f))
+print("Success")

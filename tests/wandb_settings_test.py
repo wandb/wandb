@@ -1,7 +1,7 @@
 """
 settings test.
 """
-
+import platform
 import pytest  # type: ignore
 
 from wandb import Settings
@@ -236,3 +236,8 @@ def test_preprocess_base_url():
     assert s.base_url == "http://host.com"
     s.update(base_url="//http://host.com//")
     assert s.base_url == "//http://host.com"
+
+
+def test_symlinks():
+    s = Settings()
+    assert not (s.symlink and platform.system == "Windows")

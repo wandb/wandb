@@ -49,6 +49,8 @@ def _link_and_save_file(
     wandb_path = os.path.join(files_dir, file_name)
     util.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
+    print("wandb_path", wandb_path)
+    print("abs_path", abs_path)
     if settings.symlink:
         if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
             os.remove(wandb_path)
