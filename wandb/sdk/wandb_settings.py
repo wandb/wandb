@@ -29,6 +29,7 @@ import enum
 import getpass
 import itertools
 import json
+import multiprocessing
 import os
 import platform
 import socket
@@ -89,6 +90,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     resume=None,
     silent=None,
     sagemaker_disable=None,
+    start_method=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -180,6 +182,14 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
+if hasattr(multiprocessing, "get_all_start_methods"):
+    AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
+else:
+    # TODO: this can go away when we deprecate Python 2
+    AVAILABLE_START_METHODS = ["fork", "spawn"]
+DEFAULT_START_METHOD = "spawn"  # defaulting to spawn for now, fork needs more testing
+
+
 class Settings(object):
     """Settings Constructor
 
@@ -192,6 +202,7 @@ class Settings(object):
     """
 
     mode: str = "online"
+    start_method: str = DEFAULT_START_METHOD
     console: str = "auto"
     disabled: bool = False
     run_tags: Optional[Tuple] = None
@@ -216,9 +227,19 @@ class Settings(object):
     email: Optional[str] = None
     save_code: Optional[bool] = None
     program_relpath: Optional[str] = None
+    host: Optional[str]
 
     # Public attributes
+    entity: Optional[str] = None
+    project: Optional[str] = None
+    run_group: Optional[str] = None
+    run_name: Optional[str] = None
+    run_notes: Optional[str] = None
     sagemaker_disable: Optional[bool] = None
+
+    # TODO(jhr): Audit these attributes
+    run_job_type: Optional[str] = None
+    base_url: Optional[str] = None
 
     # Private attributes
     __start_time: Optional[float]
@@ -255,6 +276,7 @@ class Settings(object):
         api_key: str = None,
         anonymous=None,
         mode: str = None,
+        start_method: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -504,6 +526,11 @@ class Settings(object):
     def settings_workspace(self) -> str:
         return self._path_convert(self.settings_workspace_spec)
 
+    def _validate_start_method(self, value):
+        if value in AVAILABLE_START_METHODS:
+            return
+        return _error_choices(value, AVAILABLE_START_METHODS)
+
     def _validate_mode(self, value):
         choices = {
             "dryrun",
@@ -559,6 +586,11 @@ class Settings(object):
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+
+    def _preprocess_base_url(self, value):
+        if value is not None:
+            value = value.rstrip("/")
+        return value
 
     def _start_run(self):
         datetime_now: datetime = datetime.now()
@@ -676,30 +708,39 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
+    def _perform_preprocess(self, k, v):
+        f = getattr(self, "_preprocess_" + k, None)
+        if not f or not callable(f):
+            return v
+        else:
+            return f(v)
+
     def _update(self, __d=None, _source=None, _override=None, **kwargs):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
+        data = {}
         for check in d, kwargs:
             for k in six.viewkeys(check):
                 if k not in self.__dict__:
                     raise KeyError(k)
-                self._check_invalid(k, check[k])
-        for data in d, kwargs:
-            for k, v in six.iteritems(data):
-                if v is None:
-                    continue
-                if self._priority_failed(k, source=_source, override=_override):
-                    continue
-                if isinstance(v, list):
-                    v = tuple(v)
-                self.__dict__[k] = v
-                if _source:
-                    self.__defaults_dict[k] = _source
-                    self.__defaults_dict_set.setdefault(k, set()).add(_source)
-                if _override:
-                    self.__override_dict[k] = _override
-                    self.__override_dict_set.setdefault(k, set()).add(_override)
+                v = self._perform_preprocess(k, check[k])
+                self._check_invalid(k, v)
+                data[k] = v
+        for k, v in six.iteritems(data):
+            if v is None:
+                continue
+            if self._priority_failed(k, source=_source, override=_override):
+                continue
+            if isinstance(v, list):
+                v = tuple(v)
+            self.__dict__[k] = v
+            if _source:
+                self.__defaults_dict[k] = _source
+                self.__defaults_dict_set.setdefault(k, set()).add(_source)
+            if _override:
+                self.__override_dict[k] = _override
+                self.__override_dict_set.setdefault(k, set()).add(_override)
 
     def update(self, __d=None, **kwargs):
         self._update(__d, **kwargs)
@@ -812,6 +853,7 @@ class Settings(object):
             raise AttributeError(name)
         if self.__frozen:
             raise TypeError("Settings object is frozen")
+        value = self._perform_preprocess(name, value)
         self._check_invalid(name, value)
         object.__setattr__(self, name, value)
 

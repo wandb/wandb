@@ -18,3 +18,5 @@ pip-wheel-metadata
 .vscode/.ropeproject
 xcuserdata/
 test-results/
+mypy-results/
+wandb/proto_check/

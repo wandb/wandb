@@ -1,6 +1,10 @@
 import sys
 import typing as t
 
+from wandb.util import get_module
+
+np = get_module("numpy")  # intentionally not required
+
 if t.TYPE_CHECKING:
     from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
     from wandb.apis.public import Artifact as DownloadedArtifact
@@ -235,8 +239,36 @@ class Type(object):
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "Type":
         return cls()
 
+    def explain(self, other: t.Any, depth=0) -> str:
+        """Explains why an item is not assignable to a type. Assumes that
+        the caller has already validated that the assignment fails.
+
+        Args:
+            other (any): Any object
+            depth (int, optional): depth of the type checking. Defaults to 0.
+
+        Returns:
+            str: human readable explanation
+        """
+        wbtype = TypeRegistry.type_of(other)
+        gap = "".join(["\t"] * depth)
+        if depth > 0:
+            return "{}{} not assignable to {}".format(gap, wbtype, self)
+        else:
+            return "{}{} of type {} is not assignable to {}".format(
+                gap, other, wbtype, self
+            )
+
     def __repr__(self):
-        return "<WBType:{} | {}>".format(self.name, self.params)
+        rep = self.name.capitalize()
+        if len(self.params.keys()) > 0:
+            rep += "("
+            for ndx, key in enumerate(self.params.keys()):
+                if ndx > 0:
+                    rep += ", "
+                rep += key + ":" + str(self.params[key])
+            rep += ")"
+        return rep
 
     def __eq__(self, other):
         return self is other or (
@@ -301,9 +333,49 @@ class NumberType(Type):
     types: t.ClassVar[t.List[type]] = [int, float]
 
 
+if np:
+    NumberType.types.append(np.byte)
+    NumberType.types.append(np.short)
+    NumberType.types.append(np.ushort)
+    NumberType.types.append(np.intc)
+    NumberType.types.append(np.uintc)
+    NumberType.types.append(np.int_)
+    NumberType.types.append(np.uint)
+    NumberType.types.append(np.longlong)
+    NumberType.types.append(np.ulonglong)
+    NumberType.types.append(np.half)
+    NumberType.types.append(np.float16)
+    NumberType.types.append(np.single)
+    NumberType.types.append(np.double)
+    NumberType.types.append(np.longdouble)
+    NumberType.types.append(np.csingle)
+    NumberType.types.append(np.cdouble)
+    NumberType.types.append(np.clongdouble)
+    NumberType.types.append(np.int8)
+    NumberType.types.append(np.int16)
+    NumberType.types.append(np.int32)
+    NumberType.types.append(np.int64)
+    NumberType.types.append(np.uint8)
+    NumberType.types.append(np.uint16)
+    NumberType.types.append(np.uint32)
+    NumberType.types.append(np.uint64)
+    NumberType.types.append(np.intp)
+    NumberType.types.append(np.uintp)
+    NumberType.types.append(np.float32)
+    NumberType.types.append(np.float64)
+    NumberType.types.append(np.float_)
+    NumberType.types.append(np.complex64)
+    NumberType.types.append(np.complex128)
+    NumberType.types.append(np.complex_)
+
+
 class BooleanType(Type):
     name = "boolean"
     types: t.ClassVar[t.List[type]] = [bool]
+
+
+if np:
+    BooleanType.types.append(np.bool_)
 
 
 class ObjectType(Type):
@@ -347,6 +419,9 @@ class ConstType(Type):
     @classmethod
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ConstType":
         return cls(py_obj)
+
+    def __repr__(self):
+        return str(self.params["val"])
 
 
 def _flatten_union_types(wb_types: t.List[Type]) -> t.List[Type]:
@@ -455,6 +530,17 @@ class UnionType(Type):
 
         return self.__class__(resolved_types)
 
+    def explain(self, other: t.Any, depth=0) -> str:
+        exp = super(UnionType, self).explain(other, depth)
+        for ndx, subtype in enumerate(self.params["allowed_types"]):
+            if ndx > 0:
+                exp += "\n{}and".format("".join(["\t"] * depth))
+            exp += "\n" + subtype.explain(other, depth=depth + 1)
+        return exp
+
+    def __repr__(self):
+        return "{}".format(" or ".join([str(t) for t in self.params["allowed_types"]]))
+
 
 def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
     """Function that mimics the Type class API for constructing an "Optional Type"
@@ -486,29 +572,26 @@ class ListType(Type):
 
     @classmethod
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ListType":
-        if (
-            py_obj is None
-            or not (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
-                isinstance(py_obj, list)
-                or isinstance(py_obj, tuple)
-                or isinstance(py_obj, set)
-                or isinstance(py_obj, frozenset)
-            )
-        ):
+        if py_obj is None or not hasattr(py_obj, "__iter__"):
             raise TypeError("ListType.from_obj expects py_obj to by list-like")
         else:
-            py_list = list(py_obj)
+            if hasattr(py_obj, "tolist"):
+                py_list = py_obj.tolist()
+            else:
+                py_list = list(py_obj)
             elm_type = (
                 UnknownType() if None not in py_list else OptionalType(UnknownType())
             )
             for item in py_list:
                 _elm_type = elm_type.assign(item)
-                if isinstance(_elm_type, InvalidType):
-                    raise TypeError(
-                        "List contained incompatible types. Expected type {} found item {}".format(
-                            elm_type, item
-                        )
-                    )
+                # Commenting this out since we don't want to crash user code at this point, but rather
+                # retain an invalid internal list type.
+                # if isinstance(_elm_type, InvalidType):
+                #     raise TypeError(
+                #         "List contained incompatible types. Item at index {}: \n{}".format(
+                #             ndx, elm_type.explain(item, 1)
+                #         )
+                #     )
 
                 elm_type = _elm_type
 
@@ -527,14 +610,11 @@ class ListType(Type):
     def assign(
         self, py_obj: t.Optional[t.Any] = None
     ) -> t.Union["ListType", InvalidType]:
-        if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
-            isinstance(py_obj, list)
-            or isinstance(py_obj, tuple)
-            or isinstance(py_obj, set)
-            or isinstance(py_obj, frozenset)
-        ):
+        if hasattr(py_obj, "__iter__"):
             new_element_type = self.params["element_type"]
-            for obj in list(py_obj):
+            # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
+            # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
+            for obj in list(py_obj):  # type: ignore
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
@@ -542,6 +622,32 @@ class ListType(Type):
 
         return InvalidType()
 
+    def explain(self, other: t.Any, depth=0) -> str:
+        exp = super(ListType, self).explain(other, depth)
+        gap = "".join(["\t"] * depth)
+        if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
+            isinstance(other, list)
+            or isinstance(other, tuple)
+            or isinstance(other, set)
+            or isinstance(other, frozenset)
+        ):
+            new_element_type = self.params["element_type"]
+            for ndx, obj in enumerate(list(other)):
+                _new_element_type = new_element_type.assign(obj)
+                if isinstance(_new_element_type, InvalidType):
+                    exp += "\n{}Index {}:\n{}".format(
+                        gap, ndx, new_element_type.explain(obj, depth + 1)
+                    )
+                    break
+                new_element_type = _new_element_type
+        return exp
+
+    def __repr__(self):
+        return "{}[]".format(self.params["element_type"])
+
+
+if np:
+    ListType.types.append(np.ndarray)
 
 # class KeyPolicy:
 #     EXACT = "E"  # require exact key match
@@ -614,6 +720,29 @@ class DictType(Type):
             return DictType(type_map)
 
         return InvalidType()
+
+    def explain(self, other: t.Any, depth=0) -> str:
+        exp = super(DictType, self).explain(other, depth)
+        gap = "".join(["\t"] * depth)
+        if isinstance(other, dict):
+            extra_keys = set(other.keys()) - set(self.params["type_map"].keys())
+            if len(extra_keys) > 0:
+                exp += "\n{}Found extra keys: {}".format(
+                    gap, ",".join(list(extra_keys))
+                )
+
+            for key in self.params["type_map"]:
+                val = other.get(key, None)
+                if isinstance(self.params["type_map"][key].assign(val), InvalidType):
+                    exp += "\n{}Key '{}':\n{}".format(
+                        gap,
+                        key,
+                        self.params["type_map"][key].explain(val, depth=depth + 1),
+                    )
+        return exp
+
+    def __repr__(self):
+        return "{}".format(self.params["type_map"])
 
 
 # Special Types

@@ -48,18 +48,18 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.7-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.7-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.7-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.7-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
-              - v0.7-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.7-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.7-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.13-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.13-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
   save-test-results:
     description: "Save test results"
     steps:
@@ -70,6 +70,8 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: test-results
+            - store_artifacts:
+                path: mypy-results
 
 workflows:
   main:
@@ -78,11 +80,16 @@ workflows:
       - test:
          name: "Linters"
          image: "python:3.6"
-         toxenv: "codemodcheck,mypy,black,flake8"
+         toxenv: "codemodcheck,protocheck,mypy,black,flake8"
       - test:
          name: "Python 2.7"
          image: "python:2.7"
          toxenv: "py27,covercircle"
+# Disable python3.5 for now
+#      - test:
+#         name: "Python 3.5"
+#         image: "python:3.5"
+#         toxenv: "py35"
       - test:
          name: "Python 3.6"
          image: "python:3.6"
@@ -105,11 +112,6 @@ workflows:
       - mac:
          name: "MacOS (Python 3.7)"
          toxenv: "py37"
-      - final:
-         name: "Upload Coverage"
-         requires:
-            - "Python 2.7"
-            - "Python 3.6"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
@@ -204,11 +206,3 @@ jobs:
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
-    final:
-        docker:
-            - image: python:3.7
-        steps:
-            - run:
-                  name: Call coveralls webhook
-                  command: |
-                      curl -k https://coveralls.io/webhook?repo_token=$COVERALLS_REPO_TOKEN -d "payload[build_num]=$CIRCLE_WORKFLOW_ID&payload[status]=done"

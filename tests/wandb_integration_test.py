@@ -14,6 +14,7 @@ import sys
 import shutil
 from .utils import fixture_open
 import sys
+import six
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -183,6 +184,8 @@ def test_network_fault_files(live_mock_server, test_settings):
     )
 
 
+# TODO(jhr): look into why this timeout needed to be extend for windows
+@pytest.mark.timeout(120)
 def test_network_fault_graphql(live_mock_server, test_settings):
     # TODO: Initial login fails within 5 seconds so we fail after boot.
     run = wandb.init(settings=test_settings)
