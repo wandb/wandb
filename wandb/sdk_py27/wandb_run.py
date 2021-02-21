@@ -443,7 +443,7 @@ class Run(object):
     @name.setter
     def name(self, name):
         self._name = name
-        if self._backend and self._backend.interface:
+        if self._backend:
             self._backend.interface.publish_run(self)
 
     @property
