@@ -443,7 +443,7 @@ class Run(object):
     @name.setter
     def name(self, name: str) -> None:
         self._name = name
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -2184,16 +2184,6 @@ class Run(object):
 
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
-
-    def _set_console(
-        self,
-        use_redirect: bool,
-        stdout_slave_fd: Optional[int],
-        stderr_slave_fd: Optional[int],
-    ) -> None:
-        self._use_redirect = use_redirect
-        self._stdout_slave_fd = stdout_slave_fd
-        self._stderr_slave_fd = stderr_slave_fd
 
     def __enter__(self) -> "Run":
         return self

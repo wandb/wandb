@@ -15,9 +15,7 @@ def run_full(live_mock_server, parse_ctx):
     """Test basic operation end to end."""
 
     def fn(settings=None):
-        # TODO(jhr): make it work with wandb.init(settings=)
-        wandb.setup(settings=settings)
-        run = wandb.init()
+        run = wandb.init(settings=settings)
         run.log(dict(val=1))
         run.finish()
         ctx_util = parse_ctx(live_mock_server.get_ctx())

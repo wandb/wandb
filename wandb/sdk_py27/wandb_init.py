@@ -398,27 +398,10 @@ class _WandbInit(object):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
-        use_redirect = True
-        stdout_master_fd, stderr_master_fd = None, None
-        stdout_slave_fd, stderr_slave_fd = None, None
-
         logger.info("starting backend")
 
-        # probe the active start method
-        active_start_method = None
-        if s.start_method == "thread":
-            active_start_method = s.start_method
-        else:
-            get_start_fn = getattr(self._wl._multiprocessing, "get_start_method", None)
-            active_start_method = get_start_fn() if get_start_fn else None
-
-        backend = Backend()
-        backend.ensure_launched(
-            settings=s,
-            stdout_fd=stdout_master_fd,
-            stderr_fd=stderr_master_fd,
-            use_redirect=use_redirect,
-        )
+        backend = Backend(settings=s)
+        backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
         # Make sure we are logged in
@@ -427,6 +410,14 @@ class _WandbInit(object):
         # resuming needs access to the server, check server_status()?
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # probe the active start method
+        active_start_method = None
+        if s.start_method == "thread":
+            active_start_method = s.start_method
+        else:
+            get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
+            active_start_method = get_start_fn() if get_start_fn else None
 
         # Populate intial telemetry
         with telemetry.context(run=run) as tel:
@@ -453,11 +444,7 @@ class _WandbInit(object):
                 tel.env.start_thread = True
 
         logger.info("updated telemetry")
-        run._set_console(
-            use_redirect=use_redirect,
-            stdout_slave_fd=stdout_slave_fd,
-            stderr_slave_fd=stderr_slave_fd,
-        )
+
         run._set_library(self._wl)
         run._set_backend(backend)
         run._set_reporter(self._reporter)

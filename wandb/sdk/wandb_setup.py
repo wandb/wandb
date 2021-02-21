@@ -13,7 +13,6 @@ run_id can be resolved.
 
 import copy
 import logging
-import multiprocessing
 import os
 import sys
 import threading
@@ -76,7 +75,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
     def __init__(self, settings=None, environ=None):
-        self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -97,7 +95,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         wandb.termsetup(self._settings, logger)
 
         self._check()
-        self._multiprocessing_setup()
         self._setup()
 
     def _settings_setup(self, settings=None, early_logger=None):
@@ -200,27 +197,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             print("frozen, could be trouble")
         # print("t2", multiprocessing.get_start_method(allow_none=True))
         # print("t3", multiprocessing.get_start_method())
-
-    def _multiprocessing_setup(self):
-
-        # defaulting to spawn for now, fork needs more testing
-        start_method = self._settings.start_method or "spawn"
-
-        self._multiprocessing = multiprocessing
-        if self._settings.start_method == "thread":
-            return
-        # TODO: use fork context if unix and frozen?
-        # if py34+, else fall back
-        if not hasattr(multiprocessing, "get_context"):
-            return
-        all_methods = multiprocessing.get_all_start_methods()
-        logger.info(
-            "multiprocessing start_methods={}, using: {}".format(
-                ",".join(all_methods), start_method
-            )
-        )
-        ctx = multiprocessing.get_context(start_method)
-        self._multiprocessing = ctx
 
     def _setup(self):
         sweep_path = self._settings.sweep_param_path
