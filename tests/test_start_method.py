@@ -32,7 +32,12 @@ def run_full(live_mock_server, parse_ctx):
 
 
 def test_default(run_full):
-    run_full()
+    cu = run_full()
+
+    # py27 doesnt set start_method telemetry
+    if sys.version_info >= (3, 0):
+        telemetry = cu.telemetry
+        assert telemetry and 5 in telemetry.get("8", [])
 
 
 def test_junk(run_full):

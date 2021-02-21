@@ -202,6 +202,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _multiprocessing_setup(self):
+
+        # defaulting to spawn for now, fork needs more testing
+        start_method = self._settings.start_method or "spawn"
+
         self._multiprocessing = multiprocessing
         if self._settings.start_method == "thread":
             return
@@ -212,10 +216,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         all_methods = multiprocessing.get_all_start_methods()
         logger.info(
             "multiprocessing start_methods={}, using: {}".format(
-                ",".join(all_methods), self._settings.start_method
+                ",".join(all_methods), start_method
             )
         )
-        ctx = multiprocessing.get_context(self._settings.start_method)
+        ctx = multiprocessing.get_context(start_method)
         self._multiprocessing = ctx
 
     def _setup(self):
