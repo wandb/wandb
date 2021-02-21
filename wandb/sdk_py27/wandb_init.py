@@ -482,7 +482,9 @@ class _WandbInit(object):
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
-                    error_message += ", try setting WANDB_START_METHOD=fork"
+                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
+                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
+                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
