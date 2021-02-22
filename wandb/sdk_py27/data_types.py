@@ -2071,10 +2071,6 @@ def _numpy_arrays_to_lists(
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
 
-    # Protects against logging non serializable objects
-    elif isinstance(payload, Media):
-        return str(payload.__class__.__name__)
-
     return payload
 
 
