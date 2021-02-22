@@ -58,6 +58,7 @@ class History(object):
             if self._callback:
                 self._callback(row=self._data, step=self._step)
             self._data = dict()
+        self._run._flush_run_tables()
 
     @property
     def start_time(self):

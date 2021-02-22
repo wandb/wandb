@@ -70,6 +70,8 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
     from .interface.interface import BackendSender
+    from .interface.artifacts import ArtifactEntry
+
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
         RunRecord,
@@ -224,6 +226,8 @@ class Run(object):
     # _stdout_slave_fd: Optional[int]
     # _stderr_slave_fd: Optional[int]
 
+    # _media_artifacts: Dict[str, wandb_artifacts.Artifact]
+
     def __init__(
         self,
         settings,
@@ -323,6 +327,7 @@ class Run(object):
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
+        self._media_artifacts = {}
 
     def _telemetry_callback(self, telem_obj):
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -2185,6 +2190,26 @@ class Run(object):
 
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
+
+    def _add_artifact_table(
+        self, key, media
+    ):
+        art_name = "{}-{}".format(self.id, key)
+        art_type = "run_table"
+        table_name = "{}".format(key)
+
+        if art_name not in self._media_artifacts:
+            self._media_artifacts[art_name] = wandb_artifacts.Artifact(
+                art_name, art_type
+            )
+        art = self._media_artifacts[art_name]
+        entry = art.add(media, table_name)
+        return entry
+
+    def _flush_run_tables(self):
+        for key in self._media_artifacts:
+            self.log_artifact(self._media_artifacts[key])
+        self._media_artifacts = {}
 
     def __enter__(self):
         return self

@@ -2056,7 +2056,7 @@ def _wb_filename(
 
 def _numpy_arrays_to_lists(
     payload: Union[dict, Sequence, "np.ndarray"]
-) -> Union[Sequence, dict]:
+) -> Union[Sequence, dict, str, int, float, bool]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
@@ -2070,7 +2070,9 @@ def _numpy_arrays_to_lists(
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
-
+    # Protects against logging non serializable objects
+    elif isinstance(payload, Media):
+        return str(payload.__class__.__name__)
     return payload
 
 
