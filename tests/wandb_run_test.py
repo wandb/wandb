@@ -68,7 +68,6 @@ def test_save_symlink(wandb_init_run):
 
     os.symlink(f1, sf)
     wandb_init_run.save(sf)
-    wandb_init_run._settings.update({"symlink": False})
     assert os.path.islink(sf)
 
 
