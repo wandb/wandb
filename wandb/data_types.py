@@ -311,7 +311,7 @@ class Table(Media):
             row_data = []
             for item in row:
                 cell = item
-                if isinstance(item, dict):
+                if isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
