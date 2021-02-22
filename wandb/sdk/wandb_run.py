@@ -1033,17 +1033,27 @@ class Run(object):
             warn = True
         for path in glob.glob(glob_str):
             file_name = os.path.relpath(path, base_path)
+            print("file_name", file_name)
             abs_path = os.path.abspath(path)
             wandb_path = os.path.join(self.dir, file_name)
             wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
+            print("wandb_path", wandb_path)
+            print("abs_path", abs_path)
+            print("IS SYMLINKING?", self._settings.symlink)
             if self._settings.symlink:
+                print("IN SYMLINK")
+                print(os.path.islink(wandb_path), abs_path != os.readlink(wandb_path))
                 if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+                    print("REMOVING")
                     os.remove(wandb_path)
                     os.symlink(abs_path, wandb_path)
+                    print("dir", os.listdir(self.dir))
                 elif not os.path.exists(wandb_path):
                     os.symlink(abs_path, wandb_path)
             else:
+                print("DOING THE ELSE")
+                os.remove(wandb_path)
                 shutil.copyfile(abs_path, wandb_path)
             files.append(wandb_path)
         if warn:
