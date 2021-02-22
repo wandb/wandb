@@ -1043,7 +1043,7 @@ class Run(object):
             print("IS SYMLINKING?", self._settings.symlink)
             if self._settings.symlink:
                 print("IN SYMLINK")
-                print(os.path.islink(wandb_path), abs_path != os.readlink(wandb_path))
+                print(os.path.islink(wandb_path))
                 if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
                     print("REMOVING")
                     os.remove(wandb_path)
@@ -1053,6 +1053,7 @@ class Run(object):
                     os.symlink(abs_path, wandb_path)
             else:
                 print("DOING THE ELSE")
+                print(os.path.islink(wandb_path))
                 os.remove(wandb_path)
                 shutil.copyfile(abs_path, wandb_path)
             files.append(wandb_path)
