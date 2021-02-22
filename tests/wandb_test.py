@@ -225,7 +225,7 @@ def test_save_policy_glob_symlink(wandb_init_run, capsys):
     assert wandb.run._backend.files["*.rad"] == 2
 
 
-@pytest.mark.skipif(platform.system == "Windows", reason="Next test is for windows")
+@pytest.mark.skipif(platform.system() == "Windows", reason="Next test is for windows")
 def test_run_symlink_creation_policy(wandb_init_run):
     wandb_init_run.finish()
     assert os.path.islink("./wandb/debug-internal.log")
@@ -233,7 +233,7 @@ def test_run_symlink_creation_policy(wandb_init_run):
     assert os.path.islink("./wandb/latest-run")
 
 
-@pytest.mark.skipif(platform.system != "Windows", reason="Previous test is for non-windows")
+@pytest.mark.skipif(platform.system() != "Windows", reason="Previous test is for non-windows")
 def test_run_symlink_creation_policy_windows(wandb_init_run):
     wandb_init_run.finish()
     for f in os.listdir("./wandb"):
