@@ -280,7 +280,9 @@ def test_audio_to_json(mocked_run):
 
 
 def test_audio_refs():
-    audioObj = wandb.Audio("https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav")
+    audioObj = wandb.Audio(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+    )
     art = wandb.Artifact("audio_ref_test", "dataset")
     art.add(audioObj, "audio_ref")
 
