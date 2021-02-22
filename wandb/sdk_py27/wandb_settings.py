@@ -780,7 +780,6 @@ class Settings(object):
             and os.getenv(wandb.env.SAVE_CODE) is not None
             or os.getenv(wandb.env.DISABLE_CODE) is not None
         ):
-            print("DOING THE THING")
             u["save_code"] = wandb.env.should_save_code()
 
         # Attempt to get notebook information if not already set by the user
