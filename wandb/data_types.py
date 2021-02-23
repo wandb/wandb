@@ -678,7 +678,7 @@ class JoinedTable(Media):
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path"""
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
-            table_name = "t{}_{}".format(table_ndx, str(id(self)))
+            table_name = "media/joined_tables/t{}_{}".format(table_ndx, str(id(self)))
             if (
                 table.artifact_source is not None
                 and table.artifact_source.name is not None

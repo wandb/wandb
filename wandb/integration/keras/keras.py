@@ -18,6 +18,13 @@ from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
 
+HISTORY_TABLE_ARTIFACT_TYPE = "history_table"
+RUN_TABLE_ARTIFACT_TYPE = "run_table"
+VAL_BATCH_KEY = "kc_val_batch"
+VAL_DATA_KEY = "kc_val_data"
+VAL_RESULTS_KEY = "kc_val_results"
+DATA_TABLE_NAME = "data"
+
 
 def is_dataset(data):
     dataset_ops = wandb.util.get_module("tensorflow.python.data.ops.dataset_ops")
@@ -336,6 +343,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_best_prefix = log_best_prefix
 
         self._prediction_batch_size = None
+        self._validation_table = None
 
         if self.log_gradients:
             if int(tf.__version__.split(".")[0]) < 2:
@@ -485,6 +493,21 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
             wandb.log(logs, commit=True)
 
+        if self.log_evaluation:
+            validation_table = self._get_validation_table()
+            validation_results = self._get_validation_results()
+            if validation_table and validation_results:
+                # TODO: make validation table a reference after sibling reference is supported
+                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
+                artifact = wandb.Artifact(
+                    "{}-{}".format(VAL_BATCH_KEY, wandb.run.id),
+                    HISTORY_TABLE_ARTIFACT_TYPE,
+                )
+                # artifact.add(validation_table, DATA_TABLE_NAME + "_table")
+                artifact.add(validation_results, DATA_TABLE_NAME)
+                # artifact.add(jt, DATA_TABLE_NAME)
+                wandb.run.log_artifact(artifact)
+
     def on_test_begin(self, logs=None):
         pass
 
@@ -498,15 +521,29 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        pass
+        if self.log_evaluation:
+            validation_table = self._get_validation_table()
+            if validation_table:
+                artifact = wandb.Artifact(VAL_DATA_KEY, RUN_TABLE_ARTIFACT_TYPE)
+                artifact.add(validation_table, DATA_TABLE_NAME)
+                wandb.run.log_artifact(
+                    artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
+                )
 
     def on_train_end(self, logs=None):
         if self.log_evaluation:
-            # wandb.run.summary["results"] = self._log_validation_table()
-            table = self._log_validation_table()
-            if table:
-                wandb.run.log({"validation_table": table})
-        pass
+            # TODO: make validation table a reference after sibling refs
+            validation_table = self._get_validation_table()
+            # TODO: make validation results a reference after sibling refs
+            validation_results = self._get_validation_results()
+            # validation_results = self._last_validation_results
+            if validation_table and validation_results:
+                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
+                artifact = wandb.Artifact(VAL_RESULTS_KEY, RUN_TABLE_ARTIFACT_TYPE)
+                artifact.add(jt, DATA_TABLE_NAME)
+                wandb.run.log_artifact(
+                    artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
+                )
 
     def on_test_begin(self, logs=None):
         pass
@@ -732,58 +769,24 @@ class WandbCallback(keras.callbacks.Callback):
             ] = wandb.Histogram(grad)
         return metrics
 
-    def _log_validation_table(self):
-        x, y_true, y_pred = None, None, None
-
-        if self.validation_data:
+    def _get_validation_table(self):
+        # TODO: Remove this `true` force after we support adding artifact references
+        # to sibling artifacts. Currently we create a new copy of the table every time
+        # but this can be dramatically optimized after this is supported.
+        if self._validation_table is None or True:
             x, y_true = self.validation_data[0], self.validation_data[1]
-            y_pred = self.model.predict(x)
-            return wandb.wandb_sdk.integration_utils.table.default_validation_table(
-                x, y_pred, y_true
+            self._validation_table = wandb.wandb_sdk.integration_utils.table.validation_table(
+                x, y_true
             )
-        else:
-            return None
+        return self._validation_table
 
-        # elif self.generator:
-        #     if not self.validation_steps:
-        #         wandb.termwarn(
-        #             "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
-        #         )
-        #         return None
-
-        #     for i in range(self.validation_steps):
-        #         bx, by_true = next(self.generator)
-        #         by_pred = self.model.predict(bx)
-        #         if x is None:
-        #             x, y_true, y_pred = bx, by_true, by_pred
-        #         else:
-        #             x, y_true, y_pred = (
-        #                 np.append(x, bx, axis=0),
-        #                 np.append(y_true, by_true, axis=0),
-        #                 np.append(y_pred, by_pred, axis=0),
-        #             )
-
-        # if self.input_type in ("image", "images") and self.output_type == "label":
-        #     return wandb.image_categorizer_dataframe(
-        #         x=x, y_true=y_true, y_pred=y_pred, labels=self.labels
-        #     )
-        # elif (
-        #     self.input_type in ("image", "images")
-        #     and self.output_type == "segmentation_mask"
-        # ):
-        #     return wandb.image_segmentation_dataframe(
-        #         x=x,
-        #         y_true=y_true,
-        #         y_pred=y_pred,
-        #         labels=self.labels,
-        #         class_colors=self.class_colors,
-        #     )
-        # else:
-        #     wandb.termwarn(
-        #         "unknown dataframe type for input_type=%s and output_type=%s"
-        #         % (self.input_type, self.output_type)
-        #     )
-        #     return None
+    def _get_validation_results(self):
+        x, y_true = self.validation_data[0], self.validation_data[1]
+        y_pred = self.model.predict(x)
+        self._last_validation_results = wandb.wandb_sdk.integration_utils.table.validation_results(
+            x, y_pred, y_true
+        )
+        return self._last_validation_results
 
     def _save_model(self, epoch):
         if wandb.run.disabled:
