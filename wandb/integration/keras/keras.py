@@ -497,15 +497,15 @@ class WandbCallback(keras.callbacks.Callback):
             validation_table = self._get_validation_table()
             validation_results = self._get_validation_results()
             if validation_table and validation_results:
-                # TODO: make validation table a reference after sibling reference is supported
-                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
                 artifact = wandb.Artifact(
                     "{}-{}".format(VAL_BATCH_KEY, wandb.run.id),
                     HISTORY_TABLE_ARTIFACT_TYPE,
                 )
-                # artifact.add(validation_table, DATA_TABLE_NAME + "_table")
-                artifact.add(validation_results, DATA_TABLE_NAME)
-                # artifact.add(jt, DATA_TABLE_NAME)
+                artifact.add(validation_table, "tmp/" + DATA_TABLE_NAME + "_table")
+                artifact.add(validation_results, "tmp/" + DATA_TABLE_NAME)
+                # TODO: make validation table a reference after sibling reference is supported
+                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
+                artifact.add(jt, DATA_TABLE_NAME)
                 wandb.run.log_artifact(artifact)
 
     def on_test_begin(self, logs=None):
