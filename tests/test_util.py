@@ -12,10 +12,10 @@ if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow
 
-# import plotly
+import plotly
 import matplotlib.pyplot as plt
 
-# from . import utils
+from . import utils
 from wandb import util
 
 try:
