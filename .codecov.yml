@@ -1,5 +1,8 @@
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: no
+  notify:
+    after_n_builds: 2
+    wait_for_ci: no
 
 coverage:
   precision: 2
@@ -11,14 +14,25 @@ coverage:
         threshold: 0.75%
     patch:
       sdk:
-        target: auto
         paths:
           - wandb/sdk/*.py
-      other:
-        informational: true
-        target: auto
+      sdk-internal:
+        paths:
+          - wandb/sdk/internal/
+      sdk-other:
         paths:
           - "!wandb/sdk/*.py"
+          - "!wandb/sdk/internal/"
+          - wandb/sdk/
+      apis:
+        informational: true
+        paths:
+          - wandb/apis/
+      other:
+        informational: true
+        paths:
+          - "!wandb/sdk/"
+          - "!wandb/apis/"
           - wandb/
       tests:
         target: 100%
@@ -26,6 +40,11 @@ coverage:
           - "!tests/utils/"
           - "!tests/conftest.py"
           - tests/
+      tests-util:
+        informational: true
+        paths:
+          - tests/utils/
+          - tests/conftest.py
 
 parsers:
   gcov:
@@ -39,3 +58,7 @@ comment:
   layout: "reach,diff,flags,files,footer"
   behavior: default
   require_changes: no
+  after_n_builds: 2
+ 
+github_checks:
+  annotations: true

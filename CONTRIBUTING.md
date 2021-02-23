@@ -17,7 +17,7 @@ pip install --upgrade git+git://github.com/wandb/client.git
 
 Or from pypi:
 ```
-pip install --upgrade wandb`
+pip install --upgrade wandb
 ```
 
 ## Code organization
@@ -135,6 +135,46 @@ def test_one_cell(notebook):
         assert "lovely-dawn-32" in output[-1]["data"]["text/html"]
 ```
 
+### Finding good test points
+
+The wandb system can be viewed as 3 distinct services:
+1. The user process where wandb.init() is called
+2. The internal process where work is done to format data to be synced to the server
+3. The backend server which listens to graphql endpoints and populates a database
+
+The interfaces are described here:
+
+```
+  Users   .  Shared  .  Internal .  Mock
+  Process .  Queues  .  Process  .  Server
+          .          .           .
+  +----+  .  +----+  .  +----+   .  +----+
+  | Up |  .  | Sq |  .  | Ip |   .  | Ms |
+  +----+  .  +----+  .  +----+   .  +----+
+    |     .    |     .    |      .    |
+    | ------>  | -------> | --------> |    1
+    |     .    |     .    |      .    |
+    |     .    | -------> | --------> |    2
+    |     .    |     .    |      .    |
+    | ------>  |     .    |      .    |    3
+    |     .    |     .    |      .    |
+
+1. Full codepath from wandb.init() to mock_server
+   Note: coverage only counts for the User Process and interface code
+   Example: tests/wandb_integration_test.py
+2. Inject into the Shared Queues to mock_server
+   Note: coverage only counts for the interface code and internal process code
+   Example: tests/test_sender.py
+3. From wandb.Run object to Shared Queues
+   Note: coverage counts for User Process
+   Example: tests/wandb_run_test.py
+```
+
+Good examples of tests for each level of testing can be found at:
+- [test_metric_user.py](tests/test_metric_user.py): User process tests
+- [test_metric_internal.py](tests/test_metric_internal.py): Internal process tests
+- [test_metric_full.py](tests/test_metric_full.py): Full stack tests
+
 ### Global Pytest Fixtures
 
 All global fixtures are defined in `tests/conftest.py`:
@@ -161,18 +201,16 @@ We use codecov to ensure we're executing all branches of logic in our tests.  Be
 2. If you want more context about the files, go to the “Files” tab, it will highlight diffs but you have to do even more searching for the lines you might care about
 3. If you dont want to use codecov, you can use local coverage (i tend to do this for speeding things up a bit, run your tests then run tox -e cover ).   This will give you the old school text output of missing lines (but not based on a diff from master)
 
-We currently have 4 categories of test coverage:
+We currently have 8 categories of test coverage:
 
 1. project: main coverage numbers, i dont think it can drop by more than a few percent or you will get a failure
 2. patch/tests: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
-3. patch/sdk: anything that matches wandb/sdk/*.py (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
-4. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
-
-I plan on adding more categories, as we get some of these tests and fixtures improved:
-
-1. patch/internal: should be covered very high, the trick is all the error handling cases which I am working on
-2. patch/api: we have no good fixtures for this, so until we do, this will get a waiver
-3. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/,  so patch/other will be stuff outside sdk
+3. patch/tests-utils: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
+4. patch/sdk: anything that matches wandb/sdk/*.py (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
+5. patch/sdk-internal: should be covered very high target is around 80% (also dynamic)
+6. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/ target around 75% (dynamic)
+7. patch/apis: we have no good fixtures for this, so until we do, this will get a waiver
+8. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
 
 ### Regression Testing
 
