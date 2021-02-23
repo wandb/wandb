@@ -201,18 +201,16 @@ We use codecov to ensure we're executing all branches of logic in our tests.  Be
 2. If you want more context about the files, go to the “Files” tab, it will highlight diffs but you have to do even more searching for the lines you might care about
 3. If you dont want to use codecov, you can use local coverage (i tend to do this for speeding things up a bit, run your tests then run tox -e cover ).   This will give you the old school text output of missing lines (but not based on a diff from master)
 
-We currently have 4 categories of test coverage:
+We currently have 8 categories of test coverage:
 
 1. project: main coverage numbers, i dont think it can drop by more than a few percent or you will get a failure
 2. patch/tests: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
-3. patch/sdk: anything that matches wandb/sdk/*.py (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
-4. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
-
-I plan on adding more categories, as we get some of these tests and fixtures improved:
-
-1. patch/internal: should be covered very high, the trick is all the error handling cases which I am working on
-2. patch/api: we have no good fixtures for this, so until we do, this will get a waiver
-3. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/,  so patch/other will be stuff outside sdk
+3. patch/tests-utils: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
+4. patch/sdk: anything that matches wandb/sdk/*.py (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
+5. patch/sdk-internal: should be covered very high target is around 80% (also dynamic)
+6. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/
+7. patch/apis: we have no good fixtures for this, so until we do, this will get a waiver
+8. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
 
 ### Regression Testing
 
