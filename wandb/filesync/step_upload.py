@@ -13,7 +13,7 @@ RequestUpload = collections.namedtuple(
     ("path", "save_name", "artifact_id", "md5", "copied", "save_fn", "digest"),
 )
 RequestCommitArtifact = collections.namedtuple(
-    "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
+    "RequestCommitArtifact", ("artifact_id", "artifact_name", "finalize", "before_commit", "on_commit")
 )
 RequestFinish = collections.namedtuple("RequestFinish", ())
 
@@ -32,7 +32,11 @@ class StepUpload(object):
         self._running_jobs = {}
         self._pending_jobs = []
 
+        # a dict of artifact id to info info
         self._artifacts = {}
+        # a list of artifact name to ordered list of artifact ids
+        # (in commit requested order)
+        self._artifact_names_to_id_order = {}
 
         self._finished = False
         self.silent = silent
@@ -84,6 +88,12 @@ class StepUpload(object):
         elif isinstance(event, RequestCommitArtifact):
             if event.artifact_id not in self._artifacts:
                 self._init_artifact(event.artifact_id)
+
+            if event.artifact_name not in self._artifact_names_to_id_order:
+                self._artifact_names_to_id_order[event.artifact_name] = []
+            self._artifact_names_to_id_order[event.artifact_name].append(event.artifact_id)
+            self._artifacts[event.artifact_id]["artifact_name"] = event.artifact_name
+
             self._artifacts[event.artifact_id]["commit_requested"] = True
             self._artifacts[event.artifact_id]["finalize"] = event.finalize
             if event.before_commit:
@@ -141,6 +151,9 @@ class StepUpload(object):
             "commit_requested": False,
             "pre_commit_callbacks": set(),
             "post_commit_callbacks": set(),
+            # Start as None, only set when commit requested,
+            # error if accessed before then
+            "artifact_name": None,
         }
 
     def _maybe_commit_artifact(self, artifact_id):
@@ -149,12 +162,19 @@ class StepUpload(object):
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
         ):
-            for callback in artifact_status["pre_commit_callbacks"]:
-                callback()
-            if artifact_status["finalize"]:
-                self._api.commit_artifact(artifact_id)
-            for callback in artifact_status["post_commit_callbacks"]:
-                callback()
+            artifact_order = self._artifact_names_to_id_order[artifact_status["artifact_name"]]
+            # TODO: This ordering logic may not work with finalize (parallel writer
+            # behavior)
+            if artifact_order[0] == artifact_id:
+                artifact_order.pop(0)
+                for callback in artifact_status["pre_commit_callbacks"]:
+                    callback()
+                if artifact_status["finalize"]:
+                    self._api.commit_artifact(artifact_id)
+                for callback in artifact_status["post_commit_callbacks"]:
+                    callback()
+                if artifact_order:
+                    self._maybe_commit_artifact(artifact_order[0])
 
     def start(self):
         self._thread.start()

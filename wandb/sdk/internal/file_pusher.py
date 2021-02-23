@@ -165,10 +165,10 @@ class FilePusher(object):
         return f
 
     def commit_artifact(
-        self, artifact_id, finalize=True, before_commit=None, on_commit=None
+        self, artifact_id, artifact_name, finalize=True, before_commit=None, on_commit=None
     ):
         event = step_checksum.RequestCommitArtifact(
-            artifact_id, finalize, before_commit, on_commit
+            artifact_id, artifact_name, finalize, before_commit, on_commit
         )
         self._incoming_queue.put(event)
 

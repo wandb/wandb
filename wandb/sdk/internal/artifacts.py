@@ -185,6 +185,7 @@ class ArtifactSaver(object):
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
             artifact_id,
+            name,
             finalize=finalize,
             before_commit=before_commit,
             on_commit=on_commit,
