@@ -281,12 +281,16 @@ def test_matplotlib_to_plotly():
 
 
 def test_split_files():
+    def choices(pop, k=1):
+        # Note: random.choices was added in python 3.6
+        return [random.choice(pop) for _ in range(k)]
+
     def rand_string_list(size):
         width = max(1, int(size / 10))
         num_lines = int(size / width)
         return [
             "".join(
-                random.choices(
+                choices(
                     string.ascii_letters
                     + string.punctuation
                     + string.digits
