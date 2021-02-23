@@ -32,7 +32,11 @@ def test_roc(dummy_classifier, wandb_init_run):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     custom_chart_no_title = roc_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "ROC"
-    assert custom_chart_no_title.table.data[0] == [0, 0.0, 0.0], custom_chart_no_title.table.data[0]
+    assert custom_chart_no_title.table.data[0] == [
+        0,
+        0.0,
+        0.0,
+    ], custom_chart_no_title.table.data[0]
     custom_chart_with_title = roc_curve(y_test, y_probas, title="New title")
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
@@ -41,7 +45,11 @@ def test_pr(dummy_classifier, wandb_init_run):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     custom_chart_no_title = pr_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "Precision v. Recall"
-    assert custom_chart_no_title.table.data[0] == [0, 1.0, 1.0], custom_chart_no_title.table.data[0]
+    assert custom_chart_no_title.table.data[0] == [
+        0,
+        1.0,
+        1.0,
+    ], custom_chart_no_title.table.data[0]
     custom_chart_with_title = pr_curve(y_test, y_probas, title="New title")
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
@@ -49,7 +57,9 @@ def test_pr(dummy_classifier, wandb_init_run):
 def test_conf_mat(dummy_classifier, wandb_init_run):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     conf_mat_using_probs = confusion_matrix(probs=y_probas, y_true=y_test)
-    conf_mat_using_preds = confusion_matrix(preds=y_pred, y_true=y_test, title="New title")
-    assert conf_mat_using_probs.table.data[0] == ['Class_1', 'Class_1', 0.0]
+    conf_mat_using_preds = confusion_matrix(
+        preds=y_pred, y_true=y_test, title="New title"
+    )
+    assert conf_mat_using_probs.table.data[0] == ["Class_1", "Class_1", 0.0]
     assert conf_mat_using_probs.table.data[0] == conf_mat_using_preds.table.data[0]
     assert conf_mat_using_preds.string_fields["title"] == "New title"
