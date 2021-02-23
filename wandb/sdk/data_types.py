@@ -540,7 +540,7 @@ class Object3D(BatchableMedia):
     """
 
     SUPPORTED_TYPES: ClassVar[Set[str]] = set(
-        ["obj", "gltf", "babylon", "stl", "pts.json"]
+        ["obj", "gltf", "glb", "babylon", "stl", "pts.json"]
     )
     artifact_type: ClassVar[str] = "object3D-file"
 
