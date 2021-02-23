@@ -274,10 +274,23 @@ def test_audio_to_json(mocked_run):
     audio_expected = {
         "_type": "audio-file",
         "caption": None,
-        "sample_rate": 44100,
         "size": 88244,
     }
     assert utils.subdict(meta["audio"][0], audio_expected) == audio_expected
+
+
+def test_audio_refs():
+    audioObj = wandb.Audio(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+    )
+    art = wandb.Artifact("audio_ref_test", "dataset")
+    art.add(audioObj, "audio_ref")
+
+    audio_expected = {
+        "_type": "audio-file",
+        "caption": None,
+    }
+    assert utils.subdict(audioObj.to_json(art), audio_expected) == audio_expected
 
 
 def test_guess_mode():
