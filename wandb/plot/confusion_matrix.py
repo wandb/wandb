@@ -4,7 +4,7 @@ from wandb import util
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
+def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, title=None):
     """
     Computes a multi-run confusion matrix.
 
@@ -82,9 +82,10 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
         "Predicted": "Predicted",
         "nPredictions": "nPredictions",
     }
-
+    title = title or ""
     return wandb.plot_table(
         "wandb/confusion_matrix/v1",
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
+        {"title": title}
     )
