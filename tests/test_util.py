@@ -335,7 +335,6 @@ def test_split_files():
         ]
         offset_size_pairs.sort(key=lambda p: p[0])
         assert offset_size_pairs[0][0] == 0
-        offsets = [p[0] for p in offset_size_pairs]
         for i in range(len(offset_size_pairs) - 1):
             assert offset_size_pairs[i + 1][0] == sum(offset_size_pairs[i])
         assert sum(offset_size_pairs[-1]) == len(files[fname]["content"])
