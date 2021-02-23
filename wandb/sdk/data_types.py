@@ -410,6 +410,10 @@ class Media(WBValue):
         Returns:
             dict: JSON representation
         """
+        # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
+        # into Media itself we should get rid of them
+        from wandb.data_types import Audio
+
         json_obj = {}
         run_class, artifact_class = _safe_sdk_import()
         if isinstance(run, run_class):
@@ -478,6 +482,10 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self.artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
+                    elif isinstance(self, Audio) and Audio.path_is_reference(
+                        self._path
+                    ):
+                        artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
                             self._path, name=name, is_tmp=self._is_tmp

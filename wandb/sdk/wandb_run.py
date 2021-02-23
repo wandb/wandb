@@ -1078,6 +1078,7 @@ class Run(object):
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
+        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -2184,16 +2185,6 @@ class Run(object):
 
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
-
-    def _set_console(
-        self,
-        use_redirect: bool,
-        stdout_slave_fd: Optional[int],
-        stderr_slave_fd: Optional[int],
-    ) -> None:
-        self._use_redirect = use_redirect
-        self._stdout_slave_fd = stdout_slave_fd
-        self._stderr_slave_fd = stderr_slave_fd
 
     def __enter__(self) -> "Run":
         return self
