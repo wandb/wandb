@@ -19,11 +19,11 @@ from importlib import import_module
 from itertools import chain
 
 HISTORY_TABLE_ARTIFACT_TYPE = "history_table"
-RUN_TABLE_ARTIFACT_TYPE = "run_table"
-VAL_BATCH_KEY = "kc_val_batch"
+DATASET_ARTIFACT_TYPE = "dataset"
+VAL_EPOCH_KEY = "kc_val_epoch"
 VAL_DATA_KEY = "kc_val_data"
-VAL_RESULTS_KEY = "kc_val_results"
-DATA_TABLE_NAME = "data"
+EPOCH_TABLE_NAME = "validation_results"
+VALIDATION_TABLE_NAME = "validation_table"
 
 
 def is_dataset(data):
@@ -282,6 +282,10 @@ class WandbCallback(keras.callbacks.Callback):
             and stored as summary metrics.
     """
 
+    # TODO: trim out unused params
+    # TODO: Add a "validation table" and "validation table id col"
+    # and "val ids" attribute to allow joining back to an original table
+    # after joining on join table is supported.
     def __init__(
         self,
         monitor="val_loss",
@@ -467,6 +471,27 @@ class WandbCallback(keras.callbacks.Callback):
                 self._save_model(epoch)
             self.best = self.current
 
+        if self.log_evaluation:
+            # TODO: this `validation_table` should be a REFERENCE to the validation table
+            # created in `on_train_begin`. I need to wait for Anni's change to land
+            # in order to fetch a reference ID mid-run.
+            validation_table = self._get_validation_table()
+            validation_results = self._get_validation_results()
+            if validation_table and validation_results:
+                artifact = wandb.Artifact(
+                    "{}-{}".format(VAL_EPOCH_KEY, wandb.run.id),
+                    HISTORY_TABLE_ARTIFACT_TYPE,
+                )
+                jt = wandb.JoinedTable(validation_table, validation_results, ["ndx"])
+                # TODO: remove the following line once i figure out why there is a hash collision for same files
+                jt = validation_results
+                artifact.add(jt, EPOCH_TABLE_NAME)
+
+                # TODO: Enforce artifact ordering
+                wandb.run.log_artifact(
+                    artifact, aliases=["v{}".format(epoch), "epoch-{}".format(epoch)]
+                )
+
     # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
         pass
@@ -485,6 +510,7 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_batch_end(self, batch, logs=None):
+        print("batch", batch)
         if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
             wandb.run.summary["graph"] = wandb.Graph.from_keras(self.model)
@@ -492,21 +518,6 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
             wandb.log(logs, commit=True)
-
-        if self.log_evaluation:
-            validation_table = self._get_validation_table()
-            validation_results = self._get_validation_results()
-            if validation_table and validation_results:
-                artifact = wandb.Artifact(
-                    "{}-{}".format(VAL_BATCH_KEY, wandb.run.id),
-                    HISTORY_TABLE_ARTIFACT_TYPE,
-                )
-                # artifact.add(validation_table, "tmp/" + DATA_TABLE_NAME + "_table")
-                # artifact.add(validation_results, "tmp/" + DATA_TABLE_NAME)
-                # TODO: make validation table a reference after sibling reference is supported
-                # jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
-                artifact.add(validation_results, DATA_TABLE_NAME)
-                wandb.run.log_artifact(artifact)
 
     def on_test_begin(self, logs=None):
         pass
@@ -524,26 +535,17 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_evaluation:
             validation_table = self._get_validation_table()
             if validation_table:
-                artifact = wandb.Artifact(VAL_DATA_KEY, RUN_TABLE_ARTIFACT_TYPE)
-                artifact.add(validation_table, DATA_TABLE_NAME)
+                artifact = wandb.Artifact(
+                    "{}_{}".format(VAL_DATA_KEY, DATASET_ARTIFACT_TYPE),
+                    DATASET_ARTIFACT_TYPE,
+                )
+                artifact.add(validation_table, VALIDATION_TABLE_NAME)
                 wandb.run.use_artifact(
                     artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
                 )
 
     def on_train_end(self, logs=None):
-        if self.log_evaluation:
-            # TODO: make validation table a reference after sibling refs
-            validation_table = self._get_validation_table()
-            # TODO: make validation results a reference after sibling refs
-            validation_results = self._get_validation_results()
-            # validation_results = self._last_validation_results
-            if validation_table and validation_results:
-                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
-                artifact = wandb.Artifact(VAL_RESULTS_KEY, RUN_TABLE_ARTIFACT_TYPE)
-                artifact.add(jt, DATA_TABLE_NAME)
-                wandb.run.log_artifact(
-                    artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
-                )
+        pass
 
     def on_test_begin(self, logs=None):
         pass

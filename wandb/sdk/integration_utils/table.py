@@ -49,7 +49,7 @@ class ArgmaxConverter(NDArrayConverter):
 
 
 def infer_single_converter(arr: "np.ndarray") -> Optional[NDArrayConverter]:
-    # TODO: Infer from shape and type
+    # TODO: Infer from shape and type / expose customization to the user
 
     # Infer simple image
     if len(arr.shape) == 3 and arr.shape[2] == 3:
