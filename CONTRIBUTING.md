@@ -135,6 +135,46 @@ def test_one_cell(notebook):
         assert "lovely-dawn-32" in output[-1]["data"]["text/html"]
 ```
 
+### Finding good test points
+
+The wandb system can be viewed as 3 distinct services:
+1. The user process where wandb.init() is called
+2. The internal process where work is done to format data to be synced to the server
+3. The backend server which listens to graphql endpoints and populates a database
+
+The interfaces are described here:
+
+```
+  Users   .  Shared  .  Internal .  Mock
+  Process .  Queues  .  Process  .  Server
+          .          .           .
+  +----+  .  +----+  .  +----+   .  +----+
+  | Up |  .  | Sq |  .  | Ip |   .  | Ms |
+  +----+  .  +----+  .  +----+   .  +----+
+    |     .    |     .    |      .    |
+    | ------>  | -------> | --------> |    1
+    |     .    |     .    |      .    |
+    |     .    | -------> | --------> |    2
+    |     .    |     .    |      .    |
+    | ------>  |     .    |      .    |    3
+    |     .    |     .    |      .    |
+
+1. Full codepath from wandb.init() to mock_server
+   Note: coverage only counts for the User Process and interface code
+   Example: tests/wandb_integration_test.py
+2. Inject into the Shared Queues to mock_server
+   Note: coverage only counts for the interface code and internal process code
+   Example: tests/test_sender.py
+3. From wandb.Run object to Shared Queues
+   Note: coverage counts for User Process
+   Example: tests/wandb_run_test.py
+```
+
+Good examples of tests for each level of testing can be found at:
+- [test_metric_user.py](tests/test_metric_user.py): User process tests
+- [test_metric_internal.py](tests/test_metric_internal.py): Internal process tests
+- [test_metric_full.py](tests/test_metric_full.py): Full stack tests
+
 ### Global Pytest Fixtures
 
 All global fixtures are defined in `tests/conftest.py`:
