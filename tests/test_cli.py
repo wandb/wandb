@@ -859,6 +859,22 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
+def test_sync_tensorboard_big(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1611911647.big-histos")
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        assert "exceeds max data limit" in result.output
+        ctx = live_mock_server.get_ctx()
+        print(ctx)
+        assert (
+            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 27
+        )
+
+
 def test_sync_wandb_run(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("wandb")

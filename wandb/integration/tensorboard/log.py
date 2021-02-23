@@ -125,6 +125,24 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             elif plugin_name == "images":
                 img_strs = value.tensor.string_val[2:]  # First two items are dims.
                 encode_images(img_strs, value)
+            elif plugin_name == "histograms":
+                # https://github.com/tensorflow/tensorboard/blob/master/tensorboard/plugins/histogram/summary_v2.py#L15-L26
+                ndarray = make_ndarray(value.tensor)
+                shape = ndarray.shape
+                counts = []
+                bins = []
+                if shape[0] > 1:
+                    bins.append(ndarray[0][0])  # Add the left most edge
+                    for v in ndarray:
+                        counts.append(v[2])
+                        bins.append(v[1])  # Add the right most edges
+                elif shape[0] == 1:
+                    counts = [ndarray[0][2]]
+                    bins = ndarray[0][:2]
+                if len(counts) > 0:
+                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                        np_histogram=(counts, bins)
+                    )
         elif kind == "image":
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)

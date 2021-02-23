@@ -266,6 +266,7 @@ class TBDirWatcher(object):
                 self.directory_watcher.DirectoryDeletedError,
                 StopIteration,
                 RuntimeError,
+                OSError,
             ) as e:
                 # When listing s3 the directory may not yet exist, or could be empty
                 logger.debug("Encountered tensorboard directory watcher error: %s", e)
@@ -415,7 +416,8 @@ class TBHistory(object):
             bad = 0
             dropped_keys = []
             for k, v in metrics:
-                if self._step_size - bad < util.MAX_LINE_SIZE:
+                # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
+                if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
                     break
                 else:
                     bad += v
