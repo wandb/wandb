@@ -2,34 +2,34 @@
 import base64
 import contextlib
 import hashlib
-import re
 import os
-import time
+import re
 import shutil
+import time
+
 import requests
-
-from six.moves.urllib.parse import urlparse, quote
-
+from six.moves.urllib.parse import quote, urlparse
 import wandb
 from wandb import env
+from wandb import util
+from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
+from wandb.data_types import WBValue
+from wandb.errors.error import CommError
+from wandb.errors.term import termlog, termwarn
+
 from .interface.artifacts import (
     Artifact as ArtifactInterface,
     ArtifactEntry,
     ArtifactManifest,
-    StoragePolicy,
-    StorageLayout,
-    StorageHandler,
+    b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
-    b64_string_to_hex,
+    StorageHandler,
+    StorageLayout,
+    StoragePolicy,
 )
-from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import Artifact as PublicArtifact
-from wandb.errors.error import CommError
-from wandb import util
-from wandb.errors.term import termwarn, termlog
-from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Optional, Union
@@ -265,8 +265,8 @@ class Artifact(ArtifactInterface):
 
         import multiprocessing.dummy  # this uses threads
 
-        NUM_THREADS = 8
-        pool = multiprocessing.dummy.Pool(NUM_THREADS)
+        num_threads = 8
+        pool = multiprocessing.dummy.Pool(num_threads)
         pool.map(add_manifest_file, paths)
         pool.close()
         pool.join()
@@ -286,7 +286,7 @@ class Artifact(ArtifactInterface):
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
         if isinstance(uri, ArtifactEntry) and uri.parent_artifact() != self:
-            ref_url_fn = getattr(uri, "ref_url")
+            ref_url_fn = uri.ref_url
             uri = ref_url_fn()
         url = urlparse(str(uri))
         if not url.scheme:
@@ -809,7 +809,7 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if checksum == False:
+        if not checksum:
             return [
                 ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
             ]
@@ -822,7 +822,7 @@ class LocalFileHandler(StorageHandler):
                 % (max_objects, local_path),
                 newline=False,
             )
-            for root, dirs, files in os.walk(local_path):
+            for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
                     if i >= max_objects:
@@ -1099,7 +1099,6 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
-        extra_args = {}
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
         if version is not None:
@@ -1129,7 +1128,7 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
 
-        if checksum == False:
+        if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key)
@@ -1286,7 +1285,7 @@ class WBArtifactHandler(StorageHandler):
 
         Arguments:
             manifest_entry (ArtifactManifestEntry): The index entry to load
-        
+
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
@@ -1313,7 +1312,7 @@ class WBArtifactHandler(StorageHandler):
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         """
         Stores the file or directory at the given path within the specified artifact. In this
-        case we recursively resolve the reference until the result is a concrete asset so that 
+        case we recursively resolve the reference until the result is a concrete asset so that
         we don't have multiple hops. TODO-This resolution could be done in the server for
         performance improvements.
 
@@ -1321,7 +1320,7 @@ class WBArtifactHandler(StorageHandler):
             artifact: The artifact doing the storing
             path (str): The path to store
             name (str): If specified, the logical name that should map to `path`
-        
+
         Returns:
             (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
         """
