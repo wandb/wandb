@@ -87,5 +87,5 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
         "wandb/confusion_matrix/v1",
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
-        {"title": title}
+        {"title": title},
     )
