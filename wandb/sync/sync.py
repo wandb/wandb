@@ -268,7 +268,7 @@ class SyncManager:
         pass
 
     def add(self, p):
-        self._sync_list.append(str(p))
+        self._sync_list.append(os.path.abspath(str(p)))
 
     def start(self):
         # create a thread for each file?
