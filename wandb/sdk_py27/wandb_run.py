@@ -2335,8 +2335,13 @@ class _LazyArtifact(wandb_artifacts.Artifact):
 
     def __getattr__(self, item):
         if not self._instance:
+            raise ValueError("Cannot call {} before first calling wait".format(item))
+        return getattr(self._instance, item)
+
+    def wait(self):
+        if not self._instance:
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
-        return getattr(self._instance, item)
+        return self._instance

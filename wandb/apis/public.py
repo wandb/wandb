@@ -3006,6 +3006,9 @@ class Artifact(artifacts.Artifact):
         if ref_count > 0:
             print("Warning: skipped verification of %s refs" % ref_count)
 
+    def wait(self):
+        return self
+
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
         manifest = self._load_manifest()

@@ -473,6 +473,14 @@ class Artifact(ArtifactInterface):
             "Cannot call delete on an artifact before it has been logged or in offline mode"
         )
 
+    def wait(self) -> ArtifactInterface:
+        if self._logged_artifact:
+            return self._logged_artifact.wait()
+
+        raise ValueError(
+            "Cannot call wait on an artifact before it has been logged or in offline mode"
+        )
+
     def get_added_local_path_name(self, local_path: str):
         """
         Get the artifact relative name of a file added by a local filesystem path.

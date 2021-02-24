@@ -613,6 +613,15 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def wait(self) -> "Artifact":
+        """
+        Waits for this artifact to finish logging, if needed.
+
+        Returns:
+            Artifact
+        """
+        raise NotImplementedError
+
 
 class StorageLayout(object):
     V1 = "V1"
