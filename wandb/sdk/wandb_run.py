@@ -2312,9 +2312,7 @@ class _LazyArtifact(wandb_artifacts.Artifact):
     def __getattr__(self, item: str) -> Any:
         if not self._instance:
             raise ValueError(
-                "Must call wait() before accessing logged artifact properties".format(
-                    item
-                )
+                "Must call wait() before accessing logged artifact properties"
             )
         return getattr(self._instance, item)
 
