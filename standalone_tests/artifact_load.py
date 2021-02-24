@@ -58,6 +58,7 @@ parser.add_argument('--files_per_version_min', type=int, required=True)
 parser.add_argument('--files_per_version_max', type=int, required=True)
 parser.add_argument('--non_overlapping_writers', default=True, action='store_true')
 parser.add_argument('--distributed_fanout', type=int, default=1)
+parser.add_argument('--blocking', type=bool, default=False)
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
@@ -95,7 +96,7 @@ def gen_files(n_files, max_small_size, max_large_size):
     return fnames
 
 
-def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max):
+def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, blocking):
     while True:
         try:
             stop_queue.get_nowait()
@@ -111,6 +112,10 @@ def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_
             for version_fname in version_fnames:
                 art.add_file(version_fname)
             run.log_artifact(art)
+
+            if blocking:
+                art.wait()
+            assert art.version is not None
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
 
 
@@ -122,7 +127,7 @@ def _train(chunk, artifact_name, project_name, group_name):
         run.upsert_artifact(art)
 
 
-def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, fanout):
+def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fnames, artifact_name, files_per_version_min, files_per_version_max, fanout, blocking):
     while True:
         try:
             stop_queue.get_nowait()
@@ -307,7 +312,8 @@ def main(argv):
                     artifact_name,
                     args.files_per_version_min,
                     args.files_per_version_max,
-                    args.distributed_fanout)
+                    args.distributed_fanout,
+                    args.blocking)
             )
         else:
             p = multiprocessing.Process(
@@ -319,7 +325,8 @@ def main(argv):
                     file_names,
                     artifact_name,
                     args.files_per_version_min,
-                    args.files_per_version_max)
+                    args.files_per_version_max,
+                    args.blocking)
             )
         p.start()
         procs.append(p)

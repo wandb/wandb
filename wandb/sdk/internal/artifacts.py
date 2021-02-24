@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import threading
 
 import wandb.filesync.step_prepare
 
@@ -143,6 +144,8 @@ class ArtifactSaver(object):
             ),
         )
 
+        commit_event = threading.Event()
+
         def before_commit():
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
@@ -181,6 +184,7 @@ class ArtifactSaver(object):
             if finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
+            commit_event.set()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
@@ -189,4 +193,10 @@ class ArtifactSaver(object):
             before_commit=before_commit,
             on_commit=on_commit,
         )
+
+        # Block until all artifact files are uploaded and the
+        # artifact is committed.
+        while not commit_event.is_set():
+            commit_event.wait()
+
         return self._server_artifact
