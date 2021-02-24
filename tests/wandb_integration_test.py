@@ -166,14 +166,14 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
 
 def test_resume_config_merge(live_mock_server, test_settings):
     live_mock_server.set_ctx({"resume": True})
-    live_mock_server.set_ctx({"run.config": "{}"})
+    live_mock_server.set_ctx({"run.config": "{{}}"})
     # Start the run without any config
     run = wandb.init(reinit=True, resume=True, settings=test_settings,)
     assert len(run.config.keys()) == 0
     run.finish()
 
     # resume the run with 2 new keys
-    live_mock_server.set_ctx({"run.config": "{}"})
+    live_mock_server.set_ctx({"run.config": "{{}}"})
     run = wandb.init(
         reinit=True, resume=True, settings=test_settings, config={"a": 1, "b": 2},
     )
