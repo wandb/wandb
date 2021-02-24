@@ -1054,8 +1054,14 @@ class Run(object):
             else:
                 print("DOING THE ELSE")
                 print(os.path.islink(wandb_path))
-                os.remove(wandb_path)
-                shutil.copyfile(abs_path, wandb_path)
+                if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+                    print("REMOVING")
+                    os.remove(wandb_path)
+                    shutil.copyfile(abs_path, wandb_path)
+                    print("dir", os.listdir(self.dir))
+                elif not os.path.exists(wandb_path):
+                    shutil.copyfile(abs_path, wandb_path)
+                # shutil.copyfile(abs_path, wandb_path)
             files.append(wandb_path)
         if warn:
             file_str = "%i file" % len(files)
