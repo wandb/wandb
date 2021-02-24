@@ -1,3 +1,14 @@
+## 0.10.21 (March 1, 2021)
+
+#### :bug: Bug Fix
+
+- Multiple console logging issues fixed
+
+#### :nail_care: Enhancement
+
+- Added support for glb files for `wandb.Object3D()`
+- Added support for external references for `wandb.Audio()`
+
 ## 0.10.20 (February 22, 2021)
 
 #### :bug: Bug Fix
