@@ -14,7 +14,7 @@ import os
 import numpy as np
 import wandb
 import sys
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, b64_to_hex_id
 from importlib import import_module
 from itertools import chain
 
@@ -348,6 +348,8 @@ class WandbCallback(keras.callbacks.Callback):
 
         self._prediction_batch_size = None
         self._validation_table = None
+        self._last_eval_artifact = None
+        self._validation_table_artifact = None
 
         if self.log_gradients:
             if int(tf.__version__.split(".")[0]) < 2:
@@ -470,27 +472,35 @@ class WandbCallback(keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
             self.best = self.current
-
+        print("HERE")
         if self.log_evaluation:
-            # TODO: this `validation_table` should be a REFERENCE to the validation table
-            # created in `on_train_begin`. I need to wait for Anni's change to land
-            # in order to fetch a reference ID mid-run.
-            validation_table = self._get_validation_table()
             validation_results = self._get_validation_results()
-            if validation_table and validation_results:
+            if validation_results and self._validation_table_artifact:
                 artifact = wandb.Artifact(
                     "{}-{}".format(VAL_EPOCH_KEY, wandb.run.id),
                     HISTORY_TABLE_ARTIFACT_TYPE,
                 )
-                jt = wandb.JoinedTable(validation_table, validation_results, ["ndx"])
-                # TODO: remove the following line once i figure out why there is a hash collision for same files
-                jt = validation_results
+                print("PREWAIT")
+                self._validation_table_artifact.wait()
+                print("POSTWAIT")
+                artifact.add_reference(
+                    "wandb-artifact://"
+                    + b64_to_hex_id(self._validation_table_artifact.id)
+                    + "/"
+                    + VALIDATION_TABLE_NAME,
+                    VALIDATION_TABLE_NAME,
+                )
+                # TODO: Join this on the ground truth table as opposed to just validation
+                jt = wandb.JoinedTable(
+                    VALIDATION_TABLE_NAME, validation_results, ["ndx"]
+                )
                 artifact.add(jt, EPOCH_TABLE_NAME)
-
-                # TODO: Enforce artifact ordering
+                if self._last_eval_artifact:
+                    self._last_eval_artifact.wait()
                 wandb.run.log_artifact(
                     artifact, aliases=["v{}".format(epoch), "epoch-{}".format(epoch)]
                 )
+                self._last_eval_artifact = artifact
 
     # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
@@ -531,17 +541,29 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
+        i=0
+        print(i); i+= 1
         if self.log_evaluation:
+            print(i); i+= 1
             validation_table = self._get_validation_table()
+            print(i); i+= 1
             if validation_table:
+                print(i); i+= 1
                 artifact = wandb.Artifact(
                     "{}_{}".format(VAL_DATA_KEY, DATASET_ARTIFACT_TYPE),
                     DATASET_ARTIFACT_TYPE,
                 )
+                print(i); i+= 1
                 artifact.add(validation_table, VALIDATION_TABLE_NAME)
-                wandb.run.use_artifact(
+                print(i); i+= 1
+                print("PRE LOG")
+                wandb.run.log_artifact(
                     artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
                 )
+                print(i); i+= 1
+                print("FIRST LOG COMPLETE")
+                self._validation_table_artifact = artifact
+                print(i); i+= 1
 
     def on_train_end(self, logs=None):
         pass
@@ -771,10 +793,7 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _get_validation_table(self):
-        # TODO: Remove this `true` force after we support adding artifact references
-        # to sibling artifacts. Currently we create a new copy of the table every time
-        # but this can be dramatically optimized after this is supported.
-        if self._validation_table is None or True:
+        if self._validation_table:
             x, y_true = self.validation_data[0], self.validation_data[1]
             self._validation_table = wandb.wandb_sdk.integration_utils.table.validation_table(
                 x, y_true
