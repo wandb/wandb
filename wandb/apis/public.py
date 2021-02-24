@@ -2538,6 +2538,7 @@ class Artifact(artifacts.Artifact):
 
         name = None
         if response.get("artifact") is not None:
+            print(response)
             if response["artifact"].get("aliases") is not None:
                 aliases = response["artifact"]["aliases"]
                 name = ":".join(
