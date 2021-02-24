@@ -482,7 +482,7 @@ class WandbCallback(keras.callbacks.Callback):
                     "{}-{}".format(VAL_EPOCH_KEY, wandb.run.id),
                     HISTORY_TABLE_ARTIFACT_TYPE,
                 )
-                jt = wandb.JoinedTable(validation_table, validation_results, ["ndx"])
+                jt = wandb.JoinedTable(validation_table, validation_results, "ndx")
                 # TODO: remove the following line once i figure out why there is a hash collision for same files
                 jt = validation_results
                 artifact.add(jt, EPOCH_TABLE_NAME)
