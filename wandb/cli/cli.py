@@ -1255,6 +1255,17 @@ def ls(path, type):
             )
 
 
+@artifact.command(
+    context_settings=CONTEXT, help="Clean up less frequently used files from the artifacts cache"
+)
+@click.argument("target_size")
+@display_error
+def cleanup(target_size):
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+
+    raise NotImplementedError
+
+
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(

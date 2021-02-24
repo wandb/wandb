@@ -583,6 +583,11 @@ class ArtifactsCache(object):
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
 
+    def cleanup(self, target_size):
+
+
+        raise NotImplementedError
+
 
 _artifacts_cache = None
 

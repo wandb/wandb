@@ -11,7 +11,7 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import Optional, Union, Dict
 
 
 def md5_string(string):
@@ -583,11 +583,14 @@ class ArtifactsCache(object):
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
 
+    def cleanup(self, target_size: int) -> None:
+        paths: Dict[os.PathLike, os.stat_result] = {}
+
 
 _artifacts_cache = None
 
 
-def get_artifacts_cache():
+def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
     if _artifacts_cache is None:
         cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
