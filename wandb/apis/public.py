@@ -55,6 +55,8 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
     sweepName
     state
     config
+    group
+    jobType
     commit
     readOnly
     createdAt

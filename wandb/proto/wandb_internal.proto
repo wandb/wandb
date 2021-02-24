@@ -34,6 +34,7 @@ message Record {
     TBRecord        tbrecord = 9;
     AlertRecord     alert = 10;
     TelemetryRecord telemetry = 11;
+    MetricRecord    metric = 12;
     // Higher numbers for less frequent data
     RunRecord       run = 17;
     RunExitRecord   exit = 18;
@@ -186,6 +187,50 @@ message OutputRecord {
 }
 
 message OutputResult {
+}
+
+/*
+ * MetricRecord: wandb/sdk/wandb_metric/Metric
+ */
+message MetricRecord {
+  // only name or globname is set
+  string          name = 1;
+  string          glob_name = 2;
+
+  // nested metrics not supported yet
+  // repeated string nested_name = 3;
+
+  // step metric index can be used instead of step_metric when
+  // MetricRecord is encoded in a list of MetricRecords
+  string          step_metric = 4;
+  int32           step_metric_index = 5;  // one-based array index
+
+  MetricOptions   options = 6;
+  MetricSummary   summary = 7;
+  MetricGoal      goal = 8;
+  MetricControl   _control = 9;
+
+  enum MetricGoal {
+    GOAL_UNSET = 0;
+    GOAL_MINIMIZE = 1;
+    GOAL_MAXIMIZE = 2;
+  }
+}
+
+message MetricOptions {
+  bool step_sync = 1;
+  bool hidden = 2;
+}
+
+message MetricControl {
+  bool overwrite = 1;
+}
+
+message MetricSummary {
+  bool min = 1;
+  bool max = 2;
+  bool mean = 3;
+  bool best = 4;
 }
 
 /*

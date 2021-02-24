@@ -1,3 +1,16 @@
+## 0.10.20 (February 22, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() now respects disabled mode
+- handle exception when trying to log TPUs in colab
+
+#### :nail_care: Enhancement
+
+- Add `WANDB_START_METHOD=thread` to support non-multiprocessing
+- Add `group` and `job_type` to Run object in the export API
+- Improve artifact docstrings
+
 ## 0.10.19 (February 14, 2021)
 
 #### :bug: Bug Fix

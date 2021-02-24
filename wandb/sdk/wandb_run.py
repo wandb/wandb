@@ -38,11 +38,13 @@ from wandb.viz import (
 from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_history
+from . import wandb_metric
 from . import wandb_summary
 from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -50,6 +52,7 @@ from .lib import (
     sparkline,
     telemetry,
 )
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -59,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -74,6 +76,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         RunRecord,
         FilePusherStats,
         PollExitResponse,
+        MetricRecord,
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
@@ -207,7 +210,7 @@ class Run(object):
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
-    _output_writer: Optional["WriteSerializingFile"]
+    _output_writer: Optional["filesystem.CRDedupedFile"]
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -679,6 +682,10 @@ class Run(object):
         ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
 
+    def _metric_callback(self, metric_record: MetricRecord) -> None:
+        if self._backend:
+            self._backend.interface._publish_metric(metric_record)
+
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend:
             return
@@ -1072,6 +1079,7 @@ class Run(object):
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
+        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -1281,17 +1289,25 @@ class Run(object):
         err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
@@ -1312,10 +1328,18 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1422,7 +1446,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -1716,7 +1740,7 @@ class Run(object):
         else:
             wandb.termlog("Run history:")
             history_lines = ""
-            format_str = u"  {:>%s} {}\n" % max_len
+            format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
@@ -1772,6 +1796,98 @@ class Run(object):
         with open(spec_filename, "w") as f:
             print(s, file=f)
         self.save(spec_filename)
+
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any
+    ) -> wandb_metric.Metric:
+        """Define metric properties which will later be logged with `wandb.log()`.
+
+        Arguments:
+            name: Name of the metric.
+            step_metric: Independent variable associated with the metric.
+            step_sync: Automatically add `step_metric` to history if needed.
+            hidden: Hide this metric from automatic plots.
+            summary: Specify aggregate metrics added to summary.
+                Supported aggregations: "min,max,mean,best"
+                (best defaults to goal==minimize)
+            goal: Specify direction for optimizing the metric.
+                Supported direections: "minimize,maximize"
+
+        Returns:
+            A metric object is returned that can be further specified.
+
+        """
+        if not name:
+            raise wandb.Error("define_metric() requires non-empty name argument")
+        for k in kwargs:
+            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+        if isinstance(step_metric, wandb_metric.Metric):
+            step_metric = step_metric.name
+        for arg_name, arg_val, exp_type in (
+            ("name", name, string_types),
+            ("step_metric", step_metric, string_types),
+            ("step_sync", step_sync, bool),
+            ("hidden", hidden, bool),
+            ("summary", summary, string_types),
+            ("goal", goal, string_types),
+            ("overwrite", overwrite, bool),
+        ):
+            # NOTE: type checking is broken for isinstance and string_types
+            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+                arg_type = type(arg_val).__name__
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: {} type: {}".format(
+                        arg_name, arg_type
+                    )
+                )
+        stripped = name[:-1] if name.endswith("*") else name
+        if "*" in stripped:
+            raise wandb.Error(
+                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
+                    name
+                )
+            )
+        summary_ops: Optional[Sequence[str]] = None
+        if summary:
+            summary_items = [s.lower() for s in summary.split(",")]
+            summary_ops = []
+            valid = {"min", "max", "mean", "best"}
+            for i in summary_items:
+                if i not in valid:
+                    raise wandb.Error(
+                        "Unhandled define_metric() arg: summary op: {}".format(i)
+                    )
+                summary_ops.append(i)
+        goal_cleaned: Optional[str] = None
+        if goal is not None:
+            goal_cleaned = goal[:3].lower()
+            valid_goal = {"min", "max"}
+            if goal_cleaned not in valid_goal:
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: goal: {}".format(goal)
+                )
+        m = wandb_metric.Metric(
+            name=name,
+            step_metric=step_metric,
+            step_sync=step_sync,
+            summary=summary_ops,
+            hidden=hidden,
+            goal=goal_cleaned,
+            overwrite=overwrite,
+        )
+        m._set_callback(self._metric_callback)
+        m._commit()
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+        return m
 
     # TODO(jhr): annotate this
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
@@ -2092,16 +2208,6 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
 
-    def _set_console(
-        self,
-        use_redirect: bool,
-        stdout_slave_fd: Optional[int],
-        stderr_slave_fd: Optional[int],
-    ) -> None:
-        self._use_redirect = use_redirect
-        self._stdout_slave_fd = stdout_slave_fd
-        self._stderr_slave_fd = stderr_slave_fd
-
     def __enter__(self) -> "Run":
         return self
 
@@ -2173,7 +2279,18 @@ def restore(
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
+def finish(exit_code: int = None) -> None:
+    """
+    Marks a run as finished, and finishes uploading all data.
+
+    This is used when creating multiple runs in the same process.
+    We automatically call this method when your script exits.
+    """
+    if wandb.run:
+        wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
 try:
     Run.restore.__doc__ = restore.__doc__
 # py2 doesn't let us set a doc string, just pass
@@ -2223,14 +2340,3 @@ class _LazyArtifact(wandb_artifacts.Artifact):
                 raise ValueError(resp.error_message)
             self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
         return getattr(self._instance, item)
-
-
-def finish(exit_code: int = None) -> None:
-    """
-    Marks a run as finished, and finishes uploading all data.
-
-    This is used when creating multiple runs in the same process.
-    We automatically call this method when your script exits.
-    """
-    if wandb.run:
-        wandb.run.finish(exit_code=exit_code)
