@@ -182,14 +182,6 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
-if hasattr(multiprocessing, "get_all_start_methods"):
-    AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
-else:
-    # TODO: this can go away when we deprecate Python 2
-    AVAILABLE_START_METHODS = ["fork", "spawn"]
-DEFAULT_START_METHOD = "spawn"  # defaulting to spawn for now, fork needs more testing
-
-
 class Settings(object):
     """Settings Constructor
 
@@ -202,7 +194,7 @@ class Settings(object):
     """
 
     mode = "online"
-    start_method = DEFAULT_START_METHOD
+    start_method = None
     console = "auto"
     disabled = False
     run_tags = None
@@ -227,6 +219,7 @@ class Settings(object):
     email = None
     save_code = None
     program_relpath = None
+    # host: Optional[str]
 
     # Public attributes
     entity = None
@@ -449,6 +442,8 @@ class Settings(object):
         if console == "auto":
             if self._jupyter:
                 console = "wrap"
+            elif self.start_method == "thread":
+                console = "wrap"
             elif self._windows:
                 console = "wrap"
                 # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
@@ -526,9 +521,12 @@ class Settings(object):
         return self._path_convert(self.settings_workspace_spec)
 
     def _validate_start_method(self, value):
-        if value in AVAILABLE_START_METHODS:
+        available_methods = ["thread"]
+        if hasattr(multiprocessing, "get_all_start_methods"):
+            available_methods += multiprocessing.get_all_start_methods()
+        if value in available_methods:
             return
-        return _error_choices(value, AVAILABLE_START_METHODS)
+        return _error_choices(value, available_methods)
 
     def _validate_mode(self, value):
         choices = {

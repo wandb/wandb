@@ -92,6 +92,8 @@ def run(ctx):
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
+        "group": "A",
+        "jobType": "test",
         "description": "",
         "systemMetrics": '{"cpu": 100}',
         "summaryMetrics": '{"acc": 100, "loss": 0}',
@@ -278,9 +280,10 @@ def create_app(user_ctx=None):
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
         if body["variables"].get("files"):
-            ctx["requested_file"] = body["variables"]["files"][0]
+            requested_file = body["variables"]["files"][0]
+            ctx["requested_file"] = requested_file
             url = request.url_root + "/storage?file={}&run={}".format(
-                urllib.parse.quote(ctx["requested_file"]), ctx["current_run"]
+                urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
                 {
@@ -293,7 +296,7 @@ def create_app(user_ctx=None):
                                     "edges": [
                                         {
                                             "node": {
-                                                "name": ctx["requested_file"],
+                                                "name": requested_file,
                                                 "url": url,
                                                 "directUrl": url + "&direct=true",
                                             }
@@ -846,12 +849,26 @@ class ParseCTX(object):
         return summary
 
     @property
+    def history(self):
+        fs_files = self.get_filestream_file_items()
+        history = fs_files["wandb-history.jsonl"]
+        return history
+
+    @property
     def config(self):
         return self._ctx["config"][-1]
 
     @property
     def config_wandb(self):
         return self.config["_wandb"]["value"]
+
+    @property
+    def telemetry(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("t")
+
+    @property
+    def metrics(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("m")
 
 
 if __name__ == "__main__":

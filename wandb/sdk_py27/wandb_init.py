@@ -20,7 +20,6 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.dummy import Dummy, DummyDict
 from wandb.errors.error import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -29,6 +28,7 @@ from wandb.util import sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
@@ -319,6 +319,34 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
+    def _make_run_disabled(self):
+        drun = RunDisabled()
+        drun.config = wandb.wandb_sdk.wandb_config.Config()
+        drun.config.update(self.sweep_config)
+        drun.config.update(self.config)
+        drun.summary = SummaryDisabled()
+        drun.log = lambda data, *_, **__: drun.summary.update(data)
+        drun.finish = lambda *_, **__: module.unset_globals()
+        drun.step = 0
+        drun.resumed = False
+        drun.disabled = True
+        drun.id = shortuuid.uuid()
+        drun.name = "dummy-" + drun.id
+        drun.dir = "/"
+        module.set_global(
+            run=drun,
+            config=drun.config,
+            log=drun.log,
+            summary=drun.summary,
+            save=drun.save,
+            use_artifact=drun.use_artifact,
+            log_artifact=drun.log_artifact,
+            define_metric=drun._define_metric,
+            plot_table=drun.plot_table,
+            alert=drun.alert,
+        )
+        return drun
+
     def init(self):  # noqa: C901
         assert logger
         logger.info("calling init triggers")
@@ -332,31 +360,7 @@ class _WandbInit(object):
             )
         )
         if s._noop:
-            drun = Dummy()
-            drun.config = wandb.wandb_sdk.wandb_config.Config()
-            drun.config.update(sweep_config)
-            drun.config.update(config)
-            drun.summary = DummyDict()
-            drun.log = lambda data, *_, **__: drun.summary.update(data)
-            drun.finish = lambda *_, **__: module.unset_globals()
-            drun.step = 0
-            drun.resumed = False
-            drun.disabled = True
-            drun.id = shortuuid.uuid()
-            drun.name = "dummy-" + drun.id
-            drun.dir = "/"
-            module.set_global(
-                run=drun,
-                config=drun.config,
-                log=drun.log,
-                summary=drun.summary,
-                save=drun.save,
-                use_artifact=drun.use_artifact,
-                log_artifact=drun.log_artifact,
-                plot_table=drun.plot_table,
-                alert=drun.alert,
-            )
-            return drun
+            return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -394,18 +398,10 @@ class _WandbInit(object):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
-        use_redirect = True
-        stdout_master_fd, stderr_master_fd = None, None
-        stdout_slave_fd, stderr_slave_fd = None, None
-
         logger.info("starting backend")
-        backend = Backend()
-        backend.ensure_launched(
-            settings=s,
-            stdout_fd=stdout_master_fd,
-            stderr_fd=stderr_master_fd,
-            use_redirect=use_redirect,
-        )
+
+        backend = Backend(settings=s)
+        backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
         # Make sure we are logged in
@@ -414,6 +410,14 @@ class _WandbInit(object):
         # resuming needs access to the server, check server_status()?
 
         run = Run(config=config, settings=s, sweep_config=sweep_config)
+
+        # probe the active start method
+        active_start_method = None
+        if s.start_method == "thread":
+            active_start_method = s.start_method
+        else:
+            get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
+            active_start_method = get_start_fn() if get_start_fn else None
 
         # Populate intial telemetry
         with telemetry.context(run=run) as tel:
@@ -430,12 +434,17 @@ class _WandbInit(object):
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
 
+            if active_start_method == "spawn":
+                tel.env.start_spawn = True
+            elif active_start_method == "fork":
+                tel.env.start_fork = True
+            elif active_start_method == "forkserver":
+                tel.env.start_forkserver = True
+            elif active_start_method == "thread":
+                tel.env.start_thread = True
+
         logger.info("updated telemetry")
-        run._set_console(
-            use_redirect=use_redirect,
-            stdout_slave_fd=stdout_slave_fd,
-            stderr_slave_fd=stderr_slave_fd,
-        )
+
         run._set_library(self._wl)
         run._set_backend(backend)
         run._set_reporter(self._reporter)
@@ -472,8 +481,10 @@ class _WandbInit(object):
             if not ret:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
-                if self.settings.start_method != "fork":
-                    error_message += ", try setting WANDB_START_METHOD=fork"
+                if active_start_method != "fork":
+                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
+                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
+                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
@@ -505,6 +516,7 @@ class _WandbInit(object):
             save=run.save,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
+            define_metric=run._define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
         )
@@ -704,7 +716,7 @@ def init(
     Returns:
         A `Run` object.
     """
-    assert not wandb._IS_INTERNAL_PROCESS
+    wandb._assert_is_user_process()
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
