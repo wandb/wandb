@@ -2311,7 +2311,11 @@ class _LazyArtifact(wandb_artifacts.Artifact):
 
     def __getattr__(self, item: str) -> Any:
         if not self._instance:
-            raise ValueError("Cannot call {} before first calling wait".format(item))
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties".format(
+                    item
+                )
+            )
         return getattr(self._instance, item)
 
     def wait(self) -> ArtifactInterface:

@@ -70,6 +70,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
+    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -2298,31 +2299,6 @@ except AttributeError:
     pass
 
 
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs):  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
-
-
 class _LazyArtifact(wandb_artifacts.Artifact):
 
     # _api: PublicApi
@@ -2335,7 +2311,7 @@ class _LazyArtifact(wandb_artifacts.Artifact):
 
     def __getattr__(self, item):
         if not self._instance:
-            raise ValueError("Cannot call {} before first calling wait".format(item))
+            raise ValueError("Must call wait() before accessing logged artifact properties".format(item))
         return getattr(self._instance, item)
 
     def wait(self):
@@ -2344,4 +2320,5 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
         return self._instance
