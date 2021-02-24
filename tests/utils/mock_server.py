@@ -91,7 +91,7 @@ def run(ctx):
         "name": "test",
         "displayName": "beast-bug-33",
         "state": "running",
-        "config": ctx.get("run.config", {"epochs": {"value": 10}}),
+        "config": json.dumps(ctx.get("run.config", {"epochs": {"value": 10}})),
         "group": "A",
         "jobType": "test",
         "description": "",
@@ -319,8 +319,8 @@ def create_app(user_ctx=None):
                                     "name": "test",
                                     "displayName": "funky-town-13",
                                     "id": "test",
-                                    "config": ctx.get(
-                                        "run.config", {"epochs": {"value": 10}}
+                                    "config": json.dumps(
+                                        ctx.get("run.config", {"epochs": {"value": 10}})
                                     ),
                                     "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
                                     "logLineCount": 14,
