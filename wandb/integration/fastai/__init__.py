@@ -48,6 +48,7 @@ else:
 
 try:
     import matplotlib
+    
     if ipython._get_python_type() != "jupyter":
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
     import matplotlib.pyplot as plt
