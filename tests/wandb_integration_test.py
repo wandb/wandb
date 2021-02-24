@@ -163,6 +163,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
             config_include_keys=("bar",),
         )
 
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
 )
