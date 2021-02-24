@@ -44,6 +44,7 @@ from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -51,6 +52,7 @@ from .lib import (
     sparkline,
     telemetry,
 )
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -60,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -69,6 +70,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
+    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -78,7 +80,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi
+    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
 
     from typing import TYPE_CHECKING
 
@@ -209,7 +211,7 @@ class Run(object):
     # _out_redir: Optional[redirect.RedirectBase]
     # _err_redir: Optional[redirect.RedirectBase]
     # _redirect_cb: Optional[Callable[[str, str], None]]
-    # _output_writer: Optional["WriteSerializingFile"]
+    # _output_writer: Optional["filesystem.CRDedupedFile"]
 
     # _atexit_cleanup_called: bool
     # _hooks: Optional[ExitHooks]
@@ -1288,17 +1290,25 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
@@ -1319,10 +1329,18 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1429,7 +1447,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self):
@@ -1930,7 +1948,6 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    # TODO(jhr): annotate this
     def log_artifact(
         self,
         artifact_or_path,
@@ -2083,9 +2100,15 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            self._backend.interface.publish_artifact(
-                self, artifact, aliases, finalize=finalize
-            )
+            if not self._settings._offline:
+                future = self._backend.interface.communicate_artifact(
+                    self, artifact, aliases, finalize=finalize,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                self._backend.interface.publish_artifact(
+                    self, artifact, aliases, finalize=finalize
+                )
         return artifact
 
     def _public_api(self):
@@ -2257,39 +2280,6 @@ def restore(
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
-
-
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs):  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
-
-
 def finish(exit_code = None):
     """
     Marks a run as finished, and finishes uploading all data.
@@ -2299,3 +2289,38 @@ def finish(exit_code = None):
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class _LazyArtifact(wandb_artifacts.Artifact):
+
+    # _api: PublicApi
+    _instance = None
+    # _future: Any
+
+    def __init__(self, api, future):
+        self._api = api
+        self._future = future
+
+    def __getattr__(self, item):
+        if not self._instance:
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties"
+            )
+        return getattr(self._instance, item)
+
+    def wait(self):
+        if not self._instance:
+            resp = self._future.get().response.log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
+        return self._instance

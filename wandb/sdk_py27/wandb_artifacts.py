@@ -32,7 +32,7 @@ from .interface.artifacts import (
 )
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import List, Optional, Union
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -90,6 +90,7 @@ class Artifact(ArtifactInterface):
     # _added_local_paths: dict
     # _distributed_id: Optional[str]
     # _metadata: dict
+    # _logged_artifact: Optional[ArtifactInterface]
 
     def __init__(
         self,
@@ -132,63 +133,136 @@ class Artifact(ArtifactInterface):
         self._description = description
         self._metadata = metadata or {}
         self._distributed_id = None
+        self._logged_artifact = None
 
     @property
     def id(self):
+        if self._logged_artifact:
+            return self._logged_artifact.id
+
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
 
     @property
+    def version(self):
+        if self._logged_artifact:
+            return self._logged_artifact.version
+
+        raise ValueError(
+            "Cannot call version on an artifact before it has been logged or in offline mode"
+        )
+
+    @property
     def entity(self):
-        # TODO: querying for default entity a good idea here?
+        if self._logged_artifact:
+            return self._logged_artifact.entity
+
         return self._api.settings("entity") or self._api.viewer().get("entity")
 
     @property
     def project(self):
+        if self._logged_artifact:
+            return self._logged_artifact.project
+
         return self._api.settings("project")
 
     @property
     def manifest(self):
+        if self._logged_artifact:
+            return self._logged_artifact.manifest
+
         self.finalize()
         return self._manifest
 
     @property
     def digest(self):
+        if self._logged_artifact:
+            return self._logged_artifact.digest
+
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
     @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, desc):
-        self._description = desc
-
-    @property
-    def metadata(self):
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, metadata):
-        self._metadata = metadata
-
-    @property
     def type(self):
+        if self._logged_artifact:
+            return self._logged_artifact.type
+
         return self._type
 
     @property
     def name(self):
+        if self._logged_artifact:
+            return self._logged_artifact.name
+
         return self._name
 
     @property
     def state(self):
+        if self._logged_artifact:
+            return self._logged_artifact.state
+
         return "PENDING"
 
     @property
     def size(self):
+        if self._logged_artifact:
+            return self._logged_artifact.size
+
         return sum([entry.size for entry in self._manifest.entries])
+
+    @property
+    def description(self):
+        if self._logged_artifact:
+            return self._logged_artifact.description
+
+        return self._description
+
+    @description.setter
+    def description(self, desc):
+        if self._logged_artifact:
+            self._logged_artifact.description = desc
+            return
+
+        self._description = desc
+
+    @property
+    def metadata(self):
+        if self._logged_artifact:
+            return self._logged_artifact.metadata
+
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        if self._logged_artifact:
+            self._metadata = metadata
+            return
+
+        self._metadata = metadata
+
+    @property
+    def aliases(self):
+        if self._logged_artifact:
+            return self._logged_artifact.aliases
+
+        raise ValueError(
+            "Cannot call aliases on an artifact before it has been logged or in offline mode"
+        )
+
+    @aliases.setter
+    def aliases(self, aliases):
+        """
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
+        """
+        if self._logged_artifact:
+            self._logged_artifact.aliases = aliases
+            return
+
+        raise ValueError(
+            "Cannot set aliases on an artifact before it has been logged or in offline mode"
+        )
 
     @property
     def distributed_id(self):
@@ -198,9 +272,21 @@ class Artifact(ArtifactInterface):
     def distributed_id(self, distributed_id):
         self._distributed_id = distributed_id
 
-    def _ensure_can_add(self):
-        if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+    def used_by(self):
+        if self._logged_artifact:
+            return self._logged_artifact.used_by()
+
+        raise ValueError(
+            "Cannot call used_by on an artifact before it has been logged or in offline mode"
+        )
+
+    def logged_by(self):
+        if self._logged_artifact:
+            return self._logged_artifact.logged_by()
+
+        raise ValueError(
+            "Cannot call logged_by on an artifact before it has been logged or in offline mode"
+        )
 
     @contextlib.contextmanager
     def new_file(self, name, mode = "w"):
@@ -340,13 +426,60 @@ class Artifact(ArtifactInterface):
         return entry
 
     def get_path(self, name):
-        raise ValueError("Cannot load paths from an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.get_path(name)
+
+        raise ValueError(
+            "Cannot load paths from an artifact before it has been logged or in offline mode"
+        )
 
     def get(self, name):
-        raise ValueError("Cannot call get on an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.get(name)
+
+        raise ValueError(
+            "Cannot call get on an artifact before it has been logged or in offline mode"
+        )
 
     def download(self, root = None, recursive = False):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
+        if self._logged_artifact:
+            return self._logged_artifact.download(root=root, recursive=recursive)
+
+        raise ValueError(
+            "Cannot call download on an artifact before it has been logged or in offline mode"
+        )
+
+    def verify(self, root = None):
+        if self._logged_artifact:
+            return self._logged_artifact.verify(root=root)
+
+        raise ValueError(
+            "Cannot call verify on an artifact before it has been logged or in offline mode"
+        )
+
+    def save(self):
+        if self._logged_artifact:
+            return self._logged_artifact.save()
+
+        raise ValueError(
+            "Cannot call save on an artifact before it has been logged or in offline mode"
+        )
+
+    def delete(self):
+        if self._logged_artifact:
+            return self._logged_artifact.delete()
+
+        raise ValueError(
+            "Cannot call delete on an artifact before it has been logged or in offline mode"
+        )
+
+    def wait(self):
+        if self._logged_artifact:
+            return self._logged_artifact.wait()
+
+        raise ValueError(
+            "Cannot call wait on an artifact before it has been logged or in offline mode"
+        )
 
     def get_added_local_path_name(self, local_path):
         """
@@ -388,6 +521,10 @@ class Artifact(ArtifactInterface):
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+
+    def _ensure_can_add(self):
+        if self._final:
+            raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)
@@ -898,6 +1035,9 @@ class S3Handler(StorageHandler):
         return self._versioning_enabled
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -942,9 +1082,6 @@ class S3Handler(StorageHandler):
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
-
-        if not local:
-            return manifest_entry.ref
 
         obj.download_file(path, ExtraArgs=extra_args)
         return path
@@ -1086,6 +1223,9 @@ class GCSHandler(StorageHandler):
         return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -1116,9 +1256,6 @@ class GCSHandler(StorageHandler):
                     "Digest mismatch for object %s: expected %s but found %s"
                     % (manifest_entry.ref, manifest_entry.digest, md5)
                 )
-
-        if not local:
-            return manifest_entry.ref
 
         obj.download_to_filename(path)
         return path
@@ -1302,7 +1439,10 @@ class WBArtifactHandler(StorageHandler):
         dep_artifact = PublicArtifact.from_id(
             util.hex_to_b64_id(artifact_id), self.client
         )
-        link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        if local:
+            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        else:
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref()
 
         return link_target_path
 
