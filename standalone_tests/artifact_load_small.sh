@@ -7,4 +7,3 @@ python artifact_load.py \
   --files_per_version_min 10 \
   --files_per_version_max 100 \
   --num_readers 2
-
