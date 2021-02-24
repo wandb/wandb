@@ -7,7 +7,7 @@ python generate.py --output_dir=docs
 Requires a local installation of `tensorflow_docs`:
 
 ```
-pip install git+https://github.com/tensorflow/docs
+pip install git+https://github.com/arig23498/docs@wandb-docs
 ```
 """
 from os import path, walk, getcwd, remove, rename
@@ -102,8 +102,7 @@ if __name__== "__main__":
         'config',
         'summary',
         'login',
-        'alert',
-        'settings']
+        'alert',]
     
     wandb.__all__ = wandb_run
     try:

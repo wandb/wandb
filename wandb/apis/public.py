@@ -814,23 +814,23 @@ class Run(Attrs):
     A single run associated with an entity and project.
 
     Attributes:
-        tags ([str]): a list of tags associated with the run
-        url (str): the url of this run
-        id (str): unique identifier for the run (defaults to eight characters)
-        name (str): the name of the run
-        state (str): one of: running, finished, crashed, aborted
-        config (dict): a dict of hyperparameters associated with the run
-        created_at (str): ISO timestamp when the run was started
-        system_metrics (dict): the latest system metrics recorded for the run
-        summary (dict): A mutable dict-like property that holds the current summary.
+        tags: ([str]) a list of tags associated with the run
+        url: (str) the url of this run
+        id: (str) unique identifier for the run (defaults to eight characters)
+        name: (str) the name of the run
+        state: (str) one of: running, finished, crashed, aborted
+        config: (dict) a dict of hyperparameters associated with the run
+        created_at: (str) ISO timestamp when the run was started
+        system_metrics: (dict) the latest system metrics recorded for the run
+        summary: (dict) A mutable dict-like property that holds the current summary.
                     Calling update will persist any changes.
-        project (str): the project associated with the run
-        entity (str): the name of the entity associated with the run
-        user (str): the name of the user who created the run
-        path (str): Unique identifier [entity]/[project]/[run_id]
-        notes (str): Notes about the run
-        read_only (boolean): Whether the run is editable
-        history_keys (str): Keys of the history metrics that have been logged
+        project: (str) the project associated with the run
+        entity: (str) the name of the entity associated with the run
+        user: (str) the name of the user who created the run
+        path: (str) Unique identifier [entity]/[project]/[run_id]
+        notes: (str) Notes about the run
+        read_only: (boolean) Whether the run is editable
+        history_keys: (str) Keys of the history metrics that have been logged
             with `wandb.log({key: value})`
     """
 
@@ -1114,8 +1114,8 @@ class Run(Attrs):
     def files(self, names=[], per_page=50):
         """
         Arguments:
-            names (list): names of the requested files, if empty returns all files
-            per_page (int): number of results per page
+            names: (list) names of the requested files, if empty returns all files
+            per_page: (int) number of results per page
 
         Returns:
             A `Files` object, which is an iterator over `File` obejcts.
@@ -1126,7 +1126,7 @@ class Run(Attrs):
     def file(self, name):
         """
         Arguments:
-            name (str): name of requested file.
+            name: (str) name of requested file.
 
         Returns:
             A `File` matching the name argument.
@@ -1137,8 +1137,8 @@ class Run(Attrs):
     def upload_file(self, path, root="."):
         """
         Arguments:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
+            path: (str) name of file to upload.
+            root: (str) the root path to save the file relative to.  i.e.
                 If you want to have the file saved in the run as "my_dir/file.txt"
                 and you're currently in "my_dir" you would set root to "../"
 
@@ -1165,11 +1165,11 @@ class Run(Attrs):
         the history records being sampled.
 
         Arguments:
-            samples (int, optional): The number of samples to return
-            pandas (bool, optional): Return a pandas dataframe
-            keys (list, optional): Only return metrics for specific keys
-            x_axis (str, optional): Use this metric as the xAxis defaults to _step
-            stream (str, optional): "default" for metrics, "system" for machine metrics
+            samples: (int, optional) The number of samples to return
+            pandas: (bool, optional) Return a pandas dataframe
+            keys: (list, optional) Only return metrics for specific keys
+            x_axis: (str, optional) Use this metric as the xAxis defaults to _step
+            stream: (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
             If pandas=True returns a `pandas.DataFrame` of history metrics.
@@ -1206,8 +1206,8 @@ class Run(Attrs):
 
 
         Arguments:
-            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
-            page_size (int, optional): size of pages to fetch from the api
+            keys: ([str], optional) only fetch these keys, and only fetch rows that have all of keys defined.
+            page_size: (int, optional) size of pages to fetch from the api
 
         Returns:
             An iterable collection over history records (dict).
@@ -1252,7 +1252,7 @@ class Run(Attrs):
         """ Declare an artifact as an input to a run.
 
         Arguments:
-            artifact (`Artifact`): An artifact returned from
+            artifact: (`Artifact`) An artifact returned from
                 `wandb.Api().artifact(name)`
         Returns:
             A `Artifact` object.
@@ -1279,9 +1279,9 @@ class Run(Attrs):
         """ Declare an artifact as output of a run.
 
         Arguments:
-            artifact (`Artifact`): An artifact returned from
+            artifact: (`Artifact`) An artifact returned from
                 `wandb.Api().artifact(name)`
-            aliases (list, optional): Aliases to apply to this artifact
+            aliases: (list, optional) Aliases to apply to this artifact
         Returns:
             A `Artifact` object.
         """
@@ -1361,10 +1361,10 @@ class Sweep(Attrs):
       api.sweep(sweep_path)
 
     Attributes:
-        runs (`Runs`): list of runs
-        id (str): sweep id
-        project (str): name of project
-        config (str): dictionary of sweep configuration
+        runs: (`Runs`) list of runs
+        id: (str) sweep id
+        project: (str) name of project
+        config: (str) dictionary of sweep configuration
     """
 
     QUERY = gql(
