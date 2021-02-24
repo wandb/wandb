@@ -471,8 +471,12 @@ class SendManager(object):
         if self._resume_state["config"] is not None:
             # TODO(tss): let the user know that their config values were
             # ignored because they were already set
+            # REMOVE FOLLOWING LINE
+            config_override = self._consolidated_config
             config_dict = self._resume_state["config"]
             config_dict = config_util.dict_strip_value_dict(config_dict)
+            # REMOVE FOLLOWING LINE
+            config_dict.update(config_override)
             self._consolidated_config.update(config_dict)
             config_value_dict = self._config_format(self._consolidated_config)
             self._config_save(config_value_dict)
