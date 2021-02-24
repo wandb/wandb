@@ -548,7 +548,7 @@ class Object3D(BatchableMedia):
     """
 
     SUPPORTED_TYPES = set(
-        ["obj", "gltf", "babylon", "stl", "pts.json"]
+        ["obj", "gltf", "glb", "babylon", "stl", "pts.json"]
     )
     artifact_type = "object3D-file"
 
