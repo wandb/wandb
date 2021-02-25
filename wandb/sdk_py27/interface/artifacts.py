@@ -574,6 +574,21 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def checkout(self, root = None):
+        """
+        Replaces the specified root directory with the contents of the artifact.
+
+        WARNING: This will DELETE all files in `root` that are not included in the
+        artifact.
+
+        Arguments:
+            root: (str, optional) The directory to replace with this artifact's files.
+
+        Returns:
+           (str): The path to the checked out contents.
+        """
+        raise NotImplementedError
+
     def verify(self, root = None):
         """
         Verify that the actual contents of an artifact at a specified directory
