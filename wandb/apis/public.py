@@ -2927,7 +2927,7 @@ class Artifact(artifacts.Artifact):
                     # File is not part of the artifact, remove it.
                     os.remove(full_path)
 
-        self.download(root=dirpath)
+        return self.download(root=dirpath)
 
     def verify(self, root=None):
         dirpath = root or self._default_root()
