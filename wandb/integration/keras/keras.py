@@ -303,6 +303,8 @@ class WandbCallback(keras.callbacks.Callback):
         generator=None,
         input_type=None,
         output_type=None,
+        log_validatition_predictions=False,
+        dataset_name=None,
         log_evaluation=False,
         validation_steps=None,
         class_colors=None,
@@ -350,6 +352,8 @@ class WandbCallback(keras.callbacks.Callback):
         self._validation_table = None
         self._last_eval_artifact = None
         self._validation_table_artifact = None
+        self.log_validatition_predictions = log_validatition_predictions
+        self.dataset_name = dataset_name if dataset_name is not None else VAL_DATA_KEY
 
         if self.log_gradients:
             if int(tf.__version__.split(".")[0]) < 2:
@@ -472,33 +476,31 @@ class WandbCallback(keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
             self.best = self.current
-        print("HERE")
-        if self.log_evaluation:
+        if self.log_validatition_predictions:
             validation_results = self._get_validation_results()
             if validation_results and self._validation_table_artifact:
                 artifact = wandb.Artifact(
                     "{}-{}".format(VAL_EPOCH_KEY, wandb.run.id),
                     HISTORY_TABLE_ARTIFACT_TYPE,
                 )
-                print("PREWAIT")
                 self._validation_table_artifact.wait()
-                print("POSTWAIT")
                 artifact.add_reference(
                     "wandb-artifact://"
                     + b64_to_hex_id(self._validation_table_artifact.id)
                     + "/"
-                    + VALIDATION_TABLE_NAME,
-                    VALIDATION_TABLE_NAME,
+                    + VALIDATION_TABLE_NAME
+                    + ".table.json",
+                    VALIDATION_TABLE_NAME + ".table.json",
                 )
                 # TODO: Join this on the ground truth table as opposed to just validation
                 jt = wandb.JoinedTable(
-                    VALIDATION_TABLE_NAME, validation_results, ["ndx"]
+                    VALIDATION_TABLE_NAME + ".table.json", validation_results, "ndx"
                 )
                 artifact.add(jt, EPOCH_TABLE_NAME)
                 if self._last_eval_artifact:
                     self._last_eval_artifact.wait()
                 wandb.run.log_artifact(
-                    artifact, aliases=["v{}".format(epoch), "epoch-{}".format(epoch)]
+                    artifact  # , aliases=["v{}".format(epoch), "epoch-{}".format(epoch)]
                 )
                 self._last_eval_artifact = artifact
 
@@ -541,29 +543,19 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        i=0
-        print(i); i+= 1
-        if self.log_evaluation:
-            print(i); i+= 1
+        if self.log_validatition_predictions:
             validation_table = self._get_validation_table()
-            print(i); i+= 1
             if validation_table:
-                print(i); i+= 1
                 artifact = wandb.Artifact(
-                    "{}_{}".format(VAL_DATA_KEY, DATASET_ARTIFACT_TYPE),
+                    "{}_{}".format(self.dataset_name, DATASET_ARTIFACT_TYPE),
                     DATASET_ARTIFACT_TYPE,
                 )
-                print(i); i+= 1
                 artifact.add(validation_table, VALIDATION_TABLE_NAME)
-                print(i); i+= 1
-                print("PRE LOG")
-                wandb.run.log_artifact(
-                    artifact, aliases=["latest", "run-{}".format(wandb.run.id)]
+                # TODO: make this a `use_artifact`
+                wandb.run.use_artifact(
+                    artifact  # , aliases=["latest", "run-{}".format(wandb.run.id)]
                 )
-                print(i); i+= 1
-                print("FIRST LOG COMPLETE")
                 self._validation_table_artifact = artifact
-                print(i); i+= 1
 
     def on_train_end(self, logs=None):
         pass
@@ -793,7 +785,7 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _get_validation_table(self):
-        if self._validation_table:
+        if self._validation_table is None:
             x, y_true = self.validation_data[0], self.validation_data[1]
             self._validation_table = wandb.wandb_sdk.integration_utils.table.validation_table(
                 x, y_true

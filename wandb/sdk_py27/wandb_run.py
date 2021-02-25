@@ -1936,9 +1936,10 @@ class Run(object):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
                 artifact.finalize()
-                self._backend.interface.publish_artifact(
+                future = self._backend.interface.communicate_artifact(
                     self, artifact, aliases, is_user_created=True, use_after_commit=True
                 )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
                 return artifact
             elif isinstance(artifact, public.Artifact):
                 api.use_artifact(artifact.id)
