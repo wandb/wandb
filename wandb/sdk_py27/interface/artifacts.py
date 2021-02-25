@@ -587,7 +587,7 @@ class ArtifactsCache(object):
         bytes_reclaimed = 0
         paths = {}
         total_size = 0
-        for root, dirs, files in os.walk(self._cache_dir):
+        for root, _, files in os.walk(self._cache_dir):
             for file in files:
                 path = os.path.join(root, file)
                 stat_res = os.stat(path)
