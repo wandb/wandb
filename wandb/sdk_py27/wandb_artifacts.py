@@ -23,6 +23,7 @@ from .interface.artifacts import (
     Artifact as ArtifactInterface,
     ArtifactEntry,
     ArtifactManifest,
+    ArtifactsCache,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
