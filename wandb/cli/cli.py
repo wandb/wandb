@@ -1280,9 +1280,11 @@ def cleanup(target_size):
 
 
 def to_human_size(bytes, units=None):
-    units = units or [unit for (unit, value) in _BYTES]
+    units = units or _BYTES
+    unit, value = units[0]
+    factor = round(float(bytes) / value, 2)
     return (
-        str(bytes) + units[0] if bytes < 1024 else to_human_size(bytes >> 10, units[1:])
+        '{}{}'.format(factor, unit) if factor < 1024 or len(units) == 1 else to_human_size(bytes, units[1:])
     )
 
 
