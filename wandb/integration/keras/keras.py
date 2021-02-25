@@ -20,7 +20,6 @@ from importlib import import_module
 from itertools import chain
 
 
-
 def is_dataset(data):
     dataset_ops = wandb.util.get_module("tensorflow.python.data.ops.dataset_ops")
     if dataset_ops and hasattr(dataset_ops, "DatasetV2"):
