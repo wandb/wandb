@@ -302,7 +302,7 @@ class WandbCallback(keras.callbacks.Callback):
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
-        with wandb.wandb_sdk.telemetry.context(run=wandb.run) as tel:
+        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
 
         self.validation_data = None
