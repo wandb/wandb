@@ -2,7 +2,6 @@
 import base64
 import contextlib
 import hashlib
-import io
 import os
 import re
 import shutil
@@ -290,7 +289,7 @@ class Artifact(ArtifactInterface):
         )
 
     @contextlib.contextmanager
-    def new_file(self, name: str, mode: str = "w") -> io.FileIO:
+    def new_file(self, name: str, mode: str = "w"):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
