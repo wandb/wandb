@@ -14,9 +14,11 @@ import os
 import numpy as np
 import wandb
 import sys
+from wandb.sdk.lib import telemetry
 from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
+
 
 
 def is_dataset(data):
@@ -301,6 +303,8 @@ class WandbCallback(keras.callbacks.Callback):
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+        with telemetry.context(run=wandb.run) as tel:
+            tel.feature.keras = True
 
         self.validation_data = None
         # This is kept around for legacy reasons
