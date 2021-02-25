@@ -2,8 +2,8 @@
 import base64
 import binascii
 import codecs
-import io
 import hashlib
+import io
 import os
 
 import wandb
