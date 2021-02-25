@@ -1,4 +1,5 @@
 import os
+import time
 
 from wandb import wandb_sdk
 
@@ -16,14 +17,17 @@ def test_artifacts_cache_cleanup(runner):
         os.makedirs("cache/obj/md5/aa/")
         with open("cache/obj/md5/aa/aardvark", "w") as f:
             f.truncate(5000)
+        time.sleep(0.1)
 
         os.makedirs("cache/obj/md5/ab/")
         with open("cache/obj/md5/ab/absolute", "w") as f:
             f.truncate(2000)
+        time.sleep(0.1)
 
         os.makedirs("cache/obj/md5/ac/")
         with open("cache/obj/md5/ac/accelerate", "w") as f:
             f.truncate(1000)
+        time.sleep(0.1)
 
         cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
         reclaimed_bytes = cache.cleanup(5000)

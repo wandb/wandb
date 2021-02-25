@@ -1284,7 +1284,9 @@ def to_human_size(bytes, units=None):
     unit, value = units[0]
     factor = round(float(bytes) / value, 2)
     return (
-        '{}{}'.format(factor, unit) if factor < 1024 or len(units) == 1 else to_human_size(bytes, units[1:])
+        "{}{}".format(factor, unit)
+        if factor < 1024 or len(units) == 1
+        else to_human_size(bytes, units[1:])
     )
 
 
