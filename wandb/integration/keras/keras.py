@@ -19,11 +19,9 @@ from importlib import import_module
 from itertools import chain
 
 HISTORY_TABLE_ARTIFACT_TYPE = "history_table"
-DATASET_ARTIFACT_TYPE = "dataset"
-VAL_EPOCH_KEY = "kc_val_epoch"
-VAL_DATA_KEY = "kc_val_data"
-EPOCH_TABLE_NAME = "validation_results"
-VALIDATION_TABLE_NAME = "validation_table"
+VALIDATION_ARTIFACT_TYPE = "run_table"
+EPOCH_TABLE_NAME = "kc_val_preds"
+VALIDATION_TABLE_NAME = "kc_val_data"
 
 
 def is_dataset(data):
@@ -303,14 +301,19 @@ class WandbCallback(keras.callbacks.Callback):
         generator=None,
         input_type=None,
         output_type=None,
-        log_validatition_predictions=False,
-        dataset_name=None,
         log_evaluation=False,
         validation_steps=None,
         class_colors=None,
         log_batch_frequency=None,
         log_best_prefix="best_",
         save_graph=True,
+        log_validatition_predictions=False,
+        validation_input_transformation=None,
+        validation_input_labels=None,
+        validation_target_transformation=None,
+        validation_target_labels=None,
+        validation_output_transformation=None,
+        validation_output_labels=None,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -349,11 +352,18 @@ class WandbCallback(keras.callbacks.Callback):
         self.log_best_prefix = log_best_prefix
 
         self._prediction_batch_size = None
+
+        # Validation Table Logging
+        self.log_validatition_predictions = log_validatition_predictions
+        self.validation_input_transformation = validation_input_transformation
+        self.validation_input_labels = validation_input_labels
+        self.validation_target_transformation = validation_target_transformation
+        self.validation_target_labels = validation_target_labels
+        self.validation_output_transformation = validation_output_transformation
+        self.validation_output_labels = validation_output_labels
         self._validation_table = None
         self._last_eval_artifact = None
         self._validation_table_artifact = None
-        self.log_validatition_predictions = log_validatition_predictions
-        self.dataset_name = dataset_name if dataset_name is not None else VAL_DATA_KEY
 
         if self.log_gradients:
             if int(tf.__version__.split(".")[0]) < 2:
@@ -480,7 +490,7 @@ class WandbCallback(keras.callbacks.Callback):
             validation_results = self._get_validation_results()
             if validation_results and self._validation_table_artifact:
                 artifact = wandb.Artifact(
-                    "{}-{}".format(VAL_EPOCH_KEY, wandb.run.id),
+                    "{}-{}".format(EPOCH_TABLE_NAME, wandb.run.id),
                     HISTORY_TABLE_ARTIFACT_TYPE,
                 )
                 self._validation_table_artifact.wait()
@@ -547,8 +557,8 @@ class WandbCallback(keras.callbacks.Callback):
             validation_table = self._get_validation_table()
             if validation_table:
                 artifact = wandb.Artifact(
-                    "{}_{}".format(self.dataset_name, DATASET_ARTIFACT_TYPE),
-                    DATASET_ARTIFACT_TYPE,
+                    "{}_{}".format(VALIDATION_TABLE_NAME, VALIDATION_ARTIFACT_TYPE),
+                    VALIDATION_ARTIFACT_TYPE,
                 )
                 artifact.add(validation_table, VALIDATION_TABLE_NAME)
                 # TODO: make this a `use_artifact`
@@ -788,17 +798,37 @@ class WandbCallback(keras.callbacks.Callback):
         if self._validation_table is None:
             x, y_true = self.validation_data[0], self.validation_data[1]
             self._validation_table = wandb.wandb_sdk.integration_utils.table.validation_table(
-                x, y_true
+                x=x,
+                y_true=y_true,
+                x_labels=self.validation_input_labels,
+                y_true_labels=self.validation_target_labels,
+                x_converter=wandb.wandb_sdk.integration_utils.table.LambdaConverter(
+                    self.validation_input_transformation
+                )
+                if self.validation_input_transformation is not None
+                else None,
+                y_true_converter=wandb.wandb_sdk.integration_utils.table.LambdaConverter(
+                    self.validation_target_transformation
+                )
+                if self.validation_target_transformation is not None
+                else None,
             )
         return self._validation_table
 
     def _get_validation_results(self):
         x, y_true = self.validation_data[0], self.validation_data[1]
         y_pred = self.model.predict(x)
-        self._last_validation_results = wandb.wandb_sdk.integration_utils.table.validation_results(
-            x, y_pred, y_true
+        return wandb.wandb_sdk.integration_utils.table.validation_results(
+            x=x,
+            y_pred=y_pred,
+            y_true=y_true,
+            y_pred_labels=self.validation_output_labels,
+            y_pred_converter=wandb.wandb_sdk.integration_utils.table.LambdaConverter(
+                self.validation_output_transformation
+            )
+            if self.validation_output_transformation is not None
+            else None,
         )
-        return self._last_validation_results
 
     def _save_model(self, epoch):
         if wandb.run.disabled:

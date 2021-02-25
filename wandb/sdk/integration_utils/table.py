@@ -17,21 +17,6 @@ class NDArrayConverter:
             "{}.convert is not implemented".format(self.__class__.__name__)
         )
 
-    # def convert_x(
-    #     self, x: "np.ndarray", y_pred: "np.ndarray", y_true: "np.ndarray"
-    # ) -> List:
-    #     return self.convert(x)
-
-    # def convert_y_pred(
-    #     self, x: "np.ndarray", y_pred: "np.ndarray", y_true: "np.ndarray"
-    # ) -> List:
-    #     return self.convert(y_pred)
-
-    # def convert_y_true(
-    #     self, x: "np.ndarray", y_pred: "np.ndarray", y_true: "np.ndarray"
-    # ) -> List:
-    #     return self.convert(y_true)
-
 
 class IdentityConverter(NDArrayConverter):
     def convert(self, val: "np.ndarray") -> List:
@@ -46,6 +31,14 @@ class RGBImageConverter(NDArrayConverter):
 class ArgmaxConverter(NDArrayConverter):
     def convert(self, val: "np.ndarray") -> List:
         return [val.argmax().tolist()]
+
+
+class LambdaConverter(NDArrayConverter):
+    def __init__(self, transform_fn):
+        self.transform_fn = transform_fn
+
+    def convert(self, val: "np.ndarray") -> List:
+        return self.transform_fn(val)
 
 
 def infer_single_converter(arr: "np.ndarray") -> Optional[NDArrayConverter]:
@@ -91,7 +84,7 @@ def validation_table(
     y_true_converter: Optional[NDArrayConverter] = None,
 ) -> Optional[Table]:
     # np = util.get_module("numpy", required="Validation table requires numpy")
-
+    # import pdb; pdb.set_trace()
     if len(x) == 0 or len(x) != len(y_true):
         return None
 
@@ -126,9 +119,7 @@ def validation_results(
     x: "np.ndarray",
     y_pred: "np.ndarray",
     y_true: "np.ndarray",
-    x_labels: Optional[Sequence[str]] = None,
     y_pred_labels: Optional[Sequence[str]] = None,
-    x_converter: Optional[NDArrayConverter] = None,
     y_pred_converter: Optional[NDArrayConverter] = None,
 ) -> Optional[Table]:
     # np = util.get_module("numpy", required="Validation table requires numpy")
