@@ -1,4 +1,4 @@
-0.77  #
+#
 import base64
 import contextlib
 import hashlib
