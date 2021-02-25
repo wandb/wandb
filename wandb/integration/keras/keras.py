@@ -15,11 +15,6 @@ import numpy as np
 import wandb
 import sys
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib import telemetry
-else:
-    from wandb.sdk_py27.lib import telemetry
 from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
@@ -307,7 +302,7 @@ class WandbCallback(keras.callbacks.Callback):
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
-        with telemetry.context(run=wandb.run) as tel:
+        with wandb.wandb_sdk.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
 
         self.validation_data = None
