@@ -564,12 +564,12 @@ class Artifact(object):
         match the artifact.
 
         Arguments:
-            root: (str, optional) The directory in which to download this artifact's files
+            root: (str, optional) The directory in which to download this artifact's files.
             recursive: (bool, optional) If true, then all dependent artifacts are eagerly
                 downloaded. Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
-            The path to the downloaded contents.
+            (str): The path to the downloaded contents.
         """
         raise NotImplementedError
 
