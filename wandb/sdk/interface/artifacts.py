@@ -3,7 +3,6 @@ import base64
 import binascii
 import codecs
 import hashlib
-import io
 import os
 
 import wandb
