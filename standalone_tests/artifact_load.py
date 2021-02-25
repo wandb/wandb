@@ -62,8 +62,6 @@ parser.add_argument('--blocking', type=bool, default=False)
 
 # reader args
 parser.add_argument('--num_readers', type=int, required=True)
-parser.add_argument('--use_checkout', type=bool, required=False)
-parser.add_argument('--verify', type=bool, required=False)
 
 # deleter args
 parser.add_argument('--num_deleters', type=int, default=0)
@@ -157,7 +155,7 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
 
 
-def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, reader_id, use_checkout=False, verify=False):
+def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, reader_id):
     api = wandb.Api()
     # initial sleep to ensure we've created the sequence. Public API fails
     # with a nasty error if not.
@@ -189,14 +187,7 @@ def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, re
                 continue
             print('Reader downloading: ', version)
             try:
-                path = 'read-%s' % reader_id
-                if use_checkout:
-                    version.checkout(path)
-                else:
-                    version.download(path)
-
-                if verify:
-                    version.verify(path)
+                version.checkout('read-%s' % reader_id)
             except:
                 stats_queue.put({'read_download_error': 1})
                 print('Reader caught error on version.download')
@@ -349,9 +340,7 @@ def main(argv):
                 stats_queue,
                 project_name,
                 artifact_name,
-                i,
-                args.use_checkout,
-                args.verify
+                i
             )
         )
         p.start()

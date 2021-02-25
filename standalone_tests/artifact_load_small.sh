@@ -6,6 +6,4 @@ python artifact_load.py \
   --num_writers 2 \
   --files_per_version_min 10 \
   --files_per_version_max 100 \
-  --num_readers 2 \
-  --use_checkout true
-  --verify true
+  --num_readers 2
