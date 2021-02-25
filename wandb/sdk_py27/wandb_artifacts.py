@@ -2,6 +2,7 @@
 import base64
 import contextlib
 import hashlib
+import io
 import os
 import re
 import shutil

@@ -2,6 +2,7 @@
 import base64
 import contextlib
 import hashlib
+import io
 import os
 import re
 import shutil
@@ -289,7 +290,7 @@ class Artifact(ArtifactInterface):
         )
 
     @contextlib.contextmanager
-    def new_file(self, name: str, mode: str = "w"):
+    def new_file(self, name: str, mode: str = "w") -> io.FileIO:
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
@@ -324,7 +325,7 @@ class Artifact(ArtifactInterface):
 
         return self._add_local_file(name, local_path, digest=digest)
 
-    def add_dir(self, local_path: str, name: Optional[str] = None):
+    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
         self._ensure_can_add()
         if not os.path.isdir(local_path):
             raise ValueError("Path is not a directory: %s" % local_path)
