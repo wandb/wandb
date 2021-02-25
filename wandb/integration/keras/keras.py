@@ -14,7 +14,12 @@ import os
 import numpy as np
 import wandb
 import sys
-from wandb.sdk.lib import telemetry
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib import telemetry
+else:
+    from wandb.sdk_py27.lib import telemetry
 from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
