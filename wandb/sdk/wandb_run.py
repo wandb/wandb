@@ -1935,9 +1935,8 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                artifact.finalize()
-                self._backend.interface.publish_artifact(
-                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                self._log_artifact(
+                    artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2091,6 +2090,8 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
+        is_user_created: bool = False,
+        use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2102,12 +2103,22 @@ class Run(object):
         if self._backend:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
-                    self, artifact, aliases, finalize=finalize,
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
                 )
                 artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
-                    self, artifact, aliases, finalize=finalize
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
                 )
         return artifact
 
