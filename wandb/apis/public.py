@@ -2920,7 +2920,9 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(os.path.relpath(full_path, start=dirpath))
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
@@ -2937,11 +2939,17 @@ class Artifact(artifacts.Artifact):
         for root, _, files in os.walk(dirpath):
             for file in files:
                 full_path = os.path.join(root, file)
-                artifact_path = util.to_forward_slash_path(os.path.relpath(full_path, start=dirpath))
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
                 try:
                     self.get_path(artifact_path)
                 except KeyError:
-                    raise ValueError("Found file {} which is not a member of artifact {}".format(full_path, self.name))
+                    raise ValueError(
+                        "Found file {} which is not a member of artifact {}".format(
+                            full_path, self.name
+                        )
+                    )
 
         for entry in manifest.entries.values():
             if entry.ref is None:
@@ -2983,7 +2991,11 @@ class Artifact(artifacts.Artifact):
         return self.get_path(name).download(root)
 
     def _default_root(self, include_version=True):
-        root = os.path.join(".", "artifacts", self.name) if include_version else os.path.join(".", "artifacts", self._sequence_name)
+        root = (
+            os.path.join(".", "artifacts", self.name)
+            if include_version
+            else os.path.join(".", "artifacts", self._sequence_name)
+        )
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
