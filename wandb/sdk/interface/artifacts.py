@@ -2,7 +2,6 @@
 import base64
 import binascii
 import codecs
-import io
 import hashlib
 import os
 
@@ -307,7 +306,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w") -> io.FileIO:
+    def new_file(self, name: str, mode: str = "w"):
         """
         Open a new temporary file that will be automatically added to the artifact.
 

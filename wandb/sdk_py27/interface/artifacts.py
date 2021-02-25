@@ -2,7 +2,6 @@
 import base64
 import binascii
 import codecs
-import io
 import hashlib
 import os
 
