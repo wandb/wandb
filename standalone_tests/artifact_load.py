@@ -115,7 +115,7 @@ def proc_version_writer(stop_queue, stats_queue, project_name, fnames, artifact_
 
             if blocking:
                 art.wait()
-            assert art.version is not None
+                assert art.version is not None
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
 
 
