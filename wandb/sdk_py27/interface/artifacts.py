@@ -11,7 +11,7 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import Optional, Union, Dict
 
 
 def md5_string(string):
@@ -584,9 +584,29 @@ class ArtifactsCache(object):
         self._artifacts_by_id[artifact.id] = artifact
 
     def cleanup(self, target_size):
+        bytes_reclaimed = 0
+        paths = {}
+        total_size = 0
+        for root, dirs, files in os.walk(self._cache_dir):
+            for file in files:
+                path = os.path.join(root, file)
+                stat_res = os.stat(path)
+                paths[path] = stat_res
+                total_size += stat_res.st_size
 
+        sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
+        for path, stat in sorted_paths:
+            if total_size < target_size:
+                return bytes_reclaimed
 
-        raise NotImplementedError
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+            total_size -= stat.st_size
+            bytes_reclaimed += stat.st_size
+        return bytes_reclaimed
 
 
 _artifacts_cache = None

@@ -583,8 +583,30 @@ class ArtifactsCache(object):
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
 
-    def cleanup(self, target_size: int) -> None:
+    def cleanup(self, target_size: int) -> int:
+        bytes_reclaimed: int = 0
         paths: Dict[os.PathLike, os.stat_result] = {}
+        total_size: int = 0
+        for root, dirs, files in os.walk(self._cache_dir):
+            for file in files:
+                path = os.path.join(root, file)
+                stat_res = os.stat(path)
+                paths[path] = stat_res
+                total_size += stat_res.st_size
+
+        sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
+        for path, stat in sorted_paths:
+            if total_size < target_size:
+                return bytes_reclaimed
+
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+            total_size -= stat.st_size
+            bytes_reclaimed += stat.st_size
+        return bytes_reclaimed
 
 
 _artifacts_cache = None
