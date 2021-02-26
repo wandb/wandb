@@ -726,7 +726,10 @@ class Run(object):
         return {"text/html": s}
 
     def _config_callback(
-        self, key: str = None, val: object = None, data: Dict[str, object] = None
+        self,
+        key: Union[Tuple[str, ...], str] = None,
+        val: Any = None,
+        data: Dict[str, object] = None,
     ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
         if not self._backend or not self._backend.interface:
@@ -757,18 +760,15 @@ class Run(object):
     def _history_callback(self, row: Dict[str, Any], step: int) -> None:
 
         # TODO(jhr): move visualize hack somewhere else
-        visualize_persist_config = False
         custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
-                if "viz" not in self._config["_wandb"]:
-                    self._config["_wandb"]["viz"] = dict()
-                self._config["_wandb"]["viz"][k] = {
+                config = {
                     "id": row[k].viz_id,
                     "historyFieldSettings": {"key": k, "x-axis": "_step"},
                 }
                 row[k] = row[k].value
-                visualize_persist_config = True
+                self._config_callback(val=config, key=("_wandb", "viz", k))
             elif isinstance(row[k], CustomChart):
                 custom_charts[k] = row[k]
                 custom_chart = row[k]
@@ -784,10 +784,6 @@ class Run(object):
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
-            visualize_persist_config = True
-
-        if visualize_persist_config:
-            self._config_callback(data=self._config._as_dict())
 
         if self._backend:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1180,14 +1176,11 @@ class Run(object):
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
     ) -> None:
-        if "visualize" not in self._config["_wandb"]:
-            self._config["_wandb"]["visualize"] = dict()
-        self._config["_wandb"]["visualize"][visualize_key] = {
+        config = {
             "panel_type": panel_type,
             "panel_config": panel_config,
         }
-
-        self._config_callback(data=self._config._as_dict())
+        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _get_url_query_string(self) -> str:
         s = self._settings
