@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x85\x07\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\tB\r\n\x0brecord_type\"M\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x0e\n\x06req_id\x18\x03 \x01(\t\x12\x11\n\timmediate\x18\x05 \x01(\x08\"\xc1\x04\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12\x31\n\x0c\x65rror_status\x18\x10 \x01(\x0b\x32\x1b.wandb_internal.ErrorStatus\x12\x39\n\x10transport_status\x18  \x01(\x0b\x32\x1f.wandb_internal.TransportStatus\x12\x35\n\x0e\x62\x61\x63kend_status\x18! \x01(\x0b\x32\x1d.wandb_internal.BackendStatus\x12\x0c\n\x04uuid\x18\x18 \x01(\tB\r\n\x0bresult_type\"\x1a\n\x0b\x45rrorStatus\x12\x0b\n\x03msg\x18\x01 \x01(\t\"&\n\x0fTransportStatus\x12\x13\n\x0bpoll_needed\x18\x01 \x01(\x08\"\x0f\n\rBackendStatus\"\r\n\x0b\x46inalRecord\"\x0e\n\x0cHeaderRecord\"\x0e\n\x0c\x46ooterRecord\"\xe4\x03\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xa1\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode\"P\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07INVALID\x10\x01\x12\x0e\n\nPERMISSION\x10\x02\x12\x0b\n\x07NETWORK\x10\x03\x12\x0c\n\x08INTERNAL\x10\x04\"\"\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\"\x0f\n\rRunExitResult\"<\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03\"e\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rHistoryResult\"\xaf\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x0e\n\x0cOutputResult\"\xeb\x02\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02\"2\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\"\"\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08\"E\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\"f\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0e\n\x0c\x43onfigResult\"i\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rSummaryResult\"7\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"\x90\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x15\n\rexternal_path\x18\x10 \x01(\t\"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02\"\xb9\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00\",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\xb3\x02\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\"\xbc\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry\"\xbb\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem\",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\";\n\x08TBRecord\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\x12\x10\n\x08root_dir\x18\x03 \x01(\t\"P\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\"\xae\x06\n\x07Request\x12/\n\x06status\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12+\n\x04poll\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.PollRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12\x30\n\x07\x63\x61nceel\x18\r \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06health\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.HealthRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_type\"\x98\x06\n\x08Response\x12\x35\n\rpoll_response\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.PollResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18\x12 \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12\x39\n\x0fstatus_response\x18\x13 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32\".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0fhealth_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.HealthResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32\".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type\"\xd3\x01\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState\"\x8a\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\x0f\n\x0b\x46LUSH_STATS\x10\x01\x12\x0c\n\x08\x46LUSH_TB\x10\x02\x12\r\n\tFLUSH_SUM\x10\x03\x12\r\n\tFLUSH_DIR\x10\x04\x12\x0c\n\x08\x46LUSH_FP\x10\x05\x12\x0c\n\x08\x46LUSH_FS\x10\x06\x12\x0f\n\x0b\x46LUSH_FINAL\x10\x07\x12\x07\n\x03\x45ND\x10\x08\"\x0e\n\x0cPauseRequest\"\x0f\n\rResumeRequest\"\x1f\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t\"\x13\n\x11GetSummaryRequest\"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"\'\n\rStatusRequest\x12\x16\n\x0e\x63heck_stop_req\x18\x01 \x01(\x08\")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"\r\n\x0bPollRequest\"D\n\x0cPollResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12&\n\x06result\x18\x02 \x01(\x0b\x32\x16.wandb_internal.Result\"\x0f\n\rCancelRequest\"\x10\n\x0e\x43\x61ncelResponse\"\x11\n\x0fPollExitRequest\"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12/\n\x0b\x66ile_counts\x18\x03 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\x12\x35\n\x0cpusher_stats\x18\x04 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05\"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03\"\x11\n\x0fShutdownRequest\"\x12\n\x10ShutdownResponse\"\xa7\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\"\x14\n\x12TestInjectResponse\"\x17\n\x15SampledHistoryRequest\"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03\"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32\".wandb_internal.SampledHistoryItem\"9\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\"\x12\n\x10RunStartResponse\".\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t\"\x0f\n\rHealthRequest\"\x10\n\x0eHealthResponseb\x06proto3'
+  serialized_pb=b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x85\x07\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\tB\r\n\x0brecord_type\"M\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x0e\n\x06req_id\x18\x03 \x01(\t\x12\x11\n\timmediate\x18\x05 \x01(\x08\"\xc1\x04\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12\x31\n\x0c\x65rror_status\x18\x10 \x01(\x0b\x32\x1b.wandb_internal.ErrorStatus\x12\x39\n\x10transport_status\x18  \x01(\x0b\x32\x1f.wandb_internal.TransportStatus\x12\x35\n\x0e\x62\x61\x63kend_status\x18! \x01(\x0b\x32\x1d.wandb_internal.BackendStatus\x12\x0c\n\x04uuid\x18\x18 \x01(\tB\r\n\x0bresult_type\"\x1a\n\x0b\x45rrorStatus\x12\x0b\n\x03msg\x18\x01 \x01(\t\"&\n\x0fTransportStatus\x12\x13\n\x0bpoll_needed\x18\x01 \x01(\x08\"\x0f\n\rBackendStatus\"\r\n\x0b\x46inalRecord\"\x0e\n\x0cHeaderRecord\"\x0e\n\x0c\x46ooterRecord\"\xe4\x03\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xa1\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode\"P\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07INVALID\x10\x01\x12\x0e\n\nPERMISSION\x10\x02\x12\x0b\n\x07NETWORK\x10\x03\x12\x0c\n\x08INTERNAL\x10\x04\"\"\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\"\x0f\n\rRunExitResult\"<\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03\"e\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rHistoryResult\"\xaf\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x0e\n\x0cOutputResult\"\xeb\x02\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02\"2\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\"\"\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08\"E\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\"f\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0e\n\x0c\x43onfigResult\"i\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rSummaryResult\"7\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\"\x90\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x15\n\rexternal_path\x18\x10 \x01(\t\"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02\"\xb9\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00\",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\xb3\x02\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\"\xbc\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry\"\xbb\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem\",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\";\n\x08TBRecord\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\x12\x10\n\x08root_dir\x18\x03 \x01(\t\"P\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\"\xe9\x06\n\x07Request\x12/\n\x06status\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12+\n\x04poll\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.PollRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12:\n\x0clog_artifact\x18\r \x01(\x0b\x32\".wandb_internal.LogArtifactRequestH\x00\x12/\n\x06\x63\x61ncel\x18\x0e \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06health\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.HealthRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_type\"\xde\x06\n\x08Response\x12\x35\n\rpoll_response\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.PollResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18\x12 \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12\x39\n\x0fstatus_response\x18\x13 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32\".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12\x44\n\x15log_artifact_response\x18\x1e \x01(\x0b\x32#.wandb_internal.LogArtifactResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0fhealth_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.HealthResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32\".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type\"\xd3\x01\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState\"\x8a\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\x0f\n\x0b\x46LUSH_STATS\x10\x01\x12\x0c\n\x08\x46LUSH_TB\x10\x02\x12\r\n\tFLUSH_SUM\x10\x03\x12\r\n\tFLUSH_DIR\x10\x04\x12\x0c\n\x08\x46LUSH_FP\x10\x05\x12\x0c\n\x08\x46LUSH_FS\x10\x06\x12\x0f\n\x0b\x46LUSH_FINAL\x10\x07\x12\x07\n\x03\x45ND\x10\x08\"\x0e\n\x0cPauseRequest\"\x0f\n\rResumeRequest\"\x1f\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t\"\x13\n\x11GetSummaryRequest\"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"\'\n\rStatusRequest\x12\x16\n\x0e\x63heck_stop_req\x18\x01 \x01(\x08\")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"\r\n\x0bPollRequest\"D\n\x0cPollResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12&\n\x06result\x18\x02 \x01(\x0b\x32\x16.wandb_internal.Result\"\x0f\n\rCancelRequest\"\x10\n\x0e\x43\x61ncelResponse\"\x11\n\x0fPollExitRequest\"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12/\n\x0b\x66ile_counts\x18\x03 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\x12\x35\n\x0cpusher_stats\x18\x04 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05\"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03\"\x11\n\x0fShutdownRequest\"\x12\n\x10ShutdownResponse\"\xa7\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\"\x14\n\x12TestInjectResponse\"\x17\n\x15SampledHistoryRequest\"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03\"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32\".wandb_internal.SampledHistoryItem\"9\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\"\x12\n\x10RunStartResponse\".\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t\"\x0f\n\rHealthRequest\"\x10\n\x0eHealthResponse\"F\n\x12LogArtifactRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\"A\n\x13LogArtifactResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\tb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__telemetry__pb2.DESCRIPTOR,])
 
@@ -197,8 +197,8 @@ _DEFERREQUEST_DEFERSTATE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=7109,
-  serialized_end=7247,
+  serialized_start=7238,
+  serialized_end=7376,
 )
 _sym_db.RegisterEnumDescriptor(_DEFERREQUEST_DEFERSTATE)
 
@@ -2332,28 +2332,35 @@ _REQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='canceel', full_name='wandb_internal.Request.canceel', index=11,
+      name='log_artifact', full_name='wandb_internal.Request.log_artifact', index=11,
       number=13, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='shutdown', full_name='wandb_internal.Request.shutdown', index=12,
+      name='cancel', full_name='wandb_internal.Request.cancel', index=12,
+      number=14, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='shutdown', full_name='wandb_internal.Request.shutdown', index=13,
       number=64, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='health', full_name='wandb_internal.Request.health', index=13,
+      name='health', full_name='wandb_internal.Request.health', index=14,
       number=65, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='test_inject', full_name='wandb_internal.Request.test_inject', index=14,
+      name='test_inject', full_name='wandb_internal.Request.test_inject', index=15,
       number=1000, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -2375,7 +2382,7 @@ _REQUEST = _descriptor.Descriptor(
       index=0, containing_type=None, fields=[]),
   ],
   serialized_start=5424,
-  serialized_end=6238,
+  serialized_end=6297,
 )
 
 
@@ -2450,21 +2457,28 @@ _RESPONSE = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='shutdown_response', full_name='wandb_internal.Response.shutdown_response', index=9,
+      name='log_artifact_response', full_name='wandb_internal.Response.log_artifact_response', index=9,
+      number=30, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='shutdown_response', full_name='wandb_internal.Response.shutdown_response', index=10,
       number=64, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='health_response', full_name='wandb_internal.Response.health_response', index=10,
+      name='health_response', full_name='wandb_internal.Response.health_response', index=11,
       number=65, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='test_inject_response', full_name='wandb_internal.Response.test_inject_response', index=11,
+      name='test_inject_response', full_name='wandb_internal.Response.test_inject_response', index=12,
       number=1000, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -2485,8 +2499,8 @@ _RESPONSE = _descriptor.Descriptor(
       name='response_type', full_name='wandb_internal.Response.response_type',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=6241,
-  serialized_end=7033,
+  serialized_start=6300,
+  serialized_end=7162,
 )
 
 
@@ -2517,8 +2531,8 @@ _DEFERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7036,
-  serialized_end=7247,
+  serialized_start=7165,
+  serialized_end=7376,
 )
 
 
@@ -2541,8 +2555,8 @@ _PAUSEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7249,
-  serialized_end=7263,
+  serialized_start=7378,
+  serialized_end=7392,
 )
 
 
@@ -2565,8 +2579,8 @@ _RESUMEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7265,
-  serialized_end=7280,
+  serialized_start=7394,
+  serialized_end=7409,
 )
 
 
@@ -2596,8 +2610,8 @@ _LOGINREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7282,
-  serialized_end=7313,
+  serialized_start=7411,
+  serialized_end=7442,
 )
 
 
@@ -2627,8 +2641,8 @@ _LOGINRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7315,
-  serialized_end=7353,
+  serialized_start=7444,
+  serialized_end=7482,
 )
 
 
@@ -2651,8 +2665,8 @@ _GETSUMMARYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7355,
-  serialized_end=7374,
+  serialized_start=7484,
+  serialized_end=7503,
 )
 
 
@@ -2682,8 +2696,8 @@ _GETSUMMARYRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7376,
-  serialized_end=7439,
+  serialized_start=7505,
+  serialized_end=7568,
 )
 
 
@@ -2713,8 +2727,8 @@ _STATUSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7441,
-  serialized_end=7480,
+  serialized_start=7570,
+  serialized_end=7609,
 )
 
 
@@ -2744,8 +2758,8 @@ _STATUSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7482,
-  serialized_end=7523,
+  serialized_start=7611,
+  serialized_end=7652,
 )
 
 
@@ -2768,8 +2782,8 @@ _POLLREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7525,
-  serialized_end=7538,
+  serialized_start=7654,
+  serialized_end=7667,
 )
 
 
@@ -2806,8 +2820,8 @@ _POLLRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7540,
-  serialized_end=7608,
+  serialized_start=7669,
+  serialized_end=7737,
 )
 
 
@@ -2830,8 +2844,8 @@ _CANCELREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7610,
-  serialized_end=7625,
+  serialized_start=7739,
+  serialized_end=7754,
 )
 
 
@@ -2854,8 +2868,8 @@ _CANCELRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7627,
-  serialized_end=7643,
+  serialized_start=7756,
+  serialized_end=7772,
 )
 
 
@@ -2878,8 +2892,8 @@ _POLLEXITREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7645,
-  serialized_end=7662,
+  serialized_start=7774,
+  serialized_end=7791,
 )
 
 
@@ -2930,8 +2944,8 @@ _POLLEXITRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7665,
-  serialized_end=7853,
+  serialized_start=7794,
+  serialized_end=7982,
 )
 
 
@@ -2982,8 +2996,8 @@ _FILECOUNTS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7855,
-  serialized_end=7954,
+  serialized_start=7984,
+  serialized_end=8083,
 )
 
 
@@ -3027,8 +3041,8 @@ _FILEPUSHERSTATS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=7956,
-  serialized_end=8041,
+  serialized_start=8085,
+  serialized_end=8170,
 )
 
 
@@ -3051,8 +3065,8 @@ _SHUTDOWNREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8043,
-  serialized_end=8060,
+  serialized_start=8172,
+  serialized_end=8189,
 )
 
 
@@ -3075,8 +3089,8 @@ _SHUTDOWNRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8062,
-  serialized_end=8080,
+  serialized_start=8191,
+  serialized_end=8209,
 )
 
 
@@ -3197,8 +3211,8 @@ _TESTINJECTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8083,
-  serialized_end=8378,
+  serialized_start=8212,
+  serialized_end=8507,
 )
 
 
@@ -3221,8 +3235,8 @@ _TESTINJECTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8380,
-  serialized_end=8400,
+  serialized_start=8509,
+  serialized_end=8529,
 )
 
 
@@ -3245,8 +3259,8 @@ _SAMPLEDHISTORYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8402,
-  serialized_end=8425,
+  serialized_start=8531,
+  serialized_end=8554,
 )
 
 
@@ -3297,8 +3311,8 @@ _SAMPLEDHISTORYITEM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8427,
-  serialized_end=8522,
+  serialized_start=8556,
+  serialized_end=8651,
 )
 
 
@@ -3328,8 +3342,8 @@ _SAMPLEDHISTORYRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8524,
-  serialized_end=8598,
+  serialized_start=8653,
+  serialized_end=8727,
 )
 
 
@@ -3359,8 +3373,8 @@ _RUNSTARTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8600,
-  serialized_end=8657,
+  serialized_start=8729,
+  serialized_end=8786,
 )
 
 
@@ -3383,8 +3397,8 @@ _RUNSTARTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8659,
-  serialized_end=8677,
+  serialized_start=8788,
+  serialized_end=8806,
 )
 
 
@@ -3414,8 +3428,8 @@ _CHECKVERSIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8679,
-  serialized_end=8725,
+  serialized_start=8808,
+  serialized_end=8854,
 )
 
 
@@ -3459,8 +3473,8 @@ _CHECKVERSIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8727,
-  serialized_end=8820,
+  serialized_start=8856,
+  serialized_end=8949,
 )
 
 
@@ -3483,8 +3497,8 @@ _HEALTHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8822,
-  serialized_end=8837,
+  serialized_start=8951,
+  serialized_end=8966,
 )
 
 
@@ -3507,8 +3521,77 @@ _HEALTHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=8839,
-  serialized_end=8855,
+  serialized_start=8968,
+  serialized_end=8984,
+)
+
+
+_LOGARTIFACTREQUEST = _descriptor.Descriptor(
+  name='LogArtifactRequest',
+  full_name='wandb_internal.LogArtifactRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='artifact', full_name='wandb_internal.LogArtifactRequest.artifact', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=8986,
+  serialized_end=9056,
+)
+
+
+_LOGARTIFACTRESPONSE = _descriptor.Descriptor(
+  name='LogArtifactResponse',
+  full_name='wandb_internal.LogArtifactResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='artifact_id', full_name='wandb_internal.LogArtifactResponse.artifact_id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='error_message', full_name='wandb_internal.LogArtifactResponse.error_message', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=9058,
+  serialized_end=9123,
 )
 
 _RECORD.fields_by_name['history'].message_type = _HISTORYRECORD
@@ -3657,7 +3740,8 @@ _REQUEST.fields_by_name['poll_exit'].message_type = _POLLEXITREQUEST
 _REQUEST.fields_by_name['sampled_history'].message_type = _SAMPLEDHISTORYREQUEST
 _REQUEST.fields_by_name['run_start'].message_type = _RUNSTARTREQUEST
 _REQUEST.fields_by_name['check_version'].message_type = _CHECKVERSIONREQUEST
-_REQUEST.fields_by_name['canceel'].message_type = _CANCELREQUEST
+_REQUEST.fields_by_name['log_artifact'].message_type = _LOGARTIFACTREQUEST
+_REQUEST.fields_by_name['cancel'].message_type = _CANCELREQUEST
 _REQUEST.fields_by_name['shutdown'].message_type = _SHUTDOWNREQUEST
 _REQUEST.fields_by_name['health'].message_type = _HEALTHREQUEST
 _REQUEST.fields_by_name['test_inject'].message_type = _TESTINJECTREQUEST
@@ -3695,8 +3779,11 @@ _REQUEST.oneofs_by_name['request_type'].fields.append(
   _REQUEST.fields_by_name['check_version'])
 _REQUEST.fields_by_name['check_version'].containing_oneof = _REQUEST.oneofs_by_name['request_type']
 _REQUEST.oneofs_by_name['request_type'].fields.append(
-  _REQUEST.fields_by_name['canceel'])
-_REQUEST.fields_by_name['canceel'].containing_oneof = _REQUEST.oneofs_by_name['request_type']
+  _REQUEST.fields_by_name['log_artifact'])
+_REQUEST.fields_by_name['log_artifact'].containing_oneof = _REQUEST.oneofs_by_name['request_type']
+_REQUEST.oneofs_by_name['request_type'].fields.append(
+  _REQUEST.fields_by_name['cancel'])
+_REQUEST.fields_by_name['cancel'].containing_oneof = _REQUEST.oneofs_by_name['request_type']
 _REQUEST.oneofs_by_name['request_type'].fields.append(
   _REQUEST.fields_by_name['shutdown'])
 _REQUEST.fields_by_name['shutdown'].containing_oneof = _REQUEST.oneofs_by_name['request_type']
@@ -3715,6 +3802,7 @@ _RESPONSE.fields_by_name['poll_exit_response'].message_type = _POLLEXITRESPONSE
 _RESPONSE.fields_by_name['sampled_history_response'].message_type = _SAMPLEDHISTORYRESPONSE
 _RESPONSE.fields_by_name['run_start_response'].message_type = _RUNSTARTRESPONSE
 _RESPONSE.fields_by_name['check_version_response'].message_type = _CHECKVERSIONRESPONSE
+_RESPONSE.fields_by_name['log_artifact_response'].message_type = _LOGARTIFACTRESPONSE
 _RESPONSE.fields_by_name['shutdown_response'].message_type = _SHUTDOWNRESPONSE
 _RESPONSE.fields_by_name['health_response'].message_type = _HEALTHRESPONSE
 _RESPONSE.fields_by_name['test_inject_response'].message_type = _TESTINJECTRESPONSE
@@ -3746,6 +3834,9 @@ _RESPONSE.oneofs_by_name['response_type'].fields.append(
   _RESPONSE.fields_by_name['check_version_response'])
 _RESPONSE.fields_by_name['check_version_response'].containing_oneof = _RESPONSE.oneofs_by_name['response_type']
 _RESPONSE.oneofs_by_name['response_type'].fields.append(
+  _RESPONSE.fields_by_name['log_artifact_response'])
+_RESPONSE.fields_by_name['log_artifact_response'].containing_oneof = _RESPONSE.oneofs_by_name['response_type']
+_RESPONSE.oneofs_by_name['response_type'].fields.append(
   _RESPONSE.fields_by_name['shutdown_response'])
 _RESPONSE.fields_by_name['shutdown_response'].containing_oneof = _RESPONSE.oneofs_by_name['response_type']
 _RESPONSE.oneofs_by_name['response_type'].fields.append(
@@ -3763,6 +3854,7 @@ _POLLEXITRESPONSE.fields_by_name['file_counts'].message_type = _FILECOUNTS
 _POLLEXITRESPONSE.fields_by_name['pusher_stats'].message_type = _FILEPUSHERSTATS
 _SAMPLEDHISTORYRESPONSE.fields_by_name['item'].message_type = _SAMPLEDHISTORYITEM
 _RUNSTARTREQUEST.fields_by_name['run'].message_type = _RUNRECORD
+_LOGARTIFACTREQUEST.fields_by_name['artifact'].message_type = _ARTIFACTRECORD
 DESCRIPTOR.message_types_by_name['Record'] = _RECORD
 DESCRIPTOR.message_types_by_name['Control'] = _CONTROL
 DESCRIPTOR.message_types_by_name['Result'] = _RESULT
@@ -3838,6 +3930,8 @@ DESCRIPTOR.message_types_by_name['CheckVersionRequest'] = _CHECKVERSIONREQUEST
 DESCRIPTOR.message_types_by_name['CheckVersionResponse'] = _CHECKVERSIONRESPONSE
 DESCRIPTOR.message_types_by_name['HealthRequest'] = _HEALTHREQUEST
 DESCRIPTOR.message_types_by_name['HealthResponse'] = _HEALTHRESPONSE
+DESCRIPTOR.message_types_by_name['LogArtifactRequest'] = _LOGARTIFACTREQUEST
+DESCRIPTOR.message_types_by_name['LogArtifactResponse'] = _LOGARTIFACTRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Record = _reflection.GeneratedProtocolMessageType('Record', (_message.Message,), {
@@ -4364,6 +4458,20 @@ HealthResponse = _reflection.GeneratedProtocolMessageType('HealthResponse', (_me
   # @@protoc_insertion_point(class_scope:wandb_internal.HealthResponse)
   })
 _sym_db.RegisterMessage(HealthResponse)
+
+LogArtifactRequest = _reflection.GeneratedProtocolMessageType('LogArtifactRequest', (_message.Message,), {
+  'DESCRIPTOR' : _LOGARTIFACTREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactRequest)
+  })
+_sym_db.RegisterMessage(LogArtifactRequest)
+
+LogArtifactResponse = _reflection.GeneratedProtocolMessageType('LogArtifactResponse', (_message.Message,), {
+  'DESCRIPTOR' : _LOGARTIFACTRESPONSE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.LogArtifactResponse)
+  })
+_sym_db.RegisterMessage(LogArtifactResponse)
 
 
 # @@protoc_insertion_point(module_scope)

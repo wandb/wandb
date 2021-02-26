@@ -70,6 +70,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
+    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -79,8 +80,8 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
+    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
     from .wandb_artifacts import Artifact
-    from wandb.apis.public import Api as PublicApi
 
     from typing import TYPE_CHECKING
 
@@ -725,7 +726,10 @@ class Run(object):
         return {"text/html": s}
 
     def _config_callback(
-        self, key = None, val = None, data = None
+        self,
+        key = None,
+        val = None,
+        data = None,
     ):
         logger.info("config_cb %s %s %s", key, val, data)
         if not self._backend or not self._backend.interface:
@@ -756,18 +760,15 @@ class Run(object):
     def _history_callback(self, row, step):
 
         # TODO(jhr): move visualize hack somewhere else
-        visualize_persist_config = False
         custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
-                if "viz" not in self._config["_wandb"]:
-                    self._config["_wandb"]["viz"] = dict()
-                self._config["_wandb"]["viz"][k] = {
+                config = {
                     "id": row[k].viz_id,
                     "historyFieldSettings": {"key": k, "x-axis": "_step"},
                 }
                 row[k] = row[k].value
-                visualize_persist_config = True
+                self._config_callback(val=config, key=("_wandb", "viz", k))
             elif isinstance(row[k], CustomChart):
                 custom_charts[k] = row[k]
                 custom_chart = row[k]
@@ -783,10 +784,6 @@ class Run(object):
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
-            visualize_persist_config = True
-
-        if visualize_persist_config:
-            self._config_callback(data=self._config._as_dict())
 
         if self._backend:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1179,14 +1176,11 @@ class Run(object):
     def _add_panel(
         self, visualize_key, panel_type, panel_config
     ):
-        if "visualize" not in self._config["_wandb"]:
-            self._config["_wandb"]["visualize"] = dict()
-        self._config["_wandb"]["visualize"][visualize_key] = {
+        config = {
             "panel_type": panel_type,
             "panel_config": panel_config,
         }
-
-        self._config_callback(data=self._config._as_dict())
+        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _get_url_query_string(self):
         s = self._settings
@@ -1995,9 +1989,8 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                artifact.finalize()
-                self._backend.interface.publish_artifact(
-                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                self._log_artifact(
+                    artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2008,7 +2001,6 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    # TODO(jhr): annotate this
     def log_artifact(
         self,
         artifact_or_path,
@@ -2152,6 +2144,8 @@ class Run(object):
         aliases = None,
         distributed_id = None,
         finalize = True,
+        is_user_created = False,
+        use_after_commit = False,
     ):
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2161,9 +2155,25 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            self._backend.interface.publish_artifact(
-                self, artifact, aliases, finalize=finalize
-            )
+            if not self._settings._offline:
+                future = self._backend.interface.communicate_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                self._backend.interface.publish_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
         return artifact
 
     def _public_api(self):
@@ -2335,14 +2345,6 @@ def restore(
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
-
-
 def finish(exit_code = None):
     """
     Marks a run as finished, and finishes uploading all data.
@@ -2352,3 +2354,38 @@ def finish(exit_code = None):
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class _LazyArtifact(wandb_artifacts.Artifact):
+
+    # _api: PublicApi
+    _instance = None
+    # _future: Any
+
+    def __init__(self, api, future):
+        self._api = api
+        self._future = future
+
+    def __getattr__(self, item):
+        if not self._instance:
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties"
+            )
+        return getattr(self._instance, item)
+
+    def wait(self):
+        if not self._instance:
+            resp = self._future.get().response.log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
+        return self._instance

@@ -407,7 +407,8 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
-    CancelRequest         canceel = 13;
+    LogArtifactRequest    log_artifact = 13;
+    CancelRequest         cancel = 14;
     ShutdownRequest       shutdown = 64;
     HealthRequest         health = 65;
     TestInjectRequest     test_inject = 1000;
@@ -428,6 +429,7 @@ message Response {
     SampledHistoryResponse sampled_history_response = 27;
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
+    LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
     HealthResponse         health_response = 65;
     TestInjectResponse     test_inject_response = 1000;
@@ -623,3 +625,15 @@ message HealthRequest {
 
 message HealthResponse {
 }
+
+/*
+ * LogArtifact:
+ */
+ message LogArtifactRequest {
+    ArtifactRecord artifact = 1;
+ }
+
+ message LogArtifactResponse {
+    string artifact_id = 1;
+    string error_message = 2;
+ }
