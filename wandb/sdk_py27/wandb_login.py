@@ -190,6 +190,11 @@ def _login(
 
     if wlogin._settings._offline:
         return False
+    elif wandb.util._is_kaggle() and not wandb.util._has_internet():
+        wandb.termerror(
+            "To use W&B in kaggle you must enable internet in the settings panel on the right."
+        )
+        return False
 
     # perform a login
     logged_in = wlogin.login()
