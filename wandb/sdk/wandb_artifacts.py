@@ -19,10 +19,11 @@ from wandb.data_types import WBValue
 from wandb.errors.error import CommError
 from wandb.errors.term import termlog, termwarn
 
-from .interface.artifacts import (
+from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
     ArtifactManifest,
+    ArtifactsCache,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
