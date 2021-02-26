@@ -1702,7 +1702,9 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
-            self.name, self.mimetype, util.sizeof_fmt(self.size)
+            self.name,
+            self.mimetype,
+            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 

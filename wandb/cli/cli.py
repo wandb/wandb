@@ -1232,14 +1232,6 @@ def ls(path, type):
     else:
         types = public_api.artifact_types(path)
 
-    def human_size(bytes, units=None):
-        units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-        return (
-            str(bytes) + units[0]
-            if bytes < 1024
-            else human_size(bytes >> 10, units[1:])
-        )
-
     for kind in types:
         for collection in kind.collections():
             versions = public_api.artifact_versions(
@@ -1250,9 +1242,30 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, human_size(latest.size), latest.name
+                    kind.type,
+                    latest.updated_at,
+                    util.to_human_size(latest.size),
+                    latest.name,
                 )
             )
+
+
+@artifact.group(help="Commands for interacting with the artifact cache")
+def cache():
+    pass
+
+
+@cache.command(
+    context_settings=CONTEXT,
+    help="Clean up less frequently used files from the artifacts cache",
+)
+@click.argument("target_size")
+@display_error
+def cleanup(target_size):
+    target_size = util.from_human_size(target_size)
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    reclaimed_bytes = cache.cleanup(target_size)
+    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
