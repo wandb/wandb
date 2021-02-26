@@ -13,12 +13,8 @@ import os
 import sys
 import shutil
 from .utils import fixture_open
-from .utils import inject_backend
 import sys
 import six
-
-import wandb
-from wandb import wandb_sdk
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
