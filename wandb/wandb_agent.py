@@ -293,6 +293,14 @@ class Agent(object):
             "id": command.get("id"),
             "result": None,
         }
+
+        if "logs" in command:
+            command_logs = command["logs"]
+            if "success_probability" in command_logs:
+                logger.info(
+                    "Bayesian Optimizer believes probability of finding a new optimal run is {}".format(
+                        command_logs["success_probability"])
+                )
         try:
             command_type = command["type"]
             result = None
