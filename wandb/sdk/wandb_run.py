@@ -70,6 +70,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
+    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -79,8 +80,8 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
+    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
     from .wandb_artifacts import Artifact
-    from wandb.apis.public import Api as PublicApi
 
     from typing import TYPE_CHECKING
 
@@ -1993,9 +1994,8 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                artifact.finalize()
-                self._backend.interface.publish_artifact(
-                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                self._log_artifact(
+                    artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2006,7 +2006,6 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    # TODO(jhr): annotate this
     def log_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2150,6 +2149,8 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
+        is_user_created: bool = False,
+        use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2159,9 +2160,25 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            self._backend.interface.publish_artifact(
-                self, artifact, aliases, finalize=finalize
-            )
+            if not self._settings._offline:
+                future = self._backend.interface.communicate_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                self._backend.interface.publish_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
         return artifact
 
     def _public_api(self) -> PublicApi:
@@ -2333,14 +2350,6 @@ def restore(
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
-
-
 def finish(exit_code: int = None) -> None:
     """
     Marks a run as finished, and finishes uploading all data.
@@ -2350,3 +2359,38 @@ def finish(exit_code: int = None) -> None:
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class _LazyArtifact(wandb_artifacts.Artifact):
+
+    _api: PublicApi
+    _instance: Optional[ArtifactInterface] = None
+    _future: Any
+
+    def __init__(self, api: PublicApi, future: Any):
+        self._api = api
+        self._future = future
+
+    def __getattr__(self, item: str) -> Any:
+        if not self._instance:
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties"
+            )
+        return getattr(self._instance, item)
+
+    def wait(self) -> ArtifactInterface:
+        if not self._instance:
+            resp = self._future.get().response.log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
+        return self._instance
