@@ -81,6 +81,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     )
     from .wandb_setup import _WandbSetup
     from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
 
@@ -604,6 +605,65 @@ class Run(object):
             (str): name of W&B project associated with run.
         """
         return self.project_name()
+
+    def log_code(
+        self,
+        root = ".",
+        name = None,
+        include_fn = lambda path: path.endswith(".py"),
+        exclude_fn = lambda path: os.sep + "wandb" + os.sep
+        in path,
+    ):
+        """
+        log_code() saves the current state of your code to a W&B artifact.  By
+        default it walks the current directory and logs all files that end with ".py".
+
+        Arguments:
+            root (str, optional): The relative (to os.getcwd()) or absolute path to
+                recursively find code from.
+            name (str, optional): The name of our code artifact.  By default we'll name
+                the artifact "source-$RUN_ID".  There may be scenarios where you want
+                many runs to share the same artifact.  Specifying name allows you to achieve that.
+            include_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be included and False otherwise.  This
+                defaults to: `lambda path: path.endswith(".py")`
+            exclude_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be excluded and False otherwise.  This
+                defaults to: `lambda path: False`
+
+        Examples:
+            Basic usage
+            ```
+            run.log_code()
+            ```
+
+            Advanced usage
+            ```
+            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        name = name or "{}-{}".format("source", self.id)
+        art = wandb.Artifact(name, "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
+        # Add any manually staged files such is ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            return None
+        return self.log_artifact(art)
 
     def get_url(self):
         """
@@ -1462,15 +1522,14 @@ class Run(object):
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
-            wandb.termlog("Offline run mode, not syncing to the cloud.")
-
-        if self._settings._offline:
             wandb.termlog(
                 (
                     "W&B syncing is set to `offline` in this directory.  "
-                    "Run `wandb online` to enable cloud syncing."
+                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
                 )
             )
+        if self._settings.save_code and self._settings.code_dir is not None:
+            self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:

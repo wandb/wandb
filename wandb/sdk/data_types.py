@@ -2007,9 +2007,11 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        assert run
-        assert namespace == "summary", "We don't yet support DataFrames in History."
-        return _data_frame_to_json(val, run, key, namespace)
+        raise ValueError(
+            "We do not support DataFrames in the Summary or History. Try run.log({{'{}': wandb.Table(dataframe=df)}})".format(
+                key
+            )
+        )
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
