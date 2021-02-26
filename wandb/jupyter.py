@@ -181,7 +181,10 @@ def attempt_kaggle_load_ipynb():
     if kaggle:
         try:
             client = kaggle.UserSessionClient()
-            return json.loads(client.get_exportable_ipynb()["source"])
+            parsed = json.loads(client.get_exportable_ipynb()["source"])
+            # TODO: couldn't find a way to get the name of the notebook...
+            parsed["metadata"]["name"] = "kaggle.ipynb"
+            return parsed
         except Exception:
             logger.exception("Unable to load kaggle notebook")
             return None
