@@ -155,11 +155,18 @@ class _WandbInit(object):
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
 
-        settings._apply_init(kwargs)
+        # get status of code saving before applying user settings
+        save_code_pre_user_settings = settings["save_code"]
 
+        settings._apply_init(kwargs)
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
+
+        # ensure that user settings don't set saving to true
+        # if user explicitly set these to false
+        if save_code_pre_user_settings is False:
+            settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)

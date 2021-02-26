@@ -786,9 +786,11 @@ class Settings(object):
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
-        if (self.save_code is True or self.save_code is None) and os.getenv(
-            wandb.env.SAVE_CODE
-        ) is not None:
+        if (
+            (self.save_code is True or self.save_code is None)
+            and os.getenv(wandb.env.SAVE_CODE) is not None
+            or os.getenv(wandb.env.DISABLE_CODE) is not None
+        ):
             u["save_code"] = wandb.env.should_save_code()
 
         # Attempt to get notebook information if not already set by the user
@@ -840,10 +842,6 @@ class Settings(object):
 
     def _infer_run_settings_from_env(self, _logger=None):
         """Modify settings based on environment (for runs only)."""
-        if self.disable_code:
-            self.update(dict(program="<code saving explicitly disabled>"))
-            return
-
         # If there's not already a program file, infer it now.
         program = self.program or _get_program()
         if program:
