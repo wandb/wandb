@@ -1437,10 +1437,8 @@ class Run(object):
         if self._use_redirect:
             if self._out_redir:
                 self._out_redir.uninstall()
-                self._out_redir = None
             if self._err_redir:
                 self._err_redir.uninstall()
-                self._err_redir = None
             return
 
         if self.stdout_redirector:
