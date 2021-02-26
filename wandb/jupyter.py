@@ -181,7 +181,7 @@ def attempt_kaggle_load_ipynb():
     if kaggle:
         try:
             client = kaggle.UserSessionClient()
-            return client.get_exportable_ipynb()
+            return json.loads(client.get_exportable_ipynb()["source"])
         except Exception:
             logger.exception("Unable to load kaggle notebook")
             return None

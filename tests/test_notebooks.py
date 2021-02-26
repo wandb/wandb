@@ -1,6 +1,7 @@
 import os
 import platform
 import pytest
+import json
 import sys
 import wandb
 
@@ -93,7 +94,7 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
     kaggle = mocked_module("kaggle_session")
     kaggle_client = mocker.MagicMock()
     kaggle_client.get_exportable_ipynb.return_value = {
-        "metadata": {"name": "kaggle.ipynb"}
+        "source": json.dumps({"metadata": {"name": "kaggle.ipynb"}, "cells": []})
     }
     kaggle.UserSessionClient.return_value = kaggle_client
     meta = wandb.jupyter.notebook_metadata(False)
