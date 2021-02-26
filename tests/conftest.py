@@ -23,6 +23,7 @@ import git
 import psutil
 import atexit
 import wandb
+import shutil
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 
@@ -61,6 +62,7 @@ server = None
 
 def test_cleanup(*args, **kwargs):
     global server
+    print("Shutting down mock server")
     server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
@@ -198,7 +200,7 @@ def dummy_api_key():
 
 
 @pytest.fixture
-def test_settings(test_dir, mocker):
+def test_settings(test_dir, mocker, live_mock_server):
     """ Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
@@ -207,10 +209,9 @@ def test_settings(test_dir, mocker):
     wandb_dir = os.path.join(os.getcwd(), "wandb")
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    # TODO: consider making a debugable directory that stays around...
     settings = wandb.Settings(
         _start_time=time.time(),
-        base_url="http://localhost",
+        base_url=live_mock_server.base_url,
         root_dir=os.getcwd(),
         save_code=True,
         project="test",
@@ -313,36 +314,80 @@ def live_mock_server(request):
 
 
 @pytest.fixture
-def notebook(live_mock_server):
+def notebook(live_mock_server, test_dir):
     """This launches a live server, configures a notebook to use it, and enables
     devs to execute arbitrary cells.  See tests/test_notebooks.py
-
-    TODO: we should launch a single server on boot and namespace requests by host"""
+    """
 
     @contextmanager
-    def notebook_loader(nb_path, kernel_name="wandb_python", **kwargs):
+    def notebook_loader(nb_path, kernel_name="wandb_python", save_code=True, **kwargs):
         with open(utils.notebook_path("setup.ipynb")) as f:
             setupnb = nbformat.read(f, as_version=4)
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url
+                "__WANDB_BASE_URL__", live_mock_server.base_url,
             )
+            if save_code:
+                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
+            else:
+                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", "")
             setupcell["source"] = new_source
 
-        with open(utils.notebook_path(nb_path)) as f:
+        nb_path = utils.notebook_path(nb_path)
+        shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
+        with open(nb_path) as f:
             nb = nbformat.read(f, as_version=4)
         nb["cells"].insert(0, setupcell)
 
-        client = utils.WandbNotebookClient(nb)
-        with client.setup_kernel(**kwargs):
-            # Run setup commands for mocks
-            client.execute_cell(0, store_history=False)
-            yield client
+        try:
+            client = utils.WandbNotebookClient(nb, kernel_name=kernel_name)
+            with client.setup_kernel(**kwargs):
+                # Run setup commands for mocks
+                client.execute_cells(-1, store_history=False)
+                yield client
+        finally:
+            with open(os.path.join(os.getcwd(), "notebook.log"), "w") as f:
+                f.write(client.all_output_text())
+            wandb.termlog("Find debug logs at: %s" % os.getcwd())
+            wandb.termlog(client.all_output_text())
 
     notebook_loader.base_url = live_mock_server.base_url
 
     return notebook_loader
+
+
+@pytest.fixture
+def mocked_module(monkeypatch):
+    """This allows us to mock modules loaded via wandb.util.get_module"""
+
+    def mock_get_module(module):
+        orig_get_module = wandb.util.get_module
+        mocked_module = MagicMock()
+
+        def get_module(mod):
+            if mod == module:
+                return mocked_module
+            else:
+                return orig_get_module(mod)
+
+        monkeypatch.setattr(wandb.util, "get_module", get_module)
+        return mocked_module
+
+    return mock_get_module
+
+
+@pytest.fixture
+def mocked_ipython(monkeypatch):
+    monkeypatch.setattr(
+        wandb.wandb_sdk.wandb_settings, "_get_python_type", lambda: "jupyter"
+    )
+    ipython = MagicMock()
+    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
+    orig_get_ipython = wandb.jupyter.get_ipython
+    wandb.jupyter.get_ipython = lambda: ipython
+    yield ipython
+    wandb.jupyter.get_ipython = orig_get_ipython
 
 
 def default_wandb_args():

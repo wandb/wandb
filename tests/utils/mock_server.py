@@ -121,12 +121,12 @@ def run(ctx):
     }
 
 
-def artifact(ctx, collection_name="mnist"):
+def artifact(ctx, collection_name="mnist", state="COMMITTED"):
     return {
         "id": ctx["page_count"],
         "digest": "abc123",
         "description": "",
-        "state": "COMMITTED",
+        "state": state,
         "size": 10000,
         "createdAt": datetime.now().isoformat(),
         "updatedAt": datetime.now().isoformat(),
@@ -525,6 +525,11 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
             collection_name = body["variables"]["artifactCollectionNames"][0]
+            ctx["artifacts"] = ctx.get("artifacts", {})
+            ctx["artifacts"][collection_name] = ctx["artifacts"].get(
+                collection_name, []
+            )
+            ctx["artifacts"][collection_name].append(body["variables"])
             return {
                 "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
             }
@@ -603,7 +608,11 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             art = artifact(ctx)
-            art["artifactType"] = {"id": 1, "name": "dataset"}
+            # code artifacts use source-RUNID names, we return the code type
+            if "source" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 2, "name": "code"}
+            else:
+                art["artifactType"] = {"id": 1, "name": "dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -777,6 +786,17 @@ index 30d74d2..9a2c773 100644
             return ms, 200
         else:
             return b"", 500
+
+    @app.route("/api/sessions")
+    def jupyter_sessions():
+        return json.dumps(
+            [
+                {
+                    "kernel": {"id": "12345"},
+                    "notebook": {"path": "test.ipynb", "name": "test.ipynb"},
+                }
+            ]
+        )
 
     @app.route("/pypi/<library>/json")
     def pypi(library):
