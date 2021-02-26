@@ -11,7 +11,7 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union
+    from typing import List, Optional, Union, Dict
 
 
 def md5_string(string):
@@ -147,6 +147,7 @@ class ArtifactEntry(object):
 
 
 class Artifact(object):
+    @property
     def id(self):
         """
         Returns:
@@ -154,15 +155,33 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def metadata(self):
+    @property
+    def version(self):
         """
         Returns:
-            (dict): Structured data associated with the artifact,
-                for example class distribution of a dataset. This will eventually be queryable
-                and plottable in the UI. There is a hard limit of 100 total keys.
+            (int): The version of this artifact. For example, if this
+                is the first version of an artifact, its `version` will
+                be 'v0'.
         """
         raise NotImplementedError
 
+    @property
+    def name(self):
+        """
+        Returns:
+            (str): The artifact's name
+        """
+        raise NotImplementedError
+
+    @property
+    def type(self):
+        """
+        Returns:
+            (str): The artifact's type
+        """
+        raise NotImplementedError
+
+    @property
     def entity(self):
         """
         Returns:
@@ -170,6 +189,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def project(self):
         """
         Returns:
@@ -177,6 +197,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def manifest(self):
         """
         Returns:
@@ -186,6 +207,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def digest(self):
         """
         Returns:
@@ -195,6 +217,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def state(self):
         """
         Returns:
@@ -203,11 +226,83 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    @property
     def size(self):
         """
         Returns:
             (int): The size in bytes of the artifact. Includes any references
                 tracked by this artifact.
+        """
+        raise NotImplementedError
+
+    @property
+    def description(self):
+        """
+        Returns:
+            (str): Free text that offers a description of the artifact. The
+                description is markdown rendered in the UI, so this is a good place
+                to put links, etc.
+        """
+        raise NotImplementedError
+
+    @description.setter
+    def description(self, desc):
+        """
+        Arguments:
+            desc: Free text that offers a description of the artifact. The
+                description is markdown rendered in the UI, so this is a good place
+                to put links, etc.
+        """
+        raise NotImplementedError
+
+    @property
+    def metadata(self):
+        """
+        Returns:
+            (dict): Structured data associated with the artifact,
+                for example class distribution of a dataset. This will eventually be queryable
+                and plottable in the UI. There is a hard limit of 100 total keys.
+        """
+        raise NotImplementedError
+
+    @metadata.setter
+    def metadata(self, metadata):
+        """
+        Arguments:
+            metadata: (dict) Structured data associated with the artifact,
+                for example class distribution of a dataset. This will eventually be queryable
+                and plottable in the UI. There is a hard limit of 100 total keys.
+        """
+        raise NotImplementedError
+
+    @property
+    def aliases(self):
+        """
+        Returns:
+            (list): A list of the aliases associated with this artifact. The list is
+                mutable and calling `save()` will persist all alias changes.
+        """
+        raise NotImplementedError
+
+    @aliases.setter
+    def aliases(self, aliases):
+        """
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
+        """
+        raise NotImplementedError
+
+    def used_by(self):
+        """
+        Returns:
+            (list): A list of the runs that have used this artifact.
+        """
+        raise NotImplementedError
+
+    def logged_by(self):
+        """
+        Returns:
+            (Run): The run that first logged this artifact.
         """
         raise NotImplementedError
 
@@ -469,12 +564,61 @@ class Artifact(object):
         match the artifact.
 
         Arguments:
-            root: (str, optional) The directory in which to download this artifact's files
+            root: (str, optional) The directory in which to download this artifact's files.
             recursive: (bool, optional) If true, then all dependent artifacts are eagerly
                 downloaded. Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
-            The path to the downloaded contents.
+            (str): The path to the downloaded contents.
+        """
+        raise NotImplementedError
+
+    def verify(self, root = None):
+        """
+        Verify that the actual contents of an artifact at a specified directory
+        `root` match the expected contents of the artifact according to its
+        manifest.
+
+        All files in the directory are checksummed and the checksums are then
+        cross-referenced against the artifact's manifest.
+
+        NOTE: References are not verified.
+
+        Arguments:
+            root: (str, optional) The directory to verify. If None
+                artifact will be downloaded to './artifacts/<self.name>/'
+
+        Raises:
+            (ValueError): If the verification fails.
+        """
+        raise NotImplementedError
+
+    def save(self):
+        """
+        Persists any changes made to the artifact.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
+    def delete(self):
+        """
+        Deletes this artifact, cleaning up all files associated with it.
+
+        NOTE: Deletion is permanent and CANNOT be undone.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
+    def wait(self):
+        """
+        Waits for this artifact to finish logging, if needed.
+
+        Returns:
+            Artifact
         """
         raise NotImplementedError
 
@@ -582,6 +726,31 @@ class ArtifactsCache(object):
 
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
+
+    def cleanup(self, target_size):
+        bytes_reclaimed = 0
+        paths = {}
+        total_size = 0
+        for root, _, files in os.walk(self._cache_dir):
+            for file in files:
+                path = os.path.join(root, file)
+                stat_res = os.stat(path)
+                paths[path] = stat_res
+                total_size += stat_res.st_size
+
+        sorted_paths = sorted(paths.items(), key=lambda x: x[1].st_atime)
+        for path, stat in sorted_paths:
+            if total_size < target_size:
+                return bytes_reclaimed
+
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+            total_size -= stat.st_size
+            bytes_reclaimed += stat.st_size
+        return bytes_reclaimed
 
 
 _artifacts_cache = None

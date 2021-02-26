@@ -1702,7 +1702,9 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
-            self.name, self.mimetype, util.sizeof_fmt(self.size)
+            self.name,
+            self.mimetype,
+            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 
@@ -2599,6 +2601,10 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
+    def version(self):
+        return "v%d" % self._version_index
+
+    @property
     def entity(self):
         return self._entity
 
@@ -2985,18 +2991,6 @@ class Artifact(artifacts.Artifact):
         return True
 
     def verify(self, root=None):
-        """
-        Verify an artifact by checksumming its downloaded contents.
-
-        NOTE: References are not verified.
-
-        Arguments:
-            root: (str, optional) directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-
-        Raises:
-            (ValueError): If the verification fails.
-        """
         dirpath = root
         if dirpath is None:
             dirpath = os.path.join(".", "artifacts", self.name)
@@ -3013,6 +3007,9 @@ class Artifact(artifacts.Artifact):
                 ref_count += 1
         if ref_count > 0:
             print("Warning: skipped verification of %s refs" % ref_count)
+
+    def wait(self):
+        return self
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
