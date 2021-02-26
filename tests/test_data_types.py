@@ -67,7 +67,8 @@ def test_wb_value(live_mock_server, test_settings):
 def test_wb_summary_df(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
-    run.summary.update({"data-frame-summary": data_frame})
+    with pytest.raises(ValueError):
+        run.summary.update({"data-frame-summary": data_frame})
 
 
 def test_raw_data():
