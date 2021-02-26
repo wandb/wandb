@@ -457,14 +457,6 @@ class _WandbInit(object):
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
-        # ifc = backend.interface
-        # with ifc.open_channel() as ch:
-        #     ch.initiate_health()
-        #     while handle.poll_progress():
-        #         self._progress("Still waiting...")
-        #     result = ch.get_result()
-        #     if not result:
-        #         self._fail(errors.InitStartError, "Could not talk to internal process")
 
         result = backend.interface.communicate_health()
         if not result:
