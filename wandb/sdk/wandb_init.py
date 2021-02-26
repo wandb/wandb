@@ -26,7 +26,6 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .interface import interface
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
@@ -467,8 +466,7 @@ class _WandbInit(object):
         #     if not result:
         #         self._fail(errors.InitStartError, "Could not talk to internal process")
 
-        monitor = interface.Monitor()
-        result = backend.interface.communicate_health(monitor=monitor)
+        result = backend.interface.communicate_health()
         if not result:
             self._fail(errors.InitStartError, "Could not talk to internal process")
 

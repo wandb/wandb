@@ -141,10 +141,6 @@ class MessageRouter(object):
         future._set_object(msg)
 
 
-class Monitor(object):
-    pass
-
-
 class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
@@ -534,7 +530,7 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
-    def communicate_health(self, monitor):
+    def communicate_health(self):
         record = pb.Record()
         record.request.health.CopyFrom(pb.HealthRequest())
         result = self._communicate(record)
@@ -819,6 +815,3 @@ class BackendSender(object):
 
         if self._router:
             self._router.join()
-
-    def open_channel(self):
-        pass
