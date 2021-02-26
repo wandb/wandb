@@ -235,9 +235,13 @@ def test_parse_sweep_id():
 
 
 def test_sizeof_fmt():
-    assert util.sizeof_fmt(1000) == "1000.0B"
-    assert util.sizeof_fmt(1000000) == "976.6KiB"
-    assert util.sizeof_fmt(5000000) == "4.8MiB"
+    assert util.to_human_size(1000, units=util.POW_2_BYTES) == "1000.0B"
+    assert util.to_human_size(1000000, units=util.POW_2_BYTES) == "976.6KiB"
+    assert util.to_human_size(5000000, units=util.POW_2_BYTES) == "4.8MiB"
+
+    assert util.to_human_size(1000) == "1000.0B"
+    assert util.to_human_size(1000000) == "1000.0KB"
+    assert util.to_human_size(5000000) == "5.0MB"
 
 
 def test_matplotlib_contains_images():

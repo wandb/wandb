@@ -8,7 +8,6 @@ import getpass
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -64,16 +63,6 @@ whaaaaat = util.vendor_import("whaaaaat")
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
-
-_BYTES = [
-    ("B", 2 ** 0),
-    ("KB", 2 ** 10),
-    ("MB", 2 ** 20),
-    ("GB", 2 ** 30),
-    ("TB", 2 ** 40),
-    ("PB", 2 ** 50),
-    ("EB", 2 ** 60),
-]
 
 
 def cli_unsupported(argument):
@@ -1255,7 +1244,7 @@ def ls(path, type):
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
                     kind.type,
                     latest.updated_at,
-                    to_human_size(latest.size),
+                    util.to_human_size(latest.size),
                     latest.name,
                 )
             )
@@ -1273,36 +1262,10 @@ def cache():
 @click.argument("target_size")
 @display_error
 def cleanup(target_size):
-    target_size = from_human_size(target_size)
+    target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
     reclaimed_bytes = cache.cleanup(target_size)
-    print("Reclaimed {} of space".format(to_human_size(reclaimed_bytes)))
-
-
-def to_human_size(bytes, units=None):
-    units = units or _BYTES
-    unit, value = units[0]
-    factor = round(float(bytes) / value, 2)
-    return (
-        "{}{}".format(factor, unit)
-        if factor < 1024 or len(units) == 1
-        else to_human_size(bytes, units[1:])
-    )
-
-
-def from_human_size(size, units=None):
-    units = units or {unit: value for (unit, value) in _BYTES}
-    regex = re.compile(
-        r"(\d+\.?\d*)\s*({})?".format("|".join(units.keys())), re.IGNORECASE
-    )
-    match = re.match(regex, size)
-    if not match:
-        raise ValueError("Size must be of the form `10`, `10B` or `10 B`.")
-    factor, unit = (
-        float(match.group(1)),
-        units[match.group(2).upper()] if match.group(2) else 1,
-    )
-    return factor * unit
+    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
