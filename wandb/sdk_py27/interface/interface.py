@@ -789,3 +789,6 @@ class BackendSender(object):
 
         if self._router:
             self._router.join()
+
+    def open_channel(self):
+        pass
