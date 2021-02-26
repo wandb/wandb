@@ -44,6 +44,7 @@ from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -51,6 +52,7 @@ from .lib import (
     sparkline,
     telemetry,
 )
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -60,7 +62,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -78,6 +79,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
+    from .wandb_artifacts import Artifact
     from wandb.apis.public import Api as PublicApi
 
     from typing import TYPE_CHECKING
@@ -209,7 +211,7 @@ class Run(object):
     # _out_redir: Optional[redirect.RedirectBase]
     # _err_redir: Optional[redirect.RedirectBase]
     # _redirect_cb: Optional[Callable[[str, str], None]]
-    # _output_writer: Optional["WriteSerializingFile"]
+    # _output_writer: Optional["filesystem.CRDedupedFile"]
 
     # _atexit_cleanup_called: bool
     # _hooks: Optional[ExitHooks]
@@ -602,6 +604,65 @@ class Run(object):
             (str): name of W&B project associated with run.
         """
         return self.project_name()
+
+    def log_code(
+        self,
+        root = ".",
+        name = None,
+        include_fn = lambda path: path.endswith(".py"),
+        exclude_fn = lambda path: os.sep + "wandb" + os.sep
+        in path,
+    ):
+        """
+        log_code() saves the current state of your code to a W&B artifact.  By
+        default it walks the current directory and logs all files that end with ".py".
+
+        Arguments:
+            root (str, optional): The relative (to os.getcwd()) or absolute path to
+                recursively find code from.
+            name (str, optional): The name of our code artifact.  By default we'll name
+                the artifact "source-$RUN_ID".  There may be scenarios where you want
+                many runs to share the same artifact.  Specifying name allows you to achieve that.
+            include_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be included and False otherwise.  This
+                defaults to: `lambda path: path.endswith(".py")`
+            exclude_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be excluded and False otherwise.  This
+                defaults to: `lambda path: False`
+
+        Examples:
+            Basic usage
+            ```
+            run.log_code()
+            ```
+
+            Advanced usage
+            ```
+            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        name = name or "{}-{}".format("source", self.id)
+        art = wandb.Artifact(name, "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
+        # Add any manually staged files such is ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            return None
+        return self.log_artifact(art)
 
     def get_url(self):
         """
@@ -1078,6 +1139,7 @@ class Run(object):
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
+        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -1287,17 +1349,25 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
@@ -1318,10 +1388,18 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1428,7 +1506,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self):
@@ -1443,15 +1521,14 @@ class Run(object):
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
-            wandb.termlog("Offline run mode, not syncing to the cloud.")
-
-        if self._settings._offline:
             wandb.termlog(
                 (
                     "W&B syncing is set to `offline` in this directory.  "
-                    "Run `wandb online` to enable cloud syncing."
+                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
                 )
             )
+        if self._settings.save_code and self._settings.code_dir is not None:
+            self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:
@@ -2185,16 +2262,6 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
 
-    def _set_console(
-        self,
-        use_redirect,
-        stdout_slave_fd,
-        stderr_slave_fd,
-    ):
-        self._use_redirect = use_redirect
-        self._stdout_slave_fd = stdout_slave_fd
-        self._stderr_slave_fd = stderr_slave_fd
-
     def __enter__(self):
         return self
 
@@ -2272,31 +2339,6 @@ try:
 # py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
-
-
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs):  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
 
 
 def finish(exit_code = None):
