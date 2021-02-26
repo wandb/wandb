@@ -234,7 +234,17 @@ def test_parse_sweep_id():
     assert parts == {"name": "test", "entity": "test", "project": "test"}
 
 
-def test_sizeof_fmt():
+def test_from_human_size():
+    assert util.from_human_size("1000B", units=util.POW_2_BYTES) == 1000
+    assert util.from_human_size("976.6KiB", units=util.POW_2_BYTES) == 1000038
+    assert util.from_human_size("4.8MiB", units=util.POW_2_BYTES) == 5033164
+
+    assert util.from_human_size("1000.0B") == 1000
+    assert util.from_human_size("1000KB") == 1000000
+    assert util.from_human_size("5.0MB") == 5000000
+
+
+def test_to_human_size():
     assert util.to_human_size(1000, units=util.POW_2_BYTES) == "1000.0B"
     assert util.to_human_size(1000000, units=util.POW_2_BYTES) == "976.6KiB"
     assert util.to_human_size(5000000, units=util.POW_2_BYTES) == "4.8MiB"

@@ -1039,7 +1039,7 @@ def to_human_size(bytes, units=None):
 
 
 def from_human_size(size, units=None):
-    units = units or {unit: value for (unit, value) in POW_10_BYTES}
+    units = {unit.upper(): value for (unit, value) in units or POW_10_BYTES}
     regex = re.compile(
         r"(\d+\.?\d*)\s*({})?".format("|".join(units.keys())), re.IGNORECASE
     )
@@ -1050,7 +1050,7 @@ def from_human_size(size, units=None):
         float(match.group(1)),
         units[match.group(2).upper()] if match.group(2) else 1,
     )
-    return factor * unit
+    return int(factor * unit)
 
 
 def auto_project_name(program):
