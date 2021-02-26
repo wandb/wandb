@@ -41,15 +41,10 @@ from fastai.callbacks import TrackerCallback
 from pathlib import Path
 import random
 
-if wandb.TYPE_CHECKING:
-    from ...sdk.lib import ipython
-else:
-    from ...sdk_py27.lib import ipython
-
 try:
     import matplotlib
 
-    if ipython._get_python_type() != "jupyter":
+    if wandb.wandb_lib.ipython._get_python_type() != "jupyter":
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
     import matplotlib.pyplot as plt
 except:
