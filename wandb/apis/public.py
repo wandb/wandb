@@ -1461,7 +1461,16 @@ class Sweep(Attrs):
         return self.client.app_url + "/".join(path)
 
     @classmethod
-    def get(cls, client, entity=None, project=None, sid=None, query=None, **kwargs):
+    def get(
+        cls,
+        client,
+        entity=None,
+        project=None,
+        sid=None,
+        order=None,
+        query=None,
+        **kwargs
+    ):
         """Execute a query against the cloud backend"""
         if query is None:
             query = cls.QUERY
@@ -1485,6 +1494,7 @@ class Sweep(Attrs):
             client,
             entity,
             project,
+            order=order,
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
         )
