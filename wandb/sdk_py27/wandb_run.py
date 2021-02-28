@@ -1987,10 +1987,9 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                future = self._log_artifact(
+                self._log_artifact(
                     artifact, aliases, is_user_created=True, use_after_commit=True
                 )
-                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
                 return artifact
             elif isinstance(artifact, public.Artifact):
                 api.use_artifact(artifact.id)

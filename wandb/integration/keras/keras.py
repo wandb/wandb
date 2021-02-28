@@ -409,6 +409,8 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+        print("self.validation_data", self.validation_data)
+
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
         outputs = self.model(inputs)
