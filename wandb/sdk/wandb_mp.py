@@ -9,6 +9,11 @@ import uuid
 from six.moves import cPickle as pickle
 
 
+
+def _get_free_port():
+    with socketserver.TCPServer(("localhost", 0), None) as s:
+        return s.server_address[1]
+
 class Server(object):
     def __init__(self, address, handler=None, responder=None):
         self.address = address
@@ -179,11 +184,6 @@ class AsyncClient(object):
         # TODO(frz): kill receiver thread
         self._sender_thread.join(timeout=5)
         self._client.close()
-
-
-def _get_port():
-    with socketserver.TCPServer(("localhost", 0), None) as s:
-        free_port = s.server_address[1]
 
 
 def start_mp_server(port):

@@ -9,9 +9,11 @@ your evaluation script, and each piece steps would be tracked as a run in W&B.
 from __future__ import print_function
 
 import datetime
+import json
 import logging
 import os
 import platform
+import psutil
 import sys
 import time
 import traceback
@@ -30,7 +32,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
-from .wandb_mp import start_mp_server, Proxy
+from .wandb_mp import start_mp_server, Proxy, _get_free_port
 from .wandb_run import Run
 from .wandb_settings import Settings
 
@@ -524,6 +526,29 @@ def getcaller():
     print("Problem at:", src, line, func)
 
 
+def _write_process_config(kwargs, port):
+    config = {
+        "id": os.getpid(),
+        "port": port,
+        "kwargs": kwargs
+    }
+    wandb_dir = wandb.old.core.wandb_dir()
+    if not os.path.isdir(wandb_dir):
+        os.mkdir(wandb_dir)
+    with open(os.path.join(wandb_dir, "proc_%s.json" % os.getpid()), 'w') as f:
+        json.dump(config, f)
+
+
+def _get_parent_process_config():
+    ppid = psutil.Process(os.getpid()).ppid()
+    wandb_dir = wandb.old.core.wandb_dir()
+    parent_config_file = os.path.join(wandb_dir, "proc_%s.json" % ppid)
+    if not os.path.isfile(parent_config_file):
+        return None
+    with open(parent_config_file, 'r') as f:
+        return json.load(f)
+
+
 def init(
     job_type: Optional[str] = None,
     dir=None,
@@ -549,8 +574,6 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-    mp_mode: Optional[str] = None,
-    mp_port: int = 6000
 ) -> Union[Run, Dummy, None]:
     """
     Start a new tracked run with `wandb.init()`.
@@ -709,25 +732,58 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
-    if mp_mode:
-        if mp_mode == "parent":
-            start_mp_server(port=mp_port)
-        elif mp_mode == "child":
-            run = Proxy("wandb.run", port=mp_port)
-            module.set_global(
-            run = run,
-            config=run.config,
-            summary=run.summary,
-            log=run.log,
-            save=run.save,
-            use_artifact=run.use_artifact,
-            log_artifact=run.log_artifact,
-            alert=run.alert,
-            plot_table=run.plot_table
-            )
-            return run
-    kwargs.pop("mp_mode")
-    kwargs.pop("mp_port")
+    parent_proc_config = _get_parent_process_config()
+    if parent_proc_config is None:
+        port = _get_free_port()
+        _write_process_config(kwargs, port=port)
+        start_mp_server(port=port)
+    else:
+        run = Proxy("wandb.run", port=parent_proc_config["port"])
+        module.set_global(
+        run = run,
+        config=run.config,
+        summary=run.summary,
+        log=run.log,
+        save=run.save,
+        use_artifact=run.use_artifact,
+        log_artifact=run.log_artifact,
+        alert=run.alert,
+        plot_table=run.plot_table
+        )
+        kwargs = parent_proc_config["kwargs"]
+        monitor_gym = kwargs.pop("monitor_gym", None)
+        if monitor_gym and len(wandb.patched["gym"]) == 0:
+            wandb.gym.monitor()
+
+        tensorboard = kwargs.pop("tensorboard", None)
+        sync_tensorboard = kwargs.pop("sync_tensorboard", None)
+        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
+            wandb.tensorboard.patch()
+
+        magic = kwargs.get("magic")
+        if magic not in (None, False):
+            magic_install(kwargs)
+
+        return run
+    # if mp_mode:
+    #     if mp_mode == "parent":
+    #         start_mp_server(port=mp_port)
+    #     elif mp_mode == "child":
+    #         run = Proxy("wandb.run", port=mp_port)
+    #         module.set_global(
+    #         run = run,
+    #         config=run.config,
+    #         summary=run.summary,
+    #         log=run.log,
+    #         save=run.save,
+    #         use_artifact=run.use_artifact,
+    #         log_artifact=run.log_artifact,
+    #         alert=run.alert,
+    #         plot_table=run.plot_table
+    #         )
+    #         return run
+    # kwargs.pop("mp_mode")
+    # kwargs.pop("mp_port")
     error_seen = None
     except_exit = None
     try:
