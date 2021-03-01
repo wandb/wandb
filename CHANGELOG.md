@@ -2,12 +2,16 @@
 
 #### :bug: Bug Fix
 
-- Multiple console logging issues fixed
+- Fix artifact.get() regression since 0.10.18
+- Allow 0 byte artifacts
+- Fix codesaving and program name reporting
 
 #### :nail_care: Enhancement
 
 - Added support for glb files for `wandb.Object3D()`
 - Added support for external references for `wandb.Audio()`
+- Custom chart support tensorboard `pr_curves` plugin
+- Support saving entire code directory in an artifact
 
 ## 0.10.20 (February 22, 2021)
 
