@@ -635,7 +635,8 @@ def init(
         sync_tensorboard: (bool, optional) Whether to copy all TensorBoard logs
             to W&B (default: False).
             [Tensorboard](https://docs.wandb.com/integrations/tensorboard)
-        resume (bool, str, optional): Sets the resuming behavior. Options:
+        resume: (bool, str, optional) Sets the resuming behavior. 
+            Options:
             "allow", "must", "never", "auto" or None. Defaults to None.
             Cases:
             - None (default): If the new run has the same ID as a previous run,
