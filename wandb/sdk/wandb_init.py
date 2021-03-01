@@ -797,6 +797,8 @@ def init(
         wandb.termerror("Abnormal program exit")
         if isinstance(e, errors.InitError):
             raise
+
+        # wrap unknown exception in InitGenericError
         generic_error = errors.InitGenericError("Problem in wandb.init()")
         six.raise_from(generic_error, e)
     return run

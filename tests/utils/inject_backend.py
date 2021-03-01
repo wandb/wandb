@@ -42,10 +42,16 @@ else:
 
 class BackendSenderMock(BackendSender):
     def __init__(self, *args, **kwargs):
+        self._injectenabled = True
         super(BackendSenderMock, self).__init__(*args, **kwargs)
 
+    def _injectdisable(self):
+        self._injectenabled = False
+
     def _communicate(self, *args, **kwargs):
-        ret = BackendSender._communicate(self, *args, **kwargs)
+        fn = self._injectenabled and getattr(self, "_inject__communicate", None)
+        fn = fn or BackendSender._communicate
+        ret = fn(self, *args, **kwargs)
         return ret
 
 

@@ -1134,13 +1134,18 @@ class Run(object):
             tel.feature.finish = True
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
-        for hook in self._teardown_hooks:
-            hook()
-        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
+        self._done()
+
+    def _done(self):
+        """Final cleanup of the run, calld in error paths also."""
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
+        logger.info("finally _done")
+        for hook in self._teardown_hooks:
+            hook()
+        self._teardown_hooks = []
 
     def join(self, exit_code = None):
         """Deprecated alias for `finish()` - please use finish"""
@@ -1488,6 +1493,8 @@ class Run(object):
             if self._settings._silent:
                 return
             self._on_final()
+        finally:
+            self._done()
 
     def _console_start(self):
         logger.info("atexit reg")

@@ -29,7 +29,7 @@ def test_inject_init_health(live_mock_server, test_settings, inject_util):
 
     class InjectBackend(inject_backend.BackendSenderMock):
         def _communicate(self, *args, **kwargs):
-            inject_util.uninstall()
+            self._injectdisable()
             return
 
     inject_util.install(InjectBackend)
@@ -41,8 +41,8 @@ def test_inject_init_interrupt(live_mock_server, test_settings, inject_util):
     """On health check meessage, send control-c."""
 
     class InjectBackend(inject_backend.BackendSenderMock):
-        def _communicate(self, *args, **kwargs):
-            inject_util.uninstall()
+        def _inject__communicate(self, *args, **kwargs):
+            self._injectdisable()
             raise KeyboardInterrupt()
 
     inject_util.install(InjectBackend)
@@ -55,7 +55,7 @@ def test_inject_init_generic(live_mock_server, test_settings, inject_util):
 
     class InjectBackend(inject_backend.BackendSenderMock):
         def _communicate(self, *args, **kwargs):
-            inject_util.uninstall()
+            self._injectdisable()
             raise Exception("This is generic")
 
     inject_util.install(InjectBackend)
