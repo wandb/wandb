@@ -385,6 +385,9 @@ class HandleManager(object):
     def handle_request_check_version(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_log_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
 

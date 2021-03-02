@@ -158,6 +158,7 @@ SYMBOLS_RUN = {
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",
+    "log_code",
     "alert",
     "define_metric",
     # "summary",   # really this should be here
