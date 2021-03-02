@@ -1,3 +1,4 @@
+import math
 import sys
 import typing as t
 
@@ -45,6 +46,15 @@ class TypeRegistry:
 
     @staticmethod
     def type_of(py_obj: t.Optional[t.Any]) -> "Type":
+        # Special case handler for common case of np.nans. np.nan
+        # is of type 'float', but should be treated as a None. This is
+        # because np.nan can co-exist with other types in dataframes,
+        # but will be ultimately treated as a None. Ignoring type since
+        # mypy does not trust that py_obj is a float by the time it is
+        # passed to isnan.
+        if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
+            return NoneType()
+
         class_handler = TypeRegistry.types_by_class().get(py_obj.__class__)
         _type = None
         if class_handler:
