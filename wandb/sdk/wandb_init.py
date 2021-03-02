@@ -32,7 +32,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .wandb_helper import parse_config
-from .wandb_mp import start_mp_server, Proxy, _get_free_port
+from .wandb_mp import start_mp_server, Proxy, _get_free_port, _write_process_config, _get_parent_process_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
@@ -737,6 +737,8 @@ def init(
         port = _get_free_port()
         _write_process_config(kwargs, port=port)
         start_mp_server(port=port)
+    elif wandb.run:
+        return wandb.run
     else:
         run = Proxy("wandb.run", port=parent_proc_config["port"])
         module.set_global(
