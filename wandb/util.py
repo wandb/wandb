@@ -479,6 +479,30 @@ def json_friendly(obj):
     return obj, converted
 
 
+def json_friendly_val(val):
+    """Make any value (including dict, slice, sequence…) JSON friendly"""
+    if isinstance(val, dict):
+        converted = {}
+        for key, value in six.iteritems(val):
+            converted[key] = json_friendly_val(value)
+        return converted
+    if isinstance(val, slice):
+        converted = dict(
+            slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+        )
+        return converted
+    val, _ = json_friendly(val)
+    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+        converted = []
+        for value in val:
+            converted.append(json_friendly_val(value))
+        return converted
+    else:
+        if val.__class__.__module__ not in ("builtins", "__builtin__"):
+            val = str(val)
+        return val
+
+
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
