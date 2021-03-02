@@ -506,6 +506,32 @@ def test_add_obj_wbimage(runner):
         }
 
 
+def test_add_obj_using_brackets(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact["my-image"] = wb_image
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
+            },
+        }
+
+
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
