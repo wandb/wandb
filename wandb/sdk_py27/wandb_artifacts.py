@@ -469,10 +469,13 @@ class Artifact(ArtifactInterface):
     def save(self):
         if self._logged_artifact:
             return self._logged_artifact.save()
-
-        raise ValueError(
-            "Cannot call save on an artifact before it has been logged or in offline mode"
-        )
+        else:
+            if wandb.run is None:
+                run = wandb.init()
+                run.log_artifact(self)
+                run.finish()
+            else:
+                wandb.run.log_artifact(self)
 
     def delete(self):
         if self._logged_artifact:
