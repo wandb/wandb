@@ -33,6 +33,7 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
+        # from .interface.artifacts import Artifact as ArtifactInterface
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
@@ -75,6 +76,7 @@ def _safe_sdk_import() -> Tuple[Type["LocalRun"], Type["LocalArtifact"]]:
 
 
 class _WBValueArtifactSource(object):
+    # artifact: "ArtifactInterface"
     artifact: "PublicArtifact"
     name: Optional[str]
 
@@ -392,13 +394,16 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self, run: Union["LocalRun", "LocalArtifact"], _save_file: bool = True
+    ) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
         is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
         Args:
             run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
             JSON for - this is useful to to store additional data if needed.
+            _save_file (bool): used by subclasses to determine if the file should be saved
 
         Returns:
             dict: JSON representation
@@ -433,7 +438,7 @@ class Media(WBValue):
                 }
             )
         elif isinstance(run, artifact_class):
-            if self.file_is_set():
+            if self.file_is_set() and _save_file:
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
@@ -659,7 +664,11 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D.artifact_type
 
@@ -763,7 +772,11 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Molecule, self).to_json(run_or_artifact)
         json_dict["_type"] = "molecule-file"
         if self._caption:
@@ -862,7 +875,11 @@ class Html(BatchableMedia):
     def get_media_subdir(cls: Type["Html"]) -> str:
         return os.path.join("media", "html")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Html, self).to_json(run_or_artifact)
         json_dict["_type"] = "html-file"
         return json_dict
@@ -1004,7 +1021,11 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Video, self).to_json(run_or_artifact)
         json_dict["_type"] = "video-file"
 
@@ -1102,7 +1123,11 @@ class JSONMetadata(Media):
     def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(JSONMetadata, self).to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 
@@ -1199,7 +1224,11 @@ class ImageMask(Media):
             {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(ImageMask, self).to_json(run_or_artifact)
         run_class, artifact_class = _safe_sdk_import()
 
@@ -1378,7 +1407,11 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("A box's caption must be a string")
         return True
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         run_class, artifact_class = _safe_sdk_import()
 
         if isinstance(run_or_artifact, run_class):
@@ -1423,7 +1456,9 @@ class Classes(Media):
         return cls(json_obj.get("class_set"))  # type: ignore
 
     def to_json(
-        self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
+        self,
+        run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]],
+        _save_file: bool = True,
     ) -> dict:
         json_obj = {}
         # This is a bit of a hack to allow _ClassesIdType to
@@ -1679,7 +1714,11 @@ class Image(BatchableMedia):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
                 self._masks[k].bind_to_run(run, key, step, id_)
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
         json_dict["_type"] = Image.artifact_type
         json_dict["format"] = self.format
@@ -1956,7 +1995,11 @@ class Plotly(Media):
     def get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(
+        self,
+        run_or_artifact: Union["LocalRun", "LocalArtifact"],
+        _save_file: bool = True,
+    ) -> dict:
         json_dict = super(Plotly, self).to_json(run_or_artifact)
         json_dict["_type"] = "plotly-file"
         return json_dict

@@ -303,6 +303,7 @@ class Table(Media):
             aliases = ["summary"]
         else:
             aliases = ["step_{}".format(step)]
+        # run._add_run_table(key, self, aliases)
         (entry, artifact) = run._add_run_table(key, self, aliases)
         self.bound_artifact_entry = entry
         self.bound_artifact = artifact
@@ -336,20 +337,23 @@ class Table(Media):
         return new_obj
 
     def to_json(self, run_or_artifact):
-        json_dict = super(Table, self).to_json(run_or_artifact)
         wandb_run, wandb_artifacts = _safe_sdk_import()
+        is_run = isinstance(run_or_artifact, wandb_run.Run)
+        json_dict = super(Table, self).to_json(run_or_artifact, _save_file=is_run)
 
-        if isinstance(run_or_artifact, wandb_run.Run):
+        if is_run:
+            # print(self.artifact_source.artifact.name, self.bound_artifact.name)
+            # print(self.artifact_source.name, self.bound_artifact_entry.path)
             json_dict.update(
                 {
                     "_type": "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                     "artifact_path": {
-                        "name": "{}:{}".format(
+                        "artifact": "{}:{}".format(
                             self.bound_artifact.name, self.bound_artifact_aliases[0]
                         ),
-                        "entry": self.bound_artifact_entry.path,
+                        "name": self.bound_artifact_entry.path,
                     },
                 }
             )
