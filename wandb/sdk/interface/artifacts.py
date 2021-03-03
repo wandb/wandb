@@ -496,7 +496,7 @@ class Artifact(object):
         Gets the path to the file located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact` or the API.
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
@@ -529,7 +529,7 @@ class Artifact(object):
         Gets the WBValue object located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact` or the API.
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
@@ -642,7 +642,7 @@ class Artifact(object):
         Gets the WBValue object located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact` or the API.
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
@@ -666,7 +666,7 @@ class Artifact(object):
             table = artifact["my_table"]
             ```
         """
-        return self.get(name)
+        raise NotImplementedError
 
     def __setitem__(self, name: str, item: WBValue):
         """
@@ -695,7 +695,7 @@ class Artifact(object):
             table = artifact["my_table"]
             ```
         """
-        return self.add(item, name)
+        raise NotImplementedError
 
 
 class StorageLayout(object):
