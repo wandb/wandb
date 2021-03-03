@@ -44,7 +44,6 @@ from .lib import (
     apikey,
     config_util,
     filenames,
-    filesystem,
     ipython,
     module,
     proto_util,
@@ -52,7 +51,6 @@ from .lib import (
     sparkline,
     telemetry,
 )
-
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -62,6 +60,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
+        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -212,7 +211,7 @@ class Run(object):
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
-    _output_writer: Optional["filesystem.CRDedupedFile"]
+    _output_writer: Optional["WriteSerializingFile"]
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -1343,25 +1342,17 @@ class Run(object):
         err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            # out_cap = redirect.Capture(
-            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
-            # err_cap = redirect.Capture(
-            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
+            out_cap = redirect.Capture(
+                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            )
+            err_cap = redirect.Capture(
+                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            )
             out_redir = redirect.Redirect(
-                src="stdout",
-                cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                src="stdout", dest=out_cap, unbuffered=True, tee=True
             )
             err_redir = redirect.Redirect(
-                src="stderr",
-                cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
             if os.name == "nt":
 
@@ -1382,18 +1373,10 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                src="stdout",
-                cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )
             err_redir = redirect.StreamWrapper(
-                src="stderr",
-                cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1500,7 +1483,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
+        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2341,6 +2324,39 @@ def restore(
     if files[0].md5 == "0":
         raise ValueError("File {} not found in {}.".format(name, run_path or root))
     return files[0].download(root=root, replace=True)
+
+
+# propigate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class WriteSerializingFile(object):
+    """Wrapper for a file object that serializes writes.
+    """
+
+    def __init__(self, f: BinaryIO) -> None:
+        self.lock = threading.Lock()
+        self.f = f
+
+    # TODO(jhr): annotate this
+    def write(self, *args, **kargs) -> None:  # type: ignore
+        self.lock.acquire()
+        try:
+            self.f.write(*args, **kargs)
+            self.f.flush()
+        finally:
+            self.lock.release()
+
+    def close(self) -> None:
+        self.lock.acquire()  # wait for pending writes
+        try:
+            self.f.close()
+        finally:
+            self.lock.release()
 
 
 def finish(exit_code: int = None) -> None:
