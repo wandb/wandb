@@ -467,14 +467,17 @@ class Artifact(ArtifactInterface):
             "Cannot call verify on an artifact before it has been logged or in offline mode"
         )
 
-    def save(self):
+    def save(self, **init_kwargs):  # type: ignore
         if self._logged_artifact:
             return self._logged_artifact.save()
         else:
             if wandb.run is None:
-                with wandb.init(
-                    job_type="auto", settings=wandb.Settings(silent=True)
-                ) as run:
+                kwargs = {k: v for k, v in init_kwargs.items()}
+                if "job_type" not in init_kwargs:
+                    kwargs["job_type"] = "auto"
+                if "settings" not in init_kwargs:
+                    init_kwargs["settings"] = wandb.Settings(silent=True)
+                with wandb.init(**init_kwargs) as run:
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                 termlog(
