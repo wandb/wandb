@@ -173,3 +173,12 @@ def test_keras_progbar(cls, capfd):
         model.fit(np.zeros((10000, 10)), np.ones((10000, 10)), epochs=epochs)
         r.uninstall()
         assert len(o) in (epochs * 2, epochs * 2 + 1)  # Allow 1 offs
+
+
+@pytest.mark.parametrize("cls", impls)
+def test_interactive(cls, capfd):
+    with capfd.disabled():
+        r = cls("stdout", [lambda _: None])
+        r.install()
+        print(np.random.randint(64, size=(40, 40, 40, 40)))
+        r.uninstall()
