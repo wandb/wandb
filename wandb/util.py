@@ -480,7 +480,7 @@ def json_friendly(obj):
 
 
 def json_friendly_val(val):
-    """Make any value (including dict, slice, sequence…) JSON friendly"""
+    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
     if isinstance(val, dict):
         converted = {}
         for key, value in six.iteritems(val):
