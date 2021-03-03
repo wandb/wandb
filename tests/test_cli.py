@@ -284,8 +284,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    # Different platforms round differently?!?
-    assert "9.9KiB" in result.output or "9.8KiB" in result.output
+    assert "10.0KB" in result.output
     assert "mnist:v2" in result.output
 
 
@@ -855,7 +854,7 @@ def test_sync_tensorboard(runner, live_mock_server):
 
         # Check the no sync tensorboard flag
         result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
-        assert result.output == "Skipping directory: .\n"
+        assert result.output == "Skipping directory: {}\n".format(os.path.abspath("."))
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 

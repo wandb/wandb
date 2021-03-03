@@ -43,9 +43,11 @@ print("y", y_probas.shape)
 
 # ROC
 wandb.log({'roc': wandb.plot.roc_curve(y_test, y_probas, nb.classes_)})
+wandb.log({'roc_with_title': wandb.plot.roc_curve(y_test, y_probas, nb.classes_, title="MY ROC TITLE")})
 
 # Precision Recall
 wandb.log({'pr': wandb.plot.pr_curve(y_test, y_probas, nb.classes_)})
+wandb.log({'pr_with_title': wandb.plot.pr_curve(y_test, y_probas, nb.classes_, title="MY PR TITLE")})
 
 # Confusion Matrix
 class_ind_map = {}
@@ -60,7 +62,7 @@ wandb.log({'conf_mat_noclass': wandb.plot.confusion_matrix(preds=y_pred_inds, y_
 # test workflow with multiples of inds
 y_pred_mult = [y_pred_ind*5 for y_pred_ind in y_pred_inds]
 y_true_mult = [y_true_ind*5 for y_true_ind in y_true_inds]
-wandb.log({'conf_mat_noclass_mult': wandb.plot.confusion_matrix(preds=y_pred_mult, y_true=y_true_mult)})
+wandb.log({'conf_mat_noclass_mult': wandb.plot.confusion_matrix(preds=y_pred_mult, y_true=y_true_mult, title="I HAVE A TITLE")})
 
 # test probs workflow
 wandb.log({'conf_mat_probs': wandb.plot.confusion_matrix(probs=y_probas, y_true=y_true_inds, class_names=nb.classes_)})

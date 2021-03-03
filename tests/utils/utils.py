@@ -30,8 +30,8 @@ def fixture_copy(path, dst=None):
 
 def notebook_path(path):
     """Returns the path to a notebook"""
-    return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "notebooks", path
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "notebooks", path)
     )
 
 

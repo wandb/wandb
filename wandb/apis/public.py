@@ -1726,7 +1726,9 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
-            self.name, self.mimetype, util.sizeof_fmt(self.size)
+            self.name,
+            self.mimetype,
+            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 
@@ -2623,6 +2625,10 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
+    def version(self):
+        return "v%d" % self._version_index
+
+    @property
     def entity(self):
         return self._entity
 
@@ -2934,6 +2940,55 @@ class Artifact(artifacts.Artifact):
 
         return dirpath
 
+    def checkout(self, root=None):
+        dirpath = root or self._default_root(include_version=False)
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    # File is not part of the artifact, remove it.
+                    os.remove(full_path)
+
+        return self.download(root=dirpath)
+
+    def verify(self, root=None):
+        dirpath = root or self._default_root()
+        manifest = self._load_manifest()
+        ref_count = 0
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    raise ValueError(
+                        "Found file {} which is not a member of artifact {}".format(
+                            full_path, self.name
+                        )
+                    )
+
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if (
+                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
+                    != entry.digest
+                ):
+                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print("Warning: skipped verification of %s refs" % ref_count)
+
     def file(self, root=None):
         """Download a single file artifact to dir specified by the <root>
 
@@ -2961,8 +3016,12 @@ class Artifact(artifacts.Artifact):
         # download file into cache and copy to target dir
         return self.get_path(name).download(root)
 
-    def _default_root(self):
-        root = os.path.join(".", "artifacts", self.name)
+    def _default_root(self, include_version=True):
+        root = (
+            os.path.join(".", "artifacts", self.name)
+            if include_version
+            else os.path.join(".", "artifacts", self._sequence_name)
+        )
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
@@ -3008,35 +3067,8 @@ class Artifact(artifacts.Artifact):
         )
         return True
 
-    def verify(self, root=None):
-        """
-        Verify an artifact by checksumming its downloaded contents.
-
-        NOTE: References are not verified.
-
-        Arguments:
-            root: (str, optional) directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-
-        Raises:
-            (ValueError): If the verification fails.
-        """
-        dirpath = root
-        if dirpath is None:
-            dirpath = os.path.join(".", "artifacts", self.name)
-        manifest = self._load_manifest()
-        ref_count = 0
-        for entry in manifest.entries.values():
-            if entry.ref is None:
-                if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
-                    != entry.digest
-                ):
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
-            else:
-                ref_count += 1
-        if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+    def wait(self):
+        return self
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):

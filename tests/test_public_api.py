@@ -342,6 +342,20 @@ def test_artifact_download(runner, mock_server, api):
         else:
             part = "mnist:v0"
         assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+
+
+def test_artifact_checkout(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        # Create a file that should be removed as part of checkout
+        os.makedirs(os.path.join(".", "artifacts", "mnist"))
+        with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
+            f.write("delete me, i'm a bogus file")
+
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.checkout()
+        assert path == os.path.join(".", "artifacts", "mnist")
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_run_used(runner, mock_server, api):

@@ -14,6 +14,7 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
+from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
 
@@ -389,6 +390,22 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
+        chart_keys = []
+        for key, item in row.items():
+            if isinstance(item, CustomChart):
+                panel_config = custom_chart_panel_config(item, key, key + "_table")
+                config = {"panel_type": "Vega2", "panel_config": panel_config}
+                chart_keys.append(key)
+                self._tbwatcher._interface.publish_config(
+                    val=config, key=("_wandb", "visualize", key)
+                )
+                row[key] = item.table
+
+        for chart_key in chart_keys:
+            table = row[chart_key]
+            row.pop(chart_key)
+            row[chart_key + "_table"] = table
+
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )
