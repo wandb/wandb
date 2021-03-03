@@ -396,7 +396,7 @@ def test_artifact_verify(runner, mock_server, api):
         art.verify()
 
 
-def test_artifact_save_no_run(runner):
+def test_artifact_save_no_run(runner, mock_server):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
     with runner.isolated_filesystem():
@@ -406,7 +406,7 @@ def test_artifact_save_no_run(runner):
         artifact.save()
 
 
-def test_artifact_save_run(runner):
+def test_artifact_save_run(runner, mock_server):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
     with runner.isolated_filesystem():

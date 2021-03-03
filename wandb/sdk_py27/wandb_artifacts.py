@@ -471,9 +471,10 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.save()
         else:
             if wandb.run is None:
-                run = wandb.init()
-                run.log_artifact(self)
-                run.finish()
+                with wandb.init(
+                    job_type="auto", settings=wandb.Settings(silent=True)
+                ) as run:
+                    run.log_artifact(self)
             else:
                 wandb.run.log_artifact(self)
 
