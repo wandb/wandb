@@ -7,7 +7,6 @@ import re
 import shutil
 import time
 
-import click
 import requests
 from six.moves.urllib.parse import quote, urlparse
 import wandb
@@ -212,6 +211,15 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.size
 
         return sum([entry.size for entry in self._manifest.entries])
+
+    @property
+    def commit_hash(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.commit_hash
+
+        raise ValueError(
+            "Cannot access commit_hash on an artifact before it has been logged or in offline mode"
+        )
 
     @property
     def description(self) -> Optional[str]:
@@ -467,28 +475,39 @@ class Artifact(ArtifactInterface):
             "Cannot call verify on an artifact before it has been logged or in offline mode"
         )
 
-    def save(self, **init_kwargs) -> None:  # type: ignore
+    def save(
+        self, settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None
+    ) -> None:
+        """
+        Persists any changes made to the artifact. If currently in a Run, that Run will
+        log this Artifact. If not currently in a Run, a Run of type "auto" will be created
+        to track this artifact.
+
+        Arguments:
+            settings: (Optional["wandb.Settings"]) A settings object to use when initializing an
+            automatic run. Most commonly used in testing harness.
+
+        Returns:
+            None
+        """
         if self._logged_artifact:
             return self._logged_artifact.save()
         else:
             if wandb.run is None:
-                kwargs = {k: v for k, v in init_kwargs.items()}
-                if "job_type" not in init_kwargs:
-                    kwargs["job_type"] = "auto"
-                if "settings" not in init_kwargs:
-                    kwargs["settings"] = wandb.Settings(silent=True)
-                with wandb.init(**kwargs) as run:
+                if settings is None:
+                    settings = wandb.Settings(silent=True)
+                with wandb.init(job_type="auto", settings=settings) as run:
                     run.log_artifact(self)
                     project_url = run._get_project_url()
+                    # Calling "wait" here is OK, since we have to wait
+                    # for the run to finish anyway.
+                    self.wait()
+                commit_hash = ""
+                if self._logged_artifact is not None:
+                    commit_hash = self._logged_artifact.commit_hash
                 termlog(
-                    "View artifact at {}".format(
-                        click.style(
-                            "{}/artifacts/{}/{}".format(
-                                project_url, self._type, self._name
-                            ),
-                            underline=True,
-                            fg="blue",
-                        )
+                    "View artifact at {}/artifacts/{}/{}/{}".format(
+                        project_url, self._type, self._name, commit_hash,
                     )
                 )
             else:
