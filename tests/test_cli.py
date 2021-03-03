@@ -838,7 +838,7 @@ def test_gc(runner):
 
 
 @pytest.mark.skipif(
-    sys.version_info == (3, 9), reason="Tensorboard not currently built for 3.9"
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
 def test_sync_tensorboard(runner, live_mock_server):
     with runner.isolated_filesystem():
@@ -862,7 +862,7 @@ def test_sync_tensorboard(runner, live_mock_server):
 
 
 @pytest.mark.skipif(
-    sys.version_info == (3, 9), reason="Tensorboard not currently built for 3.9"
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
 def test_sync_tensorboard_big(runner, live_mock_server):
     with runner.isolated_filesystem():
@@ -899,7 +899,7 @@ def test_sync_wandb_run(runner, live_mock_server):
 
 
 @pytest.mark.skipif(
-    sys.version_info == (3, 9), reason="Tensorboard not currently built for 3.9"
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
 def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
     with runner.isolated_filesystem():

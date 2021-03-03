@@ -38,8 +38,8 @@ class JsonlFilePolicy(DefaultFilePolicy):
         for chunk in chunks:
             if len(chunk.data) > util.MAX_LINE_SIZE:
                 msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.sizeof_fmt(util.MAX_LINE_SIZE),
-                    util.sizeof_fmt(len(chunk.data)),
+                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
                 util.sentry_message(msg)
@@ -57,7 +57,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_SIZE:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.sizeof_fmt(util.MAX_LINE_SIZE)
+                util.to_human_size(util.MAX_LINE_SIZE)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)

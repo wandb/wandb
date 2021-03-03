@@ -152,6 +152,7 @@ class TBWatcher(object):
 
     def add(self, logdir, save, root_dir):
         logdir = util.to_forward_slash_path(logdir)
+        root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir, root_dir)
