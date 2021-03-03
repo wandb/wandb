@@ -396,6 +396,28 @@ def test_artifact_verify(runner, mock_server, api):
         art.verify()
 
 
+def test_artifact_save_no_run(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save()
+
+
+def test_artifact_save_run(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        run = wandb.init()
+        artifact.save()
+        run.finish()
+
+
 def test_sweep(runner, mock_server, api):
     sweep = api.sweep("test/test/test")
     assert sweep.entity == "test"
