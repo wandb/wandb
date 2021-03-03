@@ -531,6 +531,9 @@ def test_add_obj_using_brackets(runner):
             },
         }
 
+    with pytest.raises(ValueError):
+        image = art["my-image"]
+
 
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
