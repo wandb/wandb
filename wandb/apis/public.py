@@ -2666,7 +2666,7 @@ class Artifact(artifacts.Artifact):
         return self._attrs["artifactType"]["name"]
 
     @property
-    def commit_hash(self) -> str:
+    def commit_hash(self):
         return self._attrs.get("commitHash", "")
 
     @property
