@@ -7,6 +7,7 @@ import re
 import shutil
 import time
 
+import click
 import requests
 from six.moves.urllib.parse import quote, urlparse
 import wandb
@@ -475,6 +476,18 @@ class Artifact(ArtifactInterface):
                     job_type="auto", settings=wandb.Settings(silent=True)
                 ) as run:
                     run.log_artifact(self)
+                    project_url = run._get_project_url()
+                termlog(
+                    "View artifact at {}".format(
+                        click.style(
+                            "{}/artifacts/{}/{}".format(
+                                project_url, self._type, self._name
+                            ),
+                            underline=True,
+                            fg="blue",
+                        )
+                    )
+                )
             else:
                 wandb.run.log_artifact(self)
 
