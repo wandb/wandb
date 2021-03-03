@@ -1,25 +1,39 @@
 #
+import base64
 import contextlib
-import re
+import hashlib
 import os
-import time
+import re
 import shutil
+import time
+
 import requests
-
-from six.moves.urllib.parse import urlparse, quote
-
+from six.moves.urllib.parse import quote, urlparse
 import wandb
-from wandb.compat import tempfile as compat_tempfile
-from .interface.artifacts import *
+from wandb import env
+from wandb import util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.errors.error import CommError
-from wandb import util
-from wandb.errors.term import termwarn, termlog
+from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
+from wandb.errors.error import CommError
+from wandb.errors.term import termlog, termwarn
+
+from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
+    Artifact as ArtifactInterface,
+    ArtifactEntry,
+    ArtifactManifest,
+    ArtifactsCache,
+    b64_string_to_hex,
+    get_artifacts_cache,
+    md5_file_b64,
+    StorageHandler,
+    StorageLayout,
+    StoragePolicy,
+)
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import List, Optional, Union
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -34,14 +48,58 @@ _REQUEST_POOL_CONNECTIONS = 64
 _REQUEST_POOL_MAXSIZE = 64
 
 
-class Artifact(object):
-    """An artifact object you can write files into, and pass to log_artifact."""
+class Artifact(ArtifactInterface):
+    """
+    Constructs an empty artifact whose contents can be populated using its
+    `add` family of functions. Once the artifact has all the desired files,
+    you can call `wandb.log_artifact()` to log it.
 
-    name: str
-    description: Optional[str]
-    distributed_id: Optional[str]
 
-    def __init__(self, name, type, description=None, metadata=None):
+    Arguments:
+        name: (str) A human-readable name for this artifact, which is how you
+            can identify this artifact in the UI or reference it in `use_artifact`
+            calls. Names can contain letters, numbers, underscores, hyphens, and
+            dots. The name must be unique across a project.
+        type: (str) The type of the artifact, which is used to organize and differentiate
+            artifacts. Common types include `dataset` or `model`, but you can use any string
+            containing letters, numbers, underscores, hyphens, and dots.
+        description: (str, optional) Free text that offers a description of the artifact. The
+            description is markdown rendered in the UI, so this is a good place to place tables,
+            links, etc.
+        metadata: (dict, optional) Structured data associated with the artifact,
+            for example class distribution of a dataset. This will eventually be queryable
+            and plottable in the UI. There is a hard limit of 100 total keys.
+
+    Examples:
+        Basic usage
+        ```
+        wandb.init()
+
+        artifact = wandb.Artifact('mnist', type='dataset')
+        artifact.add_dir('mnist/')
+        wandb.log_artifact(artifact)
+        ```
+
+    Raises:
+        Exception: if problem.
+
+    Returns:
+        An `Artifact` object.
+    """
+
+    _added_objs: dict
+    _added_local_paths: dict
+    _distributed_id: Optional[str]
+    _metadata: dict
+    _logged_artifact: Optional[ArtifactInterface]
+
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        description: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
@@ -61,7 +119,7 @@ class Artifact(object):
         )
         self._api = InternalApi()
         self._final = False
-        self._digest = None
+        self._digest = ""
         self._file_entries = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
@@ -71,43 +129,168 @@ class Artifact(object):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
         )
-        self.type = type
-        self.name = name
-        self.description = description
-        self.metadata = metadata
-        self.distributed_id = None
+        self._type = type
+        self._name = name
+        self._description = description
+        self._metadata = metadata or {}
+        self._distributed_id = None
+        self._logged_artifact = None
 
     @property
-    def id(self):
+    def id(self) -> Optional[str]:
+        if self._logged_artifact:
+            return self._logged_artifact.id
+
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
 
     @property
-    def entity(self):
-        # TODO: querying for default entity a good idea here?
+    def version(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.version
+
+        raise ValueError(
+            "Cannot call version on an artifact before it has been logged or in offline mode"
+        )
+
+    @property
+    def entity(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.entity
+
         return self._api.settings("entity") or self._api.viewer().get("entity")
 
     @property
-    def project(self):
+    def project(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.project
+
         return self._api.settings("project")
 
     @property
-    def manifest(self):
+    def manifest(self) -> ArtifactManifest:
+        if self._logged_artifact:
+            return self._logged_artifact.manifest
+
         self.finalize()
         return self._manifest
 
     @property
-    def digest(self):
+    def digest(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.digest
+
         self.finalize()
         # Digest will be none if the artifact hasn't been saved yet.
         return self._digest
 
-    def _ensure_can_add(self):
-        if self._final:
-            raise ValueError("Can't add to finalized artifact.")
+    @property
+    def type(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.type
+
+        return self._type
+
+    @property
+    def name(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.name
+
+        return self._name
+
+    @property
+    def state(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.state
+
+        return "PENDING"
+
+    @property
+    def size(self) -> int:
+        if self._logged_artifact:
+            return self._logged_artifact.size
+
+        return sum([entry.size for entry in self._manifest.entries])
+
+    @property
+    def description(self) -> Optional[str]:
+        if self._logged_artifact:
+            return self._logged_artifact.description
+
+        return self._description
+
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        if self._logged_artifact:
+            self._logged_artifact.description = desc
+            return
+
+        self._description = desc
+
+    @property
+    def metadata(self) -> dict:
+        if self._logged_artifact:
+            return self._logged_artifact.metadata
+
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        if self._logged_artifact:
+            self._metadata = metadata
+            return
+
+        self._metadata = metadata
+
+    @property
+    def aliases(self) -> List[str]:
+        if self._logged_artifact:
+            return self._logged_artifact.aliases
+
+        raise ValueError(
+            "Cannot call aliases on an artifact before it has been logged or in offline mode"
+        )
+
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        """
+        Arguments:
+            aliases: (list) The list of aliases associated with this artifact.
+        """
+        if self._logged_artifact:
+            self._logged_artifact.aliases = aliases
+            return
+
+        raise ValueError(
+            "Cannot set aliases on an artifact before it has been logged or in offline mode"
+        )
+
+    @property
+    def distributed_id(self) -> Optional[str]:
+        return self._distributed_id
+
+    @distributed_id.setter
+    def distributed_id(self, distributed_id: Optional[str]) -> None:
+        self._distributed_id = distributed_id
+
+    def used_by(self) -> List["wandb.apis.public.Run"]:
+        if self._logged_artifact:
+            return self._logged_artifact.used_by()
+
+        raise ValueError(
+            "Cannot call used_by on an artifact before it has been logged or in offline mode"
+        )
+
+    def logged_by(self) -> "wandb.apis.public.Run":
+        if self._logged_artifact:
+            return self._logged_artifact.logged_by()
+
+        raise ValueError(
+            "Cannot call logged_by on an artifact before it has been logged or in offline mode"
+        )
 
     @contextlib.contextmanager
-    def new_file(self, name, mode="w"):
+    def new_file(self, name: str, mode: str = "w"):
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
@@ -121,17 +304,12 @@ class Artifact(object):
 
         self.add_file(path, name=name)
 
-    def add_file(self, local_path, name=None, is_tmp=False):
-        """Adds a local file to the artifact
-
-        Args:
-            local_path (str): path to the file
-            name (str, optional): new path and filename to assign inside artifact. Defaults to None.
-            is_tmp (bool, optional): If true, then the file is renamed deterministically. Defaults to False.
-
-        Returns:
-            ArtifactManifestEntry: the added entry
-        """
+    def add_file(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        is_tmp: Optional[bool] = False,
+    ):
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
@@ -147,7 +325,7 @@ class Artifact(object):
 
         return self._add_local_file(name, local_path, digest=digest)
 
-    def add_dir(self, local_path, name=None):
+    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
         self._ensure_can_add()
         if not os.path.isdir(local_path):
             raise ValueError("Path is not a directory: %s" % local_path)
@@ -174,36 +352,30 @@ class Artifact(object):
 
         import multiprocessing.dummy  # this uses threads
 
-        NUM_THREADS = 8
-        pool = multiprocessing.dummy.Pool(NUM_THREADS)
+        num_threads = 8
+        pool = multiprocessing.dummy.Pool(num_threads)
         pool.map(add_manifest_file, paths)
         pool.close()
         pool.join()
 
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
-    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
-        """adds `uri` to the artifact via a reference, located at `name`. 
-        You can use `Artifact.get_path(name)` to retrieve this object.
-        
-        Arguments:
-            uri (str) - the URI path of the reference to add. Can be an object returned from
-                Artifact.get_path to store a reference to another artifact's entry.
-            name (str) - the path to save
-        """
+    def add_reference(
+        self,
+        uri: Union[ArtifactEntry, str],
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ):
         self._ensure_can_add()
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
-        if (
-            isinstance(uri, object)
-            and hasattr(uri, "parent_artifact")
-            and uri.parent_artifact != self
-        ):
-            ref_url_fn = getattr(uri, "ref_url")
+        if isinstance(uri, ArtifactEntry) and uri.parent_artifact() != self:
+            ref_url_fn = uri.ref_url
             uri = ref_url_fn()
-        url = urlparse(uri)
+        url = urlparse(str(uri))
         if not url.scheme:
             raise ValueError(
                 "References must be URIs. To reference a local file, use file://"
@@ -217,14 +389,7 @@ class Artifact(object):
 
         return manifest_entries
 
-    def add(self, obj, name):
-        """Adds `obj` to the artifact, located at `name`. You can
-        use `Artifact.get(name)` after downloading the artifact to retrieve this object.
-        
-        Arguments:
-            obj (wandb.WBValue): The object to save in an artifact
-            name (str): The path to save
-        """
+    def add(self, obj: WBValue, name: str):
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
@@ -236,7 +401,7 @@ class Artifact(object):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source is not None:
+        if obj.artifact_source and obj.artifact_source.name:
             ref_path = obj.artifact_source.artifact.get_path(
                 type(obj).with_suffix(obj.artifact_source.name)
             )
@@ -261,29 +426,114 @@ class Artifact(object):
 
         return entry
 
-    def get_added_local_path_name(self, local_path):
-        """If local_path was already added to artifact, return its internal name."""
+    def get_path(self, name: str):
+        if self._logged_artifact:
+            return self._logged_artifact.get_path(name)
+
+        raise ValueError(
+            "Cannot load paths from an artifact before it has been logged or in offline mode"
+        )
+
+    def get(self, name: str):
+        if self._logged_artifact:
+            return self._logged_artifact.get(name)
+
+        raise ValueError(
+            "Cannot call get on an artifact before it has been logged or in offline mode"
+        )
+
+    def download(self, root: str = None, recursive: bool = False):
+        if self._logged_artifact:
+            return self._logged_artifact.download(root=root, recursive=recursive)
+
+        raise ValueError(
+            "Cannot call download on an artifact before it has been logged or in offline mode"
+        )
+
+    def checkout(self, root: Optional[str] = None) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.checkout(root=root)
+
+        raise ValueError(
+            "Cannot call checkout on an artifact before it has been logged or in offline mode"
+        )
+
+    def verify(self, root: Optional[str] = None):
+        if self._logged_artifact:
+            return self._logged_artifact.verify(root=root)
+
+        raise ValueError(
+            "Cannot call verify on an artifact before it has been logged or in offline mode"
+        )
+
+    def save(self) -> None:
+        if self._logged_artifact:
+            return self._logged_artifact.save()
+
+        raise ValueError(
+            "Cannot call save on an artifact before it has been logged or in offline mode"
+        )
+
+    def delete(self) -> None:
+        if self._logged_artifact:
+            return self._logged_artifact.delete()
+
+        raise ValueError(
+            "Cannot call delete on an artifact before it has been logged or in offline mode"
+        )
+
+    def wait(self) -> ArtifactInterface:
+        if self._logged_artifact:
+            return self._logged_artifact.wait()
+
+        raise ValueError(
+            "Cannot call wait on an artifact before it has been logged or in offline mode"
+        )
+
+    def get_added_local_path_name(self, local_path: str):
+        """
+        Get the artifact relative name of a file added by a local filesystem path.
+
+        Arguments:
+            local_path: (str) The local path to resolve into an artifact relative name.
+
+        Returns:
+            str: The artifact relative name.
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_dataset', type='dataset')
+            artifact.add_file('path/to/file.txt', name='artifact/path/file.txt')
+
+            # Returns `artifact/path/file.txt`:
+            name = artifact.get_added_local_path_name('path/to/file.txt')
+            ```
+        """
         entry = self._added_local_paths.get(local_path, None)
         if entry is None:
             return None
         return entry.path
 
-    def get_path(self, name):
-        raise ValueError("Cannot load paths from an artifact before it has been saved")
-
-    def download(self):
-        raise ValueError("Cannot call download on an artifact before it has been saved")
-
-    def get(self):
-        raise ValueError("Cannot call get on an artifact before it has been saved")
-
     def finalize(self):
+        """
+        Marks this artifact as final, which disallows further additions to the artifact.
+        This happens automatically when calling `log_artifact`.
+
+
+        Returns:
+            None
+        """
         if self._final:
             return self._file_entries
 
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+
+    def _ensure_can_add(self):
+        if self._final:
+            raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(self, name, path, digest=None):
         digest = digest or md5_file_b64(path)
@@ -705,7 +955,7 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if checksum == False:
+        if not checksum:
             return [
                 ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
             ]
@@ -718,7 +968,7 @@ class LocalFileHandler(StorageHandler):
                 % (max_objects, local_path),
                 newline=False,
             )
-            for root, dirs, files in os.walk(local_path):
+            for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
                     if i >= max_objects:
@@ -794,6 +1044,9 @@ class S3Handler(StorageHandler):
         return self._versioning_enabled
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -838,9 +1091,6 @@ class S3Handler(StorageHandler):
         else:
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
-
-        if not local:
-            return manifest_entry.ref
 
         obj.download_file(path, ExtraArgs=extra_args)
         return path
@@ -982,6 +1232,9 @@ class GCSHandler(StorageHandler):
         return bucket, key
 
     def load_path(self, artifact, manifest_entry, local=False):
+        if not local:
+            return manifest_entry.ref
+
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -992,7 +1245,6 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
-        extra_args = {}
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
         if version is not None:
@@ -1014,9 +1266,6 @@ class GCSHandler(StorageHandler):
                     % (manifest_entry.ref, manifest_entry.digest, md5)
                 )
 
-        if not local:
-            return manifest_entry.ref
-
         obj.download_to_filename(path)
         return path
 
@@ -1025,7 +1274,7 @@ class GCSHandler(StorageHandler):
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
 
-        if checksum == False:
+        if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key)
@@ -1182,7 +1431,7 @@ class WBArtifactHandler(StorageHandler):
 
         Arguments:
             manifest_entry (ArtifactManifestEntry): The index entry to load
-        
+
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
@@ -1199,14 +1448,17 @@ class WBArtifactHandler(StorageHandler):
         dep_artifact = PublicArtifact.from_id(
             util.hex_to_b64_id(artifact_id), self.client
         )
-        link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        if local:
+            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+        else:
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref()
 
         return link_target_path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
         """
         Stores the file or directory at the given path within the specified artifact. In this
-        case we recursively resolve the reference until the result is a concrete asset so that 
+        case we recursively resolve the reference until the result is a concrete asset so that
         we don't have multiple hops. TODO-This resolution could be done in the server for
         performance improvements.
 
@@ -1214,7 +1466,7 @@ class WBArtifactHandler(StorageHandler):
             artifact: The artifact doing the storing
             path (str): The path to store
             name (str): If specified, the logical name that should map to `path`
-        
+
         Returns:
             (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
         """

@@ -1,3 +1,37 @@
+## 0.10.21 (March 2, 2021)
+
+#### :bug: Bug Fix
+
+- Fix artifact.get() regression since 0.10.18
+- Allow 0 byte artifacts
+- Fix codesaving and program name reporting
+
+#### :nail_care: Enhancement
+
+- Added support for glb files for `wandb.Object3D()`
+- Added support for external references for `wandb.Audio()`
+- Custom chart support tensorboard `pr_curves` plugin
+- Support saving entire code directory in an artifact
+
+## 0.10.20 (February 22, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() now respects disabled mode
+- handle exception when trying to log TPUs in colab
+
+#### :nail_care: Enhancement
+
+- Add `WANDB_START_METHOD=thread` to support non-multiprocessing
+- Add `group` and `job_type` to Run object in the export API
+- Improve artifact docstrings
+
+## 0.10.19 (February 14, 2021)
+
+#### :bug: Bug Fix
+
+- Fix artifact manifest files incorrectly named with patch suffix
+
 ## 0.10.18 (February 8, 2021)
 
 #### :nail_care: Enhancement

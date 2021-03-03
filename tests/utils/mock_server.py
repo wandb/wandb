@@ -92,6 +92,8 @@ def run(ctx):
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
+        "group": "A",
+        "jobType": "test",
         "description": "",
         "systemMetrics": '{"cpu": 100}',
         "summaryMetrics": '{"acc": 100, "loss": 0}',
@@ -119,12 +121,12 @@ def run(ctx):
     }
 
 
-def artifact(ctx, collection_name="mnist"):
+def artifact(ctx, collection_name="mnist", state="COMMITTED"):
     return {
         "id": ctx["page_count"],
         "digest": "abc123",
         "description": "",
-        "state": "COMMITTED",
+        "state": state,
         "size": 10000,
         "createdAt": datetime.now().isoformat(),
         "updatedAt": datetime.now().isoformat(),
@@ -523,6 +525,11 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
             collection_name = body["variables"]["artifactCollectionNames"][0]
+            ctx["artifacts"] = ctx.get("artifacts", {})
+            ctx["artifacts"][collection_name] = ctx["artifacts"].get(
+                collection_name, []
+            )
+            ctx["artifacts"][collection_name].append(body["variables"])
             return {
                 "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
             }
@@ -601,7 +608,11 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             art = artifact(ctx)
-            art["artifactType"] = {"id": 1, "name": "dataset"}
+            # code artifacts use source-RUNID names, we return the code type
+            if "source" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 2, "name": "code"}
+            else:
+                art["artifactType"] = {"id": 1, "name": "dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -776,6 +787,17 @@ index 30d74d2..9a2c773 100644
         else:
             return b"", 500
 
+    @app.route("/api/sessions")
+    def jupyter_sessions():
+        return json.dumps(
+            [
+                {
+                    "kernel": {"id": "12345"},
+                    "notebook": {"path": "test.ipynb", "name": "test.ipynb"},
+                }
+            ]
+        )
+
     @app.route("/pypi/<library>/json")
     def pypi(library):
         version = getattr(wandb, "__hack_pypi_latest_version__", wandb.__version__)
@@ -847,12 +869,26 @@ class ParseCTX(object):
         return summary
 
     @property
+    def history(self):
+        fs_files = self.get_filestream_file_items()
+        history = fs_files["wandb-history.jsonl"]
+        return history
+
+    @property
     def config(self):
         return self._ctx["config"][-1]
 
     @property
     def config_wandb(self):
         return self.config["_wandb"]["value"]
+
+    @property
+    def telemetry(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("t")
+
+    @property
+    def metrics(self):
+        return self.config.get("_wandb", {}).get("value", {}).get("m")
 
 
 if __name__ == "__main__":

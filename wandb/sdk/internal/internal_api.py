@@ -1194,8 +1194,6 @@ class Api(object):
         extra_headers = extra_headers.copy()
         response = None
         progress = Progress(file, callback=callback)
-        if progress.len == 0:
-            raise CommError("%s is an empty file" % file.name)
         try:
             response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()

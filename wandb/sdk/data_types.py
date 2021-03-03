@@ -357,8 +357,8 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, str)
-        assert isinstance(self._sha256, str)
+        assert isinstance(self._path, six.string_types)
+        assert isinstance(self._sha256, six.string_types)
 
         if run is None:
             raise TypeError('Argument "run" must not be None.')
@@ -403,6 +403,10 @@ class Media(WBValue):
         Returns:
             dict: JSON representation
         """
+        # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
+        # into Media itself we should get rid of them
+        from wandb.data_types import Audio
+
         json_obj = {}
         run_class, artifact_class = _safe_sdk_import()
         if isinstance(run, run_class):
@@ -420,7 +424,7 @@ class Media(WBValue):
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
+            assert isinstance(self._path, six.string_types)
 
             json_obj.update(
                 {
@@ -437,8 +441,8 @@ class Media(WBValue):
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
-                assert isinstance(self._path, str)
-                assert isinstance(self._sha256, str)
+                assert isinstance(self._path, six.string_types)
+                assert isinstance(self._sha256, six.string_types)
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -471,6 +475,10 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self.artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
+                    elif isinstance(self, Audio) and Audio.path_is_reference(
+                        self._path
+                    ):
+                        artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
                             self._path, name=name, is_tmp=self._is_tmp
@@ -540,7 +548,7 @@ class Object3D(BatchableMedia):
     """
 
     SUPPORTED_TYPES: ClassVar[Set[str]] = set(
-        ["obj", "gltf", "babylon", "stl", "pts.json"]
+        ["obj", "gltf", "glb", "babylon", "stl", "pts.json"]
     )
     artifact_type: ClassVar[str] = "object3D-file"
 
@@ -813,14 +821,14 @@ class Html(BatchableMedia):
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_is_path = isinstance(data, six.string_types) and os.path.exists(data)
         data_path = ""
         if data_is_path:
-            assert isinstance(data, str)
+            assert isinstance(data, six.string_types)
             data_path = data
             with open(data_path, "r") as file:
                 self.html = file.read()
-        elif isinstance(data, str):
+        elif isinstance(data, six.string_types):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
@@ -1999,9 +2007,11 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        assert run
-        assert namespace == "summary", "We don't yet support DataFrames in History."
-        return _data_frame_to_json(val, run, key, namespace)
+        raise ValueError(
+            "We do not support DataFrames in the Summary or History. Try run.log({{'{}': wandb.Table(dataframe=df)}})".format(
+                key
+            )
+        )
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
