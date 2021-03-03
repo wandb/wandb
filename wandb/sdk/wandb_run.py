@@ -166,6 +166,17 @@ class RunStatusChecker(object):
         self._thread.join()
 
 
+class _LoggedArtifact:
+    artifact: wandb_artifacts.Artifact
+    aliases: Optional[List[str]]
+
+    def __init__(
+        self, artifact: wandb_artifacts.Artifact, aliases: Optional[List[str]] = None
+    ) -> None:
+        self.artifact = artifact
+        self.aliases = aliases
+
+
 class Run(object):
     """
     The run object corresponds to a single execution of your script,
@@ -226,7 +237,7 @@ class Run(object):
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
 
-    _media_artifacts: Dict[str, wandb_artifacts.Artifact]
+    _log_artifacts: List[_LoggedArtifact]
 
     def __init__(
         self,
@@ -327,7 +338,7 @@ class Run(object):
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
-        self._media_artifacts = {}
+        self._log_artifacts = []
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -2191,25 +2202,21 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_alert(title, text, level, wait_duration)
 
-    def _add_artifact_table(
-        self, key: str, media: "wandb.wandb_sdk.data_types.Media"
+    def _add_run_table(
+        self, key: str, table: "wandb.Table", aliases: Optional[List[str]] = None,
     ) -> "ArtifactEntry":
-        art_name = "{}-{}".format(self.id, key)
+        art_name = "run-{}-{}".format(self.id, key)
         art_type = "run_table"
         table_name = "{}".format(key)
-
-        if art_name not in self._media_artifacts:
-            self._media_artifacts[art_name] = wandb_artifacts.Artifact(
-                art_name, art_type
-            )
-        art = self._media_artifacts[art_name]
-        entry = art.add(media, table_name)
+        art = wandb_artifacts.Artifact(art_name, art_type)
+        entry = art.add(table, table_name)
+        self._log_artifacts.append(_LoggedArtifact(art, aliases))
         return entry
 
     def _flush_run_tables(self) -> None:
-        for key in self._media_artifacts:
-            self.log_artifact(self._media_artifacts[key])
-        self._media_artifacts = {}
+        for logged_artifact in self._log_artifacts:
+            self.log_artifact(logged_artifact.artifact, aliases=logged_artifact.aliases)
+        self._log_artifacts = []
 
     def __enter__(self) -> "Run":
         return self

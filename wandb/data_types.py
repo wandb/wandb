@@ -299,7 +299,11 @@ class Table(Media):
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(run, key, step, id_)
-        self.bound_entry = run._add_artifact_table(key, self)
+        if step == "summary":
+            aliases = ["summary"]
+        else:
+            aliases = ["step_{}".format(step)]
+        self.bound_entry = run._add_run_table(key, self, aliases)
 
     @classmethod
     def get_media_subdir(cls):
