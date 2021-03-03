@@ -837,6 +837,9 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
+@pytest.mark.skipif(
+    sys.version_info == (3, 9), reason="Tensorboard not currently built for 3.9"
+)
 def test_sync_tensorboard(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1585769947.cvp")
@@ -858,6 +861,9 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
+@pytest.mark.skipif(
+    sys.version_info == (3, 9), reason="Tensorboard not currently built for 3.9"
+)
 def test_sync_tensorboard_big(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1611911647.big-histos")
