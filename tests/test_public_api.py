@@ -367,7 +367,7 @@ def test_artifact_manual_use(runner, mock_server, api):
 
 
 def test_artifact_bracket_accessor(runner, mock_server, api):
-    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
     assert art["t"].__class__ == wandb.Table
     assert art["s"] is None
 

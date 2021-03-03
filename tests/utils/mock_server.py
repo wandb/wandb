@@ -673,6 +673,10 @@ def create_app(user_ctx=None):
                             "digest": "1aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         },
+                        "t.table.json": {
+                            "digest": "2aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 123,
+                        },
                     },
                 }
             else:
@@ -684,10 +688,6 @@ def create_app(user_ctx=None):
                         "digits.h5": {
                             "digest": "TeSJ4xxXg0ohuL5xEdq2Ew==",
                             "size": 81299,
-                        },
-                        "t.table.json": {
-                            "digest": "2aaaaaaaaaaaaaaaaaaaaa==",
-                            "size": 123,
                         },
                     },
                 }
