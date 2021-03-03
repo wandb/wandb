@@ -2211,7 +2211,7 @@ class Run(object):
         art = wandb_artifacts.Artifact(art_name, art_type)
         entry = art.add(table, table_name)
         self._log_artifacts.append(_LoggedArtifact(art, aliases))
-        return entry
+        return entry, art
 
     def _flush_run_tables(self):
         for logged_artifact in self._log_artifacts:

@@ -120,7 +120,11 @@ class SummarySubDict(object):
             k = k.strip()
 
         self.get(k)  # load the value into _dict if it should be there
-        return self._dict[k]
+        res = self._dict[k]
+        if isinstance(res, wandb.old.summary.SummarySubDict) and res.get("_type") == "table-file" and "artifact_path" in res:
+            api = wandb.Api()
+            return api.artifact(res["artifact_path"]["name"]).get(res["artifact_path"]["entry"])
+        return res
 
     def __contains__(self, k):
         if isinstance(k, string_types):

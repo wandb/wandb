@@ -303,7 +303,10 @@ class Table(Media):
             aliases = ["summary"]
         else:
             aliases = ["step_{}".format(step)]
-        self.bound_entry = run._add_run_table(key, self, aliases)
+        (entry, artifact) = run._add_run_table(key, self, aliases)
+        self.bound_artifact_entry = entry
+        self.bound_artifact = artifact
+        self.bound_artifact_aliases = aliases
 
     @classmethod
     def get_media_subdir(cls):
@@ -342,7 +345,12 @@ class Table(Media):
                     "_type": "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
-                    "artifact_path": self.bound_entry.path,
+                    "artifact_path": {
+                        "name": "{}:{}".format(
+                            self.bound_artifact.name, self.bound_artifact_aliases[0]
+                        ),
+                        "entry": self.bound_artifact_entry.path,
+                    },
                 }
             )
 
