@@ -685,6 +685,10 @@ def create_app(user_ctx=None):
                             "digest": "TeSJ4xxXg0ohuL5xEdq2Ew==",
                             "size": 81299,
                         },
+                        "t.table.json": {
+                            "digest": "2aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 123,
+                        },
                     },
                 }
         elif file == "wandb-metadata.json":
@@ -763,6 +767,23 @@ index 30d74d2..9a2c773 100644
                             "data": [[0, 0, 1]],
                             "ncols": 3,
                             "nrows": 1,
+                        }
+                    ),
+                    200,
+                )
+            elif digest == "d9a69a69a69a69a69a69a69a69a69a69":  # "t.table.json"
+                return (
+                    json.dumps(
+                        {
+                            "_type": "table",
+                            "column_types": {
+                                "params": {"type_map": {}},
+                                "wb_type": "dictionary",
+                            },
+                            "columns": [],
+                            "data": [],
+                            "ncols": 0,
+                            "nrows": 0,
                         }
                     ),
                     200,
