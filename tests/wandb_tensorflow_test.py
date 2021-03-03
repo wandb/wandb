@@ -10,6 +10,8 @@ import pytest
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
+import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 import wandb
 from wandb.errors import term
@@ -19,6 +21,36 @@ from wandb import wandb_sdk
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SUMMARY_PB_FILENAME = os.path.join(THIS_DIR, "wandb_tensorflow_summary.pb")
 SUMMARY_PB = open(SUMMARY_PB_FILENAME, "rb").read()
+PR_CURVE_PANEL_CONFIG = {
+    "panel_type": "Vega2",
+    "panel_config": {
+        "userQuery": {
+            "queryFields": [
+                {
+                    "name": "runSets",
+                    "args": [{"name": "runSets", "value": "${runSets}"}],
+                    "fields": [
+                        {"name": "id", "fields": []},
+                        {"name": "name", "fields": []},
+                        {"name": "_defaultColorIndex", "fields": []},
+                        {
+                            "name": "summaryTable",
+                            "args": [
+                                {"name": "tableKey", "value": "test_pr/pr_curves_table"}
+                            ],
+                            "fields": [],
+                        },
+                    ],
+                }
+            ]
+        },
+        "panelDefId": "wandb/line/v0",
+        "transform": {"name": "tableWithLeafColNames"},
+        "fieldSettings": {"x": "recall", "y": "precision"},
+        "stringSettings": {"title": "Precision v. Recall"},
+    },
+}
+
 
 if hasattr(tf.summary, "merge_all"):
     tf_summary = tf.summary
@@ -200,4 +232,70 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
         json.loads(second_stream_hist["content"][-1])["wandb_logged_val_with_step"] == 9
     )
     assert json.loads(second_stream_hist["content"][-2])["wandb_logged_val"] == 81
+    wandb.tensorboard.unpatch()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
+def test_add_pr_curve(live_mock_server, test_settings):
+    wandb.init(sync_tensorboard=True, settings=test_settings)
+    writer = tf.summary.create_file_writer(wandb.run.dir)
+    pr_curve_summary = tb_summary.pr_curve(
+        "test_pr",
+        labels=tf.constant([True, False, True]),
+        predictions=tf.constant([0.7, 0.2, 0.3]),
+        num_thresholds=5,
+    )
+
+    with writer.as_default():
+        tf.summary.experimental.write_raw_pb(pr_curve_summary, step=0)
+
+    wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+
+    assert (
+        "test_pr/pr_curves"
+        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+    )
+    assert (
+        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        == PR_CURVE_PANEL_CONFIG
+    )
+    wandb.tensorboard.unpatch()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows" or sys.version_info < (3, 5),
+    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+)
+def test_add_pr_curve_plugin(live_mock_server, test_settings):
+    tf.compat.v1.disable_v2_behavior()
+    wandb.init(sync_tensorboard=True, settings=test_settings)
+    summ_op = pr_curve_plugin_summary.op(
+        name="test_pr",
+        labels=tf.constant([True, False, True]),
+        predictions=tf.constant([0.7, 0.2, 0.3]),
+        num_thresholds=5,
+    )
+    merged_summary_op = tf.compat.v1.summary.merge([summ_op])
+    sess = tf.compat.v1.Session()
+    writer = tf.compat.v1.summary.FileWriter(wandb.run.dir, sess.graph)
+
+    merged_summary = sess.run(merged_summary_op)
+    writer.add_summary(merged_summary, 0)
+    writer.close()
+
+    wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+
+    assert (
+        "test_pr/pr_curves"
+        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+    )
+    assert (
+        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        == PR_CURVE_PANEL_CONFIG
+    )
     wandb.tensorboard.unpatch()
