@@ -177,9 +177,20 @@ def _make_wandb_audio(frequency, caption):
     return wandb.Audio(data, SAMPLE_RATE, caption)
 
 aud1 = _make_wandb_audio(440, "four forty")
-aud2 = _make_wandb_audio(480, "four eighty")
-aud3 = _make_wandb_audio(500, "five hundred")
-aud4 = _make_wandb_audio(520, "five twenty")
+
+aud_ref_https = wandb.Audio(
+    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+    caption="star wars https"
+)
+aud_ref_s3 = wandb.Audio(
+    "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
+    caption="star wars s3"
+)
+aud_ref_gs = wandb.Audio(
+    "gs://wandb-artifact-refs-public-test/StarWars3.wav",
+    caption="star wars gs"
+)
+
 
 def _make_wandb_table():
     classes = wandb.Classes([
@@ -191,9 +202,9 @@ def _make_wandb_table():
         columns=columns,
         data=[
             [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
-            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud2],
-            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud3],
-            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud4],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud_ref_https],
+            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud_ref_s3],
+            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud_ref_gs],
         ],
     )
     table.cast("class_id", classes.get_type())
@@ -595,7 +606,10 @@ def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
 def test_audio_refs():
-    assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+    # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+    assert_media_obj_referential_equality(aud_ref_https)
+    assert_media_obj_referential_equality(aud_ref_s3)
+    assert_media_obj_referential_equality(aud_ref_gs)
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
