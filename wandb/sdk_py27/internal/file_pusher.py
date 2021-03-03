@@ -50,7 +50,7 @@ class FilePusher(object):
 
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api):
+    def __init__(self, api, silent=False):
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
@@ -70,7 +70,11 @@ class FilePusher(object):
         self._step_checksum.start()
 
         self._step_upload = step_upload.StepUpload(
-            self._api, self._stats, self._event_queue, self.MAX_UPLOAD_JOBS
+            self._api,
+            self._stats,
+            self._event_queue,
+            self.MAX_UPLOAD_JOBS,
+            silent=silent,
         )
         self._step_upload.start()
 
@@ -160,9 +164,11 @@ class FilePusher(object):
         self._temp_file_refs.append(f)
         return f
 
-    def commit_artifact(self, artifact_id, before_commit=None, on_commit=None):
+    def commit_artifact(
+        self, artifact_id, finalize=True, before_commit=None, on_commit=None
+    ):
         event = step_checksum.RequestCommitArtifact(
-            artifact_id, before_commit, on_commit
+            artifact_id, finalize, before_commit, on_commit
         )
         self._incoming_queue.put(event)
 

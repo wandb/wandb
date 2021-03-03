@@ -20,16 +20,17 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
 
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):
-    """Log in to W&B.
+    """
+    Log in to W&B.
 
     Arguments:
-        anonymous (string, optional): Can be "must", "allow", or "never".
+        anonymous: (string, optional) Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
-        key (string, optional): authentication key.
-        relogin (bool, optional): If true, will re-prompt for API key.
-        host (string, optional): The host to connect to.
+        key: (string, optional) authentication key.
+        relogin: (bool, optional) If true, will re-prompt for API key.
+        host: (string, optional) The host to connect to.
 
     Returns:
         bool: if key is configured
@@ -37,6 +38,8 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     Raises:
         UsageError - if api_key can not configured and no tty
     """
+    if wandb.setup()._settings._noop:
+        return True
     kwargs = dict(locals())
     configured = _login(**kwargs)
     return True if configured else False
@@ -186,6 +189,11 @@ def _login(
     wlogin.setup(kwargs)
 
     if wlogin._settings._offline:
+        return False
+    elif wandb.util._is_kaggle() and not wandb.util._has_internet():
+        wandb.termerror(
+            "To use W&B in kaggle you must enable internet in the settings panel on the right."
+        )
         return False
 
     # perform a login

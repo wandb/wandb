@@ -5,7 +5,9 @@ exclude = '''
 | wandb/sdk_py27/
 | wandb/sweeps/
 | wandb/old/
+| wandb/bin/
 | wandb/proto/
+| wandb/proto_check/
 | wandb/docker/wandb-entrypoint.sh
 | tests/fixtures/
 | tests/wandb_tensorflow_summary.pb

@@ -147,6 +147,18 @@ def test_run_update(mock_server, api):
     assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 
+def test_run_delete(mock_server, api):
+    run = api.run("test/test/test")
+
+    run.delete()
+    variables = {"id": run.storage_id, "deleteArtifacts": False}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
+
+    run.delete(delete_artifacts=True)
+    variables = {"id": run.storage_id, "deleteArtifacts": True}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
+
+
 def test_run_files(runner, mock_server, api):
     with runner.isolated_filesystem():
         run = api.run("test/test/test")
@@ -168,6 +180,16 @@ def test_run_file(runner, mock_server, api):
         assert not os.path.exists("weights.h5")
         file.download()
         assert os.path.exists("weights.h5")
+
+
+def test_run_file_direct(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        file = run.file("weights.h5")
+        assert (
+            file.direct_url
+            == "https://api.wandb.ai//storage?file=weights.h5&direct=true"
+        )
 
 
 def test_run_upload_file(runner, mock_server, api):
@@ -206,6 +228,8 @@ def test_runs_from_path(mock_server, api):
     list(runs)
     assert len(runs.objects) == 2
     assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
+    assert runs[0].group == "A"
+    assert runs[0].job_type == "test"
 
 
 def test_runs_from_path_index(mock_server, api):
@@ -225,6 +249,14 @@ def test_projects(mock_server, api):
     for proj in projects:
         count += 1
     assert count == 2
+
+
+def test_delete_file(runner, mock_server, api):
+    run = api.run("test/test/test")
+    file = run.files()[0]
+    file.delete()
+
+    assert mock_server.ctx["graphql"][-1]["variables"] == {"files": [file.id]}
 
 
 def test_artifact_versions(runner, mock_server, api):
@@ -297,6 +329,20 @@ def test_artifact_download(runner, mock_server, api):
         else:
             part = "mnist:v0"
         assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+
+
+def test_artifact_checkout(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        # Create a file that should be removed as part of checkout
+        os.makedirs(os.path.join(".", "artifacts", "mnist"))
+        with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
+            f.write("delete me, i'm a bogus file")
+
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.checkout()
+        assert path == os.path.join(".", "artifacts", "mnist")
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_run_used(runner, mock_server, api):

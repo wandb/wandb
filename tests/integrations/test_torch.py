@@ -140,6 +140,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 
 @pytest.mark.parametrize("use_dp", [False, True])
 def test_all_logging(wandb_init_run, use_dp):
+    # TODO(jhr): does not work with --flake-finder
     net = ConvNet()
     if use_dp:
         net = nn.DataParallel(net)

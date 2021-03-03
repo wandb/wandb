@@ -8,6 +8,7 @@ import time
 from math import sin, cos, pi
 import numpy as np
 import sys
+from bokeh.plotting import figure
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
@@ -32,8 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-
-columns = ["id", "bool", "int", "float", "Image", "Clouds"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -42,8 +42,8 @@ def _make_wandb_image(suffix=""):
     return wandb.Image(
         im_path,
         classes=wandb.Classes([
-        {"id": 0, "name": "tree"},
-        {"id": 1, "name": "car"},
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
         {"id": 3, "name": "road"},
     ]),
         boxes={
@@ -143,23 +143,79 @@ pc2 = _make_point_cloud()
 pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
+def _make_bokeh():
+    x = [1, 2, 3, 4, 5]
+    y = [6, 7, 2, 4, 5]
+    p = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
+    p.line(x, y, legend_label="Temp.", line_width=2)
+
+    return wandb.data_types.Bokeh(p)
+
+b1 = _make_bokeh()
+b2 = _make_bokeh()
+b3 = _make_bokeh()
+b4 = _make_bokeh()
+
+def _make_html():
+    return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
+
+def _make_video():
+    return wandb.Video(np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)) # 1 second video of 10x10 pixels
+
+vid1 = _make_video()
+vid2 = _make_video()
+vid3 = _make_video()
+vid4 = _make_video()
+
+def _make_wandb_audio(frequency, caption):
+    SAMPLE_RATE = 44100
+    DURATION_SECONDS = 1
+
+    data = np.sin(
+        2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
+    )
+    return wandb.Audio(data, SAMPLE_RATE, caption)
+
+aud1 = _make_wandb_audio(440, "four forty")
+
+aud_ref_https = wandb.Audio(
+    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+    caption="star wars https"
+)
+aud_ref_s3 = wandb.Audio(
+    "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
+    caption="star wars s3"
+)
+aud_ref_gs = wandb.Audio(
+    "gs://wandb-artifact-refs-public-test/StarWars3.wav",
+    caption="star wars gs"
+)
+
+
 def _make_wandb_table():
-    return wandb.Table(
+    classes = wandb.Classes([
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
+        {"id": 3, "name": "road"},
+    ])
+    table = wandb.Table(
         columns=columns,
         data=[
-            ["string", True, 1, 1.4, _make_wandb_image(), pc1],
-            ["string", True, 1, 1.4, _make_wandb_image(), pc2],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc3],
-            ["string2", False, -0, -1.4, _make_wandb_image("2"), pc4],
+            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
+            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud_ref_https],
+            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud_ref_s3],
+            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud_ref_gs],
         ],
     )
+    table.cast("class_id", classes.get_type())
+    return table
 
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
 
-
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
+
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
@@ -331,8 +387,8 @@ def test_get_artifact_obj_by_name():
 
         actual_table = artifact.get("T1")
         assert actual_table.columns == columns
-        assert actual_table.data[0][4] == image
-        assert actual_table.data[1][4] == _make_wandb_image("2")
+        assert actual_table.data[0][columns.index("Image")] == image
+        assert actual_table.data[1][columns.index("Image")] == _make_wandb_image("2")
         assert actual_table == _make_wandb_table()
 
 
@@ -536,10 +592,24 @@ def test_image_refs():
 def test_point_cloud_refs():
     assert_media_obj_referential_equality(_make_point_cloud())
 
+def test_bokeh_refs():
+    assert_media_obj_referential_equality(_make_bokeh())
+
+def test_html_refs():
+    assert_media_obj_referential_equality(_make_html())
+
+def test_video_refs():
+    assert_media_obj_referential_equality(_make_video())
+
 
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
+def test_audio_refs():
+    # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+    assert_media_obj_referential_equality(aud_ref_https)
+    assert_media_obj_referential_equality(aud_ref_s3)
+    assert_media_obj_referential_equality(aud_ref_gs)
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
@@ -652,6 +722,76 @@ def test_image_reference_with_preferred_path():
     
     # This test just checks that all this logic does not fail
 
+def test_simple_partition_table():
+    table_name = "dataset"
+    table_parts_dir = "dataset_parts"
+    artifact_name = "simple_dataset"
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    data = []
+
+    # Add Data
+    run = wandb.init(project=WANDB_PROJECT)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    for i in range(5):
+        row = [i,i*i,2**i]
+        data.append(row)
+        table = wandb.Table(columns=columns, data=[row])
+        artifact.add(table, "{}/{}".format(table_parts_dir, i))
+    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    artifact.add(partition_table, table_name)
+    run.log_artifact(artifact)
+    run.finish()
+
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
+    for ndx, row in partition_table.iterrows():
+        assert row == data[ndx]
+
+
+def test_distributed_artifact_simple():
+    table_name = "dataset"
+    artifact_name = "simple_dist_dataset_{}".format(round(time.time()))
+    group_name = "test_group_{}".format(np.random.rand())
+    artifact_type = "dataset"
+    columns = ["A", "B", "C"]
+    count = 2
+    images = []
+    image_paths = []
+
+    # Add Data
+    for i in range(count):
+        run = wandb.init(project=WANDB_PROJECT, group=group_name)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        path = "image_{}".format(i)
+        images.append(image)
+        image_paths.append(path)
+        artifact.add(image, path)
+        run.upsert_artifact(artifact)
+        run.finish()
+
+    # TODO: Should we try to use_artifact in some way before it is finished?
+
+    # Finish
+    run = wandb.init(project=WANDB_PROJECT, group=group_name)
+    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+    # artifact.add_file("./test.py")
+    run.finish_artifact(artifact)
+    run.finish()
+
+    # test
+    run = wandb.init(project=WANDB_PROJECT)
+    artifact = run.use_artifact("{}:latest".format(artifact_name))
+    assert len(artifact.manifest.entries.keys()) == count * 2
+    # for image, path in zip(images, image_paths):
+    #     assert image == artifact.get(path)
+
+
+
+
+
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
@@ -664,11 +804,18 @@ if __name__ == "__main__":
         test_table_slice_reference_artifact,
         test_image_refs,
         test_point_cloud_refs,
+        test_bokeh_refs,
+        test_html_refs,
+        test_video_refs,
         test_table_refs,
         test_joined_table_refs,
+        test_audio_refs,
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
+        # TODO: Re-enable this test once 0.10.16 is released
+        # test_distributed_artifact_simple,
+        test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:

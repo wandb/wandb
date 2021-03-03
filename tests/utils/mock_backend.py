@@ -2,6 +2,7 @@ import json
 import sys
 
 import wandb
+import multiprocessing
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from pytest_mock import _get_mock_module  # type: ignore
@@ -43,13 +44,13 @@ class ProcessMock(Process):
 
 
 class BackendMock(object):
-    def __init__(self, mode=None):
+    def __init__(self, mode=None, settings=None, log_level=None):
         self.calls = {}
         self._run = None
         self._done = True
-        self._wl = wandb.setup()
-        self.record_q = self._wl._multiprocessing.Queue()
-        self.result_q = self._wl._multiprocessing.Queue()
+        self._multiprocessing = multiprocessing
+        self.record_q = self._multiprocessing.Queue()
+        self.result_q = self._multiprocessing.Queue()
         self.interface = None
         self.last_queued = None
         self.history = []
@@ -58,6 +59,8 @@ class BackendMock(object):
         self.files = {}
         self.mocker = _get_mock_module(get_config())
         self._internal_pid = None
+        self._settings = settings
+        self._log_level = log_level
 
     def _hack_set_run(self, run):
         self._run = run
@@ -82,6 +85,9 @@ class BackendMock(object):
     def _publish(self, rec):
         if len(rec.history.item) > 0:
             hist = self._proto_to_dict(rec.history.item)
+            # handle case where step is not passed in items
+            if rec.history.HasField("step"):
+                hist["_step"] = rec.history.step.num
             self.history.append(hist)
         if len(rec.summary.update) > 0:
             self.summary.update(self._proto_to_dict(rec.summary.update))

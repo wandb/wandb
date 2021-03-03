@@ -61,7 +61,7 @@ class SyncThread(threading.Thread):
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
-        wandb._IS_INTERNAL_PROCESS = True
+        wandb._set_internal_process(disable=True)
         self._sync_list = sync_list
         self._project = project
         self._entity = entity
@@ -99,6 +99,7 @@ class SyncThread(threading.Thread):
                 run_notes=None,
                 save_code=None,
                 email=None,
+                silent=None,
             )
             settings = settings_static.SettingsStatic(sd)
             record_q = queue.Queue()

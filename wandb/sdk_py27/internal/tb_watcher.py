@@ -13,17 +13,36 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
+from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
 
+if wandb.TYPE_CHECKING:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from ..interface.interface import BackendSender
+        from .settings_static import SettingsStatic
+        from typing import Dict, List, Optional
+        from wandb.proto.wandb_internal_pb2 import RunRecord
+        from six.moves.queue import PriorityQueue
+        from tensorboard.compat.proto.event_pb2 import ProtoEvent
+        from tensorboard.backend.event_processing.event_file_loader import (
+            EventFileLoader,
+        )
+
+        HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
+ERROR_DELAY = 5
 REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
 
 
-def _link_and_save_file(path, base_path, interface, settings):
+def _link_and_save_file(
+    path, base_path, interface, settings
+):
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
     file_name = os.path.relpath(path, base_path)
@@ -79,7 +98,15 @@ def is_tfevents_file_created_by(path, hostname, start_time):
 
 
 class TBWatcher(object):
-    def __init__(self, settings, run_proto, interface):
+    # _logdirs: "Dict[str, TBDirWatcher]"
+    # _watcher_queue: "PriorityQueue"
+
+    def __init__(
+        self,
+        settings,
+        run_proto,
+        interface,
+    ):
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
@@ -90,6 +117,7 @@ class TBWatcher(object):
         wandb.tensorboard.reset_state()
 
     def _calculate_namespace(self, logdir, rootdir):
+        # namespace: "Optional[str]"
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -142,15 +170,22 @@ class TBWatcher(object):
 
 
 class TBDirWatcher(object):
-    def __init__(self, tbwatcher, logdir, save, namespace, queue):
+    def __init__(
+        self,
+        tbwatcher,
+        logdir,
+        save,
+        namespace,
+        queue,
+    ):
         self.directory_watcher = util.get_module(
             "tensorboard.backend.event_processing.directory_watcher",
             required="Please install tensorboard package",
         )
-        self.event_file_loader = util.get_module(
-            "tensorboard.backend.event_processing.event_file_loader",
-            required="Please install tensorboard package",
-        )
+        # self.event_file_loader = util.get_module(
+        #     "tensorboard.backend.event_processing.event_file_loader",
+        #     required="Please install tensorboard package",
+        # )
         self.tf_compat = util.get_module(
             "tensorboard.compat", required="Please install tensorboard package"
         )
@@ -160,7 +195,7 @@ class TBDirWatcher(object):
         )
         self._thread = threading.Thread(target=self._thread_body)
         self._first_event_timestamp = None
-        self._shutdown = None
+        self._shutdown = threading.Event()
         self._queue = queue
         self._file_version = None
         self._namespace = namespace
@@ -179,12 +214,16 @@ class TBDirWatcher(object):
             path, self._hostname, self._tbwatcher._settings._start_time
         )
 
-    def _loader(self, save=True, namespace=None):
+    def _loader(self, save = True, namespace = None):
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
+        try:
+            from tensorboard.backend.event_processing import event_file_loader
+        except ImportError:
+            raise Exception("Please install tensorboard package")
 
-        class EventFileLoader(self.event_file_loader.EventFileLoader):
+        class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path):
                 super(EventFileLoader, self).__init__(file_path)
                 if save:
@@ -215,9 +254,16 @@ class TBDirWatcher(object):
             try:
                 for event in self._generator.Load():
                     self.process_event(event)
-            except self.directory_watcher.DirectoryDeletedError:
-                break
-            if self._shutdown:
+            except (
+                self.directory_watcher.DirectoryDeletedError,
+                StopIteration,
+                RuntimeError,
+            ) as e:
+                # When listing s3 the directory may not yet exist, or could be empty
+                logger.debug("Encountered tensorboard directory watcher error: %s", e)
+                if not self._shutdown.is_set():
+                    time.sleep(ERROR_DELAY)
+            if self._shutdown.is_set():
                 now = time.time()
                 if not shutdown_time:
                     shutdown_time = now + SHUTDOWN_DELAY
@@ -237,7 +283,7 @@ class TBDirWatcher(object):
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self):
-        self._shutdown = True
+        self._shutdown.set()
 
     def finish(self):
         self.shutdown()
@@ -253,7 +299,9 @@ class Event(object):
         self.created_at = time.time()
 
     def __lt__(self, other):
-        return self.event.wall_time < other.event.wall_time
+        if self.event.wall_time < other.event.wall_time:
+            return True
+        return False
 
 
 class TBEventConsumer(object):
@@ -263,11 +311,18 @@ class TBEventConsumer(object):
     out of order steps.
     """
 
-    def __init__(self, tbwatcher, queue, run_proto, settings, delay=10):
+    def __init__(
+        self,
+        tbwatcher,
+        queue,
+        run_proto,
+        settings,
+        delay = 10,
+    ):
         self._tbwatcher = tbwatcher
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
-        self._shutdown = None
+        self._shutdown = threading.Event()
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
@@ -285,7 +340,7 @@ class TBEventConsumer(object):
 
     def finish(self):
         self._delay = 0
-        self._shutdown = True
+        self._shutdown.set()
         self._thread.join()
 
     def _thread_body(self):
@@ -294,13 +349,16 @@ class TBEventConsumer(object):
             try:
                 event = self._queue.get(True, 1)
                 # Wait self._delay seconds from consumer start before logging events
-                if time.time() < self._start_time + self._delay and not self._shutdown:
+                if (
+                    time.time() < self._start_time + self._delay
+                    and not self._shutdown.is_set()
+                ):
                     self._queue.put(event)
                     time.sleep(0.1)
                     continue
             except queue.Empty:
                 event = None
-                if self._shutdown:
+                if self._shutdown.is_set():
                     break
             if event:
                 self._handle_event(event, history=tb_history)
@@ -313,7 +371,7 @@ class TBEventConsumer(object):
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event, history=None):
+    def _handle_event(self, event, history = None):
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
@@ -322,10 +380,31 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row):
-        self._tbwatcher._interface.publish_history(row, run=self._internal_run)
+        chart_keys = []
+        for key, item in row.items():
+            if isinstance(item, CustomChart):
+                panel_config = custom_chart_panel_config(item, key, key + "_table")
+                config = {"panel_type": "Vega2", "panel_config": panel_config}
+                chart_keys.append(key)
+                self._tbwatcher._interface.publish_config(
+                    val=config, key=("_wandb", "visualize", key)
+                )
+                row[key] = item.table
+
+        for chart_key in chart_keys:
+            table = row[chart_key]
+            row.pop(chart_key)
+            row[chart_key + "_table"] = table
+
+        self._tbwatcher._interface.publish_history(
+            row, run=self._internal_run, publish_step=False
+        )
 
 
 class TBHistory(object):
+    # _data: "HistoryDict"
+    # _added: "List[HistoryDict]"
+
     def __init__(self):
         self._step = 0
         self._data = dict()

@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import threading
 
 import wandb.filesync.step_prepare
 
@@ -54,6 +55,8 @@ class ArtifactSaver(object):
         self,
         type,
         name,
+        distributed_id=None,
+        finalize=True,
         metadata=None,
         description=None,
         aliases=None,
@@ -87,6 +90,7 @@ class ArtifactSaver(object):
             labels=labels,
             description=description,
             is_user_created=self._is_user_created,
+            distributed_id=distributed_id,
         )
 
         # TODO(artifacts):
@@ -111,12 +115,15 @@ class ArtifactSaver(object):
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
-        self._api.create_artifact_manifest(
-            "wandb_manifest.json",
+        artifact_manifest_id, _ = self._api.create_artifact_manifest(
+            "wandb_manifest.json"
+            if not distributed_id
+            else "wandb_manifest.patch.json",
             "",
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
+            type="FULL" if not distributed_id else "PATCH",
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(
@@ -129,22 +136,41 @@ class ArtifactSaver(object):
             self._manifest,
             artifact_id,
             lambda entry, progress_callback: self._manifest.storage_policy.store_file(
-                artifact_id, entry, step_prepare, progress_callback=progress_callback
+                artifact_id,
+                artifact_manifest_id,
+                entry,
+                step_prepare,
+                progress_callback=progress_callback,
             ),
         )
+
+        commit_event = threading.Event()
 
         def before_commit():
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
+            if distributed_id:
+                # If we're in the distributed flow, we want to update the
+                # patch manifest we created with our finalized digest.
+                _, resp = self._api.update_artifact_manifest(
+                    artifact_manifest_id, digest=digest,
+                )
+            else:
+                # In the regular flow, we can recreate the full manifest with the
+                # updated digest.
+                #
+                # NOTE: We do this for backwards compatibility with older backends
+                # that don't support the 'updateArtifactManifest' API.
+                _, resp = self._api.create_artifact_manifest(
+                    "wandb_manifest.json",
+                    digest,
+                    artifact_id,
+                    base_artifact_id=latest_artifact_id,
+                )
+
             # We're duplicating the file upload logic a little, which isn't great.
-            resp = self._api.create_artifact_manifest(
-                "wandb_manifest.json",
-                digest,
-                artifact_id,
-                base_artifact_id=latest_artifact_id,
-            )
             upload_url = resp["uploadUrl"]
             upload_headers = resp["uploadHeaders"]
             extra_headers = {}
@@ -155,12 +181,22 @@ class ArtifactSaver(object):
                 self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
 
         def on_commit():
-            if use_after_commit:
+            if finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
+            commit_event.set()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
-            artifact_id, before_commit=before_commit, on_commit=on_commit
+            artifact_id,
+            finalize=finalize,
+            before_commit=before_commit,
+            on_commit=on_commit,
         )
+
+        # Block until all artifact files are uploaded and the
+        # artifact is committed.
+        while not commit_event.is_set():
+            commit_event.wait()
+
         return self._server_artifact

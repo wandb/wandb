@@ -15,7 +15,8 @@ import six
 from six.moves import queue
 import wandb
 from wandb import data_types
-from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
     get_h5_typename,
     json_dumps_safer,
@@ -25,51 +26,76 @@ from wandb.util import (
     WandBJSONEncoderOld,
 )
 
-if wandb.TYPE_CHECKING:  # type: ignore
+from .artifacts import ArtifactManifest
+from ..wandb_artifacts import Artifact
+
+if wandb.TYPE_CHECKING:
     import typing as t
     from . import summary_record as sr
+    from typing import Any, Dict, Iterable, Optional, Tuple, Union
+    from multiprocessing import Process
+    from typing import cast
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from ..wandb_run import Run
+        from six.moves.queue import Queue
+else:
+
+    def cast(_, val):
+        return val
+
 
 logger = logging.getLogger("wandb")
 
 
 def file_policy_to_enum(policy):
     if policy == "now":
-        enum = wandb_internal_pb2.FilesItem.PolicyType.NOW
+        enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
-        enum = wandb_internal_pb2.FilesItem.PolicyType.END
+        enum = pb.FilesItem.PolicyType.END
     elif policy == "live":
-        enum = wandb_internal_pb2.FilesItem.PolicyType.LIVE
+        enum = pb.FilesItem.PolicyType.LIVE
     return enum
 
 
 def file_enum_to_policy(enum):
-    if enum == wandb_internal_pb2.FilesItem.PolicyType.NOW:
+    if enum == pb.FilesItem.PolicyType.NOW:
         policy = "now"
-    elif enum == wandb_internal_pb2.FilesItem.PolicyType.END:
+    elif enum == pb.FilesItem.PolicyType.END:
         policy = "end"
-    elif enum == wandb_internal_pb2.FilesItem.PolicyType.LIVE:
+    elif enum == pb.FilesItem.PolicyType.LIVE:
         policy = "live"
     return policy
 
 
+class _Future(object):
+    # _object: Optional[pb.Result]
+
+    def __init__(self):
+        self._object = None
+        self._object_ready = threading.Event()
+        self._lock = threading.Lock()
+
+    def get(self, timeout = None):
+        is_set = self._object_ready.wait(timeout)
+        if is_set and self._object:
+            return self._object
+        return None
+
+    def _set_object(self, obj):
+        self._object = obj
+        self._object_ready.set()
+
+
 class MessageRouter(object):
-    class _Future(object):
-        def __init__(self):
-            self._object = None
-            self._object_ready = threading.Event()
-            self._lock = threading.Lock()
+    # _pending_reqs: Dict[str, _Future]
+    # _request_queue: "Queue[pb.Record]"
+    # _response_queue: "Queue[pb.Result]"
 
-        def get(self, timeout=None):
-            is_set = self._object_ready.wait(timeout)
-            if is_set and self._object:
-                return self._object
-            return None
-
-        def _set_object(self, obj):
-            self._object = obj
-            self._object_ready.set()
-
-    def __init__(self, request_queue, response_queue):
+    def __init__(
+        self, request_queue, response_queue
+    ):
         self._request_queue = request_queue
         self._response_queue = response_queue
 
@@ -89,12 +115,12 @@ class MessageRouter(object):
                 continue
             self._handle_msg_rcv(msg)
 
-    def send_and_receive(self, rec, local=None):
+    def send_and_receive(self, rec, local = None):
         rec.control.req_resp = True
         if local:
             rec.control.local = local
         rec.uuid = uuid.uuid4().hex
-        future = self._Future()
+        future = _Future()
         with self._lock:
             self._pending_reqs[rec.uuid] = future
 
@@ -119,8 +145,17 @@ class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
 
+    # record_q: Optional["Queue[pb.Record]"]
+    # result_q: Optional["Queue[pb.Result]"]
+    # process: Optional[Process]
+    # _run: Optional["Run"]
+    # _router: Optional[MessageRouter]
+
     def __init__(
-        self, record_q=None, result_q=None, process=None,
+        self,
+        record_q = None,
+        result_q = None,
+        process = None,
     ):
         self.record_q = record_q
         self.result_q = result_q
@@ -140,23 +175,25 @@ class BackendSender(object):
         # ts.GetCurrentTime()
         # now = datetime.now()
         if name == "stdout":
-            otype = wandb_internal_pb2.OutputRecord.OutputType.STDOUT
+            otype = pb.OutputRecord.OutputType.STDOUT
         elif name == "stderr":
-            otype = wandb_internal_pb2.OutputRecord.OutputType.STDERR
+            otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
             print("unknown type")
-        o = wandb_internal_pb2.OutputRecord(output_type=otype, line=data)
+        o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
 
     def _publish_output(self, outdata):
-        rec = wandb_internal_pb2.Record()
+        rec = pb.Record()
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(self, log_dir, save, root_logdir):
-        tbrecord = wandb_internal_pb2.TBRecord()
+    def publish_tbdata(
+        self, log_dir, save, root_logdir
+    ):
+        tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
         tbrecord.root_dir = root_logdir or ""
@@ -167,30 +204,45 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
-    def publish_history(self, data, step=None, run=None):
+    def publish_history(
+        self, data, step = None, run = None, publish_step = True
+    ):
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
-        history = wandb_internal_pb2.HistoryRecord()
+        history = pb.HistoryRecord()
+        if publish_step:
+            assert step is not None
+            history.step.num = step
+        data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
+            item.value_json = json_dumps_safer_history(v)  # type: ignore
         self._publish_history(history)
 
+    def publish_telemetry(self, telem):
+        rec = self._make_record(telemetry=telem)
+        self._publish(rec)
+
     def _make_run(self, run):
-        proto_run = wandb_internal_pb2.RunRecord()
+        proto_run = pb.RunRecord()
         run._make_proto_run(proto_run)
-        proto_run.host = run._settings.host
+        if run._settings.host:
+            proto_run.host = run._settings.host
         if run._config is not None:
-            config_dict = run._config._as_dict()
-            self._make_config(config_dict, obj=proto_run.config)
+            config_dict = run._config._as_dict()  # type: ignore
+            self._make_config(data=config_dict, obj=proto_run.config)
+        if run._telemetry_obj:
+            proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
     def _make_artifact(self, artifact):
-        proto_artifact = wandb_internal_pb2.ArtifactRecord()
+        proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
         proto_artifact.digest = artifact.digest
+        if artifact.distributed_id:
+            proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
@@ -198,9 +250,11 @@ class BackendSender(object):
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
-    def _make_artifact_manifest(self, artifact_manifest, obj=None):
-        proto_manifest = obj or wandb_internal_pb2.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()
+    def _make_artifact_manifest(
+        self, artifact_manifest, obj = None
+    ):
+        proto_manifest = obj or pb.ArtifactManifest()
+        proto_manifest.version = artifact_manifest.version()  # type: ignore
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -208,7 +262,7 @@ class BackendSender(object):
             cfg.key = k
             cfg.value_json = json.dumps(v)
 
-        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
+        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):  # type: ignore
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
@@ -226,27 +280,41 @@ class BackendSender(object):
         return proto_manifest
 
     def _make_exit(self, exit_code):
-        exit = wandb_internal_pb2.RunExitRecord()
+        exit = pb.RunExitRecord()
         exit.exit_code = exit_code
         return exit
 
-    def _make_config(self, config_dict, obj=None):
-        config = obj or wandb_internal_pb2.ConfigRecord()
-        for k, v in six.iteritems(config_dict):
+    def _make_config(
+        self,
+        data = None,
+        key = None,
+        val = None,
+        obj = None,
+    ):
+        config = obj or pb.ConfigRecord()
+        if data:
+            for k, v in six.iteritems(data):
+                update = config.update.add()
+                update.key = k
+                update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
+        if key:
             update = config.update.add()
-            update.key = k
-            update.value_json = json_dumps_safer(json_friendly(v)[0])
-
+            if isinstance(key, tuple):
+                for k in key:
+                    update.nested_key.append(k)
+            else:
+                update.key = key
+            update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
         return config
 
     def _make_stats(self, stats_dict):
-        stats = wandb_internal_pb2.StatsRecord()
-        stats.stats_type = wandb_internal_pb2.StatsRecord.StatsType.SYSTEM
+        stats = pb.StatsRecord()
+        stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
         stats.timestamp.GetCurrentTime()
         for k, v in six.iteritems(stats_dict):
             item = stats.item.add()
             item.key = k
-            item.value_json = json_dumps_safer(json_friendly(v)[0])
+            item.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         return stats
 
     def _summary_encode(self, value, path_from_root):
@@ -272,13 +340,13 @@ class BackendSender(object):
                 )
             return json_value
         else:
-            friendly_value, converted = json_friendly(
+            friendly_value, converted = json_friendly(  # type: ignore
                 data_types.val_to_json(
                     self._run, path_from_root, value, namespace="summary"
                 )
             )
-            json_value, compressed = maybe_compress_summary(
-                friendly_value, get_h5_typename(value)
+            json_value, compressed = maybe_compress_summary(  # type: ignore
+                friendly_value, get_h5_typename(value)  # type: ignore
             )
             if compressed:
                 # TODO(jhr): impleement me
@@ -288,7 +356,7 @@ class BackendSender(object):
             return json_value
 
     def _make_summary_from_dict(self, summary_dict):
-        summary = wandb_internal_pb2.SummaryRecord()
+        summary = pb.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
             update.key = k
@@ -296,7 +364,7 @@ class BackendSender(object):
         return summary
 
     def _make_summary(self, summary_record):
-        pb_summary_record = wandb_internal_pb2.SummaryRecord()
+        pb_summary_record = pb.SummaryRecord()
 
         for item in summary_record.update:
             pb_summary_item = pb_summary_record.update.add()
@@ -311,7 +379,7 @@ class BackendSender(object):
 
             path_from_root = ".".join(item.key)
             json_value = self._summary_encode(item.value, path_from_root)
-            json_value, _ = json_friendly(json_value)
+            json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
                 json_value, cls=WandBJSONEncoderOld,
@@ -331,34 +399,34 @@ class BackendSender(object):
         return pb_summary_record
 
     def _make_files(self, files_dict):
-        files = wandb_internal_pb2.FilesRecord()
+        files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def _make_login(self, api_key=None, anonymous=None):
-        login = wandb_internal_pb2.LoginRequest()
+    def _make_login(self, api_key = None):
+        login = pb.LoginRequest()
         if api_key:
             login.api_key = api_key
-        if anonymous:
-            login.anonymous = anonymous
         return login
 
     def _make_request(
         self,
-        login=None,
-        get_summary=None,
-        pause=None,
-        resume=None,
-        status=None,
-        poll_exit=None,
-        sampled_history=None,
-        run_start=None,
-        check_version=None,
+        login = None,
+        get_summary = None,
+        pause = None,
+        resume = None,
+        status = None,
+        poll_exit = None,
+        sampled_history = None,
+        run_start = None,
+        check_version = None,
+        log_artifact = None,
+        defer = None,
     ):
-        request = wandb_internal_pb2.Request()
+        request = pb.Request()
         if login:
             request.login.CopyFrom(login)
         elif get_summary:
@@ -377,6 +445,10 @@ class BackendSender(object):
             request.run_start.CopyFrom(run_start)
         elif check_version:
             request.check_version.CopyFrom(check_version)
+        elif log_artifact:
+            request.log_artifact.CopyFrom(log_artifact)
+        elif defer:
+            request.defer.CopyFrom(defer)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -386,22 +458,24 @@ class BackendSender(object):
 
     def _make_record(
         self,
-        run=None,
-        config=None,
-        files=None,
-        summary=None,
-        history=None,
-        stats=None,
-        exit=None,
-        artifact=None,
-        tbrecord=None,
-        alert=None,
-        final=None,
-        header=None,
-        footer=None,
-        request=None,
+        run = None,
+        config = None,
+        files = None,
+        summary = None,
+        history = None,
+        stats = None,
+        exit = None,
+        artifact = None,
+        tbrecord = None,
+        alert = None,
+        final = None,
+        metric = None,
+        header = None,
+        footer = None,
+        request = None,
+        telemetry = None,
     ):
-        record = wandb_internal_pb2.Record()
+        record = pb.Record()
         if run:
             record.run.CopyFrom(run)
         elif config:
@@ -430,24 +504,36 @@ class BackendSender(object):
             record.footer.CopyFrom(footer)
         elif request:
             record.request.CopyFrom(request)
+        elif telemetry:
+            record.telemetry.CopyFrom(telemetry)
+        elif metric:
+            record.metric.CopyFrom(metric)
         else:
             raise Exception("Invalid record")
         return record
 
-    def _publish(self, record, local=None):
+    def _publish(self, record, local = None):
         if self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
             record.control.local = local
-        self.record_q.put(record)
+        if self.record_q:
+            self.record_q.put(record)
 
-    def _communicate(self, rec, timeout=5, local=None):
+    def _communicate(
+        self, rec, timeout = 5, local = None
+    ):
+        return self._communicate_async(rec, local=local).get(timeout=timeout)
+
+    def _communicate_async(self, rec, local = None):
         assert self._router
         future = self._router.send_and_receive(rec, local=local)
-        return future.get(timeout)
+        return future
 
-    def communicate_login(self, api_key=None, anonymous=None, timeout=15):
-        login = self._make_login(api_key, anonymous)
+    def communicate_login(
+        self, api_key = None, timeout = 15
+    ):
+        login = self._make_login(api_key)
         rec = self._make_request(login=login)
         result = self._communicate(rec, timeout=timeout)
         if result is None:
@@ -459,38 +545,41 @@ class BackendSender(object):
         assert login_response
         return login_response
 
-    def publish_defer(self, state=0):
-        rec = wandb_internal_pb2.Record()
-        rec.request.defer.CopyFrom(wandb_internal_pb2.DeferRequest(state=state))
+    def _publish_defer(self, state):
+        defer = pb.DeferRequest(state=state)
+        rec = self._make_request(defer=defer)
         self._publish(rec, local=True)
 
+    def publish_defer(self, state = 0):
+        self._publish_defer(cast("pb.DeferRequest.DeferStateValue", state))
+
     def publish_header(self):
-        header = wandb_internal_pb2.HeaderRecord()
+        header = pb.HeaderRecord()
         rec = self._make_record(header=header)
         self._publish(rec)
 
     def publish_footer(self):
-        footer = wandb_internal_pb2.FooterRecord()
+        footer = pb.FooterRecord()
         rec = self._make_record(footer=footer)
         self._publish(rec)
 
     def publish_final(self):
-        final = wandb_internal_pb2.FinalRecord()
+        final = pb.FinalRecord()
         rec = self._make_record(final=final)
         self._publish(rec)
 
-    def publish_login(self, api_key=None, anonymous=None):
-        login = self._make_login(api_key, anonymous)
+    def publish_login(self, api_key = None):
+        login = self._make_login(api_key)
         rec = self._make_request(login=login)
         self._publish(rec)
 
     def publish_pause(self):
-        pause = wandb_internal_pb2.PauseRequest()
+        pause = pb.PauseRequest()
         rec = self._make_request(pause=pause)
         self._publish(rec)
 
     def publish_resume(self):
-        resume = wandb_internal_pb2.ResumeRequest()
+        resume = pb.ResumeRequest()
         rec = self._make_request(resume=resume)
         self._publish(rec)
 
@@ -502,8 +591,13 @@ class BackendSender(object):
         run = self._make_run(run_obj)
         self._publish_run(run)
 
-    def publish_config(self, config_dict):
-        cfg = self._make_config(config_dict)
+    def publish_config(
+        self,
+        data = None,
+        key = None,
+        val = None,
+    ):
+        cfg = self._make_config(data=data, key=key, val=val)
         self._publish_config(cfg)
 
     def _publish_config(self, cfg):
@@ -518,7 +612,13 @@ class BackendSender(object):
         rec = self._make_record(summary=summary)
         self._publish(rec)
 
-    def _communicate_run(self, run, timeout=None):
+    def _publish_metric(self, metric):
+        rec = self._make_record(metric=metric)
+        self._publish(rec)
+
+    def _communicate_run(
+        self, run, timeout = None
+    ):
         """Send synchronous run object waiting for a response.
 
         Arguments:
@@ -532,12 +632,15 @@ class BackendSender(object):
         req = self._make_record(run=run)
         resp = self._communicate(req, timeout=timeout)
         if resp is None:
+            logger.info("couldn't get run from backend")
             # Note: timeouts handled by callers: wandb_init.py
-            return
-        assert resp.run_result
+            return None
+        assert resp.HasField("run_result")
         return resp.run_result
 
-    def communicate_run(self, run_obj, timeout=None):
+    def communicate_run(
+        self, run_obj, timeout = None
+    ):
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
@@ -551,8 +654,14 @@ class BackendSender(object):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def publish_artifact(
-        self, run, artifact, aliases, is_user_created=False, use_after_commit=False
+    def communicate_artifact(
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created = False,
+        use_after_commit = False,
+        finalize = True,
     ):
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
@@ -561,13 +670,41 @@ class BackendSender(object):
         proto_artifact.entity = proto_run.entity
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
+        for alias in aliases:
+            proto_artifact.aliases.append(alias)
+
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
+        rec = self._make_request(log_artifact=log_artifact)
+        return self._communicate_async(rec)
+
+    def publish_artifact(
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created = False,
+        use_after_commit = False,
+        finalize = True,
+    ):
+        proto_run = self._make_run(run)
+        proto_artifact = self._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = is_user_created
+        proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
         for alias in aliases:
             proto_artifact.aliases.append(alias)
         rec = self._make_record(artifact=proto_artifact)
         self._publish(rec)
 
-    def publish_alert(self, title, text, level, wait_duration):
-        proto_alert = wandb_internal_pb2.AlertRecord()
+    def publish_alert(
+        self, title, text, level, wait_duration
+    ):
+        proto_alert = pb.AlertRecord()
         proto_alert.title = title
         proto_alert.text = text
         proto_alert.level = level
@@ -575,12 +712,16 @@ class BackendSender(object):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_status(self, check_stop_req, timeout=None):
-        status = wandb_internal_pb2.StatusRequest()
+    def communicate_status(
+        self, check_stop_req, timeout = None
+    ):
+        status = pb.StatusRequest()
         status.check_stop_req = check_stop_req
         req = self._make_request(status=status)
 
         resp = self._communicate(req, timeout=timeout, local=True)
+        if resp is None:
+            return None
         assert resp.response.status_response
         return resp.response.status_response
 
@@ -589,7 +730,9 @@ class BackendSender(object):
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 
-    def _communicate_exit(self, exit_data, timeout=None):
+    def _communicate_exit(
+        self, exit_data, timeout = None
+    ):
         req = self._make_record(exit=exit_data)
 
         result = self._communicate(req, timeout=timeout)
@@ -601,54 +744,63 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def communicate_poll_exit(self, timeout=None):
-        poll_request = wandb_internal_pb2.PollExitRequest()
+    def communicate_poll_exit(
+        self, timeout = None
+    ):
+        poll_request = pb.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
         result = self._communicate(rec, timeout=timeout)
-        return result
+        if result is None:
+            return None
+        poll_exit_response = result.response.poll_exit_response
+        assert poll_exit_response
+        return poll_exit_response
 
-    def communicate_check_version(self, current_version=None):
-        check_version = wandb_internal_pb2.CheckVersionRequest()
+    def communicate_check_version(
+        self, current_version = None
+    ):
+        check_version = pb.CheckVersionRequest()
         if current_version:
             check_version.current_version = current_version
         rec = self._make_request(check_version=check_version)
         result = self._communicate(rec)
         if result is None:
             # Note: timeouts handled by callers: wandb_init.py
-            return
+            return None
         return result.response.check_version_response
 
-    def communicate_run_start(self):
-        run_start = wandb_internal_pb2.RunStartRequest()
+    def communicate_run_start(self, run_pb):
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result
 
-    def communicate_exit(self, exit_code, timeout=None):
+    def communicate_exit(self, exit_code, timeout = None):
         exit_data = self._make_exit(exit_code)
         return self._communicate_exit(exit_data, timeout=timeout)
 
     def communicate_summary(self):
-        record = self._make_request(get_summary=wandb_internal_pb2.GetSummaryRequest())
-        result = self._communicate(record)
+        record = self._make_request(get_summary=pb.GetSummaryRequest())
+        result = self._communicate(record, timeout=10)
+        if result is None:
+            return None
         get_summary_response = result.response.get_summary_response
         assert get_summary_response
         return get_summary_response
 
     def communicate_sampled_history(self):
-        record = self._make_request(
-            sampled_history=wandb_internal_pb2.SampledHistoryRequest()
-        )
+        record = self._make_request(sampled_history=pb.SampledHistoryRequest())
         result = self._communicate(record)
+        if result is None:
+            return None
         sampled_history_response = result.response.sampled_history_response
         assert sampled_history_response
         return sampled_history_response
 
     def join(self):
         # shutdown
-        request = wandb_internal_pb2.Request(
-            shutdown=wandb_internal_pb2.ShutdownRequest()
-        )
+        request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
         _ = self._communicate(record)
 

@@ -1,5 +1,6 @@
 #
 import logging
+import sys
 
 import wandb
 
@@ -15,11 +16,13 @@ STYLED_TABLE_HTML = """<style>
 def _get_python_type():
     try:
         from IPython import get_ipython  # type: ignore
+
+        # Calling get_ipython can cause an ImportError
+        if get_ipython() is None:
+            return "python"
     except ImportError:
         return "python"
-    if get_ipython() is None:
-        return "python"
-    elif "terminal" in get_ipython().__module__:
+    if "terminal" in get_ipython().__module__ or "spyder" in sys.modules:
         return "ipython"
     else:
         return "jupyter"

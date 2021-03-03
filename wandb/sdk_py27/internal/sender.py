@@ -16,10 +16,7 @@ from pkg_resources import parse_version
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
-from wandb.proto import wandb_internal_pb2  # type: ignore
-
-
-# from wandb.stuff import io_wrap
+from wandb.proto import wandb_internal_pb2
 
 from . import artifacts
 from . import file_stream
@@ -27,14 +24,39 @@ from . import internal_api
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
-from ..lib import config_util, filenames, proto_util
+from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
 
+if wandb.TYPE_CHECKING:  # TYPE_CHECKING
+    from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+
+    DictWithValues = NewType("DictWithValues", Dict[str, Any])
+    DictNoValues = NewType("DictNoValues", Dict[str, Any])
+
+
+def _framework_priority(
+    imp,
+):
+    yield imp.lightgbm, "lightgbm"
+    yield imp.catboost, "catboost"
+    yield imp.xgboost, "xgboost"
+    yield imp.transformers, "huggingface"
+    yield imp.pytorch_ignite, "ignite"
+    yield imp.pytorch_lightning, "lightning"
+    yield imp.fastai, "fastai"
+    yield imp.torch, "torch"
+    yield imp.keras, "keras"
+    yield imp.tensorflow, "tensorflow"
+    yield imp.sklearn, "sklearn"
+
 
 class SendManager(object):
+
+    # _telemetry_obj: telemetry.TelemetryRecord
+
     def __init__(
         self, settings, record_q, result_q, interface,
     ):
@@ -54,6 +76,15 @@ class SendManager(object):
         # State updated by wandb.init
         self._run = None
         self._project = None
+
+        # keep track of config from key/val updates
+        self._consolidated_config = dict()
+        self._telemetry_obj = telemetry.TelemetryRecord()
+        # TODO: remove default_xaxis
+        self._config_default_xaxis = None
+        self._config_metric_pbdict_list = []
+        self._config_metric_index_dict = {}
+        self._config_metric_dict = {}
 
         # State updated by resuming
         self._resume_state = {
@@ -272,7 +303,7 @@ class SendManager(object):
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
         if not self._settings.resume:
-            return
+            return None
 
         # TODO: This causes a race, we need to make the upsert atomically
         # only create or update depending on the resume config
@@ -291,7 +322,7 @@ class SendManager(object):
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.INVALID
                 error.message = "resume='must' but run (%s) doesn't exist" % run.run_id
                 return error
-            return
+            return None
 
         #
         # handle cases where we have resume_status
@@ -338,19 +369,86 @@ class SendManager(object):
         self._resume_state["summary"] = summary
         self._resume_state["resumed"] = True
         logger.info("configured resuming with: %s" % self._resume_state)
-        return
+        return None
+
+    def _telemetry_get_framework(self):
+        """Get telemetry data for internal config structure."""
+        # detect framework by checking what is loaded
+        # imp: telemetry.TelemetryImports
+        if self._telemetry_obj.HasField("imports_finish"):
+            imp = self._telemetry_obj.imports_finish
+        elif self._telemetry_obj.HasField("imports_init"):
+            imp = self._telemetry_obj.imports_init
+        else:
+            return ""
+        priority = _framework_priority(imp)
+        framework = next((f for b, f in priority if b), "")
+        return framework
+
+    def _config_telemetry_update(self, config_dict):
+        """Add legacy telemetry to config object."""
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        # s: str
+        # b: bool
+        s = self._telemetry_obj.python_version
+        if s:
+            config_dict[wandb_key]["python_version"] = s
+        s = self._telemetry_obj.cli_version
+        if s:
+            config_dict[wandb_key]["cli_version"] = s
+        s = self._telemetry_get_framework()
+        if s:
+            config_dict[wandb_key]["framework"] = s
+        s = self._telemetry_obj.huggingface_version
+        if s:
+            config_dict[wandb_key]["huggingface_version"] = s
+        b = self._telemetry_obj.env.jupyter
+        config_dict[wandb_key]["is_jupyter_run"] = b
+        b = self._telemetry_obj.env.kaggle
+        config_dict[wandb_key]["is_kaggle_kernel"] = b
+
+        t = proto_util.proto_encode_to_dict(self._telemetry_obj)
+        config_dict[wandb_key]["t"] = t
+
+    def _config_metric_update(self, config_dict):
+        """Add default xaxis to config."""
+        if not self._config_metric_pbdict_list:
+            return
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        # TODO(jhr): remove this
+        if self._config_default_xaxis:
+            config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
+        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
+
+    def _config_format(self, config_data):
+        """Format dict into value dict with telemetry info."""
+        config_dict = config_data.copy() if config_data else dict()
+        self._config_telemetry_update(config_dict)
+        self._config_metric_update(config_dict)
+        config_value_dict = config_util.dict_add_value_dict(config_dict)
+        return config_value_dict
+
+    def _config_save(self, config_value_dict):
+        config_path = os.path.join(self._settings.files_dir, "config.yaml")
+        config_util.save_config_file_from_dict(config_path, config_value_dict)
 
     def send_run(self, data):
         run = data.run
         error = None
         is_wandb_init = self._run is None
 
+        # update telemetry
+        if run.telemetry:
+            self._telemetry_obj.MergeFrom(run.telemetry)
+
         # build config dict
-        config_dict = None
-        config_path = os.path.join(self._settings.files_dir, filenames.CONFIG_FNAME)
+        config_value_dict = None
         if run.config:
-            config_dict = config_util.dict_from_proto_list(run.config.update)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            config_util.update_from_proto(self._consolidated_config, run.config)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
@@ -372,12 +470,22 @@ class SendManager(object):
         # Save the resumed config
         if self._resume_state["config"] is not None:
             # TODO: should we merge this with resumed config?
-            config_override = config_dict or {}
+            config_override = self._consolidated_config
             config_dict = self._resume_state["config"]
+            config_dict = config_util.dict_strip_value_dict(config_dict)
             config_dict.update(config_override)
-            config_util.save_config_file_from_dict(config_path, config_dict)
+            self._consolidated_config.update(config_dict)
+            config_value_dict = self._config_format(self._consolidated_config)
+            self._config_save(config_value_dict)
 
-        self._init_run(run, config_dict)
+        # handle empty config
+        # TODO(jhr): consolidate the 4 ways config is built:
+        #            (passed config, empty config, resume config, send_config)
+        if not config_value_dict:
+            config_value_dict = self._config_format(None)
+            self._config_save(config_value_dict)
+
+        self._init_run(run, config_value_dict)
 
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)
@@ -477,7 +585,7 @@ class SendManager(object):
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api)
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",
@@ -555,15 +663,68 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
+    def _update_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        # TODO(jhr): check result of upsert_run?
+
     def send_config(self, data):
         cfg = data.config
-        config_dict = config_util.dict_from_proto_list(cfg.update)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_dict, **self._api_settings
+        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._update_config()
+
+    def send_metric(self, data):
+        metric = data.metric
+        if metric.glob_name:
+            logger.warning("Seen metric with glob (shouldnt happen)")
+            return
+
+        # merge or overwrite
+        old_metric = self._config_metric_dict.get(
+            metric.name, wandb_internal_pb2.MetricRecord()
         )
-        config_path = os.path.join(self._settings.files_dir, "config.yaml")
-        config_util.save_config_file_from_dict(config_path, config_dict)
-        # TODO(jhr): check result of upsert_run?
+        if metric._control.overwrite:
+            old_metric.CopyFrom(metric)
+        else:
+            old_metric.MergeFrom(metric)
+        self._config_metric_dict[metric.name] = old_metric
+        metric = old_metric
+
+        # TODO(jhr): remove this code before shipping (only for prototype UI)
+        if metric.step_metric:
+            if metric.step_metric != self._config_default_xaxis:
+                self._config_default_xaxis = metric.step_metric
+                self._update_config()
+
+        # convert step_metric to index
+        if metric.step_metric:
+            find_step_idx = self._config_metric_index_dict.get(metric.step_metric)
+            if find_step_idx is not None:
+                # make a copy of this metric as we will be modifying it
+                rec = wandb_internal_pb2.Record()
+                rec.metric.CopyFrom(metric)
+                metric = rec.metric
+
+                metric.ClearField("step_metric")
+                metric.step_metric_index = find_step_idx + 1
+
+        md = proto_util.proto_encode_to_dict(metric)
+        find_idx = self._config_metric_index_dict.get(metric.name)
+        if find_idx is not None:
+            self._config_metric_pbdict_list[find_idx] = md
+        else:
+            next_idx = len(self._config_metric_pbdict_list)
+            self._config_metric_pbdict_list.append(md)
+            self._config_metric_index_dict[metric.name] = next_idx
+        self._update_config()
+
+    def send_telemetry(self, data):
+        telem = data.telemetry
+        self._telemetry_obj.MergeFrom(telem)
+        self._update_config()
 
     def _save_file(self, fname, policy="end"):
         logger.info("saving file %s with policy %s", fname, policy)
@@ -586,8 +747,34 @@ class SendManager(object):
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_request_log_artifact(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        artifact = record.request.log_artifact.artifact
+
+        try:
+            result.response.log_artifact_response.artifact_id = self._send_artifact(
+                artifact
+            ).get("id")
+        except Exception as e:
+            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
+            )
+
+        self._result_q.put(result)
+
     def send_artifact(self, data):
         artifact = data.artifact
+        try:
+            self._send_artifact(artifact)
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
+
+    def _send_artifact(self, artifact):
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -596,29 +783,32 @@ class SendManager(object):
             is_user_created=artifact.user_created,
         )
 
-        metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        try:
-            saver.save(
-                type=artifact.type,
-                name=artifact.name,
-                metadata=metadata,
-                description=artifact.description,
-                aliases=artifact.aliases,
-                use_after_commit=artifact.use_after_commit,
-            )
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
+        if artifact.distributed_id:
+            max_cli_version = self._max_cli_version()
+            if max_cli_version is None or parse_version(
+                max_cli_version
+            ) < parse_version("0.10.16"):
+                logger.warning(
+                    "This W&B server doesn't support distributed artifacts, "
+                    "have your administrator install wandb/local >= 0.9.37"
                 )
-            )
+                return
+
+        metadata = json.loads(artifact.metadata) if artifact.metadata else None
+        return saver.save(
+            type=artifact.type,
+            name=artifact.name,
+            metadata=metadata,
+            description=artifact.description,
+            aliases=artifact.aliases,
+            use_after_commit=artifact.use_after_commit,
+            distributed_id=artifact.distributed_id,
+            finalize=artifact.finalize,
+        )
 
     def send_alert(self, data):
         alert = data.alert
-        _, server_info = self._api.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
+        max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
         ):
@@ -653,3 +843,10 @@ class SendManager(object):
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+
+    def _max_cli_version(self):
+        _, server_info = self._api.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        return max_cli_version

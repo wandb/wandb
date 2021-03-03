@@ -3,6 +3,7 @@ See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
 import wandb
+from wandb.viz import create_custom_chart
 import pytest
 import tempfile
 import glob
@@ -12,6 +13,14 @@ import os
 def test_log_step(wandb_init_run):
     wandb.log({"acc": 1}, step=5, commit=True)
     assert wandb.run._backend.history[0]["_step"] == 5
+
+
+def test_log_custom_chart(wandb_init_run):
+    custom_chart = create_custom_chart(
+        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+    )
+    wandb.log({"my_custom_chart": custom_chart})
+    assert wandb.run._backend.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})

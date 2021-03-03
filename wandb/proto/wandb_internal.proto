@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
@@ -23,23 +24,25 @@ message Record {
   int64            num = 1;
   oneof record_type {
     // Low numbers for more frequent data
-    HistoryRecord  history = 2;
-    SummaryRecord  summary = 3;
-    OutputRecord   output = 4;
-    ConfigRecord   config = 5;
-    FilesRecord    files = 6;
-    StatsRecord    stats = 7;
-    ArtifactRecord artifact = 8;
-    TBRecord       tbrecord = 9;
-    AlertRecord    alert = 10;
+    HistoryRecord   history = 2;
+    SummaryRecord   summary = 3;
+    OutputRecord    output = 4;
+    ConfigRecord    config = 5;
+    FilesRecord     files = 6;
+    StatsRecord     stats = 7;
+    ArtifactRecord  artifact = 8;
+    TBRecord        tbrecord = 9;
+    AlertRecord     alert = 10;
+    TelemetryRecord telemetry = 11;
+    MetricRecord    metric = 12;
     // Higher numbers for less frequent data
-    RunRecord      run = 17;
-    RunExitRecord  exit = 18;
-    FinalRecord    final = 20;
-    HeaderRecord   header = 21;
-    FooterRecord   footer = 22;
+    RunRecord       run = 17;
+    RunExitRecord   exit = 18;
+    FinalRecord     final = 20;
+    HeaderRecord    header = 21;
+    FooterRecord    footer = 22;
     // request field does not belong here longterm
-    Request        request = 100;
+    Request         request = 100;
   }
   Control          control = 16;
   string           uuid = 19;
@@ -107,6 +110,7 @@ message RunRecord {
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
   bool                      resumed = 18;
+  TelemetryRecord           telemetry = 19;
 }
 
 message RunUpdateResult {
@@ -151,8 +155,13 @@ message SettingsItem {
 /*
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
+message HistoryStep {
+  int64 num = 1;
+}
+
 message HistoryRecord {
   repeated HistoryItem item = 1;
+  HistoryStep step = 2;
 }
 
 message HistoryItem {
@@ -178,6 +187,50 @@ message OutputRecord {
 }
 
 message OutputResult {
+}
+
+/*
+ * MetricRecord: wandb/sdk/wandb_metric/Metric
+ */
+message MetricRecord {
+  // only name or globname is set
+  string          name = 1;
+  string          glob_name = 2;
+
+  // nested metrics not supported yet
+  // repeated string nested_name = 3;
+
+  // step metric index can be used instead of step_metric when
+  // MetricRecord is encoded in a list of MetricRecords
+  string          step_metric = 4;
+  int32           step_metric_index = 5;  // one-based array index
+
+  MetricOptions   options = 6;
+  MetricSummary   summary = 7;
+  MetricGoal      goal = 8;
+  MetricControl   _control = 9;
+
+  enum MetricGoal {
+    GOAL_UNSET = 0;
+    GOAL_MINIMIZE = 1;
+    GOAL_MAXIMIZE = 2;
+  }
+}
+
+message MetricOptions {
+  bool step_sync = 1;
+  bool hidden = 2;
+}
+
+message MetricControl {
+  bool overwrite = 1;
+}
+
+message MetricSummary {
+  bool min = 1;
+  bool max = 2;
+  bool mean = 3;
+  bool best = 4;
 }
 
 /*
@@ -265,6 +318,8 @@ message ArtifactRecord {
   bool                          use_after_commit = 10;
   repeated string               aliases = 11;
   ArtifactManifest              manifest = 12;
+  string                        distributed_id=13;
+  bool                          finalize=14;
 }
 
 message ArtifactManifest {
@@ -333,7 +388,9 @@ message Request {
     SampledHistoryRequest sampled_history = 9;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
+    LogArtifactRequest    log_artifact = 13;
     ShutdownRequest       shutdown = 64;
+    TestInjectRequest     test_inject = 1000;
   }
 }
 
@@ -349,7 +406,9 @@ message Response {
     SampledHistoryResponse sampled_history_response = 27;
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
+    LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
+    TestInjectResponse     test_inject_response = 1000;
   }
 }
 
@@ -451,6 +510,29 @@ message ShutdownResponse {
 }
 
 /*
+ * TestInjectRequest:
+ */
+message TestInjectRequest {
+  bool handler_exc = 1;
+  bool handler_exit = 2;
+  bool handler_abort = 3;
+  bool sender_exc = 4;
+  bool sender_exit = 5;
+  bool sender_abort = 6;
+  bool req_exc = 7;
+  bool req_exit = 8;
+  bool req_abort = 9;
+  bool resp_exc = 10;
+  bool resp_exit = 11;
+  bool resp_abort = 12;
+  bool msg_drop = 13;
+  bool msg_hang = 14;
+}
+
+message TestInjectResponse {
+}
+
+/*
  * SampledHistoryRequest:
  */
 message SampledHistoryRequest {
@@ -489,3 +571,15 @@ message CheckVersionResponse {
   string yank_message = 2;
   string delete_message = 3;
 }
+
+/*
+ * LogArtifact:
+ */
+ message LogArtifactRequest {
+    ArtifactRecord artifact = 1;
+ }
+
+ message LogArtifactResponse {
+    string artifact_id = 1;
+    string error_message = 2;
+ }
