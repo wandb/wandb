@@ -532,7 +532,7 @@ def test_add_obj_using_brackets(runner):
         }
 
     with pytest.raises(ValueError):
-        image = art["my-image"]
+        image = artifact["my-image"]
 
 
 def test_duplicate_wbimage_from_file(runner):
