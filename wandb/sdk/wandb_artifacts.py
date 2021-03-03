@@ -476,8 +476,8 @@ class Artifact(ArtifactInterface):
                 if "job_type" not in init_kwargs:
                     kwargs["job_type"] = "auto"
                 if "settings" not in init_kwargs:
-                    init_kwargs["settings"] = wandb.Settings(silent=True)
-                with wandb.init(**init_kwargs) as run:
+                    kwargs["settings"] = wandb.Settings(silent=True)
+                with wandb.init(**kwargs) as run:
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                 termlog(
