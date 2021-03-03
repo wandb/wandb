@@ -80,6 +80,15 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
+def test_keras_telemetry(dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx):
+    wandb.init(settings=test_settings)
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36, callbacks=[WandbCallback()])
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    config_wandb = ctx_util.config_wandb
+    assert config_wandb["t"]["3"] == [2,3,8]
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
 )
