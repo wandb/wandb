@@ -535,6 +535,18 @@ def test_add_obj_using_brackets(runner):
         image = artifact["my-image"]
 
 
+def test_artifact_interface_get_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        image = art["my-image"]
+
+
+def test_artifact_interface_set_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        art["my-image"] = 1
+
+
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
