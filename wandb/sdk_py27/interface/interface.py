@@ -247,7 +247,7 @@ class BackendSender(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
