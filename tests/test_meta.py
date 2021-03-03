@@ -62,7 +62,7 @@ def sm(
 
 
 # @pytest.mark.skipif(platform.system() == "Windows", reason="git stopped working")
-def test_meta_probe(mock_server, meta, sm, record_q):
+def test_meta_probe(mock_server, meta, sm, record_q, log_debug):
     with open("README", "w") as f:
         f.write("Testing")
     meta.probe()

@@ -90,7 +90,7 @@ def is_tpu_available():
     try:
         from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
         from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
-    except ImportError:
+    except (ImportError, TypeError):  # Saw type error when iterating paths on colab...
         return False
     return "TPU_NAME" in os.environ
 

@@ -1,6 +1,7 @@
 import wandb
 from wandb import data_types
 import numpy as np
+import pandas as pd
 import pytest
 import os
 import sys
@@ -328,7 +329,7 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = data_types._ClassesIdType.from_obj(wb_classes)
+    wb_class_type = wandb.wandb_sdk.data_types._ClassesIdType.from_obj(wb_classes)
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 
@@ -355,6 +356,92 @@ def test_table_implicit_types():
     table.add_data(1)
     with pytest.raises(TypeError):
         table.add_data("a")
+
+
+def test_table_allow_mixed_types():
+    table = wandb.Table(columns=["col"], allow_mixed_types=True)
+    table.add_data(None)
+    table.add_data(1)
+    table.add_data("a")  # No error with allow_mixed_types
+
+    table = wandb.Table(columns=["col"], optional=False, allow_mixed_types=True)
+    with pytest.raises(TypeError):
+        table.add_data(None)  # Still errors since optional is false
+    table.add_data(1)
+    table.add_data("a")  # No error with allow_mixed_types
+
+
+def test_tables_with_dicts():
+    good_data = [
+        [None],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+    ]
+    bad_data = [
+        [None],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                    "e": wandb.Image(
+                                        np.random.randint(255, size=(10, 10))
+                                    ),
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
+        [{"a": [{"b": 1, "c": [[{"d": 1,}]]}]}],
+    ]
+
+    table = wandb.Table(columns=["A"], data=good_data, allow_mixed_types=True)
+    table = wandb.Table(columns=["A"], data=bad_data, allow_mixed_types=True)
+    table = wandb.Table(columns=["A"], data=good_data)
+    with pytest.raises(TypeError):
+        table = wandb.Table(columns=["A"], data=bad_data)
 
 
 def test_table_explicit_types():
@@ -485,89 +572,200 @@ def test_table_specials():
     )
 
 
-# def test_print():
-#     image_annotated = data_types.Image(
-#         np.random.rand(10, 10),
-#         boxes={
-#             "box_predictions": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#             "box_ground_truth": {
-#                 "box_data": [
-#                     {
-#                         "position": {
-#                             "minX": 0.1,
-#                             "maxX": 0.2,
-#                             "minY": 0.3,
-#                             "maxY": 0.4,
-#                         },
-#                         "class_id": 1,
-#                         "box_caption": "minMax(pixel)",
-#                         "scores": {"acc": 0.1, "loss": 1.2},
-#                     },
-#                 ],
-#                 "class_labels": class_labels,
-#             },
-#         },
-#         masks={
-#             "mask_predictions": {
-#                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-#                 "class_labels": class_labels,
-#             },
-#             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
-#         },
-#     )
+def test_table_typing_numpy():
+    # Pulled from https://numpy.org/devdocs/user/basics.types.html
 
-#     wb_type = DictType(
-#         {
-#             "InvalidType": InvalidType,
-#             "UnknownType": UnknownType(),
-#             "AnyType": AnyType(),
-#             "NoneType": None,
-#             "StringType": str,
-#             "NumberType": int,
-#             "BooleanType": bool,
-#             "Simple_ListType": ListType(int),
-#             "Nested_ListType": ListType({"key": int}),
-#             "UnionType": UnionType([int, str, bool]),
-#             "ObjectType": ObjectType(np.array([])),
-#             "ConstType": ConstType(5),
-#             "ConstType_Set": ConstType(set([1, 2, 3])),
-#             "OptionalType": OptionalType(int),
-#             "ImageType": data_types.Image,
-#             "Defined_ImageType": data_types._ImageType.from_obj(image_annotated),
-#             "TableType": data_types.Table,
-#             "Defined_TableType": data_types._TableType.from_obj(
-#                 wandb.Table(
-#                     columns=["a", "b", "c"],
-#                     optional=True,
-#                     dtype=[int, bool, str],
-#                 )
-#             ),
-#             "ClassType": data_types._ClassesIdType.from_obj(
-#                 wandb.Classes(
-#                     [
-#                         {"id": 1, "name": "cat"},
-#                         {"id": 2, "name": "dog"},
-#                         {"id": 3, "name": "horse"},
-#                     ]
-#                 )
-#             ),
-#         }
-#     )
+    # Numerics
+    table = wandb.Table(columns=["A"], dtype=[NumberType])
+    table.add_data(None)
+    table.add_data(42)
+    table.add_data(np.byte(1))
+    table.add_data(np.short(42))
+    table.add_data(np.ushort(42))
+    table.add_data(np.intc(42))
+    table.add_data(np.uintc(42))
+    table.add_data(np.int_(42))
+    table.add_data(np.uint(42))
+    table.add_data(np.longlong(42))
+    table.add_data(np.ulonglong(42))
+    table.add_data(np.half(42))
+    table.add_data(np.float16(42))
+    table.add_data(np.single(42))
+    table.add_data(np.double(42))
+    table.add_data(np.longdouble(42))
+    table.add_data(np.csingle(42))
+    table.add_data(np.cdouble(42))
+    table.add_data(np.clongdouble(42))
+    table.add_data(np.int8(42))
+    table.add_data(np.int16(42))
+    table.add_data(np.int32(42))
+    table.add_data(np.int64(42))
+    table.add_data(np.uint8(42))
+    table.add_data(np.uint16(42))
+    table.add_data(np.uint32(42))
+    table.add_data(np.uint64(42))
+    table.add_data(np.intp(42))
+    table.add_data(np.uintp(42))
+    table.add_data(np.float32(42))
+    table.add_data(np.float64(42))
+    table.add_data(np.float_(42))
+    table.add_data(np.complex64(42))
+    table.add_data(np.complex128(42))
+    table.add_data(np.complex_(42))
 
-#     print(wb_type.to_json())
-#     assert False
+    # Booleans
+    table = wandb.Table(columns=["A"], dtype=[BooleanType])
+    table.add_data(None)
+    table.add_data(True)
+    table.add_data(False)
+    table.add_data(np.bool_(True))
+
+    # Array of Numerics
+    table = wandb.Table(columns=["A"], dtype=[[NumberType]])
+    table.add_data(None)
+    table.add_data([42])
+    table.add_data(np.array([1, 0], dtype=np.byte))
+    table.add_data(np.array([42, 42], dtype=np.short))
+    table.add_data(np.array([42, 42], dtype=np.ushort))
+    table.add_data(np.array([42, 42], dtype=np.intc))
+    table.add_data(np.array([42, 42], dtype=np.uintc))
+    table.add_data(np.array([42, 42], dtype=np.int_))
+    table.add_data(np.array([42, 42], dtype=np.uint))
+    table.add_data(np.array([42, 42], dtype=np.longlong))
+    table.add_data(np.array([42, 42], dtype=np.ulonglong))
+    table.add_data(np.array([42, 42], dtype=np.half))
+    table.add_data(np.array([42, 42], dtype=np.float16))
+    table.add_data(np.array([42, 42], dtype=np.single))
+    table.add_data(np.array([42, 42], dtype=np.double))
+    table.add_data(np.array([42, 42], dtype=np.longdouble))
+    table.add_data(np.array([42, 42], dtype=np.csingle))
+    table.add_data(np.array([42, 42], dtype=np.cdouble))
+    table.add_data(np.array([42, 42], dtype=np.clongdouble))
+    table.add_data(np.array([42, 42], dtype=np.int8))
+    table.add_data(np.array([42, 42], dtype=np.int16))
+    table.add_data(np.array([42, 42], dtype=np.int32))
+    table.add_data(np.array([42, 42], dtype=np.int64))
+    table.add_data(np.array([42, 42], dtype=np.uint8))
+    table.add_data(np.array([42, 42], dtype=np.uint16))
+    table.add_data(np.array([42, 42], dtype=np.uint32))
+    table.add_data(np.array([42, 42], dtype=np.uint64))
+    table.add_data(np.array([42, 42], dtype=np.intp))
+    table.add_data(np.array([42, 42], dtype=np.uintp))
+    table.add_data(np.array([42, 42], dtype=np.float32))
+    table.add_data(np.array([42, 42], dtype=np.float64))
+    table.add_data(np.array([42, 42], dtype=np.float_))
+    table.add_data(np.array([42, 42], dtype=np.complex64))
+    table.add_data(np.array([42, 42], dtype=np.complex128))
+    table.add_data(np.array([42, 42], dtype=np.complex_))
+
+    # Array of Booleans
+    table = wandb.Table(columns=["A"], dtype=[[BooleanType]])
+    table.add_data(None)
+    table.add_data([True])
+    table.add_data([False])
+    table.add_data(np.array([True, False], dtype=np.bool_))
+
+    # Nested arrays
+    table = wandb.Table(columns=["A"])
+    table.add_data([[[[1, 2, 3]]]])
+    table.add_data(np.array([[[[1, 2, 3]]]]))
+
+
+def test_table_typing_pandas():
+    # TODO: Pandas https://pandas.pydata.org/pandas-docs/stable/user_guide/basics.html#basics-dtypes
+
+    # Numerics
+    table = wandb.Table(dataframe=pd.DataFrame([[1], [0]]).astype(np.byte))
+    table.add_data(1)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.short))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.ushort))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.intc))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uintc))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int_))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.longlong))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.ulonglong))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.half))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float16))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.single))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.double))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.longdouble))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.csingle))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.cdouble))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.clongdouble))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int8))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int16))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int32))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int64))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint8))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint16))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint32))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint64))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.intp))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uintp))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float32))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float64))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float_))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex64))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex128))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex_))
+    table.add_data(42)
+
+    # Boolean
+    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype(np.bool_))
+    table.add_data(True)
+
+    # String aliased
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("Int8"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("Int16"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("Int32"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("Int64"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("UInt8"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("UInt16"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("UInt32"))
+    table.add_data(42)
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("UInt64"))
+    table.add_data(42)
+
+    table = wandb.Table(dataframe=pd.DataFrame([["42"], ["42"]]).astype("string"))
+    table.add_data("42")
+    if _PY3:
+        table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
+        table.add_data(True)

@@ -29,6 +29,7 @@ import enum
 import getpass
 import itertools
 import json
+import multiprocessing
 import os
 import platform
 import socket
@@ -89,6 +90,7 @@ env_settings = dict(
     resume=None,
     silent=None,
     sagemaker_disable=None,
+    start_method=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -192,6 +194,7 @@ class Settings(object):
     """
 
     mode = "online"
+    start_method = None
     console = "auto"
     disabled = False
     run_tags = None
@@ -216,6 +219,7 @@ class Settings(object):
     email = None
     save_code = None
     program_relpath = None
+    # host: Optional[str]
 
     # Public attributes
     entity = None
@@ -264,6 +268,7 @@ class Settings(object):
         api_key = None,
         anonymous=None,
         mode = None,
+        start_method = None,
         entity = None,
         project = None,
         run_group = None,
@@ -437,6 +442,8 @@ class Settings(object):
         if console == "auto":
             if self._jupyter:
                 console = "wrap"
+            elif self.start_method == "thread":
+                console = "wrap"
             elif self._windows:
                 console = "wrap"
                 # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
@@ -512,6 +519,14 @@ class Settings(object):
     @property
     def settings_workspace(self):
         return self._path_convert(self.settings_workspace_spec)
+
+    def _validate_start_method(self, value):
+        available_methods = ["thread"]
+        if hasattr(multiprocessing, "get_all_start_methods"):
+            available_methods += multiprocessing.get_all_start_methods()
+        if value in available_methods:
+            return
+        return _error_choices(value, available_methods)
 
     def _validate_mode(self, value):
         choices = {

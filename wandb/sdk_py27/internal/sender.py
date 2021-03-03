@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
-from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.proto import wandb_internal_pb2
 
 from . import artifacts
 from . import file_stream
@@ -31,7 +31,7 @@ from ..lib.git import GitRepo
 logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
-    from typing import NewType, Optional, Dict, Any, Tuple, Generator
+    from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -80,6 +80,11 @@ class SendManager(object):
         # keep track of config from key/val updates
         self._consolidated_config = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
+        # TODO: remove default_xaxis
+        self._config_default_xaxis = None
+        self._config_metric_pbdict_list = []
+        self._config_metric_index_dict = {}
+        self._config_metric_dict = {}
 
         # State updated by resuming
         self._resume_state = {
@@ -366,20 +371,6 @@ class SendManager(object):
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
-    def _telemetry_format(self):
-        data = dict()
-        fields = self._telemetry_obj.ListFields()
-        for desc, value in fields:
-            if desc.type == desc.TYPE_STRING:
-                data[desc.number] = value
-            elif desc.type == desc.TYPE_MESSAGE:
-                nested = value.ListFields()
-                bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
-                if bool_msg:
-                    items = [d.number for d, v in nested if v]
-                    data[desc.number] = items
-        return data
-
     def _telemetry_get_framework(self):
         """Get telemetry data for internal config structure."""
         # detect framework by checking what is loaded
@@ -417,13 +408,25 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
-        t = self._telemetry_format()
+        t = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
+
+    def _config_metric_update(self, config_dict):
+        """Add default xaxis to config."""
+        if not self._config_metric_pbdict_list:
+            return
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        # TODO(jhr): remove this
+        if self._config_default_xaxis:
+            config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
+        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
     def _config_format(self, config_data):
         """Format dict into value dict with telemetry info."""
         config_dict = config_data.copy() if config_data else dict()
         self._config_telemetry_update(config_dict)
+        self._config_metric_update(config_dict)
         config_value_dict = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
@@ -673,6 +676,51 @@ class SendManager(object):
         config_util.update_from_proto(self._consolidated_config, cfg)
         self._update_config()
 
+    def send_metric(self, data):
+        metric = data.metric
+        if metric.glob_name:
+            logger.warning("Seen metric with glob (shouldnt happen)")
+            return
+
+        # merge or overwrite
+        old_metric = self._config_metric_dict.get(
+            metric.name, wandb_internal_pb2.MetricRecord()
+        )
+        if metric._control.overwrite:
+            old_metric.CopyFrom(metric)
+        else:
+            old_metric.MergeFrom(metric)
+        self._config_metric_dict[metric.name] = old_metric
+        metric = old_metric
+
+        # TODO(jhr): remove this code before shipping (only for prototype UI)
+        if metric.step_metric:
+            if metric.step_metric != self._config_default_xaxis:
+                self._config_default_xaxis = metric.step_metric
+                self._update_config()
+
+        # convert step_metric to index
+        if metric.step_metric:
+            find_step_idx = self._config_metric_index_dict.get(metric.step_metric)
+            if find_step_idx is not None:
+                # make a copy of this metric as we will be modifying it
+                rec = wandb_internal_pb2.Record()
+                rec.metric.CopyFrom(metric)
+                metric = rec.metric
+
+                metric.ClearField("step_metric")
+                metric.step_metric_index = find_step_idx + 1
+
+        md = proto_util.proto_encode_to_dict(metric)
+        find_idx = self._config_metric_index_dict.get(metric.name)
+        if find_idx is not None:
+            self._config_metric_pbdict_list[find_idx] = md
+        else:
+            next_idx = len(self._config_metric_pbdict_list)
+            self._config_metric_pbdict_list.append(md)
+            self._config_metric_index_dict[metric.name] = next_idx
+        self._update_config()
+
     def send_telemetry(self, data):
         telem = data.telemetry
         self._telemetry_obj.MergeFrom(telem)
@@ -709,6 +757,17 @@ class SendManager(object):
             is_user_created=artifact.user_created,
         )
 
+        if artifact.distributed_id:
+            max_cli_version = self._max_cli_version()
+            if max_cli_version is None or parse_version(
+                max_cli_version
+            ) < parse_version("0.10.16"):
+                logger.warning(
+                    "This W&B server doesn't support distributed artifacts, "
+                    "have your administrator install wandb/local >= 0.9.37"
+                )
+                return
+
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         try:
             saver.save(
@@ -718,6 +777,8 @@ class SendManager(object):
                 description=artifact.description,
                 aliases=artifact.aliases,
                 use_after_commit=artifact.use_after_commit,
+                distributed_id=artifact.distributed_id,
+                finalize=artifact.finalize,
             )
         except Exception as e:
             logger.error(
@@ -728,10 +789,7 @@ class SendManager(object):
 
     def send_alert(self, data):
         alert = data.alert
-        _, server_info = self._api.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
+        max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
         ):
@@ -766,3 +824,10 @@ class SendManager(object):
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+
+    def _max_cli_version(self):
+        _, server_info = self._api.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        return max_cli_version
