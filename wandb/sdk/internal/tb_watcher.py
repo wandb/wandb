@@ -145,9 +145,6 @@ class TBWatcher(object):
         else:
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
 
-        print("LOGDIRS: ", dirs)
-        print("ROOTDIR: ", rootdir)
-        print("FILENAME: ", filename)
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:

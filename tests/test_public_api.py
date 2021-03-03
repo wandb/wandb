@@ -9,6 +9,7 @@ import os
 import json
 import pytest
 import platform
+import sys
 
 import wandb
 from wandb import Api
@@ -92,6 +93,9 @@ def test_run_from_path(mock_server, api):
     assert run.url == "https://wandb.ai/test/test/runs/test"
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
 def test_run_from_tensorboard(runner, mock_server, api):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1585769947.cvp")
