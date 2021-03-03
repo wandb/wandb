@@ -75,8 +75,8 @@ def _safe_sdk_import():
 
 
 class _WBValueArtifactSource(object):
-    __COMMENT__artifact: "PublicArtifact"
-    __COMMENT__name: Optional[str]
+    # artifact: "PublicArtifact"
+    # name: Optional[str]
 
     def __init__(self, artifact, name = None):
         self.artifact = artifact
@@ -98,7 +98,7 @@ class WBValue(object):
     artifact_type = None
 
     # Instance Attributes
-    __COMMENT__artifact_source: Optional[_WBValueArtifactSource]
+    # artifact_source: Optional[_WBValueArtifactSource]
 
     def __init__(self):
         self.artifact_source = None
@@ -287,13 +287,13 @@ class Media(WBValue):
     uploaded.
     """
 
-    __COMMENT___path: Optional[str]
-    __COMMENT___run: Optional["LocalRun"]
-    __COMMENT___caption: Optional[str]
-    __COMMENT___is_tmp: Optional[bool]
-    __COMMENT___extension: Optional[str]
-    __COMMENT___sha256: Optional[str]
-    __COMMENT___size: Optional[int]
+    # _path: Optional[str]
+    # _run: Optional["LocalRun"]
+    # _caption: Optional[str]
+    # _is_tmp: Optional[bool]
+    # _extension: Optional[str]
+    # _sha256: Optional[str]
+    # _size: Optional[int]
 
     def __init__(self, caption = None):
         super(Media, self).__init__()
@@ -921,8 +921,8 @@ class Video(BatchableMedia):
 
     artifact_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
-    __COMMENT___width: Optional[int]
-    __COMMENT___height: Optional[int]
+    # _width: Optional[int]
+    # _height: Optional[int]
 
     def __init__(
         self,
@@ -1409,7 +1409,7 @@ class BoundingBoxes2D(JSONMetadata):
 class Classes(Media):
     artifact_type = "classes"
 
-    __COMMENT___class_set: Sequence[dict]
+    # _class_set: Sequence[dict]
 
     def __init__(self, class_set):
         """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
@@ -1476,15 +1476,15 @@ class Image(BatchableMedia):
 
     artifact_type = "image-file"
 
-    __COMMENT__format: Optional[str]
-    __COMMENT___grouping: Optional[str]
-    __COMMENT___caption: Optional[str]
-    __COMMENT___width: Optional[int]
-    __COMMENT___height: Optional[int]
-    __COMMENT___image: Optional["PIL.Image"]
-    __COMMENT___classes: Optional["Classes"]
-    __COMMENT___boxes: Optional[Dict[str, "BoundingBoxes2D"]]
-    __COMMENT___masks: Optional[Dict[str, "ImageMask"]]
+    # format: Optional[str]
+    # _grouping: Optional[str]
+    # _caption: Optional[str]
+    # _width: Optional[int]
+    # _height: Optional[int]
+    # _image: Optional["PIL.Image"]
+    # _classes: Optional["Classes"]
+    # _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
+    # _masks: Optional[Dict[str, "ImageMask"]]
 
     def __init__(
         self,

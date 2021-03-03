@@ -1,3 +1,9 @@
+#
+# -*- coding: utf-8 -*-
+"""
+Monitor inference with Weights & Biases
+"""
+
 import atexit
 import copy
 import functools
@@ -322,7 +328,7 @@ class Monitor(object):
         if estimated_bytes > self.BUFFER_WARNING_BYTES:
             wandb.termwarn(
                 "@wandb.monitor estimates {} of memory will be consumed.\nConsider reducing max_pred_samples (currently {}) or use monitor.input(...) and monitor.output(...)".format(
-                    wandb.util.sizeof_fmt(estimated_bytes), self._max_samples
+                    wandb.util.to_human_size(estimated_bytes), self._max_samples
                 )
             )
 
