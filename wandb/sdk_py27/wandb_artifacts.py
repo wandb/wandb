@@ -401,12 +401,14 @@ class Artifact(ArtifactInterface):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source and obj.artifact_source.name:
-            # art = obj.artifact_source.artifact
-            # if isinstance(art, Artifact) and art:
-            # TODO: If this is a localartifact, use a ref if it has a logged artifact attached, else follow
-            # the normal path
-            ref_path = obj.artifact_source.artifact.get_path(
+        if (
+            obj.artifact_source
+            and obj.artifact_source.name
+            and obj.artifact_source.get_public_artifact() is not None
+        ):
+            public_art = obj.artifact_source.get_public_artifact()
+            assert public_art is not None  # This is just to make mypy happy
+            ref_path = public_art.get_path(
                 type(obj).with_suffix(obj.artifact_source.name)
             )
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
@@ -427,7 +429,7 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
-        # obj.set_artifact_source(self, name)
+        obj.set_artifact_source(self, name)
 
         return entry
 

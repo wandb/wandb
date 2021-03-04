@@ -305,10 +305,9 @@ class Table(Media):
             aliases = ["summary"]
         else:
             aliases = ["step_{}".format(step)]
-        # run._add_run_table(key, self, aliases)
-        (entry, artifact) = run._add_run_table(key, self, aliases)
-        self.bound_artifact_entry = entry
-        self.bound_artifact = artifact
+        run._add_run_table(key, self, aliases)
+        # TODO: If we could get the artifact ID BEFORE logging,
+        # then we would not need to do this
         self.bound_artifact_aliases = aliases
 
     @classmethod
@@ -344,8 +343,6 @@ class Table(Media):
         json_dict = super(Table, self).to_json(run_or_artifact, _save_file=is_run)
 
         if is_run:
-            # print(self.artifact_source.artifact.name, self.bound_artifact.name)
-            # print(self.artifact_source.name, self.bound_artifact_entry.path)
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -353,9 +350,10 @@ class Table(Media):
                     "nrows": len(self.data),
                     "artifact_path": {
                         "artifact": "{}:{}".format(
-                            self.bound_artifact.name, self.bound_artifact_aliases[0]
+                            self.artifact_source.artifact.name,
+                            self.bound_artifact_aliases[0],
                         ),
-                        "name": self.bound_artifact_entry.path,
+                        "path": self.artifact_source.name,
                     },
                 }
             )
@@ -374,7 +372,9 @@ class Table(Media):
 
             def json_helper(val):
                 if isinstance(val, WBValue):
-                    return val.to_json(artifact)
+                    res = val.to_json(artifact)
+                    val.set_artifact_source(artifact)
+                    return res
                 elif val.__class__ == dict:
                     res = {}
                     for key in val:

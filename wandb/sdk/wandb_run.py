@@ -71,7 +71,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from .interface.summary_record import SummaryRecord
     from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
-    from .interface.artifacts import ArtifactEntry
 
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -2273,14 +2272,13 @@ class Run(object):
 
     def _add_run_table(
         self, key: str, table: "wandb.Table", aliases: Optional[List[str]] = None,
-    ) -> Tuple["ArtifactEntry", "wandb.wandb_sdk.wandb_artifacts.Artifact"]:
+    ) -> None:
         art_name = "run-{}-{}".format(self.id, key)
         art_type = "run_table"
         table_name = "{}".format(key)
         art = wandb_artifacts.Artifact(art_name, art_type)
-        entry = art.add(table, table_name)
+        art.add(table, table_name)
         self._log_artifacts.append(_LoggedArtifact(art, aliases))
-        return entry, art
 
     def _flush_run_tables(self) -> None:
         for logged_artifact in self._log_artifacts:

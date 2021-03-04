@@ -76,13 +76,30 @@ def _safe_sdk_import():
 
 
 class _WBValueArtifactSource(object):
-    # artifact: "ArtifactInterface"
-    # artifact: "PublicArtifact"
+    # artifact: Union["PublicArtifact", "LocalArtifact"]
     # name: Optional[str]
 
-    def __init__(self, artifact, name = None):
+    def __init__(
+        self, artifact, name = None
+    ):
         self.artifact = artifact
         self.name = name
+
+    def get_public_artifact(self):
+        _, artifact_class = _safe_sdk_import()
+        if isinstance(self.artifact, artifact_class):
+            if self.artifact._logged_artifact:
+                self.artifact.wait()
+                # This is type of "LazyArtifact" which is a passthrough
+                # for PublicArtifact. To avoid complicated typing, just
+                # ignoring this one line.
+                return self.artifact._logged_artifact._instance
+            return None  # type: ignore
+        else:
+            # Since self.artifact must be either PublicArtifact or
+            # LocalArtifact, the above conditional forces this to
+            # be a PublicArtifact, but mypy doesn't get this...
+            return self.artifact  # type: ignore
 
 
 class WBValue(object):
@@ -204,7 +221,9 @@ class WBValue(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def set_artifact_source(self, artifact, name = None):
+    def set_artifact_source(
+        self, artifact, name = None
+    ):
         self.artifact_source = _WBValueArtifactSource(artifact, name)
 
 
@@ -451,12 +470,15 @@ class Media(WBValue):
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
-                    if self._is_tmp:
+                    if hasattr(self, "entry_path"):
+                        name = self.entry_path
+                    elif self._is_tmp:
                         name = os.path.join(
-                            self.get_media_subdir(), os.path.basename(self._path)
+                            self.get_media_subdir(),
+                            os.path.basename(self._path),  # sha?
                         )
                     else:
-                        # If the files is not temporary, include the first 8 characters of the file's SHA256 to
+                        # If the file is not temporary, include the first 8 characters of the file's SHA256 to
                         # avoid name collisions. This way, if there are two images `dir1/img.png` and `dir2/img.png`
                         # we end up with a unique path for each.
                         name = os.path.join(
@@ -467,18 +489,19 @@ class Media(WBValue):
 
                     # if not, check to see if there is a source artifact for this object
                     if (
-                        self.artifact_source
-                        is not None
-                        # and self.artifact_source.artifact != artifact
+                        self.artifact_source is not None
+                        and self.artifact_source.get_public_artifact() is not None
                     ):
-                        default_root = self.artifact_source.artifact._default_root()
+                        public_art = self.artifact_source.get_public_artifact()
+                        assert public_art is not None  # This is just to make mypy happy
+                        default_root = public_art._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self.artifact_source.artifact.get_path(name)
+                        path = public_art.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     elif isinstance(self, Audio) and Audio.path_is_reference(
                         self._path
@@ -489,6 +512,8 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
+                        # SUPER HACK FOR NOW
+                        self.entry_path = entry.path
 
                 json_obj["path"] = name
             json_obj["_type"] = self.artifact_type
