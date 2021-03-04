@@ -7,7 +7,7 @@ python generate.py --output_dir=docs
 Requires a local installation of `tensorflow_docs`:
 
 ```
-pip install git+https://github.com/arig23498/docs@wandb-docs
+pip install git+https://github.com/wandb/tf-docs@wandb-docs
 ```
 """
 from os import path, walk, getcwd, remove, rename
