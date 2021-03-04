@@ -888,7 +888,7 @@ class Run(object):
 
         The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
         This will save a history row associated with the run with `train-loss=0.5`
-        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai, 
+        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
         or locally on a self-hosted instance of the W&B app:
         https://docs.wandb.ai/self-hosted
 
