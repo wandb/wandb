@@ -883,22 +883,26 @@ class Run(object):
     ) -> None:
         """Log a dict to the global run's history.
 
-        `wandb.log` can be used to log everything from scalars to histograms, media
-        and matplotlib plots.
+        Use `wandb.log` to log data from runs, such as scalars, images, video,
+        histograms, and matplotlib plots.
 
         The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
-        This will save a history row associated with the run with train-loss=0.5
-        and `accuracy=0.9`. The history values can be plotted on app.wandb.ai or
-        on a local server. The history values can also be downloaded through
-        the wandb API.
+        This will save a history row associated with the run with `train-loss=0.5`
+        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
+        or locally on a self-hosted instance of the W&B app:
+        https://docs.wandb.ai/self-hosted
 
-        Logging a value will update the summary values for any metrics logged.
-        The summary values will appear in the run table at app.wandb.ai or
-        a local server. If a summary value is manually set with for example
-        `wandb.run.summary["accuracy"] = 0.9` `wandb.log` will no longer automatically
-        update the run's accuracy.
+        Export data to explore in a Jupyter notebook, for example, with the API:
+        https://docs.wandb.ai/ref/public-api
 
-        Logging values don't have to be scalars. Logging any wandb object is supported.
+        Each time you call wandb.log(), this adds a new row to history and updates
+        the summary values for each key logged. In the UI, summary values show
+        up in the run table to compare single values across runs. You might want
+        to update summary manually to set the *best* value instead of the *last*
+        value for a given metric. After you finish logging, you can set summary:
+        `wandb.run.summary["accuracy"] = 0.9`.
+
+        Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
         example image which will be displayed nicely in the wandb UI. See
         https://docs.wandb.com/library/reference/data_types for all of the different
