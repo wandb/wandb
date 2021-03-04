@@ -476,7 +476,9 @@ class Artifact(ArtifactInterface):
         )
 
     def save(
-        self, settings = None
+        self,
+        project = None,
+        settings = None,
     ):
         """
         Persists any changes made to the artifact. If currently in a Run, that Run will
@@ -484,6 +486,7 @@ class Artifact(ArtifactInterface):
         to track this artifact.
 
         Arguments:
+            project: (Optional[str]) A project to use for the artifact in the case that a run is not already in context
             settings: (Optional["wandb.Settings"]) A settings object to use when initializing an
             automatic run. Most commonly used in testing harness.
 
@@ -496,7 +499,9 @@ class Artifact(ArtifactInterface):
             if wandb.run is None:
                 if settings is None:
                     settings = wandb.Settings(silent=True)
-                with wandb.init(job_type="auto", settings=settings) as run:
+                with wandb.init(
+                    project=project, job_type="auto", settings=settings
+                ) as run:
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait
