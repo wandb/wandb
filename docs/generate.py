@@ -4,7 +4,7 @@
 python generate.py --output_dir=docs
 ```
 
-Requires a local installation of `tensorflow_docs`:
+Requires a local installation of `tensorflow-docs`:
 
 ```
 pip install git+https://github.com/wandb/tf-docs@wandb-docs
