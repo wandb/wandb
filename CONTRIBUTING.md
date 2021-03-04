@@ -367,7 +367,7 @@ The documentation generator is broken into two parts:
 ### `generate.py`
 The follwing is a road map of how to generate documentaion for the reference.
 **Steps**
-1. `pip install git+https://github.com/ariG23498/docs@wandb-docs` This installs the modified `tensorflow_docs`. The modifications are minor templating changes.
+1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
 3. `python generate.py` creates the documentation.
 
 **Outputs**
