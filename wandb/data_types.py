@@ -165,6 +165,8 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
+        self._fks = {}
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -327,6 +329,16 @@ class Table(Media):
                 json_obj["column_types"], source_artifact
             )
 
+        fks = json_obj.get("fks")
+        if fks is not None and isinstance(fks, list):
+            new_obj._fks = {
+                item["from_col"]: (
+                    WBValue.init_from_json(item["to_table"], source_artifact),
+                    item["to_col"],
+                )
+                for item in fks
+            }
+
         return new_obj
 
     def to_json(self, run_or_artifact):
@@ -370,6 +382,21 @@ class Table(Media):
                 for v in row:
                     mapped_row.append(json_helper(v))
                 mapped_data.append(mapped_row)
+
+            fks = []
+            for key in self._fks:
+                entry = artifact.add(
+                    self._fks[key][0],
+                    "media/linked_tables/{}".format(util.generate_id()),
+                )
+                fks.append(
+                    {
+                        "from_col": key,
+                        "to_table": entry.path,
+                        "to_col": self._fks[key][1],
+                    }
+                )
+
             json_dict.update(
                 {
                     "_type": Table.artifact_type,
@@ -378,6 +405,7 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
+                    "fks": fks,
                 }
             )
         else:
@@ -396,6 +424,9 @@ class Table(Media):
         """
         for ndx in range(len(self.data)):
             yield ndx, self.data[ndx]
+
+    def fk(self, column, table, target_column):
+        self._fks[column] = (table, target_column)
 
 
 class _PartitionTablePartEntry:
