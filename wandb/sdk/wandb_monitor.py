@@ -129,18 +129,25 @@ class Monitor(object):
         name_or_artifact: Optional[Union[str, Artifact]] = None,
         max_pred_samples: int = 64,
         flush_interval: int = 60 * 5,
+        config: Union[Dict, str, None] = None,
+        settings: Union[Settings, Dict[str, Any], None] = None,
     ):
         self._func: Callable[..., Any]
         if func is None:
             self._func = lambda *args, **kwargs: ()
         else:
             self._func = func
+        self._is_method = (
+            inspect.signature(self._func).parameters.get("self") is not None
+        )
         self._flush_interval = flush_interval
         self._max_samples = max_pred_samples
         # TODO: actually make this max_samples?
         self._sampled_preds = sample.UniformSampleAccumulator(max_pred_samples // 2)
         self._counter = 0
         self._flush_count = 0
+        self._config = config
+        self._settings = settings
         # TODO: type the schema
         self._schema: Dict[str, Any] = {}
         self._join_event = threading.Event()
@@ -157,6 +164,7 @@ class Monitor(object):
             self._artifact = wandb.Artifact(name_or_artifact, "inference")
         # TODO: make sure this atexit is triggered before ours...
         atexit.register(lambda: self._join_event.set())
+        self._ensure_run()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
         self._thread.start()
@@ -165,6 +173,10 @@ class Monitor(object):
         if self.disabled:
             return self._func(*args, **kwargs)
         else:
+            if self._to_table is None and self._is_method:
+                print("ADDING TABLE?", args[0], hasattr(args[0], "to_table"))
+                if hasattr(args[0], "to_table"):
+                    self._to_table = args[0].to_table
             self.input(*args, **kwargs)
             return self.output(self._func(*args, **kwargs))
 
@@ -179,6 +191,8 @@ class Monitor(object):
     def input(self, *args, **kwargs):
         """Record an input, should be followed by a call to .output"""
         self._last_args = args
+        if self._is_method:
+            self._last_args = self._last_args[1:]
         self._last_kwargs = kwargs
         self._last_input = timer()
 
@@ -195,7 +209,7 @@ class Monitor(object):
         self._last_input = None
         return result
 
-    def prediction(self, result: Tuple[Any], *args, millis: int = None, **kwargs):
+    def prediction(self, result: Tuple[Any], *args, **kwargs):
         """
         Records a prediction
 
@@ -205,6 +219,10 @@ class Monitor(object):
             millis (int): The number of milliseconds it took to make the predcition
             **kwargs: named arguments passed into the predict method
         """
+        # Py2 doesn't let me name this parameter above :(
+        millis = kwargs.get("millis")
+        if millis is not None:
+            del kwargs["millis"]
         # TODO: potentially make this async, although the overhead should be minimal
         self._counter += 1
         if isinstance(result, tuple):
@@ -212,7 +230,7 @@ class Monitor(object):
         else:
             results = (result,)
 
-        if self._schema is None:
+        if self._schema == {}:
             self._detect_schema(results, args, kwargs)
 
         self._sampled_preds.add(Prediction(args, kwargs, results, millis))
@@ -249,12 +267,12 @@ class Monitor(object):
             table = self._to_table(preds)
             if isinstance(table, wandb.Table):
                 self._artifact.add(table, "examples")
+                name = self._artifact.name
+                typ = self._artifact.type
+                meta = self._artifact.metadata
                 wandb.run.log_artifact(self._artifact)
-                self._artifact = wandb.Artifact(
-                    self._artifact.name,
-                    self._artifact.type,
-                    metadata=self._artifact.metadata,
-                )
+                # Reset our artifact for the next flush
+                self._artifact = wandb.Artifact(name, typ, metadata=meta)
             else:
                 wandb.termwarn(
                     "to_table returned an incompatible object: {}".format(table)
@@ -274,15 +292,11 @@ class Monitor(object):
     def enable(self):
         self.disabled = False
 
-    def ensure_run(
-        self,
-        config: Union[Dict, str, None] = None,
-        settings: Union[Settings, Dict[str, Any], None] = None,
-    ):
+    def _ensure_run(self):
         if wandb.run is None:
-            if not isinstance(settings, Settings) and settings is not None:
-                settings = wandb.Settings(**settings)
-            wandb.init(config=config, settings=settings)
+            if not isinstance(self._settings, Settings) and self._settings is not None:
+                self._settings = wandb.Settings(**self._settings)
+            wandb.init(config=self._config, settings=self._settings)
 
     def _maybe_rotate_run(self):
         # TODO: decide if this is the right metric...
@@ -417,6 +431,9 @@ def monitor(
         if np is None:
             raise AttributeError("@wandb.monitor requires numpy")
 
+        if func is None:
+            raise TypeError("@wandb.monitor must decorate a function or a class")
+
         # If someone decorates a class, let's ensure it has a predict func
         cls = None
         if inspect.isclass(func):
@@ -427,18 +444,17 @@ def monitor(
                 )
 
         monitor = Monitor(
-            func, to_table, name_or_artifact, max_pred_samples, flush_interval,
+            func,
+            to_table,
+            name_or_artifact,
+            max_pred_samples,
+            flush_interval,
+            config,
+            settings,
         )
-
-        # If someone calls wandb.monitor(...) not as a decorator, just return the
-        # equivalent of wandb.Monitor(...), # TODO: test this...
-        if func is None:
-            return monitor
 
         @functools.wraps(cls or func)
         def wrapper(*args, **kwargs):
-            # TODO: we might want this sooner for func only decorators
-            monitor.ensure_run(config, settings)
             if cls is not None:
                 instance = cls(*args, **kwargs)
                 if hasattr(instance, "to_table"):

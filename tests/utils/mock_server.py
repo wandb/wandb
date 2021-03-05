@@ -30,6 +30,7 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
+        "summary": {},
     }
 
 
@@ -541,7 +542,7 @@ def create_app(user_ctx=None):
                     "project": {
                         "artifactType": {
                             "id": "1",
-                            "name": "dataset",
+                            "name": allowed_type,
                             "description": "",
                             "createdAt": datetime.now().isoformat(),
                         }
@@ -608,9 +609,12 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             art = artifact(ctx)
+            app.logger.info("requesting type with variables: %s", body["variables"])
             # code artifacts use source-RUNID names, we return the code type
             if "source" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 2, "name": "code"}
+                art["artifactType"] = {"id": 3, "name": "code"}
+            elif "monitored" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 2, "name": "inference"}
             else:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             return {"data": {"project": {"artifact": art}}}
@@ -775,6 +779,9 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
+        summary_json = ctx["file_stream"][-1].get("files", {}).get("wandb-summary.json")
+        if summary_json:
+            ctx["summary"] = json.loads(summary_json["content"][0])
         return json.dumps({"exitcode": None, "limits": {}})
 
     @app.route("/api/v1/namespaces/default/pods/test")
