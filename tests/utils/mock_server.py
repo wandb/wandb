@@ -492,7 +492,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-            if body["variables"]["name"] == "mocker-sweep-run-x9":
+            if body["variables"].get("name") == "mocker-sweep-run-x9":
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
