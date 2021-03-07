@@ -632,12 +632,12 @@ class Run(object):
 
         Examples:
             Basic usage
-            ```
+            ```python
             run.log_code()
             ```
 
             Advanced usage
-            ```
+            ```python
             run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
             ```
 
@@ -667,8 +667,8 @@ class Run(object):
     def get_url(self) -> Optional[str]:
         """
         Returns:
-            (str, optional): url for the W&B run or None if the run
-                is offline
+            A url (str, optional) for the W&B run or None if the run
+            is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -678,8 +678,8 @@ class Run(object):
     def get_project_url(self) -> Optional[str]:
         """
         Returns:
-            (str, optional): url for the W&B project associated with
-                the run or None if the run is offline
+            A url (str, optional) for the W&B project associated with
+            the run or None if the run is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -689,8 +689,8 @@ class Run(object):
     def get_sweep_url(self) -> Optional[str]:
         """
         Returns:
-            (str, optional): url for the sweep associated with the run
-                or None if there is no associated sweep or the run is offline.
+            A url (str, optional) for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -925,16 +925,16 @@ class Run(object):
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row (dict, optional): A dict of serializable python objects i.e `str`,
+            row: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or `wandb.data_types`.
-            commit (boolean, optional): Save the metrics dict to the wandb server
+            commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
                 metrics dict with the row argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
-            step (integer, optional): The global step in processing. This persists
+            step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
                 specified step.
-            sync (boolean, True): This argument is deprecated and currently doesn't
+            sync: (boolean, True) This argument is deprecated and currently doesn't
                 change the behaviour of `wandb.log`.
 
         Examples:
@@ -987,8 +987,8 @@ class Run(object):
             For more examples, see https://docs.wandb.com/library/log
 
         Raises:
-            wandb.Error - if called before `wandb.init`
-            ValueError - if invalid data is passed
+            wandb.Error: if called before `wandb.init`
+            ValueError: if invalid data is passed
 
         """
         # TODO(cling): sync is a noop for now
@@ -1037,10 +1037,10 @@ class Run(object):
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
         Arguments:
-            glob_str (string): a relative or absolute path to a unix glob or regular
+            glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
-            base_path (string): the base path to run the glob relative to
-            policy (string): on of `live`, `now`, or `end`
+            base_path: (string) the base path to run the glob relative to
+            policy: (string) on of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
                 - end: only upload file when the run ends
@@ -1939,15 +1939,15 @@ class Run(object):
         the returned object to get the contents locally.
 
         Arguments:
-            artifact_or_name (str or Artifact): An artifact name.
+            artifact_or_name: (str or Artifact) An artifact name.
                 May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
-            type (str, optional): The type of artifact to use.
-            aliases (list, optional): Aliases to apply to this artifact
+            type: (str, optional) The type of artifact to use.
+            aliases: (list, optional) Aliases to apply to this artifact
         Returns:
             An `Artifact` object.
         """
@@ -1996,22 +1996,22 @@ class Run(object):
         """ Declare an artifact as output of a run.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
 
         Returns:
@@ -2032,24 +2032,24 @@ class Run(object):
         need to all contribute to the same artifact.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -2082,24 +2082,24 @@ class Run(object):
         the same distributed ID will result in a new version
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:

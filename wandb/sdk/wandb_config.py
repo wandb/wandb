@@ -40,7 +40,7 @@ class Config(object):
 
     Examples:
         Basic usage
-        ```
+        ```python
         wandb.config.epochs = 4
         wandb.init()
         for x in range(wandb.config.epochs):
@@ -48,14 +48,14 @@ class Config(object):
         ```
 
         Using wandb.init to set config
-        ```
+        ```python
         wandb.init(config={"epochs": 4, "batch_size": 32})
         for x in range(wandb.config.epochs):
             # train
         ```
 
         Nested configs
-        ```
+        ```python
         wandb.config['train']['epochs] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
@@ -63,13 +63,13 @@ class Config(object):
         ```
 
         Using absl flags
-        ```
+        ```python
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
         Argparse flags
-        ```
+        ```python
         wandb.init()
         wandb.config.epochs = 4
 
@@ -81,7 +81,7 @@ class Config(object):
         ```
 
         Using TensorFlow flags (deprecated in tensorflow v2)
-        ```
+        ```python
         flags = tf.app.flags
         flags.DEFINE_string('data_dir', '/tmp/data')
         flags.DEFINE_integer('batch_size', 128, 'Batch size.')
