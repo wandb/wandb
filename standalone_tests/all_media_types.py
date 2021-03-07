@@ -93,7 +93,7 @@ def main():
             'histogram-large-random-summary': histogram_large_random,
             'numpy-array-summary': numpy_array,
             'torch-tensor-summary': torch_tensor,
-            'data-frame-summary': data_frame,
+            # 'data-frame-summary': data_frame,
 
             'image-cool-summary': image_cool,
             'image-nice-summary': image_nice,
