@@ -177,3 +177,39 @@ def test_metric_nan_min_more(live_mock_server, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     assert six.viewitems({"val": 4, "val.min": 4}) <= six.viewitems(summary)
+
+
+def test_metric_nested(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this.that", summary="min")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert six.viewitems({"val": 4, "val.min": 2}) <= six.viewitems(summary)
+
+
+def test_metric_dotted(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this.that", summary="min")
+    run.log({"this.that": 3})
+    run.log({"this.that": 2})
+    run.log({"this.that": 4})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert six.viewitems({"this.that": 4, "this.that.min": 2}) <= six.viewitems(summary)
+
+
+def test_metric_dotted_escaped(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this\.that", summary="min")
+    run.log({"this.that": 3})
+    run.log({"this.that": 2})
+    run.log({"this.that": 4})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert six.viewitems({"this.that": 4, "this.that.min": 2}) <= six.viewitems(summary)
