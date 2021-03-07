@@ -309,6 +309,11 @@ class Agent(object):
             if self._run_status[run_id] == RunStatus.RUNNING:
                 self._run_status[run_id] = RunStatus.ERRORED
                 self._exceptions[run_id] = e
+        finally:
+            # clean up the environment changes made
+            os.environ.pop(wandb.env.RUN_ID, None)
+            os.environ.pop(wandb.env.SWEEP_ID, None)
+            os.environ.pop(wandb.env.SWEEP_PARAM_PATH, None)
 
     def run(self):
         logger.info(
@@ -318,7 +323,8 @@ class Agent(object):
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
+        self._heartbeat_thread.daemon = True
         # self._main_thread.start()
         self._heartbeat_thread.start()
         # self._main_thread.join()
