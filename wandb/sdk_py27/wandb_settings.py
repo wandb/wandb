@@ -942,7 +942,7 @@ class Settings(object):
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
-            for key in ("project", "entity"):
+            for key in ("project", "entity", "id"):
                 val = args.pop(key, None)
                 if val:
                     wandb.termwarn(
