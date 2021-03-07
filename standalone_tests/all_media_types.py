@@ -93,6 +93,7 @@ def main():
             'histogram-large-random-summary': histogram_large_random,
             'numpy-array-summary': numpy_array,
             'torch-tensor-summary': torch_tensor,
+            # bare dataframes in summary and history removed in 0.10.21
             # 'data-frame-summary': data_frame,
 
             'image-cool-summary': image_cool,
@@ -174,6 +175,7 @@ def main():
             'histogram-large-random-summary': histogram_large_random,
             'numpy-array-summary': numpy_array,
             'torch-tensor-summary': torch_tensor,
+            # bare dataframes in summary and history removed in 0.10.21
             # 'data-frame-summary': data_frame,
 
             'image-cool-summary': image_cool,
