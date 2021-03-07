@@ -187,7 +187,7 @@ def proc_version_reader(stop_queue, stats_queue, project_name, artifact_name, re
                 continue
             print('Reader downloading: ', version)
             try:
-                version.download('read-%s' % reader_id)
+                version.checkout('read-%s' % reader_id)
             except:
                 stats_queue.put({'read_download_error': 1})
                 print('Reader caught error on version.download')
@@ -340,7 +340,9 @@ def main(argv):
                 stats_queue,
                 project_name,
                 artifact_name,
-                i))
+                i
+            )
+        )
         p.start()
         procs.append(p)
 

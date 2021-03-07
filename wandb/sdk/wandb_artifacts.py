@@ -450,6 +450,14 @@ class Artifact(ArtifactInterface):
             "Cannot call download on an artifact before it has been logged or in offline mode"
         )
 
+    def checkout(self, root: Optional[str] = None) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.checkout(root=root)
+
+        raise ValueError(
+            "Cannot call checkout on an artifact before it has been logged or in offline mode"
+        )
+
     def verify(self, root: Optional[str] = None):
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)

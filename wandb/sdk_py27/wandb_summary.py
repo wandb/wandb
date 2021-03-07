@@ -100,7 +100,7 @@ class Summary(SummaryDict):
     mean, variance, and 95th percentile.
 
     Examples:
-        ```
+        ```python
         wandb.init(config=args)
 
         best_accuracy = 0

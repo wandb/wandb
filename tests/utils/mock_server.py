@@ -466,7 +466,7 @@ def create_app(user_ctx=None):
                                 [
                                     {
                                         "type": "run",
-                                        "run_id": "mocker-server-run-x9",
+                                        "run_id": "mocker-sweep-run-x9",
                                         "args": {"learning_rate": {"value": 0.99124}},
                                     }
                                 ]
@@ -476,24 +476,27 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation UpsertBucket(" in body["query"]:
-            return json.dumps(
-                {
-                    "data": {
-                        "upsertBucket": {
-                            "bucket": {
-                                "id": "storageid",
-                                "name": body["variables"].get("name", "abc123"),
-                                "displayName": "lovely-dawn-32",
-                                "project": {
-                                    "name": "test",
-                                    "entity": {"name": "mock_server_entity"},
-                                },
+            response = {
+                "data": {
+                    "upsertBucket": {
+                        "bucket": {
+                            "id": "storageid",
+                            "name": body["variables"].get("name", "abc123"),
+                            "displayName": "lovely-dawn-32",
+                            "project": {
+                                "name": "test",
+                                "entity": {"name": "mock_server_entity"},
                             },
-                            "inserted": ctx["resume"] is False,
-                        }
+                        },
+                        "inserted": ctx["resume"] is False,
                     }
                 }
-            )
+            }
+            if body["variables"].get("name") == "mocker-sweep-run-x9":
+                response["data"]["upsertBucket"]["bucket"][
+                    "sweepName"
+                ] = "test-sweep-id"
+            return json.dumps(response)
         if "mutation DeleteRun(" in body["query"]:
             return json.dumps({"data": {}})
         if "mutation CreateAnonymousApiKey " in body["query"]:
