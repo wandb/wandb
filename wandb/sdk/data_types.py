@@ -215,12 +215,12 @@ class Histogram(WBValue):
 
     Examples:
         Generate histogram from a sequence
-        ```
+        ```python
         wandb.Histogram([1,2,3])
         ```
 
         Efficiently initialize from np.histogram.
-        ```
+        ```python
         hist = np.histogram(data)
         wandb.Histogram(np_histogram=hist)
         ```
@@ -547,7 +547,7 @@ class Object3D(BatchableMedia):
                 a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
     The shape of the numpy array must be one of either:
-    ```
+    ```python
     [[x y z],       ...] nx3
     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
     [x y z r g b], ...] nx4 where is rgb is color
