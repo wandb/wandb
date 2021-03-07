@@ -71,6 +71,26 @@ if error_reporting_enabled():
         environment=SENTRY_ENV,
     )
 
+POW_10_BYTES = [
+    ("B", 10 ** 0),
+    ("KB", 10 ** 3),
+    ("MB", 10 ** 6),
+    ("GB", 10 ** 9),
+    ("TB", 10 ** 12),
+    ("PB", 10 ** 15),
+    ("EB", 10 ** 18),
+]
+
+POW_2_BYTES = [
+    ("B", 2 ** 0),
+    ("KiB", 2 ** 10),
+    ("MiB", 2 ** 20),
+    ("GiB", 2 ** 30),
+    ("TiB", 2 ** 40),
+    ("PiB", 2 ** 50),
+    ("EiB", 2 ** 60),
+]
+
 
 def sentry_message(message):
     if error_reporting_enabled():
@@ -457,6 +477,30 @@ def json_friendly(obj):
         )
 
     return obj, converted
+
+
+def json_friendly_val(val):
+    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
+    if isinstance(val, dict):
+        converted = {}
+        for key, value in six.iteritems(val):
+            converted[key] = json_friendly_val(value)
+        return converted
+    if isinstance(val, slice):
+        converted = dict(
+            slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+        )
+        return converted
+    val, _ = json_friendly(val)
+    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+        converted = []
+        for value in val:
+            converted.append(json_friendly_val(value))
+        return converted
+    else:
+        if val.__class__.__module__ not in ("builtins", "__builtin__"):
+            val = str(val)
+        return val
 
 
 def convert_plots(obj):
@@ -1007,15 +1051,30 @@ def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
 
-def sizeof_fmt(num, suffix="B"):
-    """Pretty print file size
-        https://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size
-    """
-    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, "Yi", suffix)
+def to_human_size(bytes, units=None):
+    units = units or POW_10_BYTES
+    unit, value = units[0]
+    factor = round(float(bytes) / value, 1)
+    return (
+        "{}{}".format(factor, unit)
+        if factor < 1024 or len(units) == 1
+        else to_human_size(bytes, units[1:])
+    )
+
+
+def from_human_size(size, units=None):
+    units = {unit.upper(): value for (unit, value) in units or POW_10_BYTES}
+    regex = re.compile(
+        r"(\d+\.?\d*)\s*({})?".format("|".join(units.keys())), re.IGNORECASE
+    )
+    match = re.match(regex, size)
+    if not match:
+        raise ValueError("Size must be of the form `10`, `10B` or `10 B`.")
+    factor, unit = (
+        float(match.group(1)),
+        units[match.group(2).upper()] if match.group(2) else 1,
+    )
+    return int(factor * unit)
 
 
 def auto_project_name(program):

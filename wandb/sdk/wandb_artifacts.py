@@ -19,10 +19,11 @@ from wandb.data_types import WBValue
 from wandb.errors.error import CommError
 from wandb.errors.term import termlog, termwarn
 
-from .interface.artifacts import (
+from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
     ArtifactManifest,
+    ArtifactsCache,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
@@ -447,6 +448,14 @@ class Artifact(ArtifactInterface):
 
         raise ValueError(
             "Cannot call download on an artifact before it has been logged or in offline mode"
+        )
+
+    def checkout(self, root: Optional[str] = None) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.checkout(root=root)
+
+        raise ValueError(
+            "Cannot call checkout on an artifact before it has been logged or in offline mode"
         )
 
     def verify(self, root: Optional[str] = None):
