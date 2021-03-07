@@ -244,9 +244,33 @@ class Api(object):
         self._client = RetryingClient(self._base_client)
 
     def create_run(self, **kwargs):
+        """Create a new run"""
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
+        """Sync a local directory containing tfevent files to wandb"""
+        from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
+
+        run_id = run_id or util.generate_id()
+        project = project or self.settings.get("project") or "uncategorized"
+        entity = entity or self.default_entity
+        sm = SyncManager(
+            project=project,
+            entity=entity,
+            run_id=run_id,
+            mark_synced=False,
+            app_url=self.client.app_url,
+            view=False,
+            verbose=False,
+            sync_tensorboard=True,
+        )
+        sm.add(root_dir)
+        sm.start()
+        while not sm.is_done():
+            _ = sm.poll()
+        return self.run("/".join([entity, project, run_id]))
 
     @property
     def client(self):
@@ -895,7 +919,7 @@ class Run(Attrs):
     def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
         run_id = run_id or util.generate_id()
-        project = project or api.settings.get("project")
+        project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
         mutation UpsertBucket($project: String, $entity: String, $name: String!) {

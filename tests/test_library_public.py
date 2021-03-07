@@ -102,6 +102,7 @@ SYMBOLS_ROOT_OTHER = {
     "superagent",
     "sys",
     "tensorboard",
+    "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
     "tensorflow",
     "termerror",
     "termlog",
