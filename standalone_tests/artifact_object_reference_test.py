@@ -183,13 +183,11 @@ aud_ref_https = wandb.Audio(
     caption="star wars https"
 )
 aud_ref_s3 = wandb.Audio(
-    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
-    # "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
+    "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
     caption="star wars s3"
 )
 aud_ref_gs = wandb.Audio(
-    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
-    # "gs://wandb-artifact-refs-public-test/StarWars3.wav",
+    "gs://wandb-artifact-refs-public-test/StarWars3.wav",
     caption="star wars gs"
 )
 
