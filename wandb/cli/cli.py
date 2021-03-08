@@ -36,7 +36,7 @@ from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
-from wandb.sync import get_run_from_path, get_runs, SyncManager
+from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -420,6 +420,12 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=None,
+    help="Stream tfevent files to wandb.",
+)
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -471,6 +477,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
     include_online=None,
@@ -484,6 +491,8 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
 ):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -539,7 +548,7 @@ def sync(
                 )
             )
 
-    def _sync_path(path):
+    def _sync_path(path, sync_tensorboard):
         if run_id and len(path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
@@ -551,6 +560,7 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
+            sync_tensorboard=sync_tensorboard,
         )
         for p in path:
             sm.add(p)
@@ -571,7 +581,9 @@ def sync(
         if not sync_items:
             wandb.termerror("Nothing to sync.")
         else:
-            _sync_path(sync_items)
+            # When syncing run directories, default to not syncing tensorboard
+            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
+            _sync_path(sync_items, sync_tb)
 
     def _clean():
         if path:
@@ -630,7 +642,9 @@ def sync(
     elif clean:
         _clean()
     elif path:
-        _sync_path(path)
+        # When syncing a specific path, default to syncing tensorboard
+        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path, sync_tb)
     else:
         _summary()
 

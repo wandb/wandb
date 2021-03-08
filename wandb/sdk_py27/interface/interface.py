@@ -22,6 +22,7 @@ from wandb.util import (
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
+    json_friendly_val,
     maybe_compress_summary,
     WandBJSONEncoderOld,
 )
@@ -246,7 +247,7 @@ class BackendSender(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(artifact.metadata)
+            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
