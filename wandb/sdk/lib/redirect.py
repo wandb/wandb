@@ -661,7 +661,8 @@ class Redirect(RedirectBase):
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                self.src_wrapped_stream.flush()
+                if sys.platform != "darwin":
+                    self.src_wrapped_stream.flush()
             except OSError:
                 return
             try:

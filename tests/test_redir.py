@@ -176,7 +176,7 @@ def test_keras_progbar(cls, capfd):
 
 
 @pytest.mark.parametrize("cls", impls)
-def test_interactive(cls, capfd):
+def test_numpy(cls, capfd):
     with capfd.disabled():
         r = cls("stdout", [lambda _: None])
         r.install()
