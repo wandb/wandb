@@ -243,7 +243,9 @@ class Table(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, Table)
-        assert not should_assert or eq, "Found type {}, expected {}".format(other.__class__, Table)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, Table
+        )
         eq = eq and len(self.data) == len(other.data)
         assert not should_assert or eq, "Found {} rows, expected {}".format(
             len(other.data), len(self.data)
