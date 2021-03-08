@@ -36,7 +36,7 @@ from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
-from wandb.sync import get_run_from_path, get_runs, SyncManager
+from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -233,7 +233,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         # force relogin if host is specified
         _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
-    if host or cloud or key:
+    if key:
         relogin = True
 
     wandb.setup(
@@ -420,6 +420,12 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=None,
+    help="Stream tfevent files to wandb.",
+)
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -471,6 +477,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
     include_online=None,
@@ -484,6 +491,8 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
 ):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -539,7 +548,7 @@ def sync(
                 )
             )
 
-    def _sync_path(path):
+    def _sync_path(path, sync_tensorboard):
         if run_id and len(path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
@@ -551,6 +560,7 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
+            sync_tensorboard=sync_tensorboard,
         )
         for p in path:
             sm.add(p)
@@ -571,7 +581,9 @@ def sync(
         if not sync_items:
             wandb.termerror("Nothing to sync.")
         else:
-            _sync_path(sync_items)
+            # When syncing run directories, default to not syncing tensorboard
+            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
+            _sync_path(sync_items, sync_tb)
 
     def _clean():
         if path:
@@ -630,7 +642,9 @@ def sync(
     elif clean:
         _clean()
     elif path:
-        _sync_path(path)
+        # When syncing a specific path, default to syncing tensorboard
+        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path, sync_tb)
     else:
         _summary()
 
@@ -1232,14 +1246,6 @@ def ls(path, type):
     else:
         types = public_api.artifact_types(path)
 
-    def human_size(bytes, units=None):
-        units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-        return (
-            str(bytes) + units[0]
-            if bytes < 1024
-            else human_size(bytes >> 10, units[1:])
-        )
-
     for kind in types:
         for collection in kind.collections():
             versions = public_api.artifact_versions(
@@ -1250,9 +1256,30 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, human_size(latest.size), latest.name
+                    kind.type,
+                    latest.updated_at,
+                    util.to_human_size(latest.size),
+                    latest.name,
                 )
             )
+
+
+@artifact.group(help="Commands for interacting with the artifact cache")
+def cache():
+    pass
+
+
+@cache.command(
+    context_settings=CONTEXT,
+    help="Clean up less frequently used files from the artifacts cache",
+)
+@click.argument("target_size")
+@display_error
+def cleanup(target_size):
+    target_size = util.from_human_size(target_size)
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    reclaimed_bytes = cache.cleanup(target_size)
+    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")

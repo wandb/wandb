@@ -4,6 +4,7 @@ settings test.
 import platform
 import pytest  # type: ignore
 
+import wandb
 from wandb import Settings
 import os
 import copy
@@ -241,3 +242,17 @@ def test_preprocess_base_url():
 def test_symlinks():
     s = Settings()
     assert not (s.symlink and platform.system == "Windows")
+
+
+def test_code_saving_save_code_env_false(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_SAVE_CODE"] = "false"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False
+
+
+def test_code_saving_disable_code(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_DISABLE_CODE"] = "true"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False

@@ -83,3 +83,46 @@ def test_save_symlink(wandb_init_run):
 #     os.symlink(f1, sf)
 #     run.save(sf)
 #     assert os.path.islink(sf)
+
+
+def test_log_code_settings(live_mock_server, test_settings):
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    test_settings.code_dir = "."
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    artifact_name = list(ctx["artifacts"].keys())[0]
+    assert artifact_name == "source-" + run.id
+
+
+def test_log_code(test_settings):
+    run = wandb.init(mode="offline", settings=test_settings)
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    with open("big_file.h5", "w") as f:
+        f.write("Not that big")
+    art = run.log_code()
+    assert sorted(art.manifest.entries.keys()) == ["test.py"]
+
+
+def test_log_code_include(test_settings):
+    run = wandb.init(mode="offline", settings=test_settings)
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    with open("test.cc", "w") as f:
+        f.write("Not that big")
+    art = run.log_code(include_fn=lambda p: p.endswith(".py") or p.endswith(".cc"))
+    assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
+
+
+def test_log_code_custom_root(test_settings):
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    os.mkdir("custom")
+    os.chdir("custom")
+    with open("test.py", "w") as f:
+        f.write('print("test")')
+    run = wandb.init(mode="offline", settings=test_settings)
+    art = run.log_code(root="../")
+    assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]

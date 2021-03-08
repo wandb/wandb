@@ -9,9 +9,11 @@ import os
 import json
 import pytest
 import platform
+import sys
 
 import wandb
 from wandb import Api
+from tests import utils
 
 
 @pytest.fixture
@@ -89,6 +91,21 @@ def test_run_from_path(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
     assert run.url == "https://wandb.ai/test/test/runs/test"
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_run_from_tensorboard(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+        run_id = wandb.util.generate_id()
+        api.sync_tensorboard(".", project="test", run_id=run_id)
+        assert mock_server.ctx["graphql"][-1]["variables"] == {
+            "entity": "mock_server_entity",
+            "name": run_id,
+            "project": "test",
+        }
 
 
 def test_run_retry(mock_server, api):
@@ -329,6 +346,20 @@ def test_artifact_download(runner, mock_server, api):
         else:
             part = "mnist:v0"
         assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+
+
+def test_artifact_checkout(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        # Create a file that should be removed as part of checkout
+        os.makedirs(os.path.join(".", "artifacts", "mnist"))
+        with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
+            f.write("delete me, i'm a bogus file")
+
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.checkout()
+        assert path == os.path.join(".", "artifacts", "mnist")
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_run_used(runner, mock_server, api):

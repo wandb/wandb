@@ -13,6 +13,7 @@ import os
 import time
 
 from pkg_resources import parse_version
+from six.moves import queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -21,6 +22,7 @@ from wandb.proto import wandb_internal_pb2
 from . import artifacts
 from . import file_stream
 from . import internal_api
+from . import settings_static
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
@@ -111,6 +113,43 @@ class SendManager(object):
         self._partial_output = dict()
 
         self._exit_code = 0
+
+    @classmethod
+    def setup(cls, root_dir):
+        """This is a helper class method to setup a standalone SendManager.
+        Currently we're using this primarily for `sync.py`.
+        """
+        files_dir = os.path.join(root_dir, "files")
+        sd = dict(
+            files_dir=files_dir,
+            root_dir=root_dir,
+            _start_time=0,
+            git_remote=None,
+            resume=None,
+            program=None,
+            ignore_globs=(),
+            run_id=None,
+            entity=None,
+            project=None,
+            run_group=None,
+            job_type=None,
+            run_tags=None,
+            run_name=None,
+            run_notes=None,
+            save_code=None,
+            email=None,
+            silent=None,
+        )
+        settings = settings_static.SettingsStatic(sd)
+        record_q = queue.Queue()
+        result_q = queue.Queue()
+        publish_interface = interface.BackendSender(record_q=record_q)
+        return SendManager(
+            settings=settings,
+            record_q=record_q,
+            result_q=result_q,
+            interface=publish_interface,
+        )
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
@@ -747,8 +786,34 @@ class SendManager(object):
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_request_log_artifact(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        artifact = record.request.log_artifact.artifact
+
+        try:
+            result.response.log_artifact_response.artifact_id = self._send_artifact(
+                artifact
+            ).get("id")
+        except Exception as e:
+            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
+            )
+
+        self._result_q.put(result)
+
     def send_artifact(self, data):
         artifact = data.artifact
+        try:
+            self._send_artifact(artifact)
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
+
+    def _send_artifact(self, artifact):
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -769,23 +834,16 @@ class SendManager(object):
                 return
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        try:
-            saver.save(
-                type=artifact.type,
-                name=artifact.name,
-                metadata=metadata,
-                description=artifact.description,
-                aliases=artifact.aliases,
-                use_after_commit=artifact.use_after_commit,
-                distributed_id=artifact.distributed_id,
-                finalize=artifact.finalize,
-            )
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
-            )
+        return saver.save(
+            type=artifact.type,
+            name=artifact.name,
+            metadata=metadata,
+            description=artifact.description,
+            aliases=artifact.aliases,
+            use_after_commit=artifact.use_after_commit,
+            distributed_id=artifact.distributed_id,
+            finalize=artifact.finalize,
+        )
 
     def send_alert(self, data):
         alert = data.alert

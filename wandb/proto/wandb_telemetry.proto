@@ -38,6 +38,7 @@ message Feature {
   bool resumed = 5;  // run was resumed
   bool grpc = 6;     // grpc-server (java integration)
   bool metric = 7;   // define_metric() called
+  bool keras = 8;    // Keras WandbCallback used
 }
 
 message Env {
@@ -45,4 +46,8 @@ message Env {
   bool kaggle = 2;   // kaggle env detected
   bool windows = 3;  // windows detected
   bool m1_gpu = 4;   // apple silicon M1 gpu found
+  bool start_spawn = 5;       // multiprocessing spawn
+  bool start_fork = 6;        // multiprocessing fork
+  bool start_forkserver = 7;  // multiprocessing forkserver
+  bool start_thread = 8;      // thread start method
 }
