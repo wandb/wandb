@@ -60,8 +60,8 @@ def test_run_pub_history(fake_run, record_q, records_util):
 
 
 def test_save_symlink(wandb_init_run):
-    f1 = os.path.join(wandb_init_run.dir, "test_file.txt")
-    sf = os.path.join(wandb_init_run.dir, "symlink_file")
+    f1 = "./test_file.txt"
+    sf = "./symlink_file"
     with open(f1, "w") as f:
         f.write("test string")
         f.close()
@@ -69,20 +69,6 @@ def test_save_symlink(wandb_init_run):
     os.symlink(f1, sf)
     wandb_init_run.save(sf)
     assert os.path.islink(sf)
-
-
-# def test_sarve_symlink2(live_mock_server, test_settings):
-#     test_settings.update({"symlink": False})
-#     run = wandb.init(settings=test_settings)
-#     f1 = os.path.join(run.dir, "test_file.txt")
-#     sf = os.path.join(run.dir, "symlink_file")
-#     with open(f1, 'w') as f:
-#         f.write("test string")
-#         f.close()
-
-#     os.symlink(f1, sf)
-#     run.save(sf)
-#     assert os.path.islink(sf)
 
 
 def test_log_code_settings(live_mock_server, test_settings):
