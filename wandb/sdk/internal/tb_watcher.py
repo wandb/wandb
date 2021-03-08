@@ -50,14 +50,16 @@ def _link_and_save_file(
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
     util.mkdir_exists_ok(os.path.dirname(wandb_path))
+    print("SETTINGS YSMLING", settings.symlink)
     # We overwrite existing symlinks because namespaces can change in Tensorboard
-    print("wandb_path", wandb_path)
-    print("abs_path", abs_path)
     if settings.symlink:
+        print("DOING SYMLINKS")
         if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
+            print("REMOVING AND ADDING")
             os.remove(wandb_path)
             os.symlink(abs_path, wandb_path)
         elif not os.path.exists(wandb_path):
+            print("JUST SYMLINKING")
             os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
     interface.publish_files(dict(files=[(file_name, "live")]))
@@ -147,7 +149,7 @@ class TBWatcher(object):
                 namespace = None
         else:
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
-
+        print("NAMESPACE", namespace)
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
@@ -201,6 +203,7 @@ class TBDirWatcher(object):
             "tensorboard.compat", required="Please install tensorboard package"
         )
         self._tbwatcher = tbwatcher
+        print("TBDIRWATCHER")
         self._generator = self.directory_watcher.DirectoryWatcher(
             logdir, self._loader(save, namespace), self._is_our_tfevents_file
         )
@@ -229,9 +232,11 @@ class TBDirWatcher(object):
         )
 
     def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
+        print("CALLED LOADER")
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
+        print("SETTINGS symlink", _loader_settings.symlink)
         try:
             from tensorboard.backend.event_processing import event_file_loader
         except ImportError:
@@ -240,6 +245,7 @@ class TBDirWatcher(object):
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
                 super(EventFileLoader, self).__init__(file_path)
+                print("SAVE?", save)
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -249,6 +255,7 @@ class TBDirWatcher(object):
                         # TODO: save plugins?
                         logdir = os.path.dirname(file_path)
                         parts = list(os.path.split(logdir))
+                        print("PARTS", parts, parts[-1] == namespace)
                         if namespace and parts[-1] == namespace:
                             parts.pop()
                             logdir = os.path.join(*parts)
@@ -258,7 +265,7 @@ class TBDirWatcher(object):
                             interface=_loader_interface,
                             settings=_loader_settings,
                         )
-
+        print("RETURNING EVENTFILELOADER")
         return EventFileLoader
 
     def _thread_body(self) -> None:

@@ -773,3 +773,36 @@ def tbwatcher_util(
         return ctx_util
 
     yield fn
+
+
+@pytest.fixture
+def tb_watcher_util_with_file(mocked_run, mock_server, internal_hm, start_backend, stop_backend, parse_ctx):
+
+    def fn(fpath, logdir="./", save=True, root_dir="./"):
+        start_backend()
+
+        proto_run = pb.RunRecord()
+        mocked_run._make_proto_run(proto_run)
+
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(proto_run)
+
+        request = pb.Request()
+        request.run_start.CopyFrom(run_start)
+
+        record = pb.Record()
+        record.request.CopyFrom(request)
+        internal_hm.handle_request_run_start(record)
+        internal_hm._tb_watcher.add(logdir, save, root_dir)
+
+        # need to sleep to give time for the tb_watcher delay
+        time.sleep(15)
+        shutil.copy(fpath, root_dir)
+        shutil.copy(fpath, logdir)
+        time.sleep(15)
+        stop_backend()
+        ctx_util = parse_ctx(mock_server.ctx)
+        return ctx_util
+
+    yield fn
+
