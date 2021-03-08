@@ -388,7 +388,7 @@ def test_get_artifact_obj_by_name():
         assert actual_table.columns == columns
         assert actual_table.data[0][columns.index("Image")] == image
         assert actual_table.data[1][columns.index("Image")] == _make_wandb_image("2")
-        assert actual_table == _make_wandb_table()
+        actual_table._eq_debug(_make_wandb_table(), True)
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
@@ -466,7 +466,7 @@ def test_nested_reference_artifact():
         artifact_3 = run.use_artifact("reference_data:latest")
         table_2 = artifact_3.get("table_2")
         # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
-        assert table == table_2
+        table._eq_debug(table_2, True)
         artifact_3.download()
 
     
@@ -534,7 +534,11 @@ def assert_media_obj_referential_equality(obj):
         orig_dir = orig_artifact_ref._default_root()
         obj1 = orig_artifact_ref.get("obj")
 
-    assert obj1 == obj
+    if type(obj) == wandb.Table:
+        obj._eq_debug(obj1, True)
+    else:
+        assert obj1 == obj
+
     target_path = os.path.join(orig_dir, "obj." + type(obj).artifact_type + ".json")
     assert os.path.isfile(target_path)
 
@@ -551,7 +555,10 @@ def assert_media_obj_referential_equality(obj):
         mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get("obj2")
 
-    assert obj2 == obj
+    if type(obj) == wandb.Table:
+        obj._eq_debug(obj2, True)
+    else:
+        assert obj2 == obj
     # name = "obj2." + type(obj).artifact_type + ".json"
     # start_path = os.path.join(mid_dir, name)
     # mid_artifact_ref.get_path(name).download()
@@ -571,7 +578,10 @@ def assert_media_obj_referential_equality(obj):
         down_dir = down_artifact_ref._default_root()
         obj3 = down_artifact_ref.get("obj3")
 
-    assert obj3 == obj
+    if type(obj) == wandb.Table:
+        obj._eq_debug(obj3, True)
+    else:
+        assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
     # name = "obj3." + type(obj).artifact_type + ".json"
     # start_path = os.path.join(down_dir, name)
