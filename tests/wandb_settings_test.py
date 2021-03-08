@@ -241,7 +241,7 @@ def test_preprocess_base_url():
 
 def test_symlinks():
     s = Settings()
-    assert not (s._symlink and platform.system == "Windows")
+    assert not (s.symlink and platform.system == "Windows")
 
 
 def test_code_saving_save_code_env_false(live_mock_server, test_settings):
