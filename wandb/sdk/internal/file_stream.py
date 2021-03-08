@@ -14,8 +14,6 @@ from wandb import env
 import os
 
 
-MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
-
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple("Chunk", ("filename", "data"))
@@ -34,12 +32,14 @@ class DefaultFilePolicy(object):
 class JsonlFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
+        # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) > MAX_LINE_SIZE:
-                msg = "Metric data exceeds maximum size of {} bytes. Dropping it.".format(
-                    MAX_LINE_SIZE
+            if len(chunk.data) > util.MAX_LINE_SIZE:
+                msg = "Metric data exceeds maximum size of {} ({})".format(
+                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
                 util.sentry_message(msg)
@@ -55,9 +55,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
 class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        if len(data) > MAX_LINE_SIZE:
-            msg = "Summary data exceeds maximum size of {} bytes. Dropping it.".format(
-                MAX_LINE_SIZE
+        if len(data) > util.MAX_LINE_SIZE:
+            msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
+                util.to_human_size(util.MAX_LINE_SIZE)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)

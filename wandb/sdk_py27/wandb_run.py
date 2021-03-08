@@ -70,6 +70,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
+    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -79,7 +80,8 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi
+    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
 
@@ -604,11 +606,70 @@ class Run(object):
         """
         return self.project_name()
 
+    def log_code(
+        self,
+        root = ".",
+        name = None,
+        include_fn = lambda path: path.endswith(".py"),
+        exclude_fn = lambda path: os.sep + "wandb" + os.sep
+        in path,
+    ):
+        """
+        log_code() saves the current state of your code to a W&B artifact.  By
+        default it walks the current directory and logs all files that end with ".py".
+
+        Arguments:
+            root (str, optional): The relative (to os.getcwd()) or absolute path to
+                recursively find code from.
+            name (str, optional): The name of our code artifact.  By default we'll name
+                the artifact "source-$RUN_ID".  There may be scenarios where you want
+                many runs to share the same artifact.  Specifying name allows you to achieve that.
+            include_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be included and False otherwise.  This
+                defaults to: `lambda path: path.endswith(".py")`
+            exclude_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be excluded and False otherwise.  This
+                defaults to: `lambda path: False`
+
+        Examples:
+            Basic usage
+            ```python
+            run.log_code()
+            ```
+
+            Advanced usage
+            ```python
+            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        name = name or "{}-{}".format("source", self.id)
+        art = wandb.Artifact(name, "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
+        # Add any manually staged files such is ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            return None
+        return self.log_artifact(art)
+
     def get_url(self):
         """
         Returns:
-            (str, optional): url for the W&B run or None if the run
-                is offline
+            A url (str, optional) for the W&B run or None if the run
+            is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -618,8 +679,8 @@ class Run(object):
     def get_project_url(self):
         """
         Returns:
-            (str, optional): url for the W&B project associated with
-                the run or None if the run is offline
+            A url (str, optional) for the W&B project associated with
+            the run or None if the run is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -629,8 +690,8 @@ class Run(object):
     def get_sweep_url(self):
         """
         Returns:
-            (str, optional): url for the sweep associated with the run
-                or None if there is no associated sweep or the run is offline.
+            A url (str, optional) for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -665,7 +726,10 @@ class Run(object):
         return {"text/html": s}
 
     def _config_callback(
-        self, key = None, val = None, data = None
+        self,
+        key = None,
+        val = None,
+        data = None,
     ):
         logger.info("config_cb %s %s %s", key, val, data)
         if not self._backend or not self._backend.interface:
@@ -696,18 +760,15 @@ class Run(object):
     def _history_callback(self, row, step):
 
         # TODO(jhr): move visualize hack somewhere else
-        visualize_persist_config = False
         custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
-                if "viz" not in self._config["_wandb"]:
-                    self._config["_wandb"]["viz"] = dict()
-                self._config["_wandb"]["viz"][k] = {
+                config = {
                     "id": row[k].viz_id,
                     "historyFieldSettings": {"key": k, "x-axis": "_step"},
                 }
                 row[k] = row[k].value
-                visualize_persist_config = True
+                self._config_callback(val=config, key=("_wandb", "viz", k))
             elif isinstance(row[k], CustomChart):
                 custom_charts[k] = row[k]
                 custom_chart = row[k]
@@ -723,10 +784,6 @@ class Run(object):
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
-            visualize_persist_config = True
-
-        if visualize_persist_config:
-            self._config_callback(data=self._config._as_dict())
 
         if self._backend:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -827,22 +884,26 @@ class Run(object):
     ):
         """Log a dict to the global run's history.
 
-        `wandb.log` can be used to log everything from scalars to histograms, media
-        and matplotlib plots.
+        Use `wandb.log` to log data from runs, such as scalars, images, video,
+        histograms, and matplotlib plots.
 
         The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
-        This will save a history row associated with the run with train-loss=0.5
-        and `accuracy=0.9`. The history values can be plotted on app.wandb.ai or
-        on a local server. The history values can also be downloaded through
-        the wandb API.
+        This will save a history row associated with the run with `train-loss=0.5`
+        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
+        or locally on a self-hosted instance of the W&B app:
+        https://docs.wandb.ai/self-hosted
 
-        Logging a value will update the summary values for any metrics logged.
-        The summary values will appear in the run table at app.wandb.ai or
-        a local server. If a summary value is manually set with for example
-        `wandb.run.summary["accuracy"] = 0.9` `wandb.log` will no longer automatically
-        update the run's accuracy.
+        Export data to explore in a Jupyter notebook, for example, with the API:
+        https://docs.wandb.ai/ref/public-api
 
-        Logging values don't have to be scalars. Logging any wandb object is supported.
+        Each time you call wandb.log(), this adds a new row to history and updates
+        the summary values for each key logged. In the UI, summary values show
+        up in the run table to compare single values across runs. You might want
+        to update summary manually to set the *best* value instead of the *last*
+        value for a given metric. After you finish logging, you can set summary:
+        `wandb.run.summary["accuracy"] = 0.9`.
+
+        Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
         example image which will be displayed nicely in the wandb UI. See
         https://docs.wandb.com/library/reference/data_types for all of the different
@@ -865,16 +926,16 @@ class Run(object):
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row (dict, optional): A dict of serializable python objects i.e `str`,
+            row: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or `wandb.data_types`.
-            commit (boolean, optional): Save the metrics dict to the wandb server
+            commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
                 metrics dict with the row argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
-            step (integer, optional): The global step in processing. This persists
+            step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
                 specified step.
-            sync (boolean, True): This argument is deprecated and currently doesn't
+            sync: (boolean, True) This argument is deprecated and currently doesn't
                 change the behaviour of `wandb.log`.
 
         Examples:
@@ -927,8 +988,8 @@ class Run(object):
             For more examples, see https://docs.wandb.com/library/log
 
         Raises:
-            wandb.Error - if called before `wandb.init`
-            ValueError - if invalid data is passed
+            wandb.Error: if called before `wandb.init`
+            ValueError: if invalid data is passed
 
         """
         # TODO(cling): sync is a noop for now
@@ -977,10 +1038,10 @@ class Run(object):
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
         Arguments:
-            glob_str (string): a relative or absolute path to a unix glob or regular
+            glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
-            base_path (string): the base path to run the glob relative to
-            policy (string): on of `live`, `now`, or `end`
+            base_path: (string) the base path to run the glob relative to
+            policy: (string) on of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
                 - end: only upload file when the run ends
@@ -1119,14 +1180,11 @@ class Run(object):
     def _add_panel(
         self, visualize_key, panel_type, panel_config
     ):
-        if "visualize" not in self._config["_wandb"]:
-            self._config["_wandb"]["visualize"] = dict()
-        self._config["_wandb"]["visualize"][visualize_key] = {
+        config = {
             "panel_type": panel_type,
             "panel_config": panel_config,
         }
-
-        self._config_callback(data=self._config._as_dict())
+        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _get_url_query_string(self):
         s = self._settings
@@ -1461,15 +1519,14 @@ class Run(object):
     def _on_start(self):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline:
-            wandb.termlog("Offline run mode, not syncing to the cloud.")
-
-        if self._settings._offline:
             wandb.termlog(
                 (
                     "W&B syncing is set to `offline` in this directory.  "
-                    "Run `wandb online` to enable cloud syncing."
+                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
                 )
             )
+        if self._settings.save_code and self._settings.code_dir is not None:
+            self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:
@@ -1899,15 +1956,15 @@ class Run(object):
         the returned object to get the contents locally.
 
         Arguments:
-            artifact_or_name (str or Artifact): An artifact name.
+            artifact_or_name: (str or Artifact) An artifact name.
                 May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
-            type (str, optional): The type of artifact to use.
-            aliases (list, optional): Aliases to apply to this artifact
+            type: (str, optional) The type of artifact to use.
+            aliases: (list, optional) Aliases to apply to this artifact
         Returns:
             An `Artifact` object.
         """
@@ -1934,9 +1991,8 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                artifact.finalize()
-                self._backend.interface.publish_artifact(
-                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                self._log_artifact(
+                    artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -1947,7 +2003,6 @@ class Run(object):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    # TODO(jhr): annotate this
     def log_artifact(
         self,
         artifact_or_path,
@@ -1958,22 +2013,22 @@ class Run(object):
         """ Declare an artifact as output of a run.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
 
         Returns:
@@ -1994,24 +2049,24 @@ class Run(object):
         need to all contribute to the same artifact.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -2044,24 +2099,24 @@ class Run(object):
         the same distributed ID will result in a new version
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -2091,6 +2146,8 @@ class Run(object):
         aliases = None,
         distributed_id = None,
         finalize = True,
+        is_user_created = False,
+        use_after_commit = False,
     ):
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2100,9 +2157,25 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            self._backend.interface.publish_artifact(
-                self, artifact, aliases, finalize=finalize
-            )
+            if not self._settings._offline:
+                future = self._backend.interface.communicate_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                self._backend.interface.publish_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
         return artifact
 
     def _public_api(self):
@@ -2291,3 +2364,38 @@ def finish(exit_code = None):
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class _LazyArtifact(wandb_artifacts.Artifact):
+
+    # _api: PublicApi
+    _instance = None
+    # _future: Any
+
+    def __init__(self, api, future):
+        self._api = api
+        self._future = future
+
+    def __getattr__(self, item):
+        if not self._instance:
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties"
+            )
+        return getattr(self._instance, item)
+
+    def wait(self):
+        if not self._instance:
+            resp = self._future.get().response.log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
+        return self._instance
