@@ -610,7 +610,7 @@ class Audio(BatchableMedia):
             # this object was already created using a ref:
             return self._path
 
-        source_artifact = self.artifact_source["artifact"]
+        source_artifact = self.artifact_source.artifact
         return source_artifact.manifest.get_entry_by_path(self._path).ref
 
     def __eq__(self, other):
