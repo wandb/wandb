@@ -276,7 +276,7 @@ class Table(Media):
         return eq
 
     def __eq__(self, other):
-        self._eq_debug(other)
+        return self._eq_debug(other)
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
