@@ -46,7 +46,9 @@ from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
 if wandb.TYPE_CHECKING:  # type: ignore
+    from wandb.sdk.wandb_setup import _EarlyLogger
     from typing import (  # noqa: F401 pylint: disable=unused-import
+        Any,
         Dict,
         List,
         Optional,
@@ -58,7 +60,9 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Sequence,
     )
 
-defaults: Dict[str, Union[str, int, Tuple]] = dict(
+Defaults = Dict[str, Union[str, int, Tuple]]
+
+defaults: Defaults = dict(
     base_url="https://api.wandb.ai",
     summary_warnings=5,
     git_remote="origin",
@@ -116,7 +120,7 @@ def _error_choices(value: str, choices: Set[str]) -> str:
     return "{} not in {}".format(value, ",".join(list(choices)))
 
 
-def _get_program():
+def _get_program() -> Optional[str]:
     program = os.getenv(wandb.env.PROGRAM)
     if program:
         return program
@@ -129,7 +133,7 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(program, _logger=None):
+def _get_program_relpath_from_gitrepo(program: str, _logger:Optional[_EarlyLogger] =  None):
     repo = GitRepo()
     root = repo.root
     if not root:
@@ -534,7 +538,7 @@ class Settings(object):
     def settings_workspace(self) -> str:
         return self._path_convert(self.settings_workspace_spec)
 
-    def _validate_start_method(self, value):
+    def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
@@ -542,7 +546,7 @@ class Settings(object):
             return
         return _error_choices(value, available_methods)
 
-    def _validate_mode(self, value):
+    def _validate_mode(self, value: str) -> Optional[str]:
         choices = {
             "dryrun",
             "run",
@@ -551,10 +555,10 @@ class Settings(object):
             "disabled",
         }
         if value in choices:
-            return
+            return None
         return _error_choices(value, choices)
 
-    def _validate_console(self, value):
+    def _validate_console(self, value:str) -> Optional[str]:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
         choices = {
             "auto",
@@ -563,68 +567,75 @@ class Settings(object):
             "wrap",
         }
         if value in choices:
-            return
+            return None
         return _error_choices(value, choices)
 
-    def _validate_problem(self, value):
+    def _validate_problem(self, value: str) -> Optional[str]:
         choices = {"fatal", "warn", "silent"}
         if value in choices:
-            return
+            return None
         return _error_choices(value, choices)
 
-    def _validate_anonymous(self, value):
+    def _validate_anonymous(self, value: str) -> Optional[str]:
         choices = {"allow", "must", "never", "false", "true"}
         if value in choices:
-            return
+            return None
         return _error_choices(value, choices)
 
-    def _validate_silent(self, value):
+    def _validate_silent(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
 
-    def _validate_show_info(self, value):
+    def _validate_show_info(self, value:str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
 
-    def _validate_show_warnings(self, value):
+    def _validate_show_warnings(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
 
-    def _validate_show_errors(self, value):
+    def _validate_show_errors(self, value: str) -> Optional[bool]:
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
 
-    def _preprocess_base_url(self, value):
+    def _preprocess_base_url(self, value: Optional[str]) -> Optional[str]:
         if value is not None:
             value = value.rstrip("/")
         return value
 
-    def _start_run(self):
+    def _start_run(self) -> None:
         datetime_now: datetime = datetime.now()
         time_now: float = time.time()
         object.__setattr__(self, "_Settings__start_datetime", datetime_now)
         object.__setattr__(self, "_Settings__start_time", time_now)
 
-    def _apply_settings(self, settings, _logger=None):
+    # TODO: KYLE
+    def _apply_settings(self, settings, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): make a more efficient version of this
         for k in settings._public_keys():
             source = settings.__defaults_dict.get(k)
             self._update({k: settings[k]}, _source=source)
 
-    def _apply_defaults(self, defaults):
+    def _apply_defaults(self, defaults: Defaults) -> None:
         self._update(defaults, _source=self.Source.BASE)
 
-    def _apply_configfiles(self, _logger=None):
+    # TODO: KYLE
+    def _apply_configfiles(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace
         self._update(self._load(self.settings_system), _source=self.Source.SYSTEM)
 
         self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)
 
-    def _apply_environ(self, environ, _logger=None):
+    # TODO: KYLE
+    def _apply_environ(self, environ, _logger: Optional[_EarlyLogger] = None) -> None:
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
         for k, v in six.iteritems(environ):
@@ -644,17 +655,17 @@ class Settings(object):
             _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
-    def _apply_user(self, user_settings, _logger=None):
+    def _apply_user(self, user_settings, _logger=None) -> None:
         if _logger:
             _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
 
-    def _apply_source_login(self, login_settings, _logger=None):
+    def _apply_source_login(self, login_settings, _logger=None) -> None:
         if _logger:
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
-    def _path_convert_part(self, path_part, format_dict):
+    def _path_convert_part(self, path_part: str, format_dict) -> List[str]:
         """convert slashes, expand ~ and other macros."""
 
         path_parts = path_part.split(os.sep if os.sep in path_part else "/")
@@ -665,7 +676,7 @@ class Settings(object):
                 return None
         return path_parts
 
-    def _path_convert(self, *path):
+    def _path_convert(self, *path: Any) -> str:
         """convert slashes, expand ~ and other macros."""
 
         format_dict = dict()
@@ -997,7 +1008,7 @@ class Settings(object):
         return Settings._Setter(settings=self, source=source, override=override)
 
     class _Setter(object):
-        def __init__(self, settings, source, override):
+        def __init__(self, settings, source, override) -> None:
             object.__setattr__(self, "_settings", settings)
             object.__setattr__(self, "_source", source)
             object.__setattr__(self, "_override", override)
