@@ -769,12 +769,21 @@ class JoinedTable(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        return (
-            self._table1 == other._table1
-            and self._table2 == other._table2
-            and self._join_key == other._join_key
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, JoinedTable)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, JoinedTable
         )
+        eq = eq and self._join_key == other._join_key
+        assert not should_assert or eq, "Found {} join key, expected {}".format(
+            other._join_key, self._join_key
+        )
+        eq = eq and self._table1._eq_debug(other._table1, should_assert)
+        eq = eq and self._table2._eq_debug(other._table2, should_assert)
+        return eq
+
+    def __eq__(self, other):
+        return self._eq_debug(other, False)
 
 
 class Bokeh(Media):

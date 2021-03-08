@@ -387,6 +387,7 @@ def test_get_artifact_obj_by_name():
         assert actual_table.data[0][columns.index("Image")] == image
         assert actual_table.data[1][columns.index("Image")] == _make_wandb_image("2")
         actual_table._eq_debug(_make_wandb_table(), True)
+        assert actual_table == _make_wandb_table()
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
@@ -465,6 +466,7 @@ def test_nested_reference_artifact():
         table_2 = artifact_3.get("table_2")
         # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
         table._eq_debug(table_2, True)
+        assert table == table_2
         artifact_3.download()
 
     
@@ -532,10 +534,10 @@ def assert_media_obj_referential_equality(obj):
         orig_dir = orig_artifact_ref._default_root()
         obj1 = orig_artifact_ref.get("obj")
 
-    if type(obj) == wandb.Table:
+    if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj1, True)
-    else:
-        assert obj1 == obj
+    
+    assert obj1 == obj
 
     target_path = os.path.join(orig_dir, "obj." + type(obj).artifact_type + ".json")
     assert os.path.isfile(target_path)
@@ -553,10 +555,10 @@ def assert_media_obj_referential_equality(obj):
         mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get("obj2")
 
-    if type(obj) == wandb.Table:
+    if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj2, True)
-    else:
-        assert obj2 == obj
+
+    assert obj2 == obj
     # name = "obj2." + type(obj).artifact_type + ".json"
     # start_path = os.path.join(mid_dir, name)
     # mid_artifact_ref.get_path(name).download()
@@ -576,10 +578,10 @@ def assert_media_obj_referential_equality(obj):
         down_dir = down_artifact_ref._default_root()
         obj3 = down_artifact_ref.get("obj3")
 
-    if type(obj) == wandb.Table:
+    if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj3, True)
-    else:
-        assert obj3 == obj
+
+    assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
     # name = "obj3." + type(obj).artifact_type + ".json"
     # start_path = os.path.join(down_dir, name)
@@ -644,6 +646,7 @@ def test_joined_table_referential():
     with wandb.init(project=WANDB_PROJECT) as run:
         art2 = run.use_artifact("art2:latest")
         src_jt_2 = art2.get("src_jt_2")
+        src_jt_1._eq_debug(src_jt_2, True)
         assert src_jt_1 == src_jt_2
 
 def test_joined_table_add_by_path():
