@@ -2121,16 +2121,6 @@ class _TableColumn(object):
         self._wb_dtype = new_type
 
         # Grab the FK if there is one
-        import pdb
-
-        print(
-            item,
-            (
-                isinstance(item, _PKString)
-                and item._wb_col_source is not None
-                and item._wb_col_source.foreign_key is not None
-            ),
-        )
         if (
             isinstance(item, _PKString)
             and item._wb_col_source is not None
@@ -2397,6 +2387,12 @@ class Table(Media):
         else:
             optional_list = [self._default_optional for _ in range(row_len)]
 
+        if _pk_ids is not None:
+            self._pk_column = _PKTableColumn(_pk_ids, foreign_key_table=self)
+        else:
+            self._pk_column = _PKTableColumn(foreign_key_table=self)
+            # self._pk_column._bulk_increment(len(_data))
+
         self._columns = {}
         for i in range(row_len):
             self.add_col(
@@ -2408,12 +2404,6 @@ class Table(Media):
                 None,
                 allow_mixed_types,
             )
-
-        if _pk_ids is not None:
-            self._pk_column = _PKTableColumn(_pk_ids, foreign_key_table=self)
-        else:
-            self._pk_column = _PKTableColumn(foreign_key_table=self)
-            self._pk_column._bulk_increment(len(_data))
 
     @staticmethod
     def _parse_list(data: List[List[Any]]) -> Tuple[List[List[Any]], List[str]]:
