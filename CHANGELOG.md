@@ -2,11 +2,14 @@
 
 #### :bug: Bug Fix
 
-- 
+- Fix system metric logging rate in 0.10.x
+- Fix Audio external reference issue
+- Fix short runs with tensorboard_sync
+- Ignore `wandb.init(id=)` when running a sweep
 
 #### :nail_care: Enhancement
 
-- 
+- Allow syncing of tfevents with `wandb sync --sync-tensorboard`
 
 ## 0.10.21 (March 2, 2021)
 
