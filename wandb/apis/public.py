@@ -418,29 +418,34 @@ class Api(object):
             )
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=50):
+    def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
-            Find runs in my_project config.experiment_name has been set to "foo"
+            Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
-            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
             api.runs(path="my_entity/my_project",
-                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            ```
+
+            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+            ```
+            api.runs(path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}})
             ```
 
             Find runs in my_project sorted by ascending loss
             ```
-            api.runs(path="my_entity/my_project", {"order": "+summary_metrics.loss"})
+            api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
             ```
-
 
         Arguments:
             path: (str) path to project, should be in the form: "entity/project"
@@ -459,6 +464,7 @@ class Api(object):
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
         entity, project = self._parse_project_path(path)
+        filters = filters or {}
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
