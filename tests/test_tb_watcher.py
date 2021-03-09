@@ -1,3 +1,4 @@
+import os
 import platform
 import pytest
 import sys
@@ -102,3 +103,20 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     assert "pr/pr_curves" in [
         k for k in ctx_util.config["_wandb"]["value"]["visualize"].keys()
     ]
+
+
+def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
+    log_dir = os.path.join(mocked_run.dir, "test_tb_dne_dir")
+    abs_log_dir = os.path.abspath(log_dir)
+
+    def write_fun():
+        pass
+
+    _ = tbwatcher_util(
+        write_function=write_fun, logdir=log_dir, save=False, root_dir=mocked_run.dir,
+    )
+    failure_mode_string = (
+        "Encountered tensorboard directory watcher"
+        " error: Directory {} has been permanently deleted".format(abs_log_dir)
+    )
+    assert failure_mode_string in caplog.text
