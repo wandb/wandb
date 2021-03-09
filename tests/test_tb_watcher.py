@@ -116,7 +116,8 @@ def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
         write_function=write_fun, logdir=log_dir, save=False, root_dir=mocked_run.dir,
     )
     failure_mode_string = (
-        "Encountered tensorboard directory watcher"
-        " error: Directory . has been permanently deleted"
+        "Encountered tensorboard directory watcher error:"
+        " Directory .* has been permanently deleted"
     )
-    assert re.match(failure_mode_string, caplog.text)
+
+    assert re.search(failure_mode_string, caplog.text)
