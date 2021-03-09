@@ -1,6 +1,7 @@
 import os
 import platform
 import pytest
+import re
 import sys
 
 
@@ -107,7 +108,6 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
 
 def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
     log_dir = os.path.join(mocked_run.dir, "test_tb_dne_dir")
-    abs_log_dir = os.path.abspath(log_dir)
 
     def write_fun():
         pass
@@ -117,6 +117,6 @@ def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
     )
     failure_mode_string = (
         "Encountered tensorboard directory watcher"
-        " error: Directory {} has been permanently deleted".format(abs_log_dir)
+        " error: Directory . has been permanently deleted"
     )
-    assert failure_mode_string in caplog.text
+    assert re.match(failure_mode_string, caplog.text)
