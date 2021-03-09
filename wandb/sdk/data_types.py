@@ -2138,7 +2138,9 @@ class _TableColumn(object):
         ):
             if self.foreign_key is None:
                 self.set_foreign_key(item._wb_col_source.foreign_key.table)
-            elif self.foreign_key.table != item._wb_col_source.foreign_key.table:
+            elif id(self.foreign_key.table) != id(
+                item._wb_col_source.foreign_key.table
+            ):
                 raise AssertionError(
                     "Cannot add foreign keys from different tables to the same column. Currently referencing {}, found reference to {}".format(
                         self.foreign_key.table, item._wb_col_source.foreign_key.table
@@ -2203,9 +2205,9 @@ class _PKTableColumn(_TableColumn):
             ]
         )
 
-    @property
-    def foreign_key(self) -> Optional[_ForeignKey]:
-        return None
+    # @property
+    # def foreign_key(self) -> Optional[_ForeignKey]:
+    #     return None
 
     # def set_foreign_key(
     #     self, table: Optional["Table"] = None, key_column: Optional[str] = None
