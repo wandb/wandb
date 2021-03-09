@@ -561,7 +561,9 @@ class Object3D(BatchableMedia):
     artifact_type: ClassVar[str] = "object3D-file"
 
     def __init__(
-        self, data_or_path: Union["np.ndarray", str, "TextIO"], **kwargs: str
+        self,
+        data_or_path: Union["np.ndarray", str, "TextIO", Dict[str, Any]],
+        **kwargs: str
     ) -> None:
         super(Object3D, self).__init__()
 
@@ -931,10 +933,11 @@ class Video(BatchableMedia):
     EXTS = ("gif", "mp4", "webm", "ogg")
     _width: Optional[int]
     _height: Optional[int]
+    _channels: Optional[int]
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO"],
+        data_or_path: Union["np.ndarray", str, "TextIO", six.BytesIO],
         caption: Optional[str] = None,
         fps: int = 4,
         format: Optional[str] = None,
@@ -1791,7 +1794,7 @@ class Image(BatchableMedia):
             data = (data * 255).astype(np.int32)
 
         # assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
-        return data.clip(0, 255).astype(np.uint8)
+        return data.clip(0, 255).astype(np.uint8)  # type: ignore
 
     @classmethod
     def seq_to_json(
@@ -2007,37 +2010,42 @@ class _TableColumn(object):
 
     # Getters and Setters
     @property
-    def wb_dtype(self):
-        return self._dtype
+    def wb_dtype(self) -> _dtypes.Type:
+        return self._wb_dtype
 
     @wb_dtype.setter
-    def wb_dtype(self, wb_dtype: _dtypes.Type):
+    def wb_dtype(self, wb_dtype: _dtypes.Type) -> None:
         assert isinstance(wb_dtype, _dtypes.Type)
-        self._dtype = wb_dtype
+        self._wb_dtype = wb_dtype
 
     @property
-    def data(self):
+    def data(self) -> List[Any]:
         return self._data
 
     @data.setter
-    def data(self, data: Optional[Union[List[Any], "np.ndarray", "pd.Series"]]):
+    def data(self, data: Optional[Union[List[Any], "np.ndarray", "pd.Series"]]) -> None:
+        data_list: List[Any]
         if data is None:
-            data_list: List[Any] = []
+            data_list = []
         elif hasattr(data, "tolist"):
-            data_list = data.tolist()
-        else:
+            data_list = data.tolist()  # type: ignore
+        elif isinstance(data, list):
             data_list = data
+        else:
+            raise AssertionError(
+                "Expected data to be list-like, found {}".format(data.__class__)
+            )
 
         assert isinstance(data_list, list)
-        self.data = data_list
+        self._data = data_list
 
     @property
-    def foreign_key(self):
+    def foreign_key(self) -> Optional[_ForeignKey]:
         return self._foreign_key
 
     def set_foreign_key(
         self, table: Optional["Table"] = None, key_column: Optional[str] = None
-    ):
+    ) -> None:
         assert table is None or isinstance(table, Table)
         if table is None:
             self._foreign_key = None
@@ -2048,69 +2056,245 @@ class _TableColumn(object):
     def __init__(
         self,
         data: Union[List[Any], "np.ndarray", "pd.Series"] = None,
-        foreign_key_table: Optional[Table] = None,
+        foreign_key_table: Optional["Table"] = None,
         foreign_key_column: Optional[str] = None,
         wb_dtype: Optional[_dtypes.Type] = None,
         allow_none: bool = True,
         allow_mixed_types: bool = False,
-    ):
+    ) -> None:
 
-        self.data = []
+        self._data = []
         self.set_foreign_key(foreign_key_table, foreign_key_column)
-        if wb_dtype is None:
-            self.wb_dtype = _dtypes.UnknownType()
+
+        if allow_mixed_types:
+            self.allow_mixed_types()
         else:
-            self.wb_dtype = wb_dtype
+            self.cast(wb_dtype)
 
         if allow_none:
             self.allow_none()
 
-        if allow_mixed_types:
-            self.allow_mixed_types()
-
         if data is None:
-            data = []
-        self.data = data
-        self.assert_valid_data()
+            self.data = []
+        else:
+            self.data = data  # type: ignore
+        self._assert_valid_data()
 
-    # Helpers
+    # Public Methods
     def allow_mixed_types(self) -> None:
-        if isinstance(self.dtype, _dtypes.UnionType) and any(
+        if isinstance(self.wb_dtype, _dtypes.UnionType) and any(
             [
                 isinstance(t, _dtypes.NoneType)
-                for t in self.dtype.params["allowed_types"]
+                for t in self.wb_dtype.params["allowed_types"]
             ]
         ):
-            self.dtype = _dtypes.OptionalType(_dtypes.AnyType())
+            self._wb_dtype = _dtypes.OptionalType(_dtypes.AnyType())
         else:
-            self.dtype = _dtypes.AnyType()
+            self._wb_dtype = _dtypes.AnyType()
 
     def allow_none(self) -> None:
-        self._dtype = _dtypes.OptionalType(self._dtype)
+        self._wb_dtype = _dtypes.OptionalType(self.wb_dtype)
 
-    def assert_valid_data(self) -> None:
-        # TODO: Get the FK from the data entries
-        for item in self.data:
-            new_type = self.wb_dtype.assign(item)
-            if isinstance(new_type._dtypes.InvalidType):
-                raise TypeError(
-                    "Column contained incompatible types:\n{}".format(
-                        self.wb_dtype.explain(item)
-                    )
-                )
-            self.wb_dtype = new_type
+    def cast(self, wb_dtype: Optional[_dtypes.Type] = None) -> None:
+        if wb_dtype is None:
+            self._wb_dtype = _dtypes.UnknownType()
+        elif isinstance(wb_dtype, _dtypes.Type):
+            self._wb_dtype = wb_dtype
+        else:
+            raise AssertionError("Expected subclass of Type, found {}".format(wb_dtype))
+        self._assert_valid_data()
 
-    def add_item(self, item) -> None:
+    def add_item(self, item: Any) -> None:
         # TODO: Get the FK from the data entries
+        self._attempt_type_update(item)
+        self.data.append(item)
+
+    # Helpers
+    def _attempt_type_update(self, item: Any) -> None:
         new_type = self.wb_dtype.assign(item)
-        if isinstance(new_type._dtypes.InvalidType):
+        if isinstance(new_type, _dtypes.InvalidType):
             raise TypeError(
                 "Column contained incompatible types:\n{}".format(
                     self.wb_dtype.explain(item)
                 )
             )
-        self.wb_dtype = new_type
-        self.data.append(item)
+        self._wb_dtype = new_type
+
+        # Grab the FK if there is one
+        import pdb
+
+        print(
+            item,
+            (
+                isinstance(item, _PKString)
+                and item._wb_col_source is not None
+                and item._wb_col_source.foreign_key is not None
+            ),
+        )
+        if (
+            isinstance(item, _PKString)
+            and item._wb_col_source is not None
+            and item._wb_col_source.foreign_key is not None
+        ):
+            if self.foreign_key is None:
+                self.set_foreign_key(item._wb_col_source.foreign_key.table)
+            elif self.foreign_key.table != item._wb_col_source.foreign_key.table:
+                raise AssertionError(
+                    "Cannot add foreign keys from different tables to the same column. Currently referencing {}, found reference to {}".format(
+                        self.foreign_key.table, item._wb_col_source.foreign_key.table
+                    )
+                )
+
+    def _assert_valid_data(self) -> None:
+        # TODO: Get the FK from the data entries
+        for item in self.data:
+            self._attempt_type_update(item)
+
+
+class _PKString(str):
+    _wb_col_source: Optional["_PKTableColumn"] = None
+
+    def set_source(self, column: "_PKTableColumn") -> None:
+        self._wb_col_source = column
+
+
+class _PKTableColumn(_TableColumn):
+    _total_entries: int
+
+    @property
+    def total_entries(self) -> int:
+        return self._total_entries
+
+    # Getters and Setters
+    @property
+    def wb_dtype(self) -> _dtypes.Type:
+        return _dtypes.StringType()
+
+    @wb_dtype.setter
+    def wb_dtype(self, wb_dtype: _dtypes.Type) -> None:
+        raise AssertionError("Cannot set type of WB managaged internal primary key")
+
+    @property
+    def data(self) -> List[Any]:
+        return self._data
+
+    @data.setter
+    def data(self, data: Optional[Union[List[Any], "np.ndarray", "pd.Series"]]) -> None:
+        data_list: List[Any]
+        if data is None:
+            data_list = []
+        elif hasattr(data, "tolist"):
+            data_list = data.tolist()  # type: ignore
+        elif isinstance(data, list):
+            data_list = data
+        else:
+            raise AssertionError(
+                "Expected data to be list-like, found {}".format(data.__class__)
+            )
+
+        assert isinstance(data_list, list)
+        self._data = data_list
+        self._total_entries = max(
+            [
+                0,
+                self.total_entries,
+                max([0] + [int(d) for d in data_list]),
+                len(data_list),
+            ]
+        )
+
+    @property
+    def foreign_key(self) -> Optional[_ForeignKey]:
+        return None
+
+    # def set_foreign_key(
+    #     self, table: Optional["Table"] = None, key_column: Optional[str] = None
+    # ) -> None:
+    #     raise AssertionError(
+    #         "Cannot reset foreign key of WB managaged internal primary key"
+    #     )
+
+    # Constructor
+    def __init__(
+        self,
+        data: Union[List[Any], "np.ndarray", "pd.Series"] = None,
+        foreign_key_table: Optional["Table"] = None,
+        foreign_key_column: Optional[str] = None,
+        wb_dtype: Optional[_dtypes.Type] = None,
+        allow_none: bool = True,
+        allow_mixed_types: bool = False,
+        total_entries: int = 0,
+    ) -> None:
+        self._total_entries = total_entries
+        super(_PKTableColumn, self).__init__(
+            data,
+            foreign_key_table,
+            foreign_key_column,
+            _dtypes.StringType(),
+            False,
+            False,
+        )
+
+        # self._data = []
+        # self._foreign_key = _ForeignKey(foreign_key_table, foreign_key_column)
+        # print("_foreign_key", self.foreign_key.table)
+        # if data is None:
+        #     self.data = []
+        # else:
+        #     self.data = data  # type: ignore
+        # self._assert_valid_data()
+
+        # if data is None:
+        #     self.data = []
+        # else:
+        #     self.data = data  # type: ignore
+        # self._assert_valid_data()
+
+        # self._data = []
+        # self.set_foreign_key(foreign_key_table, foreign_key_column)
+
+        # if allow_mixed_types:
+        #     self.allow_mixed_types()
+        # else:
+        #     self.cast(wb_dtype)
+
+        # if allow_none:
+        #     self.allow_none()
+
+        # if data is None:
+        #     self.data = []
+        # else:
+        #     self.data = data  # type: ignore
+        # self._assert_valid_data()
+
+    # Public Methods
+    def allow_mixed_types(self) -> None:
+        pass
+
+    def allow_none(self) -> None:
+        pass
+
+    # def cast(self, wb_dtype: Optional[_dtypes.Type] = None) -> None:
+    #     raise AssertionError("Cannot cast PK column")
+
+    def add_item(self, item: Any) -> None:
+        raise AssertionError("Cannot directly add to PK column")
+
+    def _increment(self) -> None:
+        super(_PKTableColumn, self).add_item(str(self.total_entries))
+        self._total_entries += 1
+
+    def _bulk_increment(self, num_entries: int) -> None:
+        for _ in range(num_entries):
+            self._increment()
+
+    def _tolist(self) -> List[_PKString]:
+        res = []
+        for item in self.data:
+            s = _PKString(item)
+            s.set_source(self)
+            res.append(s)
+        return res
 
 
 class Table(Media):
@@ -2130,9 +2314,10 @@ class Table(Media):
 
     MAX_ROWS: int = 10000
     MAX_ARTIFACT_ROWS: int = 200000
-    artifact_type: str = "table"
+    artifact_type: ClassVar[str] = "table"
 
     _pk_column_name: str = "wbid"
+    _pk_column: _PKTableColumn
     _columns: Dict[str, _TableColumn]
     _ordered_column_names: List[str]
     _default_dtype: _dtypes.Type
@@ -2144,27 +2329,28 @@ class Table(Media):
         self,
         columns: Optional[List[str]] = None,
         data: Optional[Union[List[List[Any]], "np.ndarray"]] = None,
-        rows: Optional[Union[List[List[Any]], "np.ndarray"]] = None,
+        rows: List[List[Any]] = None,
         dataframe: Optional["pd.DataFrame"] = None,
         dtype: Optional[Union[List[TypeLike], TypeLike]] = None,
         optional: Union[List[bool], bool] = True,
         allow_mixed_types: bool = False,
+        _pk_ids: List[str] = None,
     ) -> None:
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
         assert columns is None or isinstance(columns, list)
-        self._default_type = _dtypes.UnknownType()
+        self._default_dtype = _dtypes.UnknownType()
         self._default_optional = True
         self._default_mixed_types = allow_mixed_types
         self._ordered_column_names = []
 
         if dtype is not None and not isinstance(dtype, list):
-            self._default_type = _dtypes.TypeRegistry.type_from_dtype(dtype)
+            self._default_dtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
         if optional is not None and not isinstance(optional, list):
             self._default_optional = optional
 
         if dtype is None:
-            dtype = self._default_type
+            dtype = self._default_dtype
 
         # Explicit dataframe option
         if dataframe is not None:
@@ -2173,10 +2359,16 @@ class Table(Media):
             # Expected pattern
             if data is not None:
                 if util.is_numpy_array(data):
+                    if wandb.TYPE_CHECKING and TYPE_CHECKING:
+                        data = cast("np.ndarray", data)
                     _data, _columns = self._parse_ndarray(data)
                 elif util.is_pandas_data_frame(data):
+                    if wandb.TYPE_CHECKING and TYPE_CHECKING:
+                        data = cast("pd.DataFrame", data)
                     _data, _columns = self._parse_dataframe(data)
                 else:
+                    if wandb.TYPE_CHECKING and TYPE_CHECKING:
+                        data = cast(list, data)
                     _data, _columns = self._parse_list(data)
 
             # legacy
@@ -2196,7 +2388,7 @@ class Table(Media):
         if isinstance(dtype, list):
             dtype_list = [_dtypes.TypeRegistry.type_from_dtype(dt) for dt in dtype]
         else:
-            dtype_list = [self._default_type for _ in range(row_len)]
+            dtype_list = [self._default_dtype for _ in range(row_len)]
 
         if isinstance(optional, list):
             optional_list = [bool(o) for o in optional]
@@ -2215,13 +2407,19 @@ class Table(Media):
                 allow_mixed_types,
             )
 
+        if _pk_ids is not None:
+            self._pk_column = _PKTableColumn(_pk_ids, foreign_key_table=self)
+        else:
+            self._pk_column = _PKTableColumn(foreign_key_table=self)
+            self._pk_column._bulk_increment(len(_data))
+
     @staticmethod
-    def _parse_list(data: List[List[Any]]):
+    def _parse_list(data: List[List[Any]]) -> Tuple[List[List[Any]], List[str]]:
         assert type(data) is list, "data argument expects a `list` object"
         return (data, [str(i + 1) for i in range(len(data[0]) if len(data) > 0 else 0)])
 
     @staticmethod
-    def _parse_ndarray(ndarray: "np.ndarray"):
+    def _parse_ndarray(ndarray: "np.ndarray") -> Tuple[List[List[Any]], List[str]]:
         assert util.is_numpy_array(
             ndarray
         ), "ndarray argument expects a `numpy.ndarray` object"
@@ -2231,35 +2429,33 @@ class Table(Media):
         )
 
     @staticmethod
-    def _parse_dataframe(dataframe: "pd.DataFrame"):
+    def _parse_dataframe(
+        dataframe: "pd.DataFrame",
+    ) -> Tuple[List[List[Any]], List[str]]:
         assert util.is_pandas_data_frame(
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         return (dataframe.values.tolist(), [str(c) for c in list(dataframe.columns)])
 
     @property
-    def data(self):
+    def data(self) -> List[List[Any]]:
         _data = []
         for row_ndx in range(self._row_count):
             row = [
-                row_ndx,
-                *[
-                    self._columns[col_name].data[row_ndx]
-                    for col_name in self._ordered_column_names
-                ],
+                self._columns[col_name].data[row_ndx]
+                for col_name in self._ordered_column_names
             ]
             _data.append(row)
         return _data
 
-    @property
-    def column(self, col_name):
+    def column(self, col_name: str) -> Optional[_TableColumn]:
         if col_name in self._columns:
             return self._columns[col_name]
+        return None
 
-    # TODO: Ability to get a PK column which is self aware (we can't just do row ndx since things might be modified)
-    # @property
-    # def ids(self):
-    #     return [i for i in ]
+    @property
+    def ids(self) -> List[_PKString]:
+        return self._pk_column._tolist()
 
     def cast(
         self, col_name: str, dtype: TypeLike, optional: bool = False
@@ -2268,8 +2464,7 @@ class Table(Media):
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
-        self._columns[col_name].wb_dtype = wbtype
-        self._columns[col_name].assert_valid_data()
+        self._columns[col_name].cast(wbtype)
         return self._columns[col_name].wb_dtype
 
     def add_data(self, *data: Any) -> None:
@@ -2283,6 +2478,7 @@ class Table(Media):
         for col_name, item in zip(self._ordered_column_names, data):
             self._columns[col_name].add_item(item)
         self._row_count += 1
+        self._pk_column._increment()
 
     def add_row(self, row: Union[List[Any], "np.ndarray"]) -> None:
         self.add_data(*row)
@@ -2301,23 +2497,28 @@ class Table(Media):
         if name in self._columns:
             raise TypeError("Column {} already exists".format(name))
 
-        if len(data) != self._row_count:
+        if len(self._columns) > 0 and len(data) != self._row_count:
             raise TypeError(
-                "Expetcted {} rows, found {}.".format(len(data), self._row_count)
+                "Expetcted {} rows, found {}.".format(self._row_count, len(data))
             )
 
         if dtype is None:
-            dtype = self._default_dtype
+            _dtype = self._default_dtype
+        else:
+            _dtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
 
         self._columns[name] = _TableColumn(
-            data,
-            foreign_key_table,
-            foreign_key_column,
-            optional,
-            dtype,
-            allow_mixed_types,
+            data=data,
+            foreign_key_table=foreign_key_table,
+            foreign_key_column=foreign_key_column,
+            wb_dtype=_dtype,
+            allow_none=optional,
+            allow_mixed_types=allow_mixed_types,
         )
         self._ordered_column_names.append(name)
+        if len(self._columns) == 1:
+            self._pk_column._bulk_increment(len(data))
+            self._row_count = len(data)
 
     def _to_table_json(self, max_rows: Optional[int] = None) -> Dict[str, Any]:
         if max_rows is None:
@@ -2478,9 +2679,11 @@ class Table(Media):
             yield ndx, self.data[ndx]
 
     def __ne__(self, other: object) -> bool:
+        # TODO: make this columnar
         return not self.__eq__(other)
 
     def __eq__(self, other: object) -> bool:
+        # TODO: make this columnar
         if (
             not isinstance(other, Table)
             or len(self.data) != len(other.data)
@@ -2608,7 +2811,7 @@ def _numpy_arrays_to_lists(
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
 
-    return payload
+    return payload  # type: ignore
 
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
@@ -2624,7 +2827,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
+    df: "pd.DataFrame", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 
