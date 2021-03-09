@@ -106,7 +106,8 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     ]
 
 
-def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
+def test_tb_watcher_logdir_not_exists(mocked_run, tbwatcher_util, capsys):
+    # TODO: check caplog for right error text
     log_dir = os.path.join(mocked_run.dir, "test_tb_dne_dir")
 
     def write_fun():
@@ -115,9 +116,5 @@ def test_tb_watcher_delete_logdir(mocked_run, tbwatcher_util, caplog):
     _ = tbwatcher_util(
         write_function=write_fun, logdir=log_dir, save=False, root_dir=mocked_run.dir,
     )
-    failure_mode_string = (
-        "Encountered tensorboard directory watcher error:"
-        " Directory .* has been permanently deleted"
-    )
-
-    assert re.search(failure_mode_string, caplog.text)
+    _, err = capsys.readouterr()
+    assert err == ""
