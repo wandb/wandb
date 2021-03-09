@@ -1981,6 +1981,138 @@ class Plotly(Media):
 TypeLike = _dtypes.ConvertableToType
 
 
+class _ForeignKey(object):
+    _table: "Table"
+    _column: str
+
+    @property
+    def table(self) -> "Table":
+        return self._table
+
+    @property
+    def column(self) -> str:
+        return self._column
+
+    def __init__(self, table: "Table", column: Optional[str] = None):
+        self._table = table
+        if column is None:
+            column = table._pk_column_name
+        self._column = column
+
+
+class _TableColumn(object):
+    _wb_dtype: _dtypes.Type
+    _data: List[Any]
+    _foreign_key: Optional[_ForeignKey]
+
+    # Getters and Setters
+    @property
+    def wb_dtype(self):
+        return self._dtype
+
+    @wb_dtype.setter
+    def wb_dtype(self, wb_dtype: _dtypes.Type):
+        assert isinstance(wb_dtype, _dtypes.Type)
+        self._dtype = wb_dtype
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, data: Optional[Union[List[Any], "np.ndarray", "pd.Series"]]):
+        if data is None:
+            data_list: List[Any] = []
+        elif hasattr(data, "tolist"):
+            data_list = data.tolist()
+        else:
+            data_list = data
+
+        assert isinstance(data_list, list)
+        self.data = data_list
+
+    @property
+    def foreign_key(self):
+        return self._foreign_key
+
+    def set_foreign_key(
+        self, table: Optional["Table"] = None, key_column: Optional[str] = None
+    ):
+        assert table is None or isinstance(table, Table)
+        if table is None:
+            self._foreign_key = None
+        else:
+            self._foreign_key = _ForeignKey(table, key_column)
+
+    # Constructor
+    def __init__(
+        self,
+        data: Union[List[Any], "np.ndarray", "pd.Series"] = None,
+        foreign_key_table: Optional[Table] = None,
+        foreign_key_column: Optional[str] = None,
+        wb_dtype: Optional[_dtypes.Type] = None,
+        allow_none: bool = True,
+        allow_mixed_types: bool = False,
+    ):
+
+        self.data = []
+        self.set_foreign_key(foreign_key_table, foreign_key_column)
+        if wb_dtype is None:
+            self.wb_dtype = _dtypes.UnknownType()
+        else:
+            self.wb_dtype = wb_dtype
+
+        if allow_none:
+            self.allow_none()
+
+        if allow_mixed_types:
+            self.allow_mixed_types()
+
+        if data is None:
+            data = []
+        self.data = data
+        self.assert_valid_data()
+
+    # Helpers
+    def allow_mixed_types(self) -> None:
+        if isinstance(self.dtype, _dtypes.UnionType) and any(
+            [
+                isinstance(t, _dtypes.NoneType)
+                for t in self.dtype.params["allowed_types"]
+            ]
+        ):
+            self.dtype = _dtypes.OptionalType(_dtypes.AnyType())
+        else:
+            self.dtype = _dtypes.AnyType()
+
+    def allow_none(self) -> None:
+        self._dtype = _dtypes.OptionalType(self._dtype)
+
+    def assert_valid_data(self) -> None:
+        # TODO: Get the FK from the data entries
+        for item in self.data:
+            new_type = self.wb_dtype.assign(item)
+            if isinstance(new_type._dtypes.InvalidType):
+                raise TypeError(
+                    "Column contained incompatible types:\n{}".format(
+                        self.wb_dtype.explain(item)
+                    )
+                )
+            self.wb_dtype = new_type
+
+    def add_item(self, item) -> None:
+        # TODO: Get the FK from the data entries
+        new_type = self.wb_dtype.assign(item)
+        if isinstance(new_type._dtypes.InvalidType):
+            raise TypeError(
+                "Column contained incompatible types:\n{}".format(
+                    self.wb_dtype.explain(item)
+                )
+            )
+        self.wb_dtype = new_type
+        self.data.append(item)
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -1996,15 +2128,17 @@ class Table(Media):
         allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
     """
 
-    MAX_ROWS = 10000
-    MAX_ARTIFACT_ROWS = 200000
-    artifact_type = "table"
+    MAX_ROWS: int = 10000
+    MAX_ARTIFACT_ROWS: int = 200000
+    artifact_type: str = "table"
 
-    data: List[List[Any]]
-    columns: List[str]
-    allow_mixed_types: bool
-    _fks: Dict[str, Tuple["Table", str]]
-    _column_types: _dtypes.DictType
+    _pk_column_name: str = "wbid"
+    _columns: Dict[str, _TableColumn]
+    _ordered_column_names: List[str]
+    _default_dtype: _dtypes.Type
+    _default_optional: bool
+    _default_mixed_types: bool
+    _row_count: int
 
     def __init__(
         self,
@@ -2018,151 +2152,137 @@ class Table(Media):
     ) -> None:
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
-        if allow_mixed_types:
-            dtype = _dtypes.AnyType()
+        assert columns is None or isinstance(columns, list)
+        self._default_type = _dtypes.UnknownType()
+        self._default_optional = True
+        self._default_mixed_types = allow_mixed_types
+        self._ordered_column_names = []
 
-        # This is kept for legacy reasons (tss: personally, I think we should remove this)
-        if columns is None:
-            columns = ["Input", "Output", "Expected"]
+        if dtype is not None and not isinstance(dtype, list):
+            self._default_type = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        if optional is not None and not isinstance(optional, list):
+            self._default_optional = optional
+
+        if dtype is None:
+            dtype = self._default_type
 
         # Explicit dataframe option
         if dataframe is not None:
-            self._init_from_dataframe(dataframe, columns, optional, dtype)
+            _data, _columns = self._parse_dataframe(dataframe)
         else:
             # Expected pattern
             if data is not None:
                 if util.is_numpy_array(data):
-                    self._init_from_ndarray(data, columns, optional, dtype)
+                    _data, _columns = self._parse_ndarray(data)
                 elif util.is_pandas_data_frame(data):
-                    self._init_from_dataframe(data, columns, optional, dtype)
+                    _data, _columns = self._parse_dataframe(data)
                 else:
-                    self._init_from_list(data, columns, optional, dtype)
+                    _data, _columns = self._parse_list(data)
 
             # legacy
             elif rows is not None:
-                self._init_from_list(rows, columns, optional, dtype)
+                _data, _columns = self._parse_list(rows)
 
             # Default empty case
             else:
-                self._init_from_list([], columns, optional, dtype)
+                _data, _columns = self._parse_list([])
 
-        self._fks = {}
-        self.allow_mixed_types = allow_mixed_types
+        if columns is None:
+            columns = _columns
+
+        row_len = len(_columns)
+        self._row_count = len(_data)
+
+        if isinstance(dtype, list):
+            dtype_list = [_dtypes.TypeRegistry.type_from_dtype(dt) for dt in dtype]
+        else:
+            dtype_list = [self._default_type for _ in range(row_len)]
+
+        if isinstance(optional, list):
+            optional_list = [bool(o) for o in optional]
+        else:
+            optional_list = [self._default_optional for _ in range(row_len)]
+
+        self._columns = {}
+        for i in range(row_len):
+            self.add_col(
+                columns[i],
+                [row[i] for row in _data],
+                optional_list[i],
+                dtype_list[i],
+                None,
+                None,
+                allow_mixed_types,
+            )
 
     @staticmethod
-    def _assert_valid_columns(columns: List[str]) -> None:
-        val_types = [str, int]
-        if sys.version_info.major < 3:
-            if "unicode" in locals():
-                val_types.append(
-                    locals()["unicode"]
-                )  # noqa: F821 (unicode is in py2) type: ignore
-        assert type(columns) is list, "columns argument expects a `list` object"
-        assert len(columns) == 0 or all(
-            [type(col) in val_types for col in columns]
-        ), "columns argument expects list of strings or ints"
-
-    def _init_from_list(
-        self,
-        data: List[List[Any]],
-        columns: List[str],
-        optional: Union[List[bool], bool] = True,
-        dtype: Optional[TypeLike] = None,
-    ) -> None:
+    def _parse_list(data: List[List[Any]]):
         assert type(data) is list, "data argument expects a `list` object"
-        self.data = []
-        self._assert_valid_columns(columns)
-        self.columns = columns
-        self._make_column_types(dtype, optional)
-        for row in data:
-            self.add_data(*row)
+        return (data, [str(i + 1) for i in range(len(data[0]) if len(data) > 0 else 0)])
 
-    def _init_from_ndarray(
-        self,
-        ndarray: "np.ndarray",
-        columns: List[str],
-        optional: Union[List[bool], bool] = True,
-        dtype: Optional[TypeLike] = None,
-    ) -> None:
+    @staticmethod
+    def _parse_ndarray(ndarray: "np.ndarray"):
         assert util.is_numpy_array(
             ndarray
         ), "ndarray argument expects a `numpy.ndarray` object"
-        self.data = []
-        self._assert_valid_columns(columns)
-        self.columns = columns
-        self._make_column_types(dtype, optional)
-        for row in ndarray.tolist():
-            self.add_data(*row)
+        return (
+            ndarray.tolist(),
+            [str(i + 1) for i in range(len(ndarray[0]) if len(ndarray) > 0 else 0)],
+        )
 
-    def _init_from_dataframe(
-        self,
-        dataframe: "pd.DataFrame",
-        columns: List[str],
-        optional: Union[List[bool], bool] = True,
-        dtype: Optional[TypeLike] = None,
-    ) -> None:
+    @staticmethod
+    def _parse_dataframe(dataframe: "pd.DataFrame"):
         assert util.is_pandas_data_frame(
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
-        self.data = []
-        self.columns = list(dataframe.columns)
-        self._make_column_types(dtype, optional)
-        for row in range(len(dataframe)):
-            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+        return (dataframe.values.tolist(), [str(c) for c in list(dataframe.columns)])
 
-    def _make_column_types(
-        self,
-        dtype: Optional[Union[List[TypeLike], TypeLike]] = None,
-        optional: Union[List[bool], bool] = True,
-    ) -> None:
-        if dtype is None:
-            dtype = _dtypes.UnknownType()
+    @property
+    def data(self):
+        _data = []
+        for row_ndx in range(self._row_count):
+            row = [
+                row_ndx,
+                *[
+                    self._columns[col_name].data[row_ndx]
+                    for col_name in self._ordered_column_names
+                ],
+            ]
+            _data.append(row)
+        return _data
 
-        if isinstance(optional, list):
-            optional_list = optional
-        else:
-            optional_list = [optional for _ in range(len(self.columns))]
+    @property
+    def column(self, col_name):
+        if col_name in self._columns:
+            return self._columns[col_name]
 
-        if isinstance(dtype, list):
-            dtype_list = dtype
-        else:
-            dtype_list = [dtype for _ in range(len(self.columns))]
-
-        self._column_types = _dtypes.DictType({})
-        for col_name, opt, dt in zip(self.columns, optional_list, dtype_list):
-            self.cast(col_name, dt, opt)
+    # TODO: Ability to get a PK column which is self aware (we can't just do row ndx since things might be modified)
+    # @property
+    # def ids(self):
+    #     return [i for i in ]
 
     def cast(
         self, col_name: str, dtype: TypeLike, optional: bool = False
     ) -> _dtypes.Type:
+        assert col_name in self._columns
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
-        col_ndx = self.columns.index(col_name)
-        for row in self.data:
-            result_type = wbtype.assign(row[col_ndx])
-            if isinstance(result_type, _dtypes.InvalidType):
-                raise TypeError(
-                    "Existing data {}, of type {} cannot be cast to {}".format(
-                        row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
-                        wbtype,
-                    )
-                )
-            wbtype = result_type
-        self._column_types.params["type_map"][col_name] = wbtype
-        return wbtype
+        self._columns[col_name].wb_dtype = wbtype
+        self._columns[col_name].assert_valid_data()
+        return self._columns[col_name].wb_dtype
 
     def add_data(self, *data: Any) -> None:
         """Add a row of data to the table. Argument length should match column length"""
-        if len(data) != len(self.columns):
+        if len(data) != len(self._ordered_column_names):
             raise ValueError(
-                "This table expects {} columns: {}".format(
-                    len(self.columns), self.columns
+                "Expected {} columns, found {}".format(
+                    len(self._ordered_column_names), len(data)
                 )
             )
-        self._validate_data(data)
-        self.data.append(list(data))
+        for col_name, item in zip(self._ordered_column_names, data):
+            self._columns[col_name].add_item(item)
+        self._row_count += 1
 
     def add_row(self, row: Union[List[Any], "np.ndarray"]) -> None:
         self.add_data(*row)
@@ -2173,67 +2293,51 @@ class Table(Media):
         data: Sequence[Any],
         optional: bool = True,
         dtype: Optional[TypeLike] = None,
+        foreign_key_table: Optional["Table"] = None,
+        foreign_key_column: Optional[str] = None,
+        allow_mixed_types: bool = False,
     ) -> None:
-        if name in self.columns:
+        assert name != self._pk_column_name
+        if name in self._columns:
             raise TypeError("Column {} already exists".format(name))
 
-        if len(data) != len(self.data):
+        if len(data) != self._row_count:
             raise TypeError(
-                "Expetcted {} rows, found {}.".format(len(data), len(self.data))
+                "Expetcted {} rows, found {}.".format(len(data), self._row_count)
             )
 
-        if self.allow_mixed_types:
-            dtype = _dtypes.AnyType()
-        elif dtype is None:
-            new_type: _dtypes.Type = _dtypes.UnknownType()
-        if dtype is not None:
-            new_type = _dtypes.TypeRegistry.type_from_dtype(dtype)
-        if optional:
-            new_type = _dtypes.OptionalType(new_type)
+        if dtype is None:
+            dtype = self._default_dtype
 
-        for item in data:
-            result_type = new_type.assign(item)
-            if isinstance(result_type, _dtypes.InvalidType):
-                raise TypeError(
-                    "Column contained incompatible types:\n{}".format(
-                        new_type.explain(item)
-                    )
-                )
-            new_type = result_type
-
-        new_data = []
-        new_columns = [*self.columns, name]
-        for i in range(len(data)):
-            new_data.append([*self.data[i], data[i]])
-
-        self._column_types.params["type_map"][name] = new_type
-        self.data = new_data
-        self.columns = new_columns
-
-    def fk(self, column: str, table: "Table", target_column: str) -> None:
-        self._fks[column] = (table, target_column)
-
-    def _validate_data(self, data: Sequence[Any]) -> None:
-        incoming_data_dict = {
-            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
-        }
-        current_type = self._column_types
-        result_type = current_type.assign(incoming_data_dict)
-        if isinstance(result_type, _dtypes.InvalidType):
-            raise TypeError(
-                "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_data_dict)
-                )
-            )
-        self._column_types = result_type
+        self._columns[name] = _TableColumn(
+            data,
+            foreign_key_table,
+            foreign_key_column,
+            optional,
+            dtype,
+            allow_mixed_types,
+        )
+        self._ordered_column_names.append(name)
 
     def _to_table_json(self, max_rows: Optional[int] = None) -> Dict[str, Any]:
-        # seperate method for testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
-        return {"columns": self.columns, "data": self.data[:max_rows]}
+        _data = []
+        for row_ndx in range(max(self._row_count, max_rows)):
+            row = [
+                row_ndx,
+                *[
+                    self._columns[col_name].data[row_ndx]
+                    for col_name in self._ordered_column_names
+                ],
+            ]
+            _data.append(row)
+        return {
+            "columns": [self._pk_column_name] + self._ordered_column_names,
+            "data": _data,
+        }
 
     def bind_to_run(
         self,
