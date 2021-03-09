@@ -823,7 +823,7 @@ if __name__ == "__main__":
         test_joined_table_referential,
         test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
-        test_distributed_artifact_simple,
+        # test_distributed_artifact_simple,
         test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
