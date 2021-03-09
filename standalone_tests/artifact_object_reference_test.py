@@ -758,6 +758,7 @@ def test_simple_partition_table():
     partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
     for ndx, row in partition_table.iterrows():
         assert row == data[ndx]
+    run.finish()
 
 
 def test_distributed_artifact_simple():
