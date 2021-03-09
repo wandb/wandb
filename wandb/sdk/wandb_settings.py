@@ -108,7 +108,7 @@ env_convert: Dict[str, Callable[[str], List[str]]] = dict(
 )
 
 
-def _build_inverse_map(prefix: str, d: Dict[str, str]) -> Dict[str, str]:
+def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
     inv_map = dict()
     for k, v in six.iteritems(d):
         v = v or prefix + k.upper()
@@ -133,7 +133,7 @@ def _get_program() -> Optional[str]:
         return None
 
 
-def _get_program_relpath_from_gitrepo(program: str, _logger:Optional[_EarlyLogger] =  None):
+def _get_program_relpath_from_gitrepo(program: str, _logger:Optional[_EarlyLogger] = None) -> Optional[str]:
     repo = GitRepo()
     root = repo.root
     if not root:
@@ -157,7 +157,7 @@ def _get_program_relpath_from_gitrepo(program: str, _logger:Optional[_EarlyLogge
 # the setting exposed to users as `dir=` or `WANDB_DIR` is actually
 # the `root_dir`. We add the `__stage_dir__` to it to get the full
 # `wandb_dir`
-def get_wandb_dir(root_dir: str):
+def get_wandb_dir(root_dir: str) -> str:
     # We use the hidden version if it already exists, otherwise non-hidden.
     if os.path.exists(os.path.join(root_dir, ".wandb")):
         __stage_dir__ = ".wandb" + os.sep
@@ -543,8 +543,8 @@ class Settings(object):
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value in available_methods:
-            return
-        return _error_choices(value, available_methods)
+            return None
+        return _error_choices(value, set(available_methods))
 
     def _validate_mode(self, value: str) -> Optional[str]:
         choices = {
@@ -600,7 +600,7 @@ class Settings(object):
             return "{} is not a boolean".format(value)
         return None
 
-    def _validate_show_errors(self, value: str) -> Optional[bool]:
+    def _validate_show_errors(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
@@ -618,7 +618,7 @@ class Settings(object):
         object.__setattr__(self, "_Settings__start_time", time_now)
 
     # TODO: KYLE
-    def _apply_settings(self, settings, _logger: Optional[_EarlyLogger] = None) -> None:
+    def _apply_settings(self, settings: "Settings", _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): make a more efficient version of this
         for k in settings._public_keys():
             source = settings.__defaults_dict.get(k)
@@ -635,7 +635,7 @@ class Settings(object):
         self._update(self._load(self.settings_workspace), _source=self.Source.WORKSPACE)
 
     # TODO: KYLE
-    def _apply_environ(self, environ, _logger: Optional[_EarlyLogger] = None) -> None:
+    def _apply_environ(self, environ: os._Environ, _logger: Optional[_EarlyLogger] = None) -> None:
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
         for k, v in six.iteritems(environ):
@@ -655,17 +655,17 @@ class Settings(object):
             _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
-    def _apply_user(self, user_settings, _logger=None) -> None:
+    def _apply_user(self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger:
             _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
 
-    def _apply_source_login(self, login_settings, _logger=None) -> None:
+    def _apply_source_login(self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None) -> None:
         if _logger:
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
-    def _path_convert_part(self, path_part: str, format_dict) -> List[str]:
+    def _path_convert_part(self, path_part: str, format_dict: Dict[str, Any]) -> Optional[List[str]]:
         """convert slashes, expand ~ and other macros."""
 
         path_parts = path_part.split(os.sep if os.sep in path_part else "/")
@@ -706,21 +706,21 @@ class Settings(object):
     #     # TODO(jhr): this is a hack
     #     object.__setattr__(self, "_Settings__early_logger", None)
 
-    def _setup(self, kwargs):
+    def _setup(self, kwargs: Any) -> None:
         for k, v in six.iteritems(kwargs):
             if k not in self._unsaved_keys:
                 object.__setattr__(self, k, v)
 
-    def __copy__(self):
+    def __copy__(self) -> "Settings":
         """Copy (note that the copied object will not be frozen)."""
         s = Settings()
         s._apply_settings(self)
         return s
 
-    def duplicate(self):
+    def duplicate(self) -> "Settings":
         return copy.copy(self)
 
-    def _check_invalid(self, k, v):
+    def _check_invalid(self, k: str, v: Any) -> None:
         if v is None:
             return
         f = getattr(self, "_validate_" + k, None)
@@ -730,7 +730,7 @@ class Settings(object):
         if invalid:
             raise TypeError("Settings field {}: {}".format(k, invalid))
 
-    def _perform_preprocess(self, k, v):
+    def _perform_preprocess(self, k: str, v: Any) -> Optional[str, Any]:
         f = getattr(self, "_preprocess_" + k, None)
         if not f or not callable(f):
             return v
