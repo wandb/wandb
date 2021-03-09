@@ -6,6 +6,7 @@
 - Fix Audio external reference issue
 - Fix short runs with tensorboard_sync
 - Ignore `wandb.init(id=)` when running a sweep
+- Sanitize artifact metadata if needed
 
 #### :nail_care: Enhancement
 
