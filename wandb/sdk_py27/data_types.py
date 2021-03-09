@@ -27,6 +27,7 @@ if wandb.TYPE_CHECKING:
         Union,
         Sequence,
         Tuple,
+        Generator,
         Set,
         Any,
         List,
@@ -1977,6 +1978,421 @@ class Plotly(Media):
         return json_dict
 
 
+TypeLike = _dtypes.ConvertableToType
+
+
+class Table(Media):
+    """This is a table designed to display sets of records.
+
+    Arguments:
+        columns: ([str]) Names of the columns in the table.
+            Defaults to ["Input", "Output", "Expected"].
+        data: (array) 2D Array of values that will be displayed as strings.
+        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+            When set, the other arguments are ignored.
+        optional (Union[bool,List[bool]]): If None values are allowed. Singular bool
+            applies to all columns. A list of bool values applies to each respective column.
+            Default to True.
+        allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
+    """
+
+    MAX_ROWS = 10000
+    MAX_ARTIFACT_ROWS = 200000
+    artifact_type = "table"
+
+    # data: List[List[Any]]
+    # columns: List[str]
+    # allow_mixed_types: bool
+    # _fks: Dict[str, Tuple["Table", str]]
+    # _column_types: _dtypes.DictType
+
+    def __init__(
+        self,
+        columns = None,
+        data = None,
+        rows = None,
+        dataframe = None,
+        dtype = None,
+        optional = True,
+        allow_mixed_types = False,
+    ):
+        """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
+        super(Table, self).__init__()
+        if allow_mixed_types:
+            dtype = _dtypes.AnyType()
+
+        # This is kept for legacy reasons (tss: personally, I think we should remove this)
+        if columns is None:
+            columns = ["Input", "Output", "Expected"]
+
+        # Explicit dataframe option
+        if dataframe is not None:
+            self._init_from_dataframe(dataframe, columns, optional, dtype)
+        else:
+            # Expected pattern
+            if data is not None:
+                if util.is_numpy_array(data):
+                    self._init_from_ndarray(data, columns, optional, dtype)
+                elif util.is_pandas_data_frame(data):
+                    self._init_from_dataframe(data, columns, optional, dtype)
+                else:
+                    self._init_from_list(data, columns, optional, dtype)
+
+            # legacy
+            elif rows is not None:
+                self._init_from_list(rows, columns, optional, dtype)
+
+            # Default empty case
+            else:
+                self._init_from_list([], columns, optional, dtype)
+
+        self._fks = {}
+        self.allow_mixed_types = allow_mixed_types
+
+    @staticmethod
+    def _assert_valid_columns(columns):
+        val_types = [str, int]
+        if sys.version_info.major < 3:
+            if "unicode" in locals():
+                val_types.append(
+                    locals()["unicode"]
+                )  # noqa: F821 (unicode is in py2) type: ignore
+        assert type(columns) is list, "columns argument expects a `list` object"
+        assert len(columns) == 0 or all(
+            [type(col) in val_types for col in columns]
+        ), "columns argument expects list of strings or ints"
+
+    def _init_from_list(
+        self,
+        data,
+        columns,
+        optional = True,
+        dtype = None,
+    ):
+        assert type(data) is list, "data argument expects a `list` object"
+        self.data = []
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self._make_column_types(dtype, optional)
+        for row in data:
+            self.add_data(*row)
+
+    def _init_from_ndarray(
+        self,
+        ndarray,
+        columns,
+        optional = True,
+        dtype = None,
+    ):
+        assert util.is_numpy_array(
+            ndarray
+        ), "ndarray argument expects a `numpy.ndarray` object"
+        self.data = []
+        self._assert_valid_columns(columns)
+        self.columns = columns
+        self._make_column_types(dtype, optional)
+        for row in ndarray.tolist():
+            self.add_data(*row)
+
+    def _init_from_dataframe(
+        self,
+        dataframe,
+        columns,
+        optional = True,
+        dtype = None,
+    ):
+        assert util.is_pandas_data_frame(
+            dataframe
+        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        self.data = []
+        self.columns = list(dataframe.columns)
+        self._make_column_types(dtype, optional)
+        for row in range(len(dataframe)):
+            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+
+    def _make_column_types(
+        self,
+        dtype = None,
+        optional = True,
+    ):
+        if dtype is None:
+            dtype = _dtypes.UnknownType()
+
+        if isinstance(optional, list):
+            optional_list = optional
+        else:
+            optional_list = [optional for _ in range(len(self.columns))]
+
+        if isinstance(dtype, list):
+            dtype_list = dtype
+        else:
+            dtype_list = [dtype for _ in range(len(self.columns))]
+
+        self._column_types = _dtypes.DictType({})
+        for col_name, opt, dt in zip(self.columns, optional_list, dtype_list):
+            self.cast(col_name, dt, opt)
+
+    def cast(
+        self, col_name, dtype, optional = False
+    ):
+        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        if optional:
+            wbtype = _dtypes.OptionalType(wbtype)
+        col_ndx = self.columns.index(col_name)
+        for row in self.data:
+            result_type = wbtype.assign(row[col_ndx])
+            if isinstance(result_type, _dtypes.InvalidType):
+                raise TypeError(
+                    "Existing data {}, of type {} cannot be cast to {}".format(
+                        row[col_ndx],
+                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
+                        wbtype,
+                    )
+                )
+            wbtype = result_type
+        self._column_types.params["type_map"][col_name] = wbtype
+        return wbtype
+
+    def add_data(self, *data):
+        """Add a row of data to the table. Argument length should match column length"""
+        if len(data) != len(self.columns):
+            raise ValueError(
+                "This table expects {} columns: {}".format(
+                    len(self.columns), self.columns
+                )
+            )
+        self._validate_data(data)
+        self.data.append(list(data))
+
+    def add_row(self, row):
+        self.add_data(*row)
+
+    def add_col(
+        self,
+        name,
+        data,
+        optional = True,
+        dtype = None,
+    ):
+        if name in self.columns:
+            raise TypeError("Column {} already exists".format(name))
+
+        if len(data) != len(self.data):
+            raise TypeError(
+                "Expetcted {} rows, found {}.".format(len(data), len(self.data))
+            )
+
+        if self.allow_mixed_types:
+            dtype = _dtypes.AnyType()
+        elif dtype is None:
+            new_type = _dtypes.UnknownType()
+        if dtype is not None:
+            new_type = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        if optional:
+            new_type = _dtypes.OptionalType(new_type)
+
+        for item in data:
+            result_type = new_type.assign(item)
+            if isinstance(result_type, _dtypes.InvalidType):
+                raise TypeError(
+                    "Column contained incompatible types:\n{}".format(
+                        new_type.explain(item)
+                    )
+                )
+            new_type = result_type
+
+        new_data = []
+        new_columns = [*self.columns, name]
+        for i in range(len(data)):
+            new_data.append([*self.data[i], data[i]])
+
+        self._column_types.params["type_map"][name] = new_type
+        self.data = new_data
+        self.columns = new_columns
+
+    def fk(self, column, table, target_column):
+        self._fks[column] = (table, target_column)
+
+    def _validate_data(self, data):
+        incoming_data_dict = {
+            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+        }
+        current_type = self._column_types
+        result_type = current_type.assign(incoming_data_dict)
+        if isinstance(result_type, _dtypes.InvalidType):
+            raise TypeError(
+                "Data row contained incompatible types:\n{}".format(
+                    current_type.explain(incoming_data_dict)
+                )
+            )
+        self._column_types = result_type
+
+    def _to_table_json(self, max_rows = None):
+        # seperate method for testing
+        if max_rows is None:
+            max_rows = Table.MAX_ROWS
+        if len(self.data) > max_rows:
+            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
+        return {"columns": self.columns, "data": self.data[:max_rows]}
+
+    def bind_to_run(
+        self,
+        run,
+        key,
+        step,
+        id_ = None,
+    ):
+        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".table.json")
+        data = _numpy_arrays_to_lists(self._to_table_json())
+        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        self._set_file(tmp_path, is_tmp=True, extension=".table.json")
+        super(Table, self).bind_to_run(run, key, step, id_)
+
+    @classmethod
+    def get_media_subdir(cls):
+        return os.path.join("media", "table")
+
+    @classmethod
+    def from_json(
+        cls, json_obj, source_artifact
+    ):
+        data = []
+        for row in json_obj["data"]:
+            row_data = []
+            for item in row:
+                cell = item
+                if isinstance(item, dict) and "_type" in item:
+                    obj = WBValue.init_from_json(item, source_artifact)
+                    if obj is not None:
+                        cell = obj
+                row_data.append(cell)
+            data.append(row_data)
+
+        new_obj = cls(columns=json_obj["columns"], data=data)
+
+        if json_obj.get("column_types") is not None:
+            new_type = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
+            if isinstance(new_type, _dtypes.DictType):
+                new_obj._column_types = new_type
+
+        fks = json_obj.get("fks")
+        if fks is not None and isinstance(fks, list):
+            for item in fks:
+                _t = WBValue.init_from_json(item["to_table"], source_artifact)
+                if isinstance(_t, Table):
+                    new_obj._fks[item["from_col"]] = (
+                        _t,
+                        item["to_col"],
+                    )
+
+        return new_obj
+
+    def to_json(self, run_or_artifact):
+        json_dict = super(Table, self).to_json(run_or_artifact)
+        run_class, artifact_class = _safe_sdk_import()
+
+        if isinstance(run_or_artifact, run_class):
+            json_dict.update(
+                {
+                    "_type": "table-file",
+                    "ncols": len(self.columns),
+                    "nrows": len(self.data),
+                }
+            )
+
+        elif isinstance(run_or_artifact, artifact_class):
+            for column in self.columns:
+                if isinstance(column, six.string_types) and "." in column:
+                    raise ValueError(
+                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
+                            column
+                        )
+                    )
+            artifact = run_or_artifact
+            mapped_data = []
+            data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
+
+            def json_helper(val):
+                if isinstance(val, WBValue):
+                    return val.to_json(artifact)
+                elif val.__class__ == dict:
+                    res = {}
+                    for key in val:
+                        res[key] = json_helper(val[key])
+                    return res
+                else:
+                    return util.json_friendly(val)[0]
+
+            for row in data:
+                mapped_row = []
+                for v in row:
+                    mapped_row.append(json_helper(v))
+                mapped_data.append(mapped_row)
+
+            fks = []
+            for key in self._fks:
+                entry = artifact.add(
+                    self._fks[key][0],
+                    "media/linked_tables/{}".format(util.generate_id()),
+                )
+                fks.append(
+                    {
+                        "from_col": key,
+                        "to_table": entry.path,
+                        "to_col": self._fks[key][1],
+                    }
+                )
+
+            json_dict.update(
+                {
+                    "_type": Table.artifact_type,
+                    "columns": self.columns,
+                    "data": mapped_data,
+                    "ncols": len(self.columns),
+                    "nrows": len(mapped_data),
+                    "column_types": self._column_types.to_json(artifact),
+                    "fks": fks,
+                }
+            )
+        else:
+            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+
+        return json_dict
+
+    def iterrows(self):
+        """Iterate over rows as (ndx, row)
+        Yields
+        ------
+        index : int
+            The index of the row.
+        row : List[any]
+            The data of the row
+        """
+        for ndx in range(len(self.data)):
+            yield ndx, self.data[ndx]
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __eq__(self, other):
+        if (
+            not isinstance(other, Table)
+            or len(self.data) != len(other.data)
+            or self.columns != other.columns
+            or self._column_types != other._column_types
+        ):
+            return False
+
+        for row_ndx in range(len(self.data)):
+            for col_ndx in range(len(self.data[row_ndx])):
+                if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
+                    return False
+
+        return True
+
+
 def history_dict_to_json(
     run, payload, step = None
 ):
@@ -2301,6 +2717,7 @@ __all__ = [
     "Classes",
     "Image",
     "Plotly",
+    "Table",
     "history_dict_to_json",
     "val_to_json",
 ]
