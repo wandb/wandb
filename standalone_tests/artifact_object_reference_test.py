@@ -17,19 +17,19 @@ else:
     from wandb.sdk_py27.interface import artifacts
 
 
-# WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
-# if WANDB_PROJECT_ENV is None:
-#     WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
-# else:
-#     WANDB_PROJECT = WANDB_PROJECT_ENV
-# os.environ["WANDB_PROJECT"] = WANDB_PROJECT
+WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
+if WANDB_PROJECT_ENV is None:
+    WANDB_PROJECT = "test__" + str(round(time.time()) % 1000000)
+else:
+    WANDB_PROJECT = WANDB_PROJECT_ENV
+os.environ["WANDB_PROJECT"] = WANDB_PROJECT
 
-# WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
-# if WANDB_SILENT_ENV is None:
-#     WANDB_SILENT = "true"
-# else:
-#     WANDB_SILENT = WANDB_SILENT_ENV
-# os.environ["WANDB_SILENT"] = WANDB_SILENT
+WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
+if WANDB_SILENT_ENV is None:
+    WANDB_SILENT = "true"
+else:
+    WANDB_SILENT = WANDB_SILENT_ENV
+os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
@@ -805,23 +805,23 @@ def test_distributed_artifact_simple():
 if __name__ == "__main__":
     _cleanup()
     test_fns = [
-        # test_artifact_add_reference_via_url,
-        # test_add_reference_via_artifact_entry,
-        # test_adding_artifact_by_object,
-        # test_get_artifact_obj_by_name,
-        # test_image_reference_artifact,
-        # test_nested_reference_artifact,
-        # test_table_slice_reference_artifact,
-        # test_image_refs,
-        # test_point_cloud_refs,
-        # test_bokeh_refs,
-        # test_html_refs,
-        # test_video_refs,
-        # test_table_refs,
-        # test_joined_table_refs,
-        # test_audio_refs,
-        # test_joined_table_referential,
-        # test_joined_table_add_by_path,
+        test_artifact_add_reference_via_url,
+        test_add_reference_via_artifact_entry,
+        test_adding_artifact_by_object,
+        test_get_artifact_obj_by_name,
+        test_image_reference_artifact,
+        test_nested_reference_artifact,
+        test_table_slice_reference_artifact,
+        test_image_refs,
+        test_point_cloud_refs,
+        test_bokeh_refs,
+        test_html_refs,
+        test_video_refs,
+        test_table_refs,
+        test_joined_table_refs,
+        test_audio_refs,
+        test_joined_table_referential,
+        test_joined_table_add_by_path,
         test_image_reference_with_preferred_path,
         test_distributed_artifact_simple,
         test_simple_partition_table,
@@ -835,8 +835,8 @@ if __name__ == "__main__":
             print("error on function {}".format(test_fn.__name__))
             raise exception
 
-    # if WANDB_PROJECT_ENV is not None:
-    #     os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
+    if WANDB_PROJECT_ENV is not None:
+        os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
 
-    # if WANDB_SILENT_ENV is not None:
-    #     os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
+    if WANDB_SILENT_ENV is not None:
+        os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
