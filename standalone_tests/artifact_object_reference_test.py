@@ -24,12 +24,12 @@ else:
 #     WANDB_PROJECT = WANDB_PROJECT_ENV
 # os.environ["WANDB_PROJECT"] = WANDB_PROJECT
 
-WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
-if WANDB_SILENT_ENV is None:
-    WANDB_SILENT = "true"
-else:
-    WANDB_SILENT = WANDB_SILENT_ENV
-os.environ["WANDB_SILENT"] = WANDB_SILENT
+# WANDB_SILENT_ENV = os.environ.get("WANDB_SILENT")
+# if WANDB_SILENT_ENV is None:
+#     WANDB_SILENT = "true"
+# else:
+#     WANDB_SILENT = WANDB_SILENT_ENV
+# os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
@@ -765,7 +765,6 @@ def test_distributed_artifact_simple():
     artifact_name = "simple_dist_dataset_{}".format(round(time.time()))
     group_name = "test_group_{}".format(np.random.rand())
     artifact_type = "distributed_dataset"
-    columns = ["A", "B", "C"]
     count = 2
     images = []
     image_paths = []
@@ -838,5 +837,5 @@ if __name__ == "__main__":
     # if WANDB_PROJECT_ENV is not None:
     #     os.environ["WANDB_PROJECT"] = WANDB_PROJECT_ENV
 
-    if WANDB_SILENT_ENV is not None:
-        os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
+    # if WANDB_SILENT_ENV is not None:
+    #     os.environ["WANDB_SILENT"] = WANDB_SILENT_ENV
