@@ -100,6 +100,7 @@ def is_tfevents_file_created_by(path, hostname, start_time):
 class TBWatcher(object):
     # _logdirs: "Dict[str, TBDirWatcher]"
     # _watcher_queue: "PriorityQueue"
+    # _consumer: Optional["TBEventConsumer"]
 
     def __init__(
         self,

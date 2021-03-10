@@ -11,6 +11,7 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile
 from wandb.util import has_num
 
@@ -33,10 +34,9 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
-        # from .interface.artifacts import Artifact as ArtifactInterface
+        from .interface.artifacts import Artifact as ArtifactInterface
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
-        from wandb.apis.public import Artifact as PublicArtifact
         import numpy as np  # type: ignore
         import pandas as pd  # type: ignore
         import matplotlib  # type: ignore
@@ -90,16 +90,10 @@ class _WBValueArtifactSource(object):
         if isinstance(self.artifact, artifact_class):
             if self.artifact._logged_artifact:
                 self.artifact.wait()
-                # This is type of "LazyArtifact" which is a passthrough
-                # for PublicArtifact. To avoid complicated typing, just
-                # ignoring this one line.
-                return self.artifact._logged_artifact._instance
-            return None  # type: ignore
+                return self.artifact._logged_artifact
+            return None
         else:
-            # Since self.artifact must be either PublicArtifact or
-            # LocalArtifact, the above conditional forces this to
-            # be a PublicArtifact, but mypy doesn't get this...
-            return self.artifact  # type: ignore
+            return self.artifact
 
 
 class WBValue(object):
@@ -315,6 +309,7 @@ class Media(WBValue):
     # _extension: Optional[str]
     # _sha256: Optional[str]
     # _size: Optional[int]
+    # _entry_path: Optional[str]
 
     def __init__(self, caption = None):
         super(Media, self).__init__()
@@ -322,6 +317,8 @@ class Media(WBValue):
         # The run under which this object is bound, if any.
         self._run = None
         self._caption = caption
+        # TODO: Move this up and out
+        self._entry_path = None
 
     def _set_file(
         self, path, is_tmp = False, extension = None
@@ -470,8 +467,8 @@ class Media(WBValue):
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
-                    if hasattr(self, "entry_path"):
-                        name = self.entry_path
+                    if self._entry_path is not None:
+                        name = self._entry_path
                     elif self._is_tmp:
                         name = os.path.join(
                             self.get_media_subdir(),
@@ -494,11 +491,12 @@ class Media(WBValue):
                     ):
                         public_art = self.artifact_source.get_public_artifact()
                         assert public_art is not None  # This is just to make mypy happy
-                        default_root = public_art._default_root()
-                        # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
-                        if self._path.startswith(default_root):
-                            name = self._path[len(default_root) :]
-                            name = name.lstrip(os.sep)
+                        if isinstance(public_art, PublicArtifact):
+                            default_root = public_art._default_root()
+                            # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                            if self._path.startswith(default_root):
+                                name = self._path[len(default_root) :]
+                                name = name.lstrip(os.sep)
 
                         # Add this image as a reference
                         path = public_art.get_path(name)
@@ -512,7 +510,7 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
-                        self.entry_path = entry.path
+                        self._entry_path = entry.path
 
                 json_obj["path"] = name
             json_obj["_type"] = self.artifact_type
