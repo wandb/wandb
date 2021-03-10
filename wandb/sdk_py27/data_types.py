@@ -512,7 +512,6 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
-                        # SUPER HACK FOR NOW
                         self.entry_path = entry.path
 
                 json_obj["path"] = name
