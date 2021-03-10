@@ -79,7 +79,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from wandb.apis.public import Api as PublicApi
     from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
@@ -2400,6 +2400,6 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(self._instance, ArtifactInterface)
         return self._instance
