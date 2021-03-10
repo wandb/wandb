@@ -40,6 +40,7 @@ from . import wandb_config
 from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
+from .interface.artifacts import Artifact as ArtifactInterface
 from .lib import (
     apikey,
     config_util,
@@ -69,7 +70,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
-    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
