@@ -11,7 +11,6 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile
 from wandb.util import has_num
 
@@ -37,6 +36,7 @@ if wandb.TYPE_CHECKING:
         from .interface.artifacts import Artifact as ArtifactInterface
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
+        from wandb.apis.public import Artifact as PublicArtifact
         import numpy as np  # type: ignore
         import pandas as pd  # type: ignore
         import matplotlib  # type: ignore
@@ -491,8 +491,8 @@ class Media(WBValue):
                     ):
                         public_art = self.artifact_source.get_public_artifact()
                         assert public_art is not None  # This is just to make mypy happy
-                        if isinstance(public_art, PublicArtifact):
-                            default_root = public_art._default_root()
+                        if hasattr(public_art, "_default_root"):
+                            default_root = public_art._default_root()  # type: ignore
                             # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                             if self._path.startswith(default_root):
                                 name = self._path[len(default_root) :]
