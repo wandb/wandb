@@ -18,7 +18,7 @@ from wandb.viz import custom_chart_panel_config, CustomChart
 from . import run as internal_run
 
 if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+    from typing import TYPE_CHECKING, Optional
 
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
