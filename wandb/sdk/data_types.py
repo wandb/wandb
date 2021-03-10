@@ -2605,6 +2605,27 @@ class Table(Media):
                             column
                         )
                     )
+
+                # _pk_column_name: str = "wbid"
+                # _pk_column: _PKTableColumn
+                # _columns: Dict[str, _TableColumn]
+                # _ordered_column_names: List[str]
+                # _default_dtype: _dtypes.Type
+                # _default_optional: bool
+                # _default_mixed_types: bool
+                # _row_count: int
+
+                # def __init__(
+                #     self,
+                #     columns: Optional[List[str]] = None,
+                #     data: Optional[Union[List[List[Any]], "np.ndarray"]] = None,
+                #     rows: List[List[Any]] = None,
+                #     dataframe: Optional["pd.DataFrame"] = None,
+                #     dtype: Optional[Union[List[TypeLike], TypeLike]] = None,
+                #     optional: Union[List[bool], bool] = True,
+                #     allow_mixed_types: bool = False,
+                #     _pk_ids: List[str] = None,
+                # )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
