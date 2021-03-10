@@ -23,7 +23,7 @@ if wandb.TYPE_CHECKING:
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
         from .settings_static import SettingsStatic
-        from typing import Dict, List, Optional
+        from typing import Dict, List
         from wandb.proto.wandb_internal_pb2 import RunRecord
         from six.moves.queue import PriorityQueue
         from tensorboard.compat.proto.event_pb2 import ProtoEvent
