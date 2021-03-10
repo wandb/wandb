@@ -163,7 +163,8 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
             config_include_keys=("bar",),
         )
 
-
+# This is needed since each run takes about 20 seconds per run and this test has 4 runs
+@pytest.mark.timeout(120)
 def test_resume_config_merge(live_mock_server, test_settings):
     live_mock_server.set_ctx({"resume": True})
     live_mock_server.set_ctx({"run.config": {}})
