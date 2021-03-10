@@ -164,42 +164,42 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
         )
 
 
-def test_resume_config_merge(live_mock_server, test_settings):
-    live_mock_server.set_ctx({"resume": True})
-    live_mock_server.set_ctx({"run.config": {}})
-    # Start the run without any config
-    run = wandb.init(reinit=True, resume=True, settings=test_settings,)
-    assert len(run.config.keys()) == 0
-    run.finish()
+# def test_resume_config_merge(live_mock_server, test_settings):
+#     live_mock_server.set_ctx({"resume": True})
+#     live_mock_server.set_ctx({"run.config": {}})
+#     # Start the run without any config
+#     run = wandb.init(reinit=True, resume=True, settings=test_settings,)
+#     assert len(run.config.keys()) == 0
+#     run.finish()
 
-    # resume the run with 2 new keys
-    live_mock_server.set_ctx({"run.config": {}})
-    run = wandb.init(
-        reinit=True, resume=True, settings=test_settings, config={"a": 1, "b": 2},
-    )
-    assert run.config["a"] == 1
-    assert run.config["b"] == 2
-    run.finish()
+#     # resume the run with 2 new keys
+#     live_mock_server.set_ctx({"run.config": {}})
+#     run = wandb.init(
+#         reinit=True, resume=True, settings=test_settings, config={"a": 1, "b": 2},
+#     )
+#     assert run.config["a"] == 1
+#     assert run.config["b"] == 2
+#     run.finish()
 
-    # resume the run with 1 new key and 1 ignored update
-    live_mock_server.set_ctx({"run.config": {"a": {"value": 1}, "b": {"value": 2}}})
-    run = wandb.init(
-        reinit=True, resume=True, settings=test_settings, config={"b": 200, "c": 3},
-    )
-    assert run.config["a"] == 1
-    assert run.config["b"] == 2
-    assert run.config["c"] == 3
-    run.finish()
+#     # resume the run with 1 new key and 1 ignored update
+#     live_mock_server.set_ctx({"run.config": {"a": {"value": 1}, "b": {"value": 2}}})
+#     run = wandb.init(
+#         reinit=True, resume=True, settings=test_settings, config={"b": 200, "c": 3},
+#     )
+#     assert run.config["a"] == 1
+#     assert run.config["b"] == 2
+#     assert run.config["c"] == 3
+#     run.finish()
 
-    # resume the run with empty
-    live_mock_server.set_ctx(
-        {"run.config": {"a": {"value": 1}, "b": {"value": 2}, "c": {"value": 3}}}
-    )
-    run = wandb.init(reinit=True, resume=True, settings=test_settings,)
-    assert run.config["a"] == 1
-    assert run.config["b"] == 2
-    assert run.config["c"] == 3
-    run.finish()
+#     # resume the run with empty
+#     live_mock_server.set_ctx(
+#         {"run.config": {"a": {"value": 1}, "b": {"value": 2}, "c": {"value": 3}}}
+#     )
+#     run = wandb.init(reinit=True, resume=True, settings=test_settings,)
+#     assert run.config["a"] == 1
+#     assert run.config["b"] == 2
+#     assert run.config["c"] == 3
+#     run.finish()
 
 
 def test_network_fault_files(live_mock_server, test_settings):

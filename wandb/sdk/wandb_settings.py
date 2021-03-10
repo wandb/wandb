@@ -85,6 +85,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     host=None,
     username=None,
     disable_code=None,
+    code_dir=None,
     anonymous=None,
     ignore_globs=None,
     resume=None,
@@ -182,14 +183,6 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
-if hasattr(multiprocessing, "get_all_start_methods"):
-    AVAILABLE_START_METHODS = multiprocessing.get_all_start_methods()
-else:
-    # TODO: this can go away when we deprecate Python 2
-    AVAILABLE_START_METHODS = ["fork", "spawn"]
-DEFAULT_START_METHOD = "spawn"  # defaulting to spawn for now, fork needs more testing
-
-
 class Settings(object):
     """Settings Constructor
 
@@ -202,7 +195,7 @@ class Settings(object):
     """
 
     mode: str = "online"
-    start_method: str = DEFAULT_START_METHOD
+    start_method: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     run_tags: Optional[Tuple] = None
@@ -215,6 +208,7 @@ class Settings(object):
     sync_file_spec: Optional[str] = None
     sync_dir_spec: Optional[str] = None
     files_dir_spec: Optional[str] = None
+    tmp_dir_spec: Optional[str] = None
     log_symlink_user_spec: Optional[str] = None
     log_symlink_internal_spec: Optional[str] = None
     sync_symlink_latest_spec: Optional[str] = None
@@ -226,6 +220,7 @@ class Settings(object):
     show_errors: bool = True
     email: Optional[str] = None
     save_code: Optional[bool] = None
+    code_dir: Optional[str] = None
     program_relpath: Optional[str] = None
     host: Optional[str]
 
@@ -318,9 +313,11 @@ class Settings(object):
         log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
         resume_fname_spec="{wandb_dir}/wandb-resume.json",
         files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
+        tmp_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
         symlink=None,  # probed
         # where files are temporary stored when saving
         # files_dir=None,
+        # tmp_dir=None,
         # data_base_dir="wandb",
         # data_dir="",
         # data_spec="wandb-{timespec}-{pid}-data.bin",
@@ -331,6 +328,7 @@ class Settings(object):
         disable_code=None,
         ignore_globs=None,
         save_code=None,
+        code_dir=None,
         program_relpath=None,
         git_remote=None,
         dev_prod=None,  # in old settings files, TODO: support?
@@ -450,6 +448,8 @@ class Settings(object):
         if console == "auto":
             if self._jupyter:
                 console = "wrap"
+            elif self.start_method == "thread":
+                console = "wrap"
             elif self._windows:
                 console = "wrap"
                 # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
@@ -507,6 +507,14 @@ class Settings(object):
         return self._path_convert(self.files_dir_spec)
 
     @property
+    def tmp_dir(self) -> str:
+        return self._path_convert(self.tmp_dir_spec) or tempfile.gettempdir()
+
+    @property
+    def _tmp_code_dir(self) -> str:
+        return os.path.join(self.tmp_dir, "code")
+
+    @property
     def log_symlink_user(self) -> str:
         return self._path_convert(self.log_symlink_user_spec)
 
@@ -527,9 +535,12 @@ class Settings(object):
         return self._path_convert(self.settings_workspace_spec)
 
     def _validate_start_method(self, value):
-        if value in AVAILABLE_START_METHODS:
+        available_methods = ["thread"]
+        if hasattr(multiprocessing, "get_all_start_methods"):
+            available_methods += multiprocessing.get_all_start_methods()
+        if value in available_methods:
             return
-        return _error_choices(value, AVAILABLE_START_METHODS)
+        return _error_choices(value, available_methods)
 
     def _validate_mode(self, value):
         choices = {
@@ -775,9 +786,11 @@ class Settings(object):
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
-        if (self.save_code is True or self.save_code is None) and os.getenv(
-            wandb.env.SAVE_CODE
-        ) is not None:
+        if (
+            (self.save_code is True or self.save_code is None)
+            and os.getenv(wandb.env.SAVE_CODE) is not None
+            or os.getenv(wandb.env.DISABLE_CODE) is not None
+        ):
             u["save_code"] = wandb.env.should_save_code()
 
         # Attempt to get notebook information if not already set by the user
@@ -786,6 +799,16 @@ class Settings(object):
             u["_jupyter_path"] = meta.get("path")
             u["_jupyter_name"] = meta.get("name")
             u["_jupyter_root"] = meta.get("root")
+        elif self._jupyter and os.path.exists(self.notebook_name):
+            u["_jupyter_path"] = self.notebook_name
+            u["_jupyter_name"] = self.notebook_name
+            u["_jupyter_root"] = os.getcwd()
+        elif self._jupyter:
+            wandb.termwarn(
+                "WANDB_NOTEBOOK_NAME should be a path to a notebook file, couldn't find {}".format(
+                    self.notebook_name
+                )
+            )
 
         # host and username are populated by env_settings above if their env
         # vars exist -- but if they don't, we'll fill them in here
@@ -819,10 +842,6 @@ class Settings(object):
 
     def _infer_run_settings_from_env(self, _logger=None):
         """Modify settings based on environment (for runs only)."""
-        if self.disable_code:
-            self.update(dict(program="<code saving explicitly disabled>"))
-            return
-
         # If there's not already a program file, infer it now.
         program = self.program or _get_program()
         if program:
@@ -923,7 +942,7 @@ class Settings(object):
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
-            for key in ("project", "entity"):
+            for key in ("project", "entity", "id"):
                 val = args.pop(key, None)
                 if val:
                     wandb.termwarn(

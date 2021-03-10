@@ -11,10 +11,12 @@ from __future__ import print_function
 import base64
 import binascii
 import codecs
+import hashlib
 import json
 import logging
 import os
 import pprint
+import re
 import sys
 import warnings
 
@@ -239,21 +241,42 @@ class Table(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        if (
-            not isinstance(other, Table)
-            or len(self.data) != len(other.data)
-            or self.columns != other.columns
-            or self._column_types != other._column_types
-        ):
-            return False
-
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, Table)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, Table
+        )
+        eq = eq and len(self.data) == len(other.data)
+        assert not should_assert or eq, "Found {} rows, expected {}".format(
+            len(other.data), len(self.data)
+        )
+        eq = eq and self.columns == other.columns
+        assert not should_assert or eq, "Found columns {}, expected {}".format(
+            other.columns, self.columns
+        )
+        eq = eq and self._column_types == other._column_types
+        assert (
+            not should_assert or eq
+        ), "Found column type {}, expected column type {}".format(
+            other._column_types, self._column_types
+        )
         for row_ndx in range(len(self.data)):
             for col_ndx in range(len(self.data[row_ndx])):
-                if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
-                    return False
+                eq = eq and self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                assert (
+                    not should_assert or eq
+                ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                    row_ndx,
+                    col_ndx,
+                    other.data[row_ndx][col_ndx],
+                    self.data[row_ndx][col_ndx],
+                )
+                if not eq:
+                    return eq
+        return eq
 
-        return True
+    def __eq__(self, other):
+        return self._eq_debug(other)
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -311,7 +334,7 @@ class Table(Media):
             row_data = []
             for item in row:
                 cell = item
-                if isinstance(item, dict):
+                if isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
@@ -507,7 +530,12 @@ class Audio(BatchableMedia):
         self._caption = caption
 
         if isinstance(data_or_path, six.string_types):
-            self._set_file(data_or_path, is_tmp=False)
+            if Audio.path_is_reference(data_or_path):
+                self._path = data_or_path
+                self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
+                self._is_tmp = False
+            else:
+                self._set_file(data_or_path, is_tmp=False)
         else:
             if sample_rate is None:
                 raise ValueError(
@@ -526,6 +554,10 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
+    def path_is_reference(cls, path):
+        return bool(re.match(r"^(gs|s3|https?)://", path))
+
+    @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "audio")
 
@@ -533,18 +565,21 @@ class Audio(BatchableMedia):
     def from_json(cls, json_obj, source_artifact):
         return cls(
             source_artifact.get_path(json_obj["path"]).download(),
-            json_obj["sample_rate"],
-            json_obj["caption"],
+            caption=json_obj["caption"],
         )
+
+    def bind_to_run(self, run, key, step, id_=None):
+        if Audio.path_is_reference(self._path):
+            raise ValueError(
+                "Audio media created by a reference to external storage cannot currently be added to a run"
+            )
+
+        return super(Audio, self).bind_to_run(run, key, step, id_)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {
-                "_type": self.artifact_type,
-                "sample_rate": self._sample_rate,
-                "caption": self._caption,
-            }
+            {"_type": self.artifact_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -591,12 +626,30 @@ class Audio(BatchableMedia):
         else:
             return ["" if c is None else c for c in captions]
 
+    def resolve_ref(self):
+        if Audio.path_is_reference(self._path):
+            # this object was already created using a ref:
+            return self._path
+        source_artifact = self.artifact_source.artifact
+
+        resolved_name = source_artifact._local_path_to_name(self._path)
+        if resolved_name is not None:
+            target_entry = source_artifact.manifest.get_entry_by_path(resolved_name)
+            if target_entry is not None:
+                return target_entry.ref
+
+        return None
+
     def __eq__(self, other):
-        return (
-            super(Audio, self).__eq__(other)
-            and self._sample_rate == other._sample_rate
-            and self._caption == other._caption
-        )
+        if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
+            # one or more of these objects is an unresolved reference -- we'll compare
+            # their reference paths instead of their SHAs:
+            return (
+                self.resolve_ref() == other.resolve_ref()
+                and self._caption == other._caption
+            )
+
+        return super(Audio, self).__eq__(other) and self._caption == other._caption
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -716,12 +769,21 @@ class JoinedTable(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        return (
-            self._table1 == other._table1
-            and self._table2 == other._table2
-            and self._join_key == other._join_key
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, JoinedTable)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, JoinedTable
         )
+        eq = eq and self._join_key == other._join_key
+        assert not should_assert or eq, "Found {} join key, expected {}".format(
+            other._join_key, self._join_key
+        )
+        eq = eq and self._table1._eq_debug(other._table1, should_assert)
+        eq = eq and self._table2._eq_debug(other._table2, should_assert)
+        return eq
+
+    def __eq__(self, other):
+        return self._eq_debug(other, False)
 
 
 class Bokeh(Media):

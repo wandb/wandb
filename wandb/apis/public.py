@@ -244,9 +244,33 @@ class Api(object):
         self._client = RetryingClient(self._base_client)
 
     def create_run(self, **kwargs):
+        """Create a new run"""
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
+        """Sync a local directory containing tfevent files to wandb"""
+        from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
+
+        run_id = run_id or util.generate_id()
+        project = project or self.settings.get("project") or "uncategorized"
+        entity = entity or self.default_entity
+        sm = SyncManager(
+            project=project,
+            entity=entity,
+            run_id=run_id,
+            mark_synced=False,
+            app_url=self.client.app_url,
+            view=False,
+            verbose=False,
+            sync_tensorboard=True,
+        )
+        sm.add(root_dir)
+        sm.start()
+        while not sm.is_done():
+            _ = sm.poll()
+        return self.run("/".join([entity, project, run_id]))
 
     @property
     def client(self):
@@ -394,29 +418,34 @@ class Api(object):
             )
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=50):
+    def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
-            Find runs in my_project config.experiment_name has been set to "foo"
+            Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
-            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
             api.runs(path="my_entity/my_project",
-                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            ```
+
+            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+            ```
+            api.runs(path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}})
             ```
 
             Find runs in my_project sorted by ascending loss
             ```
-            api.runs(path="my_entity/my_project", {"order": "+summary_metrics.loss"})
+            api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
             ```
-
 
         Arguments:
             path: (str) path to project, should be in the form: "entity/project"
@@ -435,6 +464,7 @@ class Api(object):
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
         entity, project = self._parse_project_path(path)
+        filters = filters or {}
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
@@ -895,7 +925,7 @@ class Run(Attrs):
     def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
         run_id = run_id or util.generate_id()
-        project = project or api.settings.get("project")
+        project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
         mutation UpsertBucket($project: String, $entity: String, $name: String!) {
@@ -1702,7 +1732,9 @@ class File(object):
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
-            self.name, self.mimetype, util.sizeof_fmt(self.size)
+            self.name,
+            self.mimetype,
+            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 
@@ -2592,11 +2624,16 @@ class Artifact(artifacts.Artifact):
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
+        self._download_roots = set()
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
         return self._attrs["id"]
+
+    @property
+    def version(self):
+        return "v%d" % self._version_index
 
     @property
     def entity(self):
@@ -2758,6 +2795,25 @@ class Artifact(artifacts.Artifact):
     def add(self, obj, name):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
+    def _add_download_root(self, dir_path):
+        """Adds `dir_path` as one of the known directories which this
+        artifact treated as a root"""
+        self._download_roots.add(os.path.abspath(dir_path))
+
+    def _is_download_root(self, dir_path):
+        """Determines if `dir_path` is a directory which this artifact as
+        treated as a root for downloading"""
+        return dir_path in self._download_roots
+
+    def _local_path_to_name(self, file_path):
+        """Converts a local file path to a path entry in the artifact"""
+        abs_file_path = os.path.abspath(file_path)
+        abs_file_parts = abs_file_path.split(os.sep)
+        for i in range(len(abs_file_parts) + 1):
+            if self._is_download_root(os.path.join(os.sep, *abs_file_parts[:i])):
+                return os.path.join(*abs_file_parts[i:])
+        return None
+
     def _get_obj_entry(self, name):
         """
         When objects are added with `.add(obj, name)`, the name is typically
@@ -2822,6 +2878,7 @@ class Artifact(artifacts.Artifact):
 
             def download(self, root=None):
                 root = root or default_root
+                self.parent_artifact()._add_download_root(root)
                 if entry.ref is not None:
                     cache_path = storage_policy.load_reference(
                         parent_self, name, manifest.entries[name], local=True
@@ -2880,6 +2937,7 @@ class Artifact(artifacts.Artifact):
 
     def download(self, root=None, recursive=False):
         dirpath = root or self._default_root()
+        self._add_download_root(dirpath)
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
@@ -2910,6 +2968,55 @@ class Artifact(artifacts.Artifact):
 
         return dirpath
 
+    def checkout(self, root=None):
+        dirpath = root or self._default_root(include_version=False)
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    # File is not part of the artifact, remove it.
+                    os.remove(full_path)
+
+        return self.download(root=dirpath)
+
+    def verify(self, root=None):
+        dirpath = root or self._default_root()
+        manifest = self._load_manifest()
+        ref_count = 0
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    raise ValueError(
+                        "Found file {} which is not a member of artifact {}".format(
+                            full_path, self.name
+                        )
+                    )
+
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if (
+                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
+                    != entry.digest
+                ):
+                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print("Warning: skipped verification of %s refs" % ref_count)
+
     def file(self, root=None):
         """Download a single file artifact to dir specified by the <root>
 
@@ -2937,8 +3044,12 @@ class Artifact(artifacts.Artifact):
         # download file into cache and copy to target dir
         return self.get_path(name).download(root)
 
-    def _default_root(self):
-        root = os.path.join(".", "artifacts", self.name)
+    def _default_root(self, include_version=True):
+        root = (
+            os.path.join(".", "artifacts", self.name)
+            if include_version
+            else os.path.join(".", "artifacts", self._sequence_name)
+        )
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
@@ -2984,35 +3095,8 @@ class Artifact(artifacts.Artifact):
         )
         return True
 
-    def verify(self, root=None):
-        """
-        Verify an artifact by checksumming its downloaded contents.
-
-        NOTE: References are not verified.
-
-        Arguments:
-            root: (str, optional) directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-
-        Raises:
-            (ValueError): If the verification fails.
-        """
-        dirpath = root
-        if dirpath is None:
-            dirpath = os.path.join(".", "artifacts", self.name)
-        manifest = self._load_manifest()
-        ref_count = 0
-        for entry in manifest.entries.values():
-            if entry.ref is None:
-                if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
-                    != entry.digest
-                ):
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
-            else:
-                ref_count += 1
-        if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+    def wait(self):
+        return self
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):

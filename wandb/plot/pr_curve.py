@@ -6,7 +6,7 @@ from wandb.plots.utils import test_missing, test_types
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
+def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None):
     """
     Computes the tradeoff between precision and recall for different thresholds.
     A high area under the curve represents both high recall and high precision,
@@ -104,9 +104,10 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None):
                     )
                     break
         table = wandb.Table(columns=["class", "precision", "recall"], data=data)
+        title = title or "Precision v. Recall"
         return wandb.plot_table(
             "wandb/area-under-curve/v0",
             table,
             {"x": "recall", "y": "precision", "class": "class"},
-            {"title": "Precision v. Recall"},
+            {"title": title},
         )

@@ -67,7 +67,8 @@ def test_wb_value(live_mock_server, test_settings):
 def test_wb_summary_df(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
-    run.summary.update({"data-frame-summary": data_frame})
+    with pytest.raises(ValueError):
+        run.summary.update({"data-frame-summary": data_frame})
 
 
 def test_raw_data():
@@ -274,10 +275,23 @@ def test_audio_to_json(mocked_run):
     audio_expected = {
         "_type": "audio-file",
         "caption": None,
-        "sample_rate": 44100,
         "size": 88244,
     }
     assert utils.subdict(meta["audio"][0], audio_expected) == audio_expected
+
+
+def test_audio_refs():
+    audioObj = wandb.Audio(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+    )
+    art = wandb.Artifact("audio_ref_test", "dataset")
+    art.add(audioObj, "audio_ref")
+
+    audio_expected = {
+        "_type": "audio-file",
+        "caption": None,
+    }
+    assert utils.subdict(audioObj.to_json(art), audio_expected) == audio_expected
 
 
 def test_guess_mode():
@@ -518,6 +532,48 @@ def test_table_default():
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"],
     }
+
+
+def test_table_eq_debug():
+    # Invalid Type
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = {}
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Rows
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Columns
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]], columns=["a", "b", "c"])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Types
+    a = wandb.Table(data=[[1, 2, 3]])
+    b = wandb.Table(data=[["1", "2", "3"]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Data
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 100]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    a._eq_debug(b, True)
+    assert a == b
 
 
 def test_table_custom():
