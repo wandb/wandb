@@ -2077,7 +2077,7 @@ class _TableColumn(object):
         if data is None:
             self.data = []
         else:
-            self.data = data  # type: ignore
+            self.data = data
         self._assert_valid_data()
 
     # Public Methods
@@ -2185,7 +2185,13 @@ class _PKTableColumn(_TableColumn):
             )
 
         assert isinstance(data_list, list)
-        self._data = data_list
+        self._data = []
+        for item in data_list:
+            if isinstance(item, _PKString):
+                self._data.append(item)
+            else:
+                self._data.append(_PKString(item))
+
         self._total_entries = max(
             [
                 0,
@@ -2279,14 +2285,6 @@ class _PKTableColumn(_TableColumn):
     def _bulk_increment(self, num_entries: int) -> None:
         for _ in range(num_entries):
             self._increment()
-
-    def _tolist(self) -> List[_PKString]:
-        res = []
-        for item in self.data:
-            s = _PKString(item)
-            s.set_source(self)
-            res.append(s)
-        return res
 
 
 class Table(Media):
@@ -2447,7 +2445,7 @@ class Table(Media):
 
     @property
     def ids(self) -> List[_PKString]:
-        return self._pk_column._tolist()
+        return self._pk_column.data
 
     def cast(
         self, col_name: str, dtype: TypeLike, optional: bool = False
@@ -2659,16 +2657,19 @@ class Table(Media):
         return json_dict
 
     def iterrows(self) -> Generator[Tuple[int, List[Any]], None, None]:
-        """Iterate over rows as (ndx, row)
+        """Iterate over rows as (id, row)
         Yields
         ------
-        index : int
-            The index of the row.
+        id : str
+            The id of the row.
         row : List[any]
             The data of the row
         """
-        for ndx in range(len(self.data)):
-            yield ndx, self.data[ndx]
+        for i in range(self._row_count):
+            yield self._pk_column.data[i], [
+                self._columns[col_name].data[i]
+                for col_name in self._ordered_column_names
+            ]
 
     def __ne__(self, other: object) -> bool:
         # TODO: make this columnar
