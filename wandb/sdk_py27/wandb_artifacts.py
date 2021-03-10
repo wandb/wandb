@@ -481,13 +481,13 @@ class Artifact(ArtifactInterface):
         settings = None,
     ):
         """
-        Persists any changes made to the artifact. If currently in a Run, that Run will
-        log this Artifact. If not currently in a Run, a Run of type "auto" will be created
+        Persists any changes made to the artifact. If currently in a run, that run will
+        log this artifact. If not currently in a run, a run of type "auto" will be created
         to track this artifact.
 
         Arguments:
-            project: (Optional[str]) A project to use for the artifact in the case that a run is not already in context
-            settings: (Optional["wandb.Settings"]) A settings object to use when initializing an
+            project: (str, optional) A project to use for the artifact in the case that a run is not already in context
+            settings: (wandb.Settings, optional) A settings object to use when initializing an
             automatic run. Most commonly used in testing harness.
 
         Returns:
