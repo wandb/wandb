@@ -52,6 +52,10 @@ class StepChecksum(object):
                         self._tempdir.name,
                         "%s-%s" % (wandb.util.generate_id(), req.save_name),
                     )
+                    # Fixes weirdness with Windows in test harness.
+                    if platform.system() == "Windows":
+                        path = os.path.sep.join(path.split("/"))
+                        path = path.replace("..", "uu")
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     shutil.copy2(req.path, path)
                 checksum = None
