@@ -17,8 +17,7 @@ if csv_fname:
         writer = csv.DictWriter(fp, fieldnames=fieldnames)
         writer.writeheader()
         for f in tpb.TelemetryRecord.DESCRIPTOR.fields:
+            writer.writerow(dict(field=f.number, name=f.name))
             if f.message_type:
                 for sf in f.message_type.fields:
                     writer.writerow(dict(field=f.number, subfield=sf.number, name=sf.name))
-            else:
-                writer.writerow(dict(field=f.number, name=f.name))
