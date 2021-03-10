@@ -2,6 +2,7 @@
 
 import collections
 import os
+import platform
 import shutil
 import threading
 import wandb.util
