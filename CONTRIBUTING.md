@@ -357,3 +357,34 @@ User process:
 - Terminal wrapper is shutdown and flushed to internal process
 - Exit code of program is captured and sent synchronously to internal process as ExitData
 - Run.on_final() is called to display final information about the run
+
+## Documentation Generation
+
+The documentation generator is broken into two parts:
+- `generate.py`: Generic documentation generator for wandb/ref
+- `docgen_cli.py`: Documentation generator for wandb CLI
+
+### `generate.py`
+The follwing is a road map of how to generate documentaion for the reference.
+**Steps**
+1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
+3. `python generate.py` creates the documentation.
+
+**Outputs**
+A folder named `library` in the same folder as the code. The files in the `library` folder are the generated markdown.
+
+**Requirements**
+- wandb
+
+### `docgen_cli.py`
+**Usage**
+```bash
+$ python docgen_cli.py
+```
+
+**Outputs**
+A file named `cli.md` in the same folder as the code. The file is the generated markdown for the CLI.
+
+**Requirements**
+- python >= 3.8
+- wandb
