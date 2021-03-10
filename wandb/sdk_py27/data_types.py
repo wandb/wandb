@@ -1628,7 +1628,9 @@ class Image(BatchableMedia):
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
             if data.ndim > 2 and data.shape[2] == 1:
-                data = data.squeeze(axis=2)  # get rid of trivial dimensions as a convenience
+                data = data.squeeze(
+                    axis=2
+                )  # get rid of trivial dimensions as a convenience
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
