@@ -64,46 +64,14 @@ if __name__== "__main__":
         code_url_prefix=CODE_URL_PREFIX,
         search_hints=False,
         gen_report=False)
-    
-    wandb.Api = wandb.apis.public.Api
-    wandb.Projects = wandb.apis.public.Projects
-    wandb.Project = wandb.apis.public.Project
-    wandb.Runs = wandb.apis.public.Runs
-    wandb.Run = wandb.apis.public.Run
-    wandb.Sweep = wandb.apis.public.Sweep
-    wandb.Files = wandb.apis.public.Files
-    wandb.File = wandb.apis.public.File
-    wandb.Artifact = wandb.apis.public.Artifact
-    wandb_api_doc = [
-        'Api',
-        'Projects',
-        'Project',
-        'Runs',
-        'Run',
-        'Sweep',
-        'Files',
-        'File',
-        'Artifact',
-    ]
-    wandb.__all__ = wandb_api_doc
 
-    build_docs(
-        name_pair=("public-api",wandb),
-        output_dir="./library",
-        code_url_prefix=CODE_URL_PREFIX,
-        search_hints=False,
-        gen_report=False)
-
-
-    wandb.settings = wandb.wandb_sdk.Settings
     wandb_run = [
         'init',
         'log',
         'config',
         'summary',
         'login',
-        'alert',
-        'settings']
+        'alert',]
     
     wandb.__all__ = wandb_run
     try:
@@ -136,6 +104,46 @@ if __name__== "__main__":
 
     build_docs(
         name_pair=("data-types",wandb),
+        output_dir="./library",
+        code_url_prefix=CODE_URL_PREFIX,
+        search_hints=False,
+        gen_report=False)
+    
+    wandb.Api = wandb.apis.public.Api
+    wandb.Projects = wandb.apis.public.Projects
+    wandb.Project = wandb.apis.public.Project
+    wandb.Runs = wandb.apis.public.Runs
+    wandb.Run = wandb.apis.public.Run
+    wandb.Sweep = wandb.apis.public.Sweep
+    wandb.Files = wandb.apis.public.Files
+    wandb.File = wandb.apis.public.File
+    wandb.Artifact = wandb.apis.public.Artifact
+    wandb_api_doc = [
+        'Api',
+        'Projects',
+        'Project',
+        'Runs',
+        'Run',
+        'Sweep',
+        'Files',
+        'File',
+        'Artifact',
+    ]
+    wandb.__all__ = wandb_api_doc
+    wandb.__doc__ = """
+    Use the Public API to export or update data that you have saved to W&B.
+    Before using this API, you'll want to log data from your script — check the [Quickstart](../quickstart.md) for more details.
+
+    **Use Cases for the Public API**
+
+    * **Export Data**: Pull down a dataframe for custom analysis in a Jupyter Notebook. Once you have explored the data, you can sync your findings by creating a new analysis run and logging results, for example: `wandb.init(job_type="analysis")`
+    * **Update Existing Runs**: You can update the data logged in association with a W&B run. For example, you might want to update the config of a set of runs to include additional information, like the architecture or a hyperparameter that wasn't originally logged.
+
+    See the [Generated Reference Docs](../ref/public-api/) for details on available functions.
+    """
+
+    build_docs(
+        name_pair=("public-api",wandb),
         output_dir="./library",
         code_url_prefix=CODE_URL_PREFIX,
         search_hints=False,
