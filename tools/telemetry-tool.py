@@ -22,5 +22,3 @@ if csv_fname:
                     writer.writerow(dict(field=f.number, subfield=sf.number, name=sf.name))
             else:
                 writer.writerow(dict(field=f.number, name=f.name))
-
-
