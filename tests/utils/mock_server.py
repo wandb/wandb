@@ -616,9 +616,8 @@ def create_app(user_ctx=None):
             if "id" in body.get("variables", {}):
                 return {"data": {"artifact": art}}
             # code artifacts use source-RUNID names, we return the code type
-            if "source" in body.get("variables", {}).get("name", {}):
-                art["artifactType"] = {"id": 2, "name": "code"}
-            else:
+            art["artifactType"] = {"id": 2, "name": "code"}
+            if "source" not in body["variables"]["name"]:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
