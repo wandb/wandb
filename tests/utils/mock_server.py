@@ -121,9 +121,9 @@ def run(ctx):
     }
 
 
-def artifact(ctx, collection_name="mnist", state="COMMITTED"):
+def artifact(ctx, collection_name="mnist", state="COMMITTED", request_url_root=""):
     return {
-        "id": ctx["page_count"],
+        "id": str(ctx["page_count"]),
         "digest": "abc123",
         "description": "",
         "state": state,
@@ -140,6 +140,11 @@ def artifact(ctx, collection_name="mnist", state="COMMITTED"):
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "currentManifest": {
+            "file": {
+                "directUrl": request_url_root + "/storage?file=wandb_manifest.json"
+            }
+        },
     }
 
 
@@ -607,9 +612,11 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx)
+            art = artifact(ctx, request_url_root=request.url_root)
+            if "id" in body.get("variables", {}):
+                return {"data": {"artifact": art}}
             # code artifacts use source-RUNID names, we return the code type
-            if "source" in body["variables"]["name"]:
+            if "source" in body.get("variables", {}).get("name", {}):
                 art["artifactType"] = {"id": 2, "name": "code"}
             else:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
