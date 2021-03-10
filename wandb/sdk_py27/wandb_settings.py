@@ -45,7 +45,7 @@ from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
-if wandb.TYPE_CHECKING:  # type: ignore
+if wandb.TYPE_CHECKING:
     from wandb.sdk.wandb_config import Config
     from wandb.sdk.wandb_setup import _EarlyLogger
     from typing import (  # noqa: F401 pylint: disable=unused-import
@@ -181,11 +181,12 @@ def get_wandb_dir(root_dir):
 
 
 def _str_as_bool(val):
+    ret_val = None
     try:
         ret_val = bool(strtobool(val))
     except (AttributeError, ValueError):
         pass
-    return ret_val if isinstance(ret_val, bool) else None
+    return ret_val
 
 
 @enum.unique
@@ -211,8 +212,8 @@ class Settings(object):
     console = "auto"
     disabled = False
     run_tags = None
-    # run_id: str
-    # sweep_id: Optional[str]
+    run_id = None
+    sweep_id = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
@@ -446,11 +447,12 @@ class Settings(object):
 
     @property
     def _jupyter(self):
-        return _get_python_type() != "python"
+        return str(_get_python_type()) != "python"
 
     @property
     def _kaggle(self):
-        return util._is_kaggle()
+        is_kaggle = util._is_kaggle()
+        return is_kaggle
 
     @property
     def _windows(self):
@@ -1040,7 +1042,7 @@ class Settings(object):
 
         # handle auto resume logic
         if self.resume == "auto":
-            if self.resume_fname is not None and os.path.exists(self.resume_fname):
+            if os.path.exists(self.resume_fname):
                 with open(self.resume_fname) as f:
                     resume_run_id = json.load(f)["run_id"]
                 if self.run_id is None:
