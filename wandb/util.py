@@ -1248,7 +1248,7 @@ def fsync_open(path, mode="w"):
         os.fsync(f.fileno())
 
 
-def _is_kaggle() -> bool:
+def _is_kaggle():
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
