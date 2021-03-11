@@ -66,7 +66,7 @@ if wandb.TYPE_CHECKING:
         TYPE_CHECKING,
     )
 
-Defaults = Dict[str, Union[str, int, bool, Tuple]]
+    Defaults = Dict[str, Union[str, int, bool, Tuple]]
 
 defaults = dict(
     base_url="https://api.wandb.ai",
