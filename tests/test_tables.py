@@ -165,19 +165,3 @@ def test_fk_from_pk_local_draft():
             for row in table.data
         ]
     )
-
-
-def test_fk_from_pk_local_logged():
-    raise NotImplementedError
-
-
-def test_fk_from_pk_public():
-    raise NotImplementedError
-
-
-def test_default_pk():
-    raise NotImplementedError
-
-
-def test_deserialization():
-    raise NotImplementedError
