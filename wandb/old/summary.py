@@ -134,7 +134,11 @@ class SummarySubDict(object):
 
         path = self._path
 
-        if isinstance(v, dict):
+        if isinstance(v, SummarySubDict):
+            v = v._json_dict
+            self._dict[k] = v
+            self._root._root_set(path, [(k, v)])
+        elif isinstance(v, dict):
             self._dict[k] = SummarySubDict(self._root, path + (k,))
             self._root._root_set(path, [(k, {})])
             self._dict[k].update(v)
