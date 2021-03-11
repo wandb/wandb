@@ -14,7 +14,7 @@ def test_pk_cast(use_helper=False):
         table.set_pk("id")
     else:
         table.cast("id", wandb.data_types._TableKeyType(table, "id"))
-
+    # import pdb; pdb.set_trace()
     # Now iterrows has the pk as the id field
     assert [id_ for id_, row in list(table.iterrows())] == ["1", "2"]
 
@@ -24,6 +24,10 @@ def test_pk_cast(use_helper=False):
     # Adding Duplicates fail
     # with pytest.raises(TypeError):
     #     table.add_data("3", "d")
+
+    # Adding None should fail
+    with pytest.raises(TypeError):
+        table.add_data(None, "d")
 
     # Assert that the data in this column is valid, but also properly typed
     assert [row[0] for row in table.data] == ["1", "2", "3"]
@@ -83,42 +87,37 @@ def test_fk_cast(use_helper=False):
     if use_helper:
         table.set_fk("fk", table_a, "id")
     else:
-        table.cast("fk", wandb.data_types.ForeignKey(table_a, "id"))
+        table.cast("fk", wandb.data_types._TableKeyType(table_a, "id"))
 
     # Adding is supported
     table.add_data("3", "c")
 
     # Adding Duplicates is supported
-    with pytest.raises(TypeError):
-        table.add_data("3", "d")
+    table.add_data("3", "d")
 
     # TODO: Implement constraint to only allow valid keys
 
     # Assert that the data in this column is valid, but also properly typed
     assert [row[0] for row in table.data] == ["1", "2", "3", "3"]
-    assert all(row[0]._table == table_a for row in table.data)
+    assert all(
+        [row[0]._table == table_a and row[0]._col_name == "id" for row in table.data]
+    )
     assert isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types.ForeignKey
+        table._column_types.params["type_map"]["fk"], wandb.data_types._TableKeyType
     )
 
     # Fails on Numerics for now
-    table = wandb.Table(columns=["fk", "col_2"], data=[["1", "c"], ["2", "d"]])
+    table = wandb.Table(columns=["fk", "col_2"], data=[[1, "c"], [2, "d"]])
     with pytest.raises(TypeError):
         if use_helper:
             table.set_fk("fk", table_a, "id")
         else:
-            table.cast("fk", wandb.data_types.ForeignKey(table_a, "id"))
+            table.cast("fk", wandb.data_types._TableKeyType(table_a, "id"))
 
     # Assert that the table was not modified
-    assert all([row[0].__class__ == str for row in table.data])
+    assert all([row[0].__class__ == int for row in table.data])
     assert not isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types.ForeignKey
-    )
-
-    # Assert that the table was not modified
-    assert all([row[0].__class__ == str for row in table.data])
-    assert not isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types._TableKey
+        table._column_types.params["type_map"]["fk"], wandb.data_types._TableKeyType
     )
 
 
@@ -131,15 +130,35 @@ def test_fk_from_pk_local_draft():
     table_a.set_pk("id")
 
     table = wandb.Table(
-        columns=["fk", "col_2"], data=[[table_a.data[0][1], "c"], ["2", "d"]]
+        columns=["fk", "col_2"], data=[[table_a.data[0][0], "c"], ["2", "d"]]
     )
     table.add_data("3", "c")
 
+    # None should be supported in the case that the FK was originally optional
+    table.add_data(None, "c")
+
+    # import pdb; pdb.set_trace()
+
     # Assert that the data in this column is valid, but also properly typed
-    assert [row[0] for row in table.data] == ["1", "2", "3"]
-    assert all(wandb.Table._table_of_key(row[0]) == table_a for row in table.data)
-    assert isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types.ForeignKey
+    assert [row[0] for row in table.data] == ["1", "2", "3", None]
+    assert all(
+        [
+            row[0] is None or (row[0]._table == table_a and row[0]._col_name == "id")
+            for row in table.data
+        ]
+    )
+
+    table = wandb.Table(columns=["fk", "col_2"], data=[["1", "c"], ["2", "d"]])
+    table.add_data(table_a.data[0][0], "c")
+    table.add_data(None, "c")
+
+    # Assert that the data in this column is valid, but also properly typed
+    assert [row[0] for row in table.data] == ["1", "2", "1", None]
+    assert all(
+        [
+            row[0] is None or (row[0]._table == table_a and row[0]._col_name == "id")
+            for row in table.data
+        ]
     )
 
 

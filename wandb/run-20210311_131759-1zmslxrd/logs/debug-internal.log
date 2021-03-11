@@ -1,0 +1,44 @@
+2021-03-11 13:18:00,284 INFO    MainThread:83301 [internal.py:wandb_internal():91] W&B internal server running at pid: 83301, started at: 2021-03-11 13:18:00.284221
+2021-03-11 13:18:00,286 INFO    WriterThread:83301 [datastore.py:open_for_write():77] open: /Users/timothysweeney/workspace/wandb-client/wandb/run-20210311_131759-1zmslxrd/run-1zmslxrd.wandb
+2021-03-11 13:18:00,286 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: check_version
+2021-03-11 13:18:00,288 DEBUG   SenderThread:83301 [sender.py:send():161] send: header
+2021-03-11 13:18:00,288 DEBUG   SenderThread:83301 [sender.py:send():161] send: request
+2021-03-11 13:18:00,288 DEBUG   SenderThread:83301 [sender.py:send_request():170] send_request: check_version
+2021-03-11 13:18:00,362 DEBUG   SenderThread:83301 [sender.py:send():161] send: run
+2021-03-11 13:18:00,554 INFO    SenderThread:83301 [sender.py:_start_run_threads():638] run started: 1zmslxrd with start time 1615497479
+2021-03-11 13:18:00,554 DEBUG   SenderThread:83301 [sender.py:send():161] send: summary
+2021-03-11 13:18:00,554 INFO    SenderThread:83301 [sender.py:_save_file():769] saving file wandb-summary.json with policy end
+2021-03-11 13:18:00,556 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: run_start
+2021-03-11 13:18:00,561 DEBUG   HandlerThread:83301 [meta.py:__init__():34] meta init
+2021-03-11 13:18:00,562 DEBUG   HandlerThread:83301 [meta.py:__init__():48] meta init done
+2021-03-11 13:18:00,562 DEBUG   HandlerThread:83301 [meta.py:probe():190] probe
+2021-03-11 13:18:00,566 DEBUG   HandlerThread:83301 [meta.py:_setup_git():180] setup git
+2021-03-11 13:18:00,606 DEBUG   HandlerThread:83301 [meta.py:_setup_git():187] setup git done
+2021-03-11 13:18:00,606 DEBUG   HandlerThread:83301 [meta.py:_save_code():69] save code
+2021-03-11 13:18:00,606 WARNING HandlerThread:83301 [meta.py:_save_code():71] unable to save code -- program entry not found
+2021-03-11 13:18:00,607 DEBUG   HandlerThread:83301 [meta.py:_save_patches():107] save patches
+2021-03-11 13:18:00,747 DEBUG   HandlerThread:83301 [meta.py:_save_patches():149] save patches done
+2021-03-11 13:18:00,748 DEBUG   HandlerThread:83301 [meta.py:_save_pip():52] save pip
+2021-03-11 13:18:00,748 DEBUG   HandlerThread:83301 [meta.py:_save_pip():66] save pip done
+2021-03-11 13:18:00,748 DEBUG   HandlerThread:83301 [meta.py:probe():231] probe done
+2021-03-11 13:18:00,752 DEBUG   SenderThread:83301 [sender.py:send():161] send: files
+2021-03-11 13:18:00,752 INFO    SenderThread:83301 [sender.py:_save_file():769] saving file wandb-metadata.json with policy now
+2021-03-11 13:18:00,753 INFO    SenderThread:83301 [sender.py:_save_file():769] saving file diff.patch with policy now
+2021-03-11 13:18:00,753 INFO    SenderThread:83301 [sender.py:_save_file():769] saving file upstream_diff_64c5066237056babb3e449b4e278f4fca99f8680.patch with policy now
+2021-03-11 13:18:00,757 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: status
+2021-03-11 13:18:00,758 DEBUG   SenderThread:83301 [sender.py:send():161] send: request
+2021-03-11 13:18:00,758 DEBUG   SenderThread:83301 [sender.py:send_request():170] send_request: status
+2021-03-11 13:18:15,876 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: status
+2021-03-11 13:18:15,876 DEBUG   SenderThread:83301 [sender.py:send():161] send: request
+2021-03-11 13:18:15,876 DEBUG   SenderThread:83301 [sender.py:send_request():170] send_request: status
+2021-03-11 13:18:19,997 WARNING MainThread:83301 [internal.py:wandb_internal():146] Internal process interrupt: 1
+2021-03-11 13:18:24,256 DEBUG   SenderThread:83301 [sender.py:send():161] send: summary
+2021-03-11 13:18:24,258 INFO    SenderThread:83301 [sender.py:_save_file():769] saving file wandb-summary.json with policy end
+2021-03-11 13:18:29,286 DEBUG   SenderThread:83301 [sender.py:send():161] send: stats
+2021-03-11 13:18:31,018 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: status
+2021-03-11 13:18:31,019 DEBUG   SenderThread:83301 [sender.py:send():161] send: request
+2021-03-11 13:18:31,019 DEBUG   SenderThread:83301 [sender.py:send_request():170] send_request: status
+2021-03-11 13:18:35,888 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: get_summary
+2021-03-11 13:18:46,125 DEBUG   HandlerThread:83301 [handler.py:handle_request():101] handle_request: status
+2021-03-11 13:18:46,125 DEBUG   SenderThread:83301 [sender.py:send():161] send: request
+2021-03-11 13:18:46,125 DEBUG   SenderThread:83301 [sender.py:send_request():170] send_request: status

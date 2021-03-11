@@ -108,7 +108,7 @@ MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 class _TableKey(str):
     def set_table(self, table, col_name):
-        assert col_name in table._columns
+        assert col_name in table.columns
         self._table = table
         self._col_name = col_name
 
@@ -145,6 +145,7 @@ class Table(Media):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
         self._pk_col = None
+        self._fk_cols = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -173,7 +174,7 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
-        self._find_pk()
+        # self._update_keys()
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -192,7 +193,7 @@ class Table(Media):
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in data:
-            self.add_data(*row)
+            self.add_data(*row,)
 
     def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
         assert util.is_numpy_array(
@@ -203,7 +204,7 @@ class Table(Media):
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in ndarray.tolist():
-            self.add_data(*row)
+            self.add_data(*row,)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
         assert util.is_pandas_data_frame(
@@ -213,7 +214,7 @@ class Table(Media):
         self.columns = list(dataframe.columns)
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
-            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
+            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns),)
 
     def _make_column_types(self, dtype=None, optional=True):
         if dtype is None:
@@ -232,9 +233,10 @@ class Table(Media):
     def cast(self, col_name, dtype, optional=False):
         assert col_name in self.columns
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
-        is_pk = isinstance(wbtype, _TableKeyType) and wbtype.params["table"] == self
+        is_key = isinstance(wbtype, _TableKeyType)
+        is_pk = is_key and id(wbtype.params["table"]) == id(self)
         if is_pk:
-            assert self._pk_col == None, "Cannot have multiple PKs"
+            assert self._pk_col is None, "Cannot have multiple PKs"
             optional = False
 
         if optional:
@@ -252,13 +254,17 @@ class Table(Media):
                 )
             wbtype = result_type
 
-        if is_pk:
-            self._pk_col = col_name
-            for row in self.data:
-                if not isinstance(row[col_ndx], _TableKey):
-                    row[col_ndx] = _TableKey(row[col_ndx])
-                    row[col_ndx].set_table(self, col_name)
+        # if is_pk:
+        #     self._pk_col = col_name
+        # if is_key:
+        #     if not is_pk:
+        #         self._fk_cols.add(col_name)
+        #     for row in self.data:
+        #         if not isinstance(row[col_ndx], _TableKey):
+        #             row[col_ndx] = _TableKey(row[col_ndx])
+        #             row[col_ndx].set_table(wbtype.params["table"], wbtype.params["col_name"])
         self._column_types.params["type_map"][col_name] = wbtype
+        self._update_keys()
         return wbtype
 
     def __ne__(self, other):
@@ -314,14 +320,44 @@ class Table(Media):
                 )
             )
         data = list(data)
-        self._validate_data(data)
-        if self._pk_col is not None:
-            pk_ndx = self.columns.index(self._pk_col)
-            data[pk_ndx] = _TableKey(data[pk_ndx])
-            data[pk_ndx].set_table(self, self._pk_col)
-        self.data.append(list(data))
 
-    def _validate_data(self, data):
+        # Special case to cast a column as a key. This is because
+        # Key is not assignable to string, but string is assignable
+        # to Key
+        for ndx, item in enumerate(data):
+            if isinstance(item, _TableKey):
+                is_optional = False
+                if item._table != self:
+                    curr_type = self._column_types.params["type_map"][self.columns[ndx]]
+                    is_optional = isinstance(curr_type, _dtypes.UnionType) and any(
+                        [
+                            isinstance(t, _dtypes.NoneType)
+                            for t in curr_type.params["allowed_types"]
+                        ]
+                    )
+                # import pdb; pdb.set_trace()
+                self.cast(
+                    self.columns[ndx],
+                    _dtypes.TypeRegistry.type_of(item),
+                    optional=is_optional,
+                )
+        result_type = self._get_updated_result_type(data)
+        self._column_types = result_type
+
+        # if self._pk_col is not None:
+        #     pk_ndx = self.columns.index(self._pk_col)
+        #     data[pk_ndx] = _TableKey(data[pk_ndx])
+        #     data[pk_ndx].set_table(self, self._pk_col)
+
+        # for fk_col in self._fk_cols:
+        #     fk_ndx = self.columns.index(fk_col)
+        #     data[fk_ndx] = _TableKey(data[fk_ndx])
+        #     data[fk_ndx].set_table(self._column_types.params["type_map"][fk_col].params["table"], self._column_types.params["type_map"][fk_col].params["col_name"])
+
+        self.data.append(list(data))
+        self._update_keys(force_last=True)
+
+    def _get_updated_result_type(self, data):
         incoming_data_dict = {
             col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
         }
@@ -333,7 +369,7 @@ class Table(Media):
                     current_type.explain(incoming_data_dict)
                 )
             )
-        self._column_types = result_type
+        return result_type
 
     def _to_table_json(self, max_rows=None):
         # seperate method for testing
@@ -376,7 +412,7 @@ class Table(Media):
                 json_obj["column_types"], source_artifact
             )
 
-        new_obj._find_pk()
+        new_obj._update_keys()
 
         return new_obj
 
@@ -462,16 +498,67 @@ class Table(Media):
         assert col_name != self._pk_col
         self.cast(col_name, _TableKeyType(table, table_col))
 
-    def _find_pk(self):
+    def _update_keys(self, force_last=False):
         c_types = self._column_types.params["type_map"]
-        self._pk_col = None
+        _pk_col = None
+        _fk_cols = set()
+        _key_col_types = {}
         for t in c_types:
-            if (
-                isinstance(c_types[t], _TableKeyType)
-                and c_types[t].params["table"] == self
-            ):
-                self._pk_col = t
-                break
+            if isinstance(c_types[t], _TableKeyType):
+                if id(c_types[t].params["table"]) == id(self):
+                    _pk_col = t
+                else:
+                    _fk_cols.add(t)
+                _key_col_types[t] = c_types[t]
+            else:
+                if isinstance(c_types[t], _dtypes.UnionType):
+                    for at in c_types[t].params["allowed_types"]:
+                        if isinstance(at, _TableKeyType):
+                            if id(at.params["table"]) == id(self):
+                                raise AssertionError(
+                                    "Primary Keys columns must be homogenous"
+                                )
+                            else:
+                                _fk_cols.add(t)
+                                _key_col_types[t] = at
+
+        # import pdb; pdb.set_trace()
+        # If there are updates to perform
+        has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
+        if has_update:
+            # If we removed the PK
+            if _pk_col is None and self._pk_col is not None:
+                raise AssertionError("Cannot unset primary key")
+            # If there is a removed FK
+            if len(self._fk_cols - _fk_cols) > 0:
+                raise AssertionError("Cannot unset foreign key")
+
+            self._pk_col = _pk_col
+            self._fk_cols = _fk_cols
+
+        if has_update or force_last:
+            # Perform updates in bulk
+            key_updates = [
+                (fk_col, self.columns.index(fk_col)) for fk_col in self._fk_cols
+            ]
+            if self._pk_col is not None:
+                key_updates.append((self._pk_col, self.columns.index(self._pk_col)))
+
+            if has_update:
+                r = range(len(self.data))
+            else:
+                r = [len(self.data) - 1]
+            # import pdb; pdb.set_trace()
+            for row_ndx in r:
+                for update_col, update_ndx in key_updates:
+                    if self.data[row_ndx][update_ndx] is not None:
+                        self.data[row_ndx][update_ndx] = _TableKey(
+                            self.data[row_ndx][update_ndx]
+                        )
+                        self.data[row_ndx][update_ndx].set_table(
+                            _key_col_types[update_col].params["table"],
+                            _key_col_types[update_col].params["col_name"],
+                        )
 
 
 class _PartitionTablePartEntry:
@@ -1413,18 +1500,16 @@ class _TableKeyType(_dtypes.Type):
     def __init__(self, table, col_name):
         assert isinstance(table, Table)
         assert isinstance(col_name, str)
-        assert col_name in table._columns
+        assert col_name in table.columns
         self.params.update({"table": table, "col_name": col_name})
 
-    def assign(self, py_obj):
-        return self.assign_type(_TableKeyType.from_obj(py_obj))
-
     def assign_type(self, wb_type=None):
+        # import pdb; pdb.set_trace()
         if isinstance(wb_type, _dtypes.StringType):
             return self
         elif (
-            isinstance(wb_type, _TableKey)
-            and self.params["table"] == wb_type.params["table"]
+            isinstance(wb_type, _TableKeyType)
+            and id(self.params["table"]) == id(wb_type.params["table"])
             and self.params["col_name"] == wb_type.params["col_name"]
         ):
             return self
@@ -1442,9 +1527,12 @@ class _TableKeyType(_dtypes.Type):
         res = super(_TableKeyType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
-            res["params"]["table"] = classes_entry.path
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
         else:
-            raise AssertionError("_TableKeyType does not support serialization without an artifact")
+            raise AssertionError(
+                "_TableKeyType does not support serialization without an artifact"
+            )
         return res
 
     @classmethod
@@ -1454,7 +1542,9 @@ class _TableKeyType(_dtypes.Type):
         table = None
         col_name = None
         if artifact is None:
-            raise AssertionError("_TableKeyType does not support deserialization without an artifact")
+            raise AssertionError(
+                "_TableKeyType does not support deserialization without an artifact"
+            )
         else:
             table = artifact.get(json_dict["params"]["table"])
             col_name = json_dict["params"]["col_name"]

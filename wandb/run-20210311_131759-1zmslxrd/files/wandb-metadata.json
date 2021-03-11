@@ -1,0 +1,21 @@
+{
+    "os": "Darwin-19.6.0-x86_64-i386-64bit",
+    "python": "3.6.8",
+    "heartbeatAt": "2021-03-11T21:18:00.563638",
+    "startedAt": "2021-03-11T21:17:59.722380",
+    "docker": null,
+    "cpu_count": 12,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "git": {
+        "remote": "git@github.com:wandb/client.git",
+        "commit": "07ef78b8333cc88666e84fa02f1ac4f52e4a4d25"
+    },
+    "email": "tim.s.sweeney@gmail.com",
+    "root": "/Users/timothysweeney/workspace/wandb-client",
+    "host": "Timothys-MacBook-Pro.local",
+    "username": "timothysweeney",
+    "executable": "/Users/timothysweeney/.pyenv/versions/3.6.8/envs/v368/bin/python"
+}
