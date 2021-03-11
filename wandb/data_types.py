@@ -106,6 +106,12 @@ warnings.filterwarnings(
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
+class _TableKey(str):
+    def set_table(self, table, col_name):
+        self._table = table
+        self._col_name = col_name
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -137,6 +143,7 @@ class Table(Media):
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+        self._pk_col = None
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -164,6 +171,8 @@ class Table(Media):
             # Default empty case
             else:
                 self._init_from_list([], columns, optional, dtype)
+
+        self._find_pk()
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -220,7 +229,13 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
+        assert col_name in self.columns
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+        is_pk = isinstance(wbtype, _TableKeyType) and wbtype.params["table"] == self
+        if is_pk:
+            assert self._pk_col == None, "Cannot have multiple PKs"
+            optional = False
+
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
         col_ndx = self.columns.index(col_name)
@@ -235,6 +250,13 @@ class Table(Media):
                     )
                 )
             wbtype = result_type
+
+        if is_pk:
+            self._pk_col = col_name
+            for row in self.data:
+                if not isinstance(row[col_ndx], _TableKey):
+                    row[col_ndx] = _TableKey(row[col_ndx])
+                    row[col_ndx].set_table(self, col_name)
         self._column_types.params["type_map"][col_name] = wbtype
         return wbtype
 
@@ -290,7 +312,12 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
+        data = list(data)
         self._validate_data(data)
+        if self._pk_col is not None:
+            pk_ndx = self.columns.index(self._pk_col)
+            data[pk_ndx] = _TableKey(data[pk_ndx])
+            data[pk_ndx].set_table(self, self._pk_col)
         self.data.append(list(data))
 
     def _validate_data(self, data):
@@ -347,6 +374,8 @@ class Table(Media):
             new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
             )
+
+        new_obj._find_pk()
 
         return new_obj
 
@@ -410,13 +439,33 @@ class Table(Media):
         """Iterate over rows as (ndx, row)
         Yields
         ------
-        index : int
+        index : str
             The index of the row.
         row : List[any]
             The data of the row
         """
+        if self._pk_col is not None:
+            pk_ndx = self.columns.index(self._pk_col)
         for ndx in range(len(self.data)):
-            yield ndx, self.data[ndx]
+            index = ndx
+            if self._pk_col is not None:
+                index = self.data[ndx][pk_ndx]
+            yield index, self.data[ndx]
+
+    def set_pk(self, col_name):
+        assert col_name in self.columns
+        self.cast(col_name, _TableKeyType(self, col_name))
+
+    def _find_pk(self):
+        c_types = self._column_types.params["type_map"]
+        self._pk_col = None
+        for t in c_types:
+            if (
+                isinstance(c_types[t], _TableKeyType)
+                and c_types[t].params["table"] == self
+            ):
+                self._pk_col = t
+                break
 
 
 class _PartitionTablePartEntry:
@@ -1333,5 +1382,54 @@ class _TableType(_dtypes.Type):
             return cls(py_obj._column_types)
 
 
+# class _TablePKType(_dtypes.Type):
+#     name = "wandb.TablePK"
+#     types = [_TablePK]
+
+#     def assign_type(self, wb_type=None):
+#         if isinstance(wb_type, _TablePKType) or isinstance(wb_type, _dtypes.StringType):
+#             return _TablePKType()
+
+#         return _dtypes.InvalidType()
+
+#     @classmethod
+#     def from_obj(cls, py_obj):
+#         if not isinstance(py_obj, _TablePK) and not isinstance(py_obj, str):
+#             raise TypeError("py_obj must be a _TablePK or str")
+#         else:
+#             return _TablePKType()
+
+
+class _TableKeyType(_dtypes.Type):
+    name = "wandb.TableKey"
+    types = [_TableKey]
+
+    def __init__(self, table, col_name):
+        assert isinstance(table, Table)
+        assert isinstance(col_name, str)
+        self.params.update({"table": table, "col_name": col_name})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.StringType):
+            return self
+        elif (
+            isinstance(wb_type, _TableKey)
+            and self.params["table"] == wb_type.params["table"]
+            and self.params["col_name"] == wb_type.params["col_name"]
+        ):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableKey):
+            raise TypeError("py_obj must be a wandb.Table")
+        else:
+            return cls(py_obj._table, py_obj._col_name)
+
+
 _dtypes.TypeRegistry.add(_ImageType)
 _dtypes.TypeRegistry.add(_TableType)
+_dtypes.TypeRegistry.add(_TableKeyType)
+# _dtypes.TypeRegistry.add(_TableFKType)
