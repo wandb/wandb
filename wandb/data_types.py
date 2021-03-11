@@ -108,6 +108,7 @@ MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 class _TableKey(str):
     def set_table(self, table, col_name):
+        assert col_name in table._columns
         self._table = table
         self._col_name = col_name
 
@@ -455,6 +456,11 @@ class Table(Media):
     def set_pk(self, col_name):
         assert col_name in self.columns
         self.cast(col_name, _TableKeyType(self, col_name))
+
+    def set_fk(self, col_name, table, table_col):
+        assert col_name in self.columns
+        assert col_name != self._pk_col
+        self.cast(col_name, _TableKeyType(table, table_col))
 
     def _find_pk(self):
         c_types = self._column_types.params["type_map"]
@@ -1407,7 +1413,11 @@ class _TableKeyType(_dtypes.Type):
     def __init__(self, table, col_name):
         assert isinstance(table, Table)
         assert isinstance(col_name, str)
+        assert col_name in table._columns
         self.params.update({"table": table, "col_name": col_name})
+
+    def assign(self, py_obj):
+        return self.assign_type(_TableKeyType.from_obj(py_obj))
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _dtypes.StringType):
@@ -1427,6 +1437,32 @@ class _TableKeyType(_dtypes.Type):
             raise TypeError("py_obj must be a wandb.Table")
         else:
             return cls(py_obj._table, py_obj._col_name)
+
+    def to_json(self, artifact=None):
+        res = super(_TableKeyType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            res["params"]["table"] = classes_entry.path
+        else:
+            raise AssertionError("_TableKeyType does not support serialization without an artifact")
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        col_name = None
+        if artifact is None:
+            raise AssertionError("_TableKeyType does not support deserialization without an artifact")
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+            col_name = json_dict["params"]["col_name"]
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table, col_name)
 
 
 _dtypes.TypeRegistry.add(_ImageType)
