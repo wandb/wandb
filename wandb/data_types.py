@@ -238,19 +238,40 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        assert col_name in self.columns
+        """Casts a column to a specific type
+
+        Arguments:
+            col_name: (str) - name of the column to cast
+            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
+                normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
+            optional: (bool) - if the column should allow Nones
+        """
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+
+        # Assert valid options
+        assert col_name in self.columns
         is_pk = isinstance(wbtype, _TablePrimaryKeyType)
         is_fk = isinstance(wbtype, _TableForeignKeyType)
-        if is_fk and id(wbtype.params["table"]) == id(self):
-            raise AssertionError("Cannot set a FK reference to same table")
+        is_fi = isinstance(wbtype, _TableForeignIndexType)
+        if is_pk or is_fk or is_fi:
+            assert (
+                not optional
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+
+        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+            raise AssertionError("Cannot set a foreign table reference to same table")
 
         if is_pk:
-            assert self._pk_col is None, "Cannot have multiple PKs"
-            optional = False
+            assert (
+                self._pk_col is None
+            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                self._pk_col
+            )
 
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
+
+        # Cast each value in the row, raising an error if there are invalid entries.
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = wbtype.assign(row[col_ndx])
@@ -264,7 +285,10 @@ class Table(Media):
                 )
             wbtype = result_type
 
+        # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
+
+        # Wrap the data if needed
         self._update_keys()
         return wbtype
 
@@ -322,48 +346,44 @@ class Table(Media):
             )
         data = list(data)
 
-        # Special case to cast a column as a key. This is because
-        # Key is not assignable to string, but string is assignable
-        # to Key
+        # Special case to pre-emptively cast a column as a key.
+        # Needed as String.assign(Key) is invalid
         for ndx, item in enumerate(data):
             if isinstance(item, _TableLinkMixin):
-                is_optional = False
-                if item._table != self:
-                    curr_type = self._column_types.params["type_map"][self.columns[ndx]]
-                    is_optional = isinstance(curr_type, _dtypes.UnionType) and any(
-                        [
-                            isinstance(t, _dtypes.NoneType)
-                            for t in curr_type.params["allowed_types"]
-                        ]
-                    )
-
                 self.cast(
                     self.columns[ndx],
                     _dtypes.TypeRegistry.type_of(item),
-                    optional=is_optional,
+                    optional=False,
                 )
+
+        # Update the table's column types
         result_type = self._get_updated_result_type(data)
         self._column_types = result_type
 
+        # Add the new data
         self.data.append(list(data))
+
+        # Update the wrapper values if needed
         self._update_keys(force_last=True)
 
-    def _get_updated_result_type(self, data):
-        incoming_data_dict = {
-            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+    def _get_updated_result_type(self, row):
+        """Returns an updated result type based on incoming row. Raises error if
+        the assignment is invalid"""
+        incoming_row_dict = {
+            col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
         }
         current_type = self._column_types
-        result_type = current_type.assign(incoming_data_dict)
+        result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
                 "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_data_dict)
+                    current_type.explain(incoming_row_dict)
                 )
             )
         return result_type
 
     def _to_table_json(self, max_rows=None):
-        # seperate method for testing
+        # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
@@ -466,19 +486,15 @@ class Table(Media):
         """Iterate over rows as (ndx, row)
         Yields
         ------
-        index : str
-            The index of the row.
+        index : int
+            The index of the row. Using this value in other WandB tables
+            will automatically build a relationship between the tables
         row : List[any]
             The data of the row
         """
-        if self._pk_col is not None:
-            pk_ndx = self.columns.index(self._pk_col)
         for ndx in range(len(self.data)):
-            if self._pk_col is not None:
-                index = self.data[ndx][pk_ndx]
-            else:
-                index = _TableIndex(ndx)
-                index.set_table(self)
+            index = _TableIndex(ndx)
+            index.set_table(self)
             yield index, self.data[ndx]
 
     def set_pk(self, col_name):
@@ -493,86 +509,99 @@ class Table(Media):
         self.cast(col_name, _TableForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
-        # TODO: Docs
-        c_types = self._column_types.params["type_map"]
+        """Updates the known key-like columns based on the current
+        column types. If the state has been updated since
+        the last update, we wrap the data appropriately in the Key classes
+
+        Arguments:
+        force_last: (bool) Determines wrapping the last column of data even if
+        there are no key updates.
+        """
         _pk_col = None
         _fk_cols = set()
-        _key_col_types = {}
+
+        # Buildup the known keys from column types
+        c_types = self._column_types.params["type_map"]
         for t in c_types:
             if isinstance(c_types[t], _TablePrimaryKeyType):
                 _pk_col = t
-                _key_col_types[t] = c_types[t]
             elif isinstance(c_types[t], _TableForeignKeyType) or isinstance(
                 c_types[t], _TableForeignIndexType
             ):
                 _fk_cols.add(t)
-                _key_col_types[t] = c_types[t]
-            elif isinstance(c_types[t], _dtypes.UnionType):
-                for at in c_types[t].params["allowed_types"]:
-                    if isinstance(at, _TablePrimaryKeyType):
-                        raise AssertionError("Primary Keys columns must be homogenous")
-                    elif isinstance(at, _TableForeignKeyType) or isinstance(
-                        at, _TableForeignIndexType
-                    ):
-                        _fk_cols.add(t)
-                        _key_col_types[t] = at
 
-        # If there are updates to perform
+        # If there are updates to perform, safely update them
         has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
         if has_update:
             # If we removed the PK
             if _pk_col is None and self._pk_col is not None:
-                raise AssertionError("Cannot unset primary key")
+                raise AssertionError(
+                    "Cannot unset primary key (column {})".format(self._pk_col)
+                )
             # If there is a removed FK
             if len(self._fk_cols - _fk_cols) > 0:
-                raise AssertionError("Cannot unset foreign key")
+                raise AssertionError(
+                    "Cannot unset foreign key. Attempted to unset ({})".format(
+                        self._fk_cols - _fk_cols
+                    )
+                )
 
             self._pk_col = _pk_col
             self._fk_cols = _fk_cols
 
+        # Apply updates to data only if there are update or the caller
+        # requested the final row to be updated
         if has_update or force_last:
-            self._apply_updates(_key_col_types, not has_update)
+            self._apply_key_updates(not has_update)
 
-    def _apply_updates(self, _key_col_types, only_last=False):
-        # TODO: Docs
-        if not only_last:
-            r = range(len(self.data))
+    def _apply_key_updates(self, only_last=False):
+        """Appropriately wraps the underlying data in special key classes.
+
+        Arguments:
+            only_last: only apply the updates to the last row (used for performance when
+            the caller knows that the only new data is the last row and no updates were
+            applied to the column types)
+        """
+        c_types = self._column_types.params["type_map"]
+
+        # Define a helper function which will wrap the data of a single row
+        # in the appropriate class wrapper.
+        def update_row(row_ndx):
+            for fk_col in self._fk_cols:
+                col_ndx = self.columns.index(fk_col)
+
+                # Wrap the Foreign Keys
+                if isinstance(c_types[fk_col], _TableForeignKeyType) and not isinstance(
+                    self.data[row_ndx][col_ndx], _TableKey
+                ):
+                    self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"],
+                        c_types[fk_col].params["col_name"],
+                    )
+
+                # Wrap the Foreign Indexes
+                elif isinstance(
+                    c_types[fk_col], _TableForeignIndexType
+                ) and not isinstance(self.data[row_ndx][col_ndx], _TableIndex):
+                    self.data[row_ndx][col_ndx] = _TableIndex(
+                        self.data[row_ndx][col_ndx]
+                    )
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"]
+                    )
+
+            # Wrap the Primary Key
+            if self._pk_col is not None:
+                col_ndx = self.columns.index(self._pk_col)
+                self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                self.data[row_ndx][col_ndx].set_table(self, self._pk_col)
+
+        if only_last:
+            update_row(len(self.data) - 1)
         else:
-            r = [len(self.data) - 1]
-
-        # Perform updates in bulk
-        key_updates = [
-            (
-                self.columns.index(fk_col),
-                _key_col_types[fk_col].params["table"],
-                _key_col_types[fk_col].params["col_name"],
-            )
-            for fk_col in self._fk_cols
-            if isinstance(_key_col_types[fk_col], _TableForeignKeyType)
-        ]
-        if self._pk_col is not None:
-            key_updates.append((self.columns.index(self._pk_col), self, self._pk_col))
-        ndx_updates = [
-            (self.columns.index(fk_col), _key_col_types[fk_col].params["table"],)
-            for fk_col in self._fk_cols
-            if isinstance(_key_col_types[fk_col], _TableForeignIndexType)
-        ]
-
-        for row_ndx in r:
-            for update_ndx, table, col_name in key_updates:
-                if self.data[row_ndx][update_ndx] is not None:
-                    self.data[row_ndx][update_ndx] = _TableKey(
-                        self.data[row_ndx][update_ndx]
-                    )
-                    self.data[row_ndx][update_ndx].set_table(
-                        table, col_name,
-                    )
-            for update_ndx, table in ndx_updates:
-                if self.data[row_ndx][update_ndx] is not None:
-                    self.data[row_ndx][update_ndx] = _TableIndex(
-                        self.data[row_ndx][update_ndx]
-                    )
-                    self.data[row_ndx][update_ndx].set_table(table,)
+            for row_ndx in range(len(self.data)):
+                update_row(row_ndx)
 
 
 class _PartitionTablePartEntry:
