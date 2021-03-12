@@ -174,8 +174,6 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
-        # self._update_keys()
-
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -329,7 +327,7 @@ class Table(Media):
                             for t in curr_type.params["allowed_types"]
                         ]
                     )
-                # import pdb; pdb.set_trace()
+
                 self.cast(
                     self.columns[ndx],
                     _dtypes.TypeRegistry.type_of(item),
@@ -397,7 +395,6 @@ class Table(Media):
             )
 
         new_obj._update_keys()
-
         return new_obj
 
     def to_json(self, run_or_artifact):
@@ -505,7 +502,6 @@ class Table(Media):
                         _fk_cols.add(t)
                         _key_col_types[t] = at
 
-        # import pdb; pdb.set_trace()
         # If there are updates to perform
         has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
         if has_update:
@@ -538,7 +534,7 @@ class Table(Media):
                 r = range(len(self.data))
             else:
                 r = [len(self.data) - 1]
-            # import pdb; pdb.set_trace()
+
             for row_ndx in r:
                 for update_ndx, table, col_name in key_updates:
                     if self.data[row_ndx][update_ndx] is not None:
@@ -1462,24 +1458,6 @@ class _TableType(_dtypes.Type):
             raise TypeError("py_obj must be a wandb.Table")
         else:
             return cls(py_obj._column_types)
-
-
-# class _TablePKType(_dtypes.Type):
-#     name = "wandb.TablePK"
-#     types = [_TablePK]
-
-#     def assign_type(self, wb_type=None):
-#         if isinstance(wb_type, _TablePKType) or isinstance(wb_type, _dtypes.StringType):
-#             return _TablePKType()
-
-#         return _dtypes.InvalidType()
-
-#     @classmethod
-#     def from_obj(cls, py_obj):
-#         if not isinstance(py_obj, _TablePK) and not isinstance(py_obj, str):
-#             raise TypeError("py_obj must be a _TablePK or str")
-#         else:
-#             return _TablePKType()
 
 
 class _TableForeignKeyType(_dtypes.Type):

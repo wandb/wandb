@@ -14,7 +14,7 @@ def test_pk_cast(use_helper=False):
         table.set_pk("id")
     else:
         table.cast("id", wandb.data_types._TablePrimaryKeyType())
-    # import pdb; pdb.set_trace()
+
     # Now iterrows has the pk as the id field
     assert [id_ for id_, row in list(table.iterrows())] == ["1", "2"]
 
@@ -22,6 +22,7 @@ def test_pk_cast(use_helper=False):
     table.add_data("3", "c")
 
     # Adding Duplicates fail
+    # TODO: Enforce duplicate (not supported today)
     # with pytest.raises(TypeError):
     #     table.add_data("3", "d")
 
@@ -59,6 +60,7 @@ def test_pk_cast(use_helper=False):
         wandb.data_types._TablePrimaryKeyType,
     )
 
+    # TODO: Test duplicates (not supported today)
     # Fails on initial duplicates
     # table = wandb.Table(columns=["id", "b"], data=[["1", "a"], ["1", "b"]])
     # with pytest.raises(TypeError):
@@ -141,10 +143,7 @@ def test_fk_from_pk_local_draft():
     # None should be supported in the case that the FK was originally optional
     table.add_data(None, "c")
 
-    # import pdb; pdb.set_trace()
-
     # Assert that the data in this column is valid, but also properly typed
-    # import pdb; pdb.set_trace()
     assert [row[0] for row in table.data] == ["1", "2", "3", None]
     assert all(
         [
