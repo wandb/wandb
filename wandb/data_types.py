@@ -193,7 +193,7 @@ class Table(Media):
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in data:
-            self.add_data(*row,)
+            self.add_data(*row)
 
     def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
         assert util.is_numpy_array(
@@ -204,7 +204,7 @@ class Table(Media):
         self.columns = columns
         self._make_column_types(dtype, optional)
         for row in ndarray.tolist():
-            self.add_data(*row,)
+            self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
         assert util.is_pandas_data_frame(
@@ -214,7 +214,7 @@ class Table(Media):
         self.columns = list(dataframe.columns)
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
-            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns),)
+            self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
 
     def _make_column_types(self, dtype=None, optional=True):
         if dtype is None:
