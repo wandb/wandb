@@ -1167,6 +1167,9 @@ class ImageMask(Media):
             image = pil_image.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
             image.save(tmp_path, transparency=None)
+            print("Image saved to: " + tmp_path)
+            if os.path.isfile(tmp_path):
+                print("OK!!")
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def bind_to_run(
