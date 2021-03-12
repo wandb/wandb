@@ -482,15 +482,18 @@ class Table(Media):
             yield index, self.data[ndx]
 
     def set_pk(self, col_name):
+        # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _TablePrimaryKeyType())
 
     def set_fk(self, col_name, table, table_col):
+        # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
         self.cast(col_name, _TableForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
+        # TODO: Docs
         c_types = self._column_types.params["type_map"]
         _pk_col = None
         _fk_cols = set()
@@ -531,6 +534,7 @@ class Table(Media):
             self._apply_updates(_key_col_types, not has_update)
 
     def _apply_updates(self, _key_col_types, only_last=False):
+        # TODO: Docs
         if not only_last:
             r = range(len(self.data))
         else:
