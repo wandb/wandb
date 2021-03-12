@@ -531,29 +531,6 @@ def getcaller():
     print("Problem at:", src, line, func)
 
 
-def _write_process_config(kwargs, port):
-    config = {
-        "id": os.getpid(),
-        "port": port,
-        "kwargs": kwargs
-    }
-    wandb_dir = wandb.old.core.wandb_dir()
-    if not os.path.isdir(wandb_dir):
-        os.mkdir(wandb_dir)
-    with open(os.path.join(wandb_dir, "proc_%s.json" % os.getpid()), 'w') as f:
-        json.dump(config, f)
-
-
-def _get_parent_process_config():
-    ppid = psutil.Process(os.getpid()).ppid()
-    wandb_dir = wandb.old.core.wandb_dir()
-    parent_config_file = os.path.join(wandb_dir, "proc_%s.json" % ppid)
-    if not os.path.isfile(parent_config_file):
-        return None
-    with open(parent_config_file, 'r') as f:
-        return json.load(f)
-
-
 def init(
     job_type: Optional[str] = None,
     dir=None,

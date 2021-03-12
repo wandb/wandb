@@ -312,10 +312,18 @@ class Proxy(object):
 
 
 def _write_process_config(kwargs, port):
+    required_keys = [
+        "monitor_gym",
+        "tensorboard",
+        "sync_tensorboard",
+        "magic"
+    ]
+    kwargs2 = {k: kwargs.get(k) for k in required_keys}
+
     config = {
         "id": os.getpid(),
         "port": port,
-        "kwargs": kwargs
+        "kwargs": kwargs2
     }
     wandb_dir = wandb.old.core.wandb_dir()
     if not os.path.isdir(wandb_dir):
