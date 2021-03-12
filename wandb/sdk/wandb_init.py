@@ -714,10 +714,10 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
-    parent_proc_config = _get_parent_process_config()
+    parent_proc_config = _get_parent_process_config(wandb_dir=dir)
     if parent_proc_config is None:
         port = _get_free_port()
-        _write_process_config(kwargs, port=port)
+        _write_process_config(kwargs, port=port, wandb_dir=dir)
         start_mp_server(port=port)
     elif wandb.run:
         return wandb.run

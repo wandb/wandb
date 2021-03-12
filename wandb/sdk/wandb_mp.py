@@ -311,7 +311,7 @@ class Proxy(object):
         return "<Proxy for %s>" % s
 
 
-def _write_process_config(kwargs, port):
+def _write_process_config(kwargs, port, wandb_dir=None):
     required_keys = [
         "monitor_gym",
         "tensorboard",
@@ -325,16 +325,18 @@ def _write_process_config(kwargs, port):
         "port": port,
         "kwargs": kwargs2
     }
-    wandb_dir = wandb.old.core.wandb_dir()
+    if wandb_dir is None:
+        wandb_dir = wandb.old.core.wandb_dir()
     if not os.path.isdir(wandb_dir):
         os.mkdir(wandb_dir)
     with open(os.path.join(wandb_dir, "proc_%s.json" % os.getpid()), 'w') as f:
         json.dump(config, f)
 
 
-def _get_parent_process_config():
+def _get_parent_process_config(wandb_dir=None):
     ppid = psutil.Process(os.getpid()).ppid()
-    wandb_dir = wandb.old.core.wandb_dir()
+    if wandb_dir is None:
+        wandb_dir = wandb.old.core.wandb_dir()
     parent_config_file = os.path.join(wandb_dir, "proc_%s.json" % ppid)
     if not os.path.isfile(parent_config_file):
         return None
