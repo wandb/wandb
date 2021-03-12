@@ -1,7 +1,7 @@
 import wandb
 
 import json
-import multiprocessing as mp
+from multiprocessing.connection import Client, Listener
 import os
 import psutil
 import queue
@@ -22,7 +22,7 @@ class Server(object):
         self.address = address
         self.handler = handler
         self.responder = responder
-        self._listener = mp.connection.Listener(address)
+        self._listener = Listener(address)
         self._connections = []
         self._receiver_threads = []
         self._stop = threading.Event()
@@ -105,7 +105,7 @@ class SyncClient(object):
     def _connect(self):
         while not self._connected.is_set() and not self._stop.is_set():
             try:
-                self._client = mp.connection.Client(self.address)
+                self._client = Client(self.address)
                 self._connected.set()
             except Exception:
                 pass
@@ -151,7 +151,7 @@ class AsyncClient(object):
     def _connect(self):
         while not self._connected.is_set() and not self._stop.is_set():
             try:
-                self._client = mp.connection.Client(self.address)
+                self._client = Client(self.address)
                 self._connected.set()
             except Exception:
                 pass
