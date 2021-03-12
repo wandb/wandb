@@ -142,6 +142,10 @@ class MessageRouter(object):
         future._set_object(msg)
 
 
+class Monitor(object):
+    pass
+
+
 class BackendSender(object):
     class ExceptionTimeout(Exception):
         pass
@@ -531,6 +535,15 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
+    def communicate_health(self, monitor):
+        record = pb.Record()
+        record.request.health.CopyFrom(pb.HealthRequest())
+        result = self._communicate(record)
+        if not result:
+            return None
+        health_response = result.response.health_response
+        return health_response
+
     def communicate_login(
         self, api_key = None, timeout = 15
     ):
@@ -539,7 +552,7 @@ class BackendSender(object):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response
@@ -739,7 +752,7 @@ class BackendSender(object):
         result = self._communicate(req, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         assert result.exit_result
@@ -807,3 +820,6 @@ class BackendSender(object):
 
         if self._router:
             self._router.join()
+
+    def open_channel(self):
+        pass
