@@ -2,6 +2,26 @@ import wandb
 import pytest
 
 
+def test_basic_ndx():
+    # Base Case
+    table_a = wandb.Table(columns=["b"], data=[["a"], ["b"]])
+    table = wandb.Table(columns=["fi", "c"])
+    for _ndx, row in table_a.iterrows():
+        table.add_data(_ndx, "x")
+    assert all([row[0]._table == table_a for row in table.data])
+
+    # Adding is supported
+    table.add_data(3, "c")
+    # Adding duplicates is supported
+    table.add_data(3, "c")
+    # Adding None
+    table.add_data(None, "d")
+
+    # Assert that the data in this column is valid, but also properly typed
+    assert [row[0] for row in table.data] == [0, 1, 3, 3, None]
+    assert all([row[0] is None or row[0]._table == table_a for row in table.data])
+
+
 def test_pk_cast(use_helper=False):
     # Base Case
     table = wandb.Table(columns=["id", "b"], data=[["1", "a"], ["2", "b"]])
@@ -14,6 +34,10 @@ def test_pk_cast(use_helper=False):
         table.set_pk("id")
     else:
         table.cast("id", wandb.data_types._TablePrimaryKeyType())
+
+    assert all(
+        [row[0]._table == table and row[0]._col_name == "id" for row in table.data]
+    )
 
     # Now iterrows has the pk as the id field
     assert [id_ for id_, row in list(table.iterrows())] == ["1", "2"]

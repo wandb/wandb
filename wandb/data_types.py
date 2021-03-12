@@ -106,11 +106,20 @@ warnings.filterwarnings(
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
-class _TableKey(str):
+class _TableLinkMixin(object):
+    def set_table(self, table):
+        self._table = table
+
+
+class _TableKey(str, _TableLinkMixin):
     def set_table(self, table, col_name):
         assert col_name in table.columns
         self._table = table
         self._col_name = col_name
+
+
+class _TableIndex(int, _TableLinkMixin):
+    pass
 
 
 class Table(Media):
@@ -317,7 +326,7 @@ class Table(Media):
         # Key is not assignable to string, but string is assignable
         # to Key
         for ndx, item in enumerate(data):
-            if isinstance(item, _TableKey):
+            if isinstance(item, _TableLinkMixin):
                 is_optional = False
                 if item._table != self:
                     curr_type = self._column_types.params["type_map"][self.columns[ndx]]
@@ -465,9 +474,11 @@ class Table(Media):
         if self._pk_col is not None:
             pk_ndx = self.columns.index(self._pk_col)
         for ndx in range(len(self.data)):
-            index = ndx
             if self._pk_col is not None:
                 index = self.data[ndx][pk_ndx]
+            else:
+                index = _TableIndex(ndx)
+                index.set_table(self)
             yield index, self.data[ndx]
 
     def set_pk(self, col_name):
@@ -485,20 +496,21 @@ class Table(Media):
         _fk_cols = set()
         _key_col_types = {}
         for t in c_types:
-            # _TableForeignKeyType
-            # _TablePrimaryKeyType
-
             if isinstance(c_types[t], _TablePrimaryKeyType):
                 _pk_col = t
                 _key_col_types[t] = c_types[t]
-            elif isinstance(c_types[t], _TableForeignKeyType):
+            elif isinstance(c_types[t], _TableForeignKeyType) or isinstance(
+                c_types[t], _TableForeignIndexType
+            ):
                 _fk_cols.add(t)
                 _key_col_types[t] = c_types[t]
             elif isinstance(c_types[t], _dtypes.UnionType):
                 for at in c_types[t].params["allowed_types"]:
                     if isinstance(at, _TablePrimaryKeyType):
                         raise AssertionError("Primary Keys columns must be homogenous")
-                    elif isinstance(at, _TableForeignKeyType):
+                    elif isinstance(at, _TableForeignKeyType) or isinstance(
+                        at, _TableForeignIndexType
+                    ):
                         _fk_cols.add(t)
                         _key_col_types[t] = at
 
@@ -516,34 +528,47 @@ class Table(Media):
             self._fk_cols = _fk_cols
 
         if has_update or force_last:
-            # Perform updates in bulk
-            key_updates = [
-                (
-                    self.columns.index(fk_col),
-                    _key_col_types[fk_col].params["table"],
-                    _key_col_types[fk_col].params["col_name"],
-                )
-                for fk_col in self._fk_cols
-            ]
-            if self._pk_col is not None:
-                key_updates.append(
-                    (self.columns.index(self._pk_col), self, self._pk_col)
-                )
+            self._apply_updates(_key_col_types, not has_update)
 
-            if has_update:
-                r = range(len(self.data))
-            else:
-                r = [len(self.data) - 1]
+    def _apply_updates(self, _key_col_types, only_last=False):
+        if not only_last:
+            r = range(len(self.data))
+        else:
+            r = [len(self.data) - 1]
 
-            for row_ndx in r:
-                for update_ndx, table, col_name in key_updates:
-                    if self.data[row_ndx][update_ndx] is not None:
-                        self.data[row_ndx][update_ndx] = _TableKey(
-                            self.data[row_ndx][update_ndx]
-                        )
-                        self.data[row_ndx][update_ndx].set_table(
-                            table, col_name,
-                        )
+        # Perform updates in bulk
+        key_updates = [
+            (
+                self.columns.index(fk_col),
+                _key_col_types[fk_col].params["table"],
+                _key_col_types[fk_col].params["col_name"],
+            )
+            for fk_col in self._fk_cols
+            if isinstance(_key_col_types[fk_col], _TableForeignKeyType)
+        ]
+        if self._pk_col is not None:
+            key_updates.append((self.columns.index(self._pk_col), self, self._pk_col))
+        ndx_updates = [
+            (self.columns.index(fk_col), _key_col_types[fk_col].params["table"],)
+            for fk_col in self._fk_cols
+            if isinstance(_key_col_types[fk_col], _TableForeignIndexType)
+        ]
+
+        for row_ndx in r:
+            for update_ndx, table, col_name in key_updates:
+                if self.data[row_ndx][update_ndx] is not None:
+                    self.data[row_ndx][update_ndx] = _TableKey(
+                        self.data[row_ndx][update_ndx]
+                    )
+                    self.data[row_ndx][update_ndx].set_table(
+                        table, col_name,
+                    )
+            for update_ndx, table in ndx_updates:
+                if self.data[row_ndx][update_ndx] is not None:
+                    self.data[row_ndx][update_ndx] = _TableIndex(
+                        self.data[row_ndx][update_ndx]
+                    )
+                    self.data[row_ndx][update_ndx].set_table(table,)
 
 
 class _PartitionTablePartEntry:
@@ -1471,7 +1496,6 @@ class _TableForeignKeyType(_dtypes.Type):
         self.params.update({"table": table, "col_name": col_name})
 
     def assign_type(self, wb_type=None):
-        # import pdb; pdb.set_trace()
         if isinstance(wb_type, _dtypes.StringType):
             return self
         elif (
@@ -1486,7 +1510,7 @@ class _TableForeignKeyType(_dtypes.Type):
     @classmethod
     def from_obj(cls, py_obj):
         if not isinstance(py_obj, _TableKey):
-            raise TypeError("py_obj must be a wandb.Table")
+            raise TypeError("py_obj must be a _TableKey")
         else:
             return cls(py_obj._table, py_obj._col_name)
 
@@ -1522,6 +1546,61 @@ class _TableForeignKeyType(_dtypes.Type):
         return cls(table, col_name)
 
 
+class _TableForeignIndexType(_dtypes.Type):
+    name = "wandb.TableForeignIndex"
+    types = [_TableIndex]
+
+    def __init__(self, table):
+        assert isinstance(table, Table)
+        self.params.update({"table": table})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.NumberType):
+            return self
+        elif isinstance(wb_type, _TableForeignIndexType) and id(
+            self.params["table"]
+        ) == id(wb_type.params["table"]):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableIndex):
+            raise TypeError("py_obj must be a _TableIndex")
+        else:
+            return cls(py_obj._table)
+
+    def to_json(self, artifact=None):
+        res = super(_TableForeignIndexType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
+        else:
+            raise AssertionError(
+                "_TableForeignIndexType does not support serialization without an artifact"
+            )
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        if artifact is None:
+            raise AssertionError(
+                "_TableForeignIndexType does not support deserialization without an artifact"
+            )
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table)
+
+
 class _TablePrimaryKeyType(_dtypes.Type):
     name = "wandb.TablePrimaryKey"
 
@@ -1544,3 +1623,4 @@ _dtypes.TypeRegistry.add(_ImageType)
 _dtypes.TypeRegistry.add(_TableType)
 _dtypes.TypeRegistry.add(_TableForeignKeyType)
 _dtypes.TypeRegistry.add(_TablePrimaryKeyType)
+_dtypes.TypeRegistry.add(_TableForeignIndexType)
