@@ -514,13 +514,13 @@ class BackendSender(object):
             raise Exception("Invalid record")
         return record
 
-    def _is_process_alive(self):
+    def _is_process_alive(self) -> bool:
         if not self._process:
             return True
         try:
             return self._process.is_alive()
         except Exception:
-            return psutil.pid_exists(self._process.pid)
+            return psutil.pid_exists(self._process.pid)  # type: ignore
 
     def _publish(self, record: pb.Record, local: bool = None) -> None:
         if not self._is_process_alive():

@@ -520,7 +520,7 @@ class BackendSender(object):
         try:
             return self._process.is_alive()
         except Exception:
-            return psutil.pid_exists(self._process.pid)
+            return psutil.pid_exists(self._process.pid)  # type: ignore
 
     def _publish(self, record, local = None):
         if not self._is_process_alive():
