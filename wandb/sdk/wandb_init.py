@@ -747,7 +747,7 @@ def init(
         magic = kwargs.get("magic")
         if magic not in (None, False):
             magic_install(kwargs)
-
+        wandb.Image = Proxy("wandb.Image", port=parent_proc_config["port"])
         return run
     # if mp_mode:
     #     if mp_mode == "parent":
