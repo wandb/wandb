@@ -61,7 +61,15 @@ if wandb.TYPE_CHECKING:
         ImageDataOrPathType = Union[str, "Image", ImageDataType]
         TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
-_MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
+
+def _MEDIA_TMP():
+    if wandb._mp_mode == "child":
+        # TODO cleanup
+        return tempfile.mkdtemp("wandb-media")
+    else:
+        return tempfile.TemporaryDirectory("wandb-media").name
+
+
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
@@ -570,7 +578,7 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                _MEDIA_TMP.name, util.generate_id() + "." + extension
+                _MEDIA_TMP().name, util.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(object_3d)
@@ -613,7 +621,7 @@ class Object3D(BatchableMedia):
                     "Type not supported, only 'lidar/beta' is currently supported"
                 )
 
-            tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ".pts.json")
             json.dump(
                 data,
                 codecs.open(tmp_path, "w", encoding="utf-8"),
@@ -643,7 +651,7 @@ class Object3D(BatchableMedia):
                 )
 
             list_data = np_data.tolist()
-            tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
+            tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ".pts.json")
             json.dump(
                 list_data,
                 codecs.open(tmp_path, "w", encoding="utf-8"),
@@ -741,7 +749,7 @@ class Molecule(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                _MEDIA_TMP.name, util.generate_id() + "." + extension
+                _MEDIA_TMP().name, util.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(molecule)
@@ -833,7 +841,7 @@ class Html(BatchableMedia):
             self.inject_head()
 
         if inject or not data_is_path:
-            tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".html")
+            tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ".html")
             with open(tmp_path, "w") as out:
                 out.write(self.html)
 
@@ -936,7 +944,7 @@ class Video(BatchableMedia):
 
         if isinstance(data_or_path, six.BytesIO):
             filename = os.path.join(
-                _MEDIA_TMP.name, util.generate_id() + "." + self._format
+                _MEDIA_TMP().name, util.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
@@ -973,7 +981,7 @@ class Video(BatchableMedia):
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
         filename = os.path.join(
-            _MEDIA_TMP.name, util.generate_id() + "." + self._format
+            _MEDIA_TMP().name, util.generate_id() + "." + self._format
         )
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             kwargs = {}
@@ -1092,7 +1100,7 @@ class JSONMetadata(Media):
         self._val = val
 
         ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ext)
         util.json_dump_uncompressed(
             self._val, codecs.open(tmp_path, "w", encoding="utf-8")
         )
@@ -1158,7 +1166,7 @@ class ImageMask(Media):
             self._key = key
 
             ext = "." + self.type_name() + ".png"
-            tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
+            tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ext)
 
             pil_image = util.get_module(
                 "PIL.Image",
@@ -1167,6 +1175,9 @@ class ImageMask(Media):
             image = pil_image.fromarray(val["mask_data"].astype(np.int8), mode="L")
 
             image.save(tmp_path, transparency=None)
+            print("Image saved to: " + tmp_path)
+            if os.path.isfile(tmp_path):
+                print("OK!!")
             self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     def bind_to_run(
@@ -1618,7 +1629,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -1947,7 +1958,7 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".plotly.json")
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")

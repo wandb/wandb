@@ -11,6 +11,7 @@ import logging
 import threading
 import uuid
 
+import psutil
 import six
 from six.moves import queue
 import wandb
@@ -509,8 +510,16 @@ class BackendSender(object):
             raise Exception("Invalid record")
         return record
 
-    def _publish(self, record, local = None):
-        if self._process and not psutil.pid_exists(self._process.pid):
+    def _is_process_alive(self):
+        if not self._process:
+            return True
+        try:
+            return self._process.is_alive()
+        except Exception:
+            return psutil.pid_exists(self._process.pid)
+
+    def _publish(self, record, local=None):
+        if not self._is_process_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
             record.control.local = local

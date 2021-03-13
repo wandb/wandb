@@ -9,9 +9,11 @@ your evaluation script, and each piece steps would be tracked as a run in W&B.
 from __future__ import print_function
 
 import datetime
+import json
 import logging
 import os
 import platform
+import psutil
 import sys
 import time
 import traceback
@@ -30,6 +32,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
+from .wandb_mp import get_free_port, get_parent_process_config, get_proxy, start_mp_server, write_process_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
@@ -711,6 +714,65 @@ def init(
     """
     assert not wandb._IS_INTERNAL_PROCESS
     kwargs = dict(locals())
+    parent_proc_config = get_parent_process_config(wandb_dir=dir)
+    if parent_proc_config is None:
+        port = get_free_port()
+        write_process_config(kwargs, port=port, wandb_dir=dir)
+        start_mp_server(port=port)
+        wandb._mp_mode = "parent"
+        wandb._mp_port = port
+    elif wandb.run:
+        return wandb.run
+    else:
+        wandb._mp_mode = "child"
+        port = parent_proc_config["port"]
+        wandb._mp_port = port
+        wandb._get_proxy = get_proxy
+        run = get_proxy("wandb.run")
+        module.set_global(
+        run = run,
+        config=run.config,
+        summary=run.summary,
+        log=run.log,
+        save=run.save,
+        use_artifact=run.use_artifact,
+        log_artifact=run.log_artifact,
+        alert=run.alert,
+        plot_table=run.plot_table
+        )
+        kwargs = parent_proc_config["kwargs"]
+        monitor_gym = kwargs.pop("monitor_gym", None)
+        if monitor_gym and len(wandb.patched["gym"]) == 0:
+            wandb.gym.monitor()
+
+        tensorboard = kwargs.pop("tensorboard", None)
+        sync_tensorboard = kwargs.pop("sync_tensorboard", None)
+        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
+            wandb.tensorboard.patch()
+
+        magic = kwargs.get("magic")
+        if magic not in (None, False):
+            magic_install(kwargs)
+        return run
+    # if mp_mode:
+    #     if mp_mode == "parent":
+    #         start_mp_server(port=mp_port)
+    #     elif mp_mode == "child":
+    #         run = Proxy("wandb.run", port=mp_port)
+    #         module.set_global(
+    #         run = run,
+    #         config=run.config,
+    #         summary=run.summary,
+    #         log=run.log,
+    #         save=run.save,
+    #         use_artifact=run.use_artifact,
+    #         log_artifact=run.log_artifact,
+    #         alert=run.alert,
+    #         plot_table=run.plot_table
+    #         )
+    #         return run
+    # kwargs.pop("mp_mode")
+    # kwargs.pop("mp_port")
     error_seen = None
     except_exit = None
     try:
