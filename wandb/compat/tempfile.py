@@ -88,7 +88,7 @@ if sys.version_info < (3, 5):
 
 
 else:
-    from tempfile import TemporaryDirectory as RealTemporaryDirectory
+    from tempfile import mkdtemp, TemporaryDirectory as RealTemporaryDirectory
 
     class TemporaryDirectory(RealTemporaryDirectory):
         def __init__(self, *args, **kwargs):
@@ -97,4 +97,4 @@ else:
             super(TemporaryDirectory, self).__init__(*args, **kwargs)
 
 
-__all__ = ["TemporaryDirectory"]
+__all__ = ["TemporaryDirectory", "mkdtemp"]
