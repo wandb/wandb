@@ -175,6 +175,8 @@ def set_trace():
     pdb.set_trace()  # TODO: pass the parent stack...
 
 
+_mp_mode = None
+
 __all__ = [
     "__version__",
     "init",

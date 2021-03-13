@@ -13,7 +13,7 @@ from six.moves import cPickle as pickle
 
 
 
-def _get_free_port():
+def get_free_port():
     with socketserver.TCPServer(("localhost", 0), None) as s:
         return s.server_address[1]
 
@@ -311,7 +311,7 @@ class Proxy(object):
         return "<Proxy for %s>" % s
 
 
-def _write_process_config(kwargs, port, wandb_dir=None):
+def write_process_config(kwargs, port, wandb_dir=None):
     required_keys = [
         "monitor_gym",
         "tensorboard",
@@ -333,7 +333,7 @@ def _write_process_config(kwargs, port, wandb_dir=None):
         json.dump(config, f)
 
 
-def _get_parent_process_config(wandb_dir=None):
+def get_parent_process_config(wandb_dir=None):
     ppid = psutil.Process(os.getpid()).ppid()
     if wandb_dir is None:
         wandb_dir = wandb.old.core.wandb_dir()
@@ -343,3 +343,7 @@ def _get_parent_process_config(wandb_dir=None):
     with open(parent_config_file, 'r') as f:
         return json.load(f)
 
+
+def get_proxy(obj):
+    assert wandb._mp_mode == "child"
+    return Proxy(obj, port=wandb._mp_port)
