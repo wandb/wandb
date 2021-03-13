@@ -63,12 +63,12 @@ if wandb.TYPE_CHECKING:
 
 
 def _MEDIA_TMP():
-    if wandb._mp_mode == "parent":
-        return tempfile.TemporaryDirectory("wandb-media")
-    else:
+    if wandb._mp_mode == "child":
         return wandb._get_proxy("wandb.wandb_sdk.data_types.tempfile.TemporaryDirectory")("wandb-media")
+    else:
+        return tempfile.TemporaryDirectory("wandb-media")
 
-_MEDIA_TMP() = 
+
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
