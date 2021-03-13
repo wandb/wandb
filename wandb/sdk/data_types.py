@@ -64,9 +64,10 @@ if wandb.TYPE_CHECKING:
 
 def _MEDIA_TMP():
     if wandb._mp_mode == "child":
-        return wandb._get_proxy("wandb.wandb_sdk.data_types.tempfile.TemporaryDirectory")("wandb-media")
+        # TODO cleanup
+        return tempfile.mkdtemp("wandb-media")
     else:
-        return tempfile.TemporaryDirectory("wandb-media")
+        return tempfile.TemporaryDirectory("wandb-media").name
 
 
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -1099,7 +1100,7 @@ class JSONMetadata(Media):
         self._val = val
 
         ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ext)
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ext)
         util.json_dump_uncompressed(
             self._val, codecs.open(tmp_path, "w", encoding="utf-8")
         )
@@ -1165,7 +1166,7 @@ class ImageMask(Media):
             self._key = key
 
             ext = "." + self.type_name() + ".png"
-            tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ext)
+            tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ext)
 
             pil_image = util.get_module(
                 "PIL.Image",
@@ -1628,7 +1629,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -1957,7 +1958,7 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(_MEDIA_TMP().name, util.generate_id() + ".plotly.json")
+        tmp_path = os.path.join(_MEDIA_TMP(), util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
