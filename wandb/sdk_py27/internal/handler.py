@@ -274,7 +274,7 @@ class HandleManager(object):
         if isinstance(v, dict):
             updated = False
             for nk, nv in six.iteritems(v):
-                if self._update_summary_item(v=nv, kl=kl.copy() + [nk], d=d):
+                if self._update_summary_item(v=nv, kl=kl[:] + [nk], d=d):
                     updated = True
             return updated
         has_summary = d and d.HasField("summary")
@@ -355,6 +355,7 @@ class HandleManager(object):
         update_history = {}
         # Look for metric matches
         for hkey in history_dict:
+            hkey = hkey.replace(".", "\\.")
             m = self._metric_defines.get(hkey)
             if not m:
                 m = self._history_define_metric(hkey)
