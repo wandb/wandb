@@ -197,22 +197,19 @@ class HandleManager(object):
     def _update_summary_metrics(
         self,
         s,
-        k,
         kl,
         v,
         float_v,
         goal_max,
     ):
-        kl = list(kl) if kl else [k] if k else None
-        if not kl:
-            return False
+        print("UPDSUMMET", kl, v, s)
         updated = False
         best_key = None
         if s.none:
             return False
         if s.copy:
             # non key list copy already done in _update_summary
-            if k is None:
+            if len(kl) > 1:
                 _dict_nested_set(self._consolidated_summary, kl, v)
                 return True
         if s.last:
@@ -261,31 +258,21 @@ class HandleManager(object):
             updated = True
         return updated
 
-    def _update_summary_item(
+    def _update_summary_leaf(
         self,
+        kl,
         v,
-        k = None,
-        kl = None,
         d = None,
     ):
-        klm = kl or ([k.replace(".", "\\.")] if k else [])
-        kl = kl or ([k] if k else [])
-        d = self._metric_defines.get(".".join(klm), d)
-        if isinstance(v, dict):
-            updated = False
-            for nk, nv in six.iteritems(v):
-                if self._update_summary_item(v=nv, kl=kl[:] + [nk], d=d):
-                    updated = True
-            return updated
         has_summary = d and d.HasField("summary")
-        if k:
-            copy_key = tuple([k])
+        if len(kl) == 1:
+            copy_key = tuple(kl)
             old_copy = self._metric_copy.get(copy_key)
             if old_copy is None or v != old_copy:
                 self._metric_copy[copy_key] = v
                 # Store copy metric if not specified, or copy behavior
                 if not has_summary or (d and d.summary.copy):
-                    self._consolidated_summary[k] = v
+                    self._consolidated_summary[kl[0]] = v
                     return True
         if not d:
             return False
@@ -300,10 +287,27 @@ class HandleManager(object):
         if d.goal:
             goal_max = d.goal == d.GOAL_MAXIMIZE
         if self._update_summary_metrics(
-            d.summary, k=k, v=v, kl=kl, float_v=float_v, goal_max=goal_max
+            d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
         ):
             return True
         return False
+
+    def _update_summary_list(
+        self,
+        kl,
+        v,
+        d = None,
+    ):
+        metric_key = ".".join([k.replace(".", "\\.") for k in kl])
+        d = self._metric_defines.get(metric_key, d)
+        if isinstance(v, dict):
+            updated = False
+            for nk, nv in six.iteritems(v):
+                if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
+                    updated = True
+            return updated
+        updated = self._update_summary_leaf(kl=kl, v=v, d=d)
+        return updated
 
     def _update_summary(self, history_dict):
         # keep old behavior fast path if no define metrics have been used
@@ -312,7 +316,7 @@ class HandleManager(object):
             return True
         updated = False
         for k, v in six.iteritems(history_dict):
-            if self._update_summary_item(k=k, v=v):
+            if self._update_summary_list(kl=[k], v=v):
                 updated = True
         return updated
 
@@ -348,6 +352,43 @@ class HandleManager(object):
                     return m
         return None
 
+    def _history_update_leaf(
+        self, kl, v, history_dict, update_history
+    ):
+        hkey = ".".join([k.replace(".", "\\.") for k in kl])
+        m = self._metric_defines.get(hkey)
+        if not m:
+            m = self._history_define_metric(hkey)
+            if not m:
+                return
+            mr = wandb_internal_pb2.Record()
+            mr.metric.CopyFrom(m)
+            mr.control.local = True  # Dont store this, just send it
+            self._handle_defined_metric(mr)
+
+        if m.options.step_sync and m.step_metric:
+            if m.step_metric not in history_dict:
+                copy_key = tuple([m.step_metric])
+                step = self._metric_copy.get(copy_key)
+                if step is not None:
+                    update_history[m.step_metric] = step
+
+    def _history_update_list(
+        self, kl, v, history_dict, update_history
+    ):
+        if isinstance(v, dict):
+            for nk, nv in six.iteritems(v):
+                self._history_update_list(
+                    kl=kl[:] + [nk],
+                    v=nv,
+                    history_dict=history_dict,
+                    update_history=update_history,
+                )
+            return
+        self._history_update_leaf(
+            kl=kl, v=v, history_dict=history_dict, update_history=update_history
+        )
+
     def _history_update(self, record, history_dict):
         # if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
@@ -355,24 +396,9 @@ class HandleManager(object):
 
         update_history = {}
         # Look for metric matches
-        for hkey in history_dict:
-            hkey = hkey.replace(".", "\\.")
-            m = self._metric_defines.get(hkey)
-            if not m:
-                m = self._history_define_metric(hkey)
-                if not m:
-                    continue
-                mr = wandb_internal_pb2.Record()
-                mr.metric.CopyFrom(m)
-                mr.control.local = True  # Dont store this, just send it
-                self._handle_defined_metric(mr)
-
-            if m.options.step_sync and m.step_metric:
-                if m.step_metric not in history_dict:
-                    copy_key = tuple([m.step_metric])
-                    step = self._metric_copy.get(copy_key)
-                    if step is not None:
-                        update_history[m.step_metric] = step
+        if self._metric_defines or self._metric_globs:
+            for hkey, hval in six.iteritems(history_dict):
+                self._history_update_list([hkey], hval, history_dict, update_history)
 
         if update_history:
             history_dict.update(update_history)

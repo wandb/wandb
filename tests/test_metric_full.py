@@ -287,8 +287,11 @@ def test_metric_nested_mult(live_mock_server, parse_ctx):
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
+    metrics = ctx_util.metrics
     assert summary.get("this", {}).get("that", {}).get("min") == 2
     assert summary.get("this", {}).get("that", {}).get("max") == 4
+    assert len(metrics) == 1
+    assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
 
 def test_metric_dotted(live_mock_server, parse_ctx):
@@ -307,5 +310,17 @@ def test_metric_dotted(live_mock_server, parse_ctx):
     assert metrics[0] == {"1": "this\\.that", "7": [1], "6": [3]}
 
 
-# TODO: globs and nested
-# TODO: step metrics and nested
+def test_metric_nested_glob(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("*", summary="min,max")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    metrics = ctx_util.metrics
+    assert summary.get("this", {}).get("that", {}).get("min") == 2
+    assert summary.get("this", {}).get("that", {}).get("max") == 4
+    assert len(metrics) == 1
+    assert metrics[0] == {"1": "this.that", "7": [1, 2]}
