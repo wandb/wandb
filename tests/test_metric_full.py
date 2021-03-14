@@ -292,9 +292,9 @@ def test_metric_nested_mult(live_mock_server, parse_ctx):
 
 
 def test_metric_dotted(live_mock_server, parse_ctx):
-    """dotted define metric matches nested AND dotted metrics."""
+    """escaped dotted define metric matches dotted metrics."""
     run = wandb.init()
-    run._define_metric("this.that", summary="min")
+    run._define_metric("this\.that", summary="min")
     run.log({"this.that": 3})
     run.log({"this.that": 2})
     run.log({"this.that": 4})

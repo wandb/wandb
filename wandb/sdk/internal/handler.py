@@ -268,8 +268,9 @@ class HandleManager(object):
         kl: Optional[List[str]] = None,
         d: Optional[wandb_internal_pb2.MetricRecord] = None,
     ) -> bool:
+        klm = kl or ([k.replace(".", "\\.")] if k else [])
         kl = kl or ([k] if k else [])
-        d = self._metric_defines.get(".".join(kl), d)
+        d = self._metric_defines.get(".".join(klm), d)
         if isinstance(v, dict):
             updated = False
             for nk, nv in six.iteritems(v):

@@ -319,14 +319,31 @@ def test_metric_nan_max(publish_util):
 # TODO(jhr): enable before releasing run._define_metric() as
 #            run.define_metric()
 
-# def test_metric_dot_flat_escaped(publish_util):
-#     """match works if flat string was escaped."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+
+def test_metric_dot_flat_escaped(publish_util):
+    """match works if flat string was escaped."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+    history.append(dict(step=3, data={"this.also": 1}))
+
+    m1 = pb.MetricRecord(name="this\.also")
+    m1.summary.max = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 1
+    mmetric = metrics[0]
+    assert mmetric == {"1": "this\.also", "7": [2]}
+    assert summary == {
+        "_step": 3,
+        "this.also": {"max": 2},
+        "nodots": 2,
+        "this.has.dots": 2,
+    }
 
 
 # def test_metric_dot_flat_nonescaped(publish_util):
