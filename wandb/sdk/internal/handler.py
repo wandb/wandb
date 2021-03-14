@@ -48,10 +48,10 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
     # recurse down the dictionary structure:
     for k in key_list[:-1]:
         target.setdefault(k, {})
-        v = target.get(k)
+        new_target = target.get(k)
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
-            v = cast(Dict[str, Any], v)
-        target = v
+            new_target = cast(Dict[str, Any], new_target)
+        target = new_target
     # use the last element of the key to write the leaf:
     target[key_list[-1]] = v
 
@@ -71,8 +71,8 @@ class HandleManager(object):
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
-    _metric_copy: Dict[str, Any]
     _metric_track: Dict[Tuple[str, ...], float]
+    _metric_copy: Dict[Tuple[str, ...], Any]
 
     def __init__(
         self,
@@ -101,8 +101,8 @@ class HandleManager(object):
         self._sampled_history = dict()
         self._metric_defines = dict()
         self._metric_globs = dict()
-        self._metric_copy = dict()
         self._metric_track = dict()
+        self._metric_copy = dict()
 
     def handle(self, record: Record) -> None:
         record_type = record.WhichOneof("record_type")
@@ -268,22 +268,22 @@ class HandleManager(object):
         kl: Optional[List[str]] = None,
         d: Optional[wandb_internal_pb2.MetricRecord] = None,
     ) -> bool:
-        assert k or kl
-        d = self._metric_defines.get(k or ".".join(kl) if kl else "", d)
+        kl = kl or ([k] if k else [])
+        d = self._metric_defines.get(".".join(kl), d)
         if isinstance(v, dict):
-            kl = kl or [k] if k else []
             updated = False
             for nk, nv in six.iteritems(v):
                 if self._update_summary_item(v=nv, kl=kl.copy() + [nk], d=d):
                     updated = True
             return updated
         has_summary = d and d.HasField("summary")
-        if k is not None:
-            old_last = self._metric_copy.get(k)
-            if old_last is None or v != old_last:
-                self._metric_copy[k] = v
-                # Store last metric if not specified, or copy behavior
-                if not has_summary or d and d.summary.copy:
+        if k:
+            copy_key = tuple([k])
+            old_copy = self._metric_copy.get(copy_key)
+            if old_copy is None or v != old_copy:
+                self._metric_copy[copy_key] = v
+                # Store copy metric if not specified, or copy behavior
+                if not has_summary or (d and d.summary.copy):
                     self._consolidated_summary[k] = v
                     return True
         if not d:
@@ -366,7 +366,8 @@ class HandleManager(object):
 
             if m.options.step_sync and m.step_metric:
                 if m.step_metric not in history_dict:
-                    step = self._metric_copy.get(m.step_metric)
+                    copy_key = tuple([m.step_metric])
+                    step = self._metric_copy.get(copy_key)
                     if step is not None:
                         update_history[m.step_metric] = step
 
