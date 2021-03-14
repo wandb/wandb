@@ -391,8 +391,10 @@ def test_metric_dot_glob(publish_util):
     history.append(dict(step=3, data={"this.also": 1}))
 
     m1 = pb.MetricRecord(name="this\\.also")
+    m1.options.defined = True
     m1.summary.max = True
     m2 = pb.MetricRecord(glob_name="*")
+    m2.options.defined = True
     m2.summary.min = True
     metrics = _make_metrics([m1, m2])
     ctx_util = publish_util(history=history, metrics=metrics)
@@ -401,7 +403,7 @@ def test_metric_dot_glob(publish_util):
     summary = ctx_util.summary
     assert metrics and len(metrics) == 3
     # order doesnt really matter
-    assert metrics[0] == {"1": "this\\.also", "7": [2]}
+    assert metrics[0] == {"1": "this\\.also", "7": [2], "6": [3]}
     assert metrics[1] == {"1": "this\\.has\\.dots", "7": [1]}
     assert metrics[2] == {"1": "nodots", "7": [1]}
     assert summary == {

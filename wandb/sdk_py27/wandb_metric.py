@@ -81,6 +81,7 @@ class Metric(object):
 
     def _commit(self):
         m = pb.MetricRecord()
+        m.options.defined = True
         if self._name.endswith("*"):
             m.glob_name = self._name
         else:

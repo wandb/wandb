@@ -343,6 +343,7 @@ class HandleManager(object):
                     m = wandb_internal_pb2.MetricRecord()
                     m.CopyFrom(mglob)
                     m.ClearField("glob_name")
+                    m.options.defined = False
                     m.name = hkey
                     return m
         return None

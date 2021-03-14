@@ -217,7 +217,7 @@ message MetricRecord {
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
-  bool defined = 3;  // metric explcitly defined, not a glob match
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
