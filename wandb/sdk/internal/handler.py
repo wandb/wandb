@@ -355,6 +355,7 @@ class HandleManager(object):
         update_history = {}
         # Look for metric matches
         for hkey in history_dict:
+            hkey = hkey.replace(".", "\\.")
             m = self._metric_defines.get(hkey)
             if not m:
                 m = self._history_define_metric(hkey)

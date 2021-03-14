@@ -321,7 +321,7 @@ def test_metric_nan_max(publish_util):
 
 
 def test_metric_dot_flat_escaped(publish_util):
-    """match works if flat string was escaped."""
+    """match works if metric is escaped."""
     history = []
     history.append(dict(step=0, data={"this.has.dots": 2}))
     history.append(dict(step=1, data={"this.also": 2}))
@@ -346,35 +346,30 @@ def test_metric_dot_flat_escaped(publish_util):
     }
 
 
-# def test_metric_dot_flat_nonescaped(publish_util):
-#     """match still works if flat string was not escaped (but meta is escaped)."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+def test_metric_dot_flat_notescaped(publish_util):
+    """match doesnt work if metric is not escaped."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+    history.append(dict(step=3, data={"this.also": 1}))
 
+    m1 = pb.MetricRecord(name="this.also")
+    m1.summary.max = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
 
-# def test_metric_dot_flat_nonescaped_notsent(publish_util):
-#     """metric that doesnt match is not sent."""
-#     history = []
-#     history.append(dict(step=0, data={"this.metric.is.not.matched": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
-
-
-# def test_metric_dot_step_metric(publish_util):
-#     """step metric works if escaped."""
-#
-#     assert False
-
-
-# def test_metric_dot_step_metric_notescaped(publish_util):
-#     """step metric works if not escaped."""
-#
-#     assert False
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 1
+    mmetric = metrics[0]
+    assert mmetric == {"1": "this.also", "7": [2]}
+    assert summary == {
+        "_step": 3,
+        "this.also": 1,
+        "nodots": 2,
+        "this.has.dots": 2,
+    }
 
 
 # def test_metric_dot_step_sync(publish_util):
@@ -387,11 +382,31 @@ def test_metric_dot_flat_escaped(publish_util):
 #     assert False
 
 
-# def test_metric_dot_glob(publish_util):
-#     """glob should escape the defined metric name."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+def test_metric_dot_glob(publish_util):
+    """glob should escape the defined metric name."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 3}))
+    history.append(dict(step=3, data={"this.also": 1}))
+
+    m1 = pb.MetricRecord(name="this\\.also")
+    m1.summary.max = True
+    m2 = pb.MetricRecord(glob_name="*")
+    m2.summary.min = True
+    metrics = _make_metrics([m1, m2])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 3
+    # order doesnt really matter
+    assert metrics[0] == {"1": "this\\.also", "7": [2]}
+    assert metrics[1] == {"1": "this\\.has\\.dots", "7": [1]}
+    assert metrics[2] == {"1": "nodots", "7": [1]}
+    assert summary == {
+        "_step": 3,
+        "this.also": {"max": 2},
+        "nodots": {"min": 3},
+        "this.has.dots": {"min": 2},
+    }
