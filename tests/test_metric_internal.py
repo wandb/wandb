@@ -31,9 +31,6 @@ def test_metric_none(publish_util):
     ctx_util = publish_util(history=history)
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in ctx_util.config_wandb
-
     assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
 
@@ -45,12 +42,7 @@ def test_metric_step(publish_util):
     metrics = _make_metrics(metrics)
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" in config_wandb
-    assert "mystep" in config_wandb["x_axis"]
 
     assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
@@ -62,16 +54,11 @@ def test_metric_max(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.max": 8,
+        "v2": {"max": 8},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -85,16 +72,11 @@ def test_metric_min(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.min": 2,
+        "v2": {"min": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -108,13 +90,9 @@ def test_metric_min_str(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
-
-    assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
+    assert {"v1": 2, "v2": 3, "mystep": 3, "_step": 2,} == summary
 
 
 def test_metric_sum_none(publish_util):
@@ -123,11 +101,7 @@ def test_metric_sum_none(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
 
@@ -142,18 +116,11 @@ def test_metric_mult(publish_util):
     metrics = _make_metrics([m1, m2, m3])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" in config_wandb
-    assert "mystep" in config_wandb["x_axis"]
-
     assert {
-        "v1": 2,
-        "v1.max": 3,
-        "v2": 3,
-        "v2.min": 2,
+        "v1": {"max": 3},
+        "v2": {"min": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -172,14 +139,13 @@ def test_metric_best(publish_util):
     metrics = _make_metrics([m1, m2, m3])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {
         "v1": 2,
-        "v1.best": 3,
+        "v1": {"best": 3},
         "v2": 3,
-        "v2.best": 2,
+        "v2": {"best": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -195,7 +161,6 @@ def test_metric_again(publish_util):
     metrics = _make_metrics([m1, m2, m3, m4])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
@@ -211,13 +176,11 @@ def test_metric_mean(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.mean": 13.0 / 3,
+        "v2": {"mean": 13.0 / 3},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -241,7 +204,6 @@ def test_metric_stepsync(publish_util):
     metrics = _make_metrics([m0, m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
     history = ctx_util.history
 
@@ -311,9 +273,7 @@ def test_metric_glob_twice_norm(publish_util):
     assert summary == {
         "_step": 0,
         "metric": 1,
-        "metric.best": 1,
-        "metric.max": 1,
-        "metric.min": 1,
+        "metric": {"best": 1, "max": 1, "min": 1},
     }
 
 
@@ -337,7 +297,7 @@ def test_metric_glob_twice_over(publish_util):
     assert metrics and len(metrics) == 1
     mmetric = metrics[0]
     assert mmetric == {"1": "metric", "7": [1]}
-    assert summary == {"_step": 0, "metric": 1, "metric.min": 1}
+    assert summary == {"_step": 0, "metric": {"min": 1}}
 
 
 def test_metric_nan_max(publish_util):
@@ -351,11 +311,9 @@ def test_metric_nan_max(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    assert math.isnan(summary.get("v2"))
-    assert summary.get("v2.max") == 8
+    assert summary.get("v2") == {"max": 8}
 
 
 # TODO(jhr): enable before releasing run._define_metric() as
