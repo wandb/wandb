@@ -241,21 +241,42 @@ class Table(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        if (
-            not isinstance(other, Table)
-            or len(self.data) != len(other.data)
-            or self.columns != other.columns
-            or self._column_types != other._column_types
-        ):
-            return False
-
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, Table)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, Table
+        )
+        eq = eq and len(self.data) == len(other.data)
+        assert not should_assert or eq, "Found {} rows, expected {}".format(
+            len(other.data), len(self.data)
+        )
+        eq = eq and self.columns == other.columns
+        assert not should_assert or eq, "Found columns {}, expected {}".format(
+            other.columns, self.columns
+        )
+        eq = eq and self._column_types == other._column_types
+        assert (
+            not should_assert or eq
+        ), "Found column type {}, expected column type {}".format(
+            other._column_types, self._column_types
+        )
         for row_ndx in range(len(self.data)):
             for col_ndx in range(len(self.data[row_ndx])):
-                if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
-                    return False
+                eq = eq and self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                assert (
+                    not should_assert or eq
+                ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                    row_ndx,
+                    col_ndx,
+                    other.data[row_ndx][col_ndx],
+                    self.data[row_ndx][col_ndx],
+                )
+                if not eq:
+                    return eq
+        return eq
 
-        return True
+    def __eq__(self, other):
+        return self._eq_debug(other)
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -609,9 +630,15 @@ class Audio(BatchableMedia):
         if Audio.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
+        source_artifact = self.artifact_source.artifact
 
-        source_artifact = self.artifact_source["artifact"]
-        return source_artifact.manifest.get_entry_by_path(self._path).ref
+        resolved_name = source_artifact._local_path_to_name(self._path)
+        if resolved_name is not None:
+            target_entry = source_artifact.manifest.get_entry_by_path(resolved_name)
+            if target_entry is not None:
+                return target_entry.ref
+
+        return None
 
     def __eq__(self, other):
         if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
@@ -742,12 +769,21 @@ class JoinedTable(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        return (
-            self._table1 == other._table1
-            and self._table2 == other._table2
-            and self._join_key == other._join_key
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, JoinedTable)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, JoinedTable
         )
+        eq = eq and self._join_key == other._join_key
+        assert not should_assert or eq, "Found {} join key, expected {}".format(
+            other._join_key, self._join_key
+        )
+        eq = eq and self._table1._eq_debug(other._table1, should_assert)
+        eq = eq and self._table2._eq_debug(other._table2, should_assert)
+        return eq
+
+    def __eq__(self, other):
+        return self._eq_debug(other, False)
 
 
 class Bokeh(Media):

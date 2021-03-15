@@ -815,3 +815,9 @@ def test_add_partition_folder(runner):
             "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
             "size": 61,
         }
+
+
+def test_interface_commit_hash(runner):
+    artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        artifact.commit_hash()

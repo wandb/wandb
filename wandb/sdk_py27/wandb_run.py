@@ -40,11 +40,11 @@ from . import wandb_config
 from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
+from .interface.artifacts import Artifact as ArtifactInterface
 from .lib import (
     apikey,
     config_util,
     filenames,
-    filesystem,
     ipython,
     module,
     proto_util,
@@ -52,7 +52,6 @@ from .lib import (
     sparkline,
     telemetry,
 )
-
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -62,6 +61,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
+        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -70,7 +70,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
-    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -80,7 +79,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from wandb.apis.public import Api as PublicApi
     from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
@@ -212,7 +211,7 @@ class Run(object):
     # _out_redir: Optional[redirect.RedirectBase]
     # _err_redir: Optional[redirect.RedirectBase]
     # _redirect_cb: Optional[Callable[[str, str], None]]
-    # _output_writer: Optional["filesystem.CRDedupedFile"]
+    # _output_writer: Optional["WriteSerializingFile"]
 
     # _atexit_cleanup_called: bool
     # _hooks: Optional[ExitHooks]
@@ -493,6 +492,8 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
@@ -633,12 +634,12 @@ class Run(object):
 
         Examples:
             Basic usage
-            ```
+            ```python
             run.log_code()
             ```
 
             Advanced usage
-            ```
+            ```python
             run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
             ```
 
@@ -668,8 +669,8 @@ class Run(object):
     def get_url(self):
         """
         Returns:
-            (str, optional): url for the W&B run or None if the run
-                is offline
+            A url (str, optional) for the W&B run or None if the run
+            is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -679,8 +680,8 @@ class Run(object):
     def get_project_url(self):
         """
         Returns:
-            (str, optional): url for the W&B project associated with
-                the run or None if the run is offline
+            A url (str, optional) for the W&B project associated with
+            the run or None if the run is offline
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -690,8 +691,8 @@ class Run(object):
     def get_sweep_url(self):
         """
         Returns:
-            (str, optional): url for the sweep associated with the run
-                or None if there is no associated sweep or the run is offline.
+            A url (str, optional) for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -884,22 +885,26 @@ class Run(object):
     ):
         """Log a dict to the global run's history.
 
-        `wandb.log` can be used to log everything from scalars to histograms, media
-        and matplotlib plots.
+        Use `wandb.log` to log data from runs, such as scalars, images, video,
+        histograms, and matplotlib plots.
 
         The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
-        This will save a history row associated with the run with train-loss=0.5
-        and `accuracy=0.9`. The history values can be plotted on app.wandb.ai or
-        on a local server. The history values can also be downloaded through
-        the wandb API.
+        This will save a history row associated with the run with `train-loss=0.5`
+        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
+        or locally on a self-hosted instance of the W&B app:
+        https://docs.wandb.ai/self-hosted
 
-        Logging a value will update the summary values for any metrics logged.
-        The summary values will appear in the run table at app.wandb.ai or
-        a local server. If a summary value is manually set with for example
-        `wandb.run.summary["accuracy"] = 0.9` `wandb.log` will no longer automatically
-        update the run's accuracy.
+        Export data to explore in a Jupyter notebook, for example, with the API:
+        https://docs.wandb.ai/ref/public-api
 
-        Logging values don't have to be scalars. Logging any wandb object is supported.
+        Each time you call wandb.log(), this adds a new row to history and updates
+        the summary values for each key logged. In the UI, summary values show
+        up in the run table to compare single values across runs. You might want
+        to update summary manually to set the *best* value instead of the *last*
+        value for a given metric. After you finish logging, you can set summary:
+        `wandb.run.summary["accuracy"] = 0.9`.
+
+        Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
         example image which will be displayed nicely in the wandb UI. See
         https://docs.wandb.com/library/reference/data_types for all of the different
@@ -922,16 +927,16 @@ class Run(object):
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row (dict, optional): A dict of serializable python objects i.e `str`,
+            row: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or `wandb.data_types`.
-            commit (boolean, optional): Save the metrics dict to the wandb server
+            commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
                 metrics dict with the row argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
-            step (integer, optional): The global step in processing. This persists
+            step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
                 specified step.
-            sync (boolean, True): This argument is deprecated and currently doesn't
+            sync: (boolean, True) This argument is deprecated and currently doesn't
                 change the behaviour of `wandb.log`.
 
         Examples:
@@ -984,8 +989,8 @@ class Run(object):
             For more examples, see https://docs.wandb.com/library/log
 
         Raises:
-            wandb.Error - if called before `wandb.init`
-            ValueError - if invalid data is passed
+            wandb.Error: if called before `wandb.init`
+            ValueError: if invalid data is passed
 
         """
         # TODO(cling): sync is a noop for now
@@ -1034,10 +1039,10 @@ class Run(object):
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
         Arguments:
-            glob_str (string): a relative or absolute path to a unix glob or regular
+            glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
-            base_path (string): the base path to run the glob relative to
-            policy (string): on of `live`, `now`, or `end`
+            base_path: (string) the base path to run the glob relative to
+            policy: (string) on of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
                 - end: only upload file when the run ends
@@ -1343,25 +1348,17 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            # out_cap = redirect.Capture(
-            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
-            # err_cap = redirect.Capture(
-            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
+            out_cap = redirect.Capture(
+                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            )
+            err_cap = redirect.Capture(
+                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            )
             out_redir = redirect.Redirect(
-                src="stdout",
-                cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                src="stdout", dest=out_cap, unbuffered=True, tee=True
             )
             err_redir = redirect.Redirect(
-                src="stderr",
-                cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                src="stderr", dest=err_cap, unbuffered=True, tee=True
             )
             if os.name == "nt":
 
@@ -1382,18 +1379,10 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                src="stdout",
-                cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
             )
             err_redir = redirect.StreamWrapper(
-                src="stderr",
-                cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                    self._output_writer.write,  # type: ignore
-                ],
+                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1500,7 +1489,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
+        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self):
@@ -1952,15 +1941,15 @@ class Run(object):
         the returned object to get the contents locally.
 
         Arguments:
-            artifact_or_name (str or Artifact): An artifact name.
+            artifact_or_name: (str or Artifact) An artifact name.
                 May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
-            type (str, optional): The type of artifact to use.
-            aliases (list, optional): Aliases to apply to this artifact
+            type: (str, optional) The type of artifact to use.
+            aliases: (list, optional) Aliases to apply to this artifact
         Returns:
             An `Artifact` object.
         """
@@ -2009,22 +1998,22 @@ class Run(object):
         """ Declare an artifact as output of a run.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
 
         Returns:
@@ -2045,24 +2034,24 @@ class Run(object):
         need to all contribute to the same artifact.
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -2095,24 +2084,24 @@ class Run(object):
         the same distributed ID will result in a new version
 
         Arguments:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                - `/local/directory`
-                - `/local/directory/file.txt`
-                - `s3://bucket/path`
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                - name:version
-                - name:alias
-                - digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include `dataset`, `model`
-            aliases (list, optional): Aliases to apply to this artifact,
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id (string, optional): Unique string that all distributed jobs share. If None,
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -2343,6 +2332,39 @@ def restore(
     return files[0].download(root=root, replace=True)
 
 
+# propigate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class WriteSerializingFile(object):
+    """Wrapper for a file object that serializes writes.
+    """
+
+    def __init__(self, f):
+        self.lock = threading.Lock()
+        self.f = f
+
+    # TODO(jhr): annotate this
+    def write(self, *args, **kargs):  # type: ignore
+        self.lock.acquire()
+        try:
+            self.f.write(*args, **kargs)
+            self.f.flush()
+        finally:
+            self.lock.release()
+
+    def close(self):
+        self.lock.acquire()  # wait for pending writes
+        try:
+            self.f.close()
+        finally:
+            self.lock.release()
+
+
 def finish(exit_code = None):
     """
     Marks a run as finished, and finishes uploading all data.
@@ -2384,6 +2406,6 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(self._instance, ArtifactInterface)
         return self._instance

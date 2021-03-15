@@ -1,4 +1,5 @@
 import os
+import shutil
 import six
 import socket
 
@@ -9,11 +10,22 @@ def subdict(d, expected_dict):
     return {k: v for k, v in d.items() if k in expected_dict}
 
 
-def fixture_open(path):
-    """Returns an opened fixture file"""
-    return open(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path)
+def fixture_path(path):
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path
     )
+
+
+def fixture_open(path, mode="r"):
+    """Returns an opened fixture file"""
+    return open(fixture_path(path), mode)
+
+
+def fixture_copy(path, dst=None):
+    if os.path.isfile(fixture_path(path)):
+        return shutil.copy(fixture_path(path), dst or path)
+    else:
+        return shutil.copytree(fixture_path(path), dst or path)
 
 
 def notebook_path(path):

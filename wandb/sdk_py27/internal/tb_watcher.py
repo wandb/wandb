@@ -6,6 +6,7 @@ tensor b watcher.
 import logging
 import os
 import socket
+import sys
 import threading
 import time
 
@@ -106,12 +107,14 @@ class TBWatcher(object):
         settings,
         run_proto,
         interface,
+        force = False,
     ):
         self._logdirs = {}
         self._consumer = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
+        self._force = force
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
@@ -141,10 +144,12 @@ class TBWatcher(object):
                 namespace = None
         else:
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+
         return namespace
 
     def add(self, logdir, save, root_dir):
         logdir = util.to_forward_slash_path(logdir)
+        root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
             return
         namespace = self._calculate_namespace(logdir, root_dir)
@@ -156,7 +161,9 @@ class TBWatcher(object):
             )
             self._consumer.start()
 
-        tbdir_watcher = TBDirWatcher(self, logdir, save, namespace, self._watcher_queue)
+        tbdir_watcher = TBDirWatcher(
+            self, logdir, save, namespace, self._watcher_queue, self._force
+        )
         self._logdirs[logdir] = tbdir_watcher
         tbdir_watcher.start()
 
@@ -177,6 +184,7 @@ class TBDirWatcher(object):
         save,
         namespace,
         queue,
+        force = False,
     ):
         self.directory_watcher = util.get_module(
             "tensorboard.backend.event_processing.directory_watcher",
@@ -201,6 +209,7 @@ class TBDirWatcher(object):
         self._namespace = namespace
         self._logdir = logdir
         self._hostname = socket.gethostname()
+        self._force = force
 
     def start(self):
         self._thread.start()
@@ -209,6 +218,8 @@ class TBDirWatcher(object):
         """Checks if a path has been modified since launch and contains tfevents"""
         if not path:
             raise ValueError("Path must be a nonempty string")
+        if self._force:
+            return True
         path = self.tf_compat.tf.compat.as_str_any(path)
         return is_tfevents_file_created_by(
             path, self._hostname, self._tbwatcher._settings._start_time
@@ -247,22 +258,26 @@ class TBDirWatcher(object):
 
         return EventFileLoader
 
+    def _process_events(self, shutdown_call = False):
+        try:
+            for event in self._generator.Load():
+                self.process_event(event)
+        except (
+            self.directory_watcher.DirectoryDeletedError,
+            StopIteration,
+            RuntimeError,
+            OSError,
+        ) as e:
+            # When listing s3 the directory may not yet exist, or could be empty
+            logger.debug("Encountered tensorboard directory watcher error: %s", e)
+            if not self._shutdown.is_set() and not shutdown_call:
+                time.sleep(ERROR_DELAY)
+
     def _thread_body(self):
         """Check for new events every second"""
         shutdown_time = None
         while True:
-            try:
-                for event in self._generator.Load():
-                    self.process_event(event)
-            except (
-                self.directory_watcher.DirectoryDeletedError,
-                StopIteration,
-                RuntimeError,
-            ) as e:
-                # When listing s3 the directory may not yet exist, or could be empty
-                logger.debug("Encountered tensorboard directory watcher error: %s", e)
-                if not self._shutdown.is_set():
-                    time.sleep(ERROR_DELAY)
+            self._process_events()
             if self._shutdown.is_set():
                 now = time.time()
                 if not shutdown_time:
@@ -283,6 +298,7 @@ class TBDirWatcher(object):
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self):
+        self._process_events(shutdown_call=True)
         self._shutdown.set()
 
     def finish(self):
@@ -407,23 +423,54 @@ class TBHistory(object):
 
     def __init__(self):
         self._step = 0
+        self._step_size = 0
         self._data = dict()
         self._added = []
 
     def _flush(self):
         if not self._data:
             return
+        # A single tensorboard step may have too much data
+        # we just drop the largest keys in the step if it does.
+        # TODO: we could flush the data across multiple steps
+        if self._step_size > util.MAX_LINE_SIZE:
+            metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
+            metrics.sort(key=lambda t: t[1], reverse=True)
+            bad = 0
+            dropped_keys = []
+            for k, v in metrics:
+                # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
+                if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
+                    break
+                else:
+                    bad += v
+                    dropped_keys.append(k)
+                    del self._data[k]
+            wandb.termwarn(
+                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
+                    self._step, len(dropped_keys)
+                )
+            )
+            print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1
+        self._step_size = 0
 
     def add(self, d):
         self._flush()
         self._data = dict()
-        self._data.update(d)
+        self._data.update(self._track_history_dict(d))
+
+    def _track_history_dict(self, d):
+        e = {}
+        for k in d.keys():
+            e[k] = d[k]
+            self._step_size += sys.getsizeof(e[k])
+        return e
 
     def _row_update(self, d):
-        self._data.update(d)
+        self._data.update(self._track_history_dict(d))
 
     def _get_and_reset(self):
         added = self._added[:]
