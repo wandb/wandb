@@ -1192,6 +1192,15 @@ def _is_kaggle():
 
 
 def split_files(files, MAX_MB=10):
+    """
+    Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_MB` size.
+    This method is used in `FileStreamAPI._send()` to limit the size of post requests sent
+    to wandb server.
+
+    Arguments:
+    files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
+    `MAX_MB`: max size for chunk in MBs
+    """
     current_volume = {}
     current_size = 0
     max_size = MAX_MB * 1024 * 1024
