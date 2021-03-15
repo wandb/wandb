@@ -344,7 +344,6 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
-        data = list(data)
 
         # Special case to pre-emptively cast a column as a key.
         # Needed as String.assign(Key) is invalid
