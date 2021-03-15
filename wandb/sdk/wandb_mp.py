@@ -12,10 +12,10 @@ import uuid
 from six.moves import cPickle as pickle
 
 
-
 def get_free_port():
     with socketserver.TCPServer(("localhost", 0), None) as s:
         return s.server_address[1]
+
 
 class Server(object):
     def __init__(self, address, handler=None, responder=None):
@@ -41,19 +41,19 @@ class Server(object):
                 for conn in self._connections:
                     try:
                         conn.send(msg)
-                    except  Exception as e:
+                    except Exception as e:
                         try:
                             conn.send(e)
                         except Exception:
                             conn.send(Exception())
             else:
+                try:
+                    conn.send(msg)
+                except Exception as e:
                     try:
-                        conn.send(msg)
-                    except  Exception as e:
-                        try:
-                            conn.send(e)
-                        except Exception:
-                            conn.send(Exception())
+                        conn.send(e)
+                    except Exception:
+                        conn.send(Exception())
 
     def _receiver_loop(self, connection):
         while not self._stop.is_set():
@@ -190,10 +190,12 @@ class AsyncClient(object):
 
 
 def start_mp_server(port):
-    server = Server(('localhost', port), responder=_response)
+    server = Server(("localhost", port), responder=_response)
 
 
 _cache = {}
+
+
 def _ret_obj(obj):
     if callable(obj):
         key = str(uuid.uuid1())
@@ -246,11 +248,12 @@ def _response(req):
     except Exception as e:
         return e
 
+
 class Proxy(object):
     def __init__(self, base, port=None):
-        object.__setattr__(self, 'base', base)
+        object.__setattr__(self, "base", base)
         if port is not None:
-            object.__setattr__(self, '_client', SyncClient(('localhost', port)))
+            object.__setattr__(self, "_client", SyncClient(("localhost", port)))
 
     def _ret_resp(self, resp):
         if isinstance(resp, Exception):
@@ -262,49 +265,49 @@ class Proxy(object):
             return resp["value"]
         elif typ == "reference":
             p = Proxy("_cache['%s']" % resp["key"])
-            object.__setattr__(p, '_client', object.__getattribute__(self, '_client'))
+            object.__setattr__(p, "_client", object.__getattribute__(self, "_client"))
             return p
 
     def __getattr__(self, attr):
-        client = object.__getattribute__(self, '_client')
-        ret = object.__getattribute__(self, '_ret_resp')
-        base = object.__getattribute__(self, 'base')
+        client = object.__getattribute__(self, "_client")
+        ret = object.__getattribute__(self, "_ret_resp")
+        base = object.__getattribute__(self, "base")
         req = {"type": "getattr", "code": base, "attr": attr}
         resp = client.get(req)
         return ret(resp)
 
     def __getitem__(self, attr):
-        client = object.__getattribute__(self, '_client')
-        ret = object.__getattribute__(self, '_ret_resp')
-        base = object.__getattribute__(self, 'base')
+        client = object.__getattribute__(self, "_client")
+        ret = object.__getattribute__(self, "_ret_resp")
+        base = object.__getattribute__(self, "base")
         req = {"type": "getitem", "code": base, "attr": attr}
         resp = client.get(req)
         return ret(resp)
 
     def __call__(self, *args, **kwargs):
-        client = object.__getattribute__(self, '_client')
-        ret = object.__getattribute__(self, '_ret_resp')
-        base = object.__getattribute__(self, 'base')
+        client = object.__getattribute__(self, "_client")
+        ret = object.__getattribute__(self, "_ret_resp")
+        base = object.__getattribute__(self, "base")
         req = {"type": "call", "func": base, "args": args, "kwargs": kwargs}
         resp = client.get(req)
         return ret(resp)
 
     def __setattr__(self, attr, val):
-        client = object.__getattribute__(self, '_client')
-        base = object.__getattribute__(self, 'base')
+        client = object.__getattribute__(self, "_client")
+        base = object.__getattribute__(self, "base")
         req = {"type": "setattr", "code": base, "attr": attr, "val": val}
         client.send(req)
 
     def __setitem__(self, attr, val):
-        client = object.__getattribute__(self, '_client')
-        base = object.__getattribute__(self, 'base')
+        client = object.__getattribute__(self, "_client")
+        base = object.__getattribute__(self, "base")
         req = {"type": "setitem", "code": base, "attr": attr, "val": val}
         client.send(req)
 
     def __str__(self):
-        client = object.__getattribute__(self, '_client')
-        base = object.__getattribute__(self, 'base')
-        ret = object.__getattribute__(self, '_ret_resp')
+        client = object.__getattribute__(self, "_client")
+        base = object.__getattribute__(self, "base")
+        ret = object.__getattribute__(self, "_ret_resp")
         req = {"type": "str", "code": base}
         s = ret(client.get(req))
         assert isinstance(s, str)
@@ -312,24 +315,15 @@ class Proxy(object):
 
 
 def write_process_config(kwargs, port, wandb_dir=None):
-    required_keys = [
-        "monitor_gym",
-        "tensorboard",
-        "sync_tensorboard",
-        "magic"
-    ]
+    required_keys = ["monitor_gym", "tensorboard", "sync_tensorboard", "magic"]
     kwargs2 = {k: kwargs.get(k) for k in required_keys}
 
-    config = {
-        "id": os.getpid(),
-        "port": port,
-        "kwargs": kwargs2
-    }
+    config = {"id": os.getpid(), "port": port, "kwargs": kwargs2}
     if wandb_dir is None:
         wandb_dir = wandb.old.core.wandb_dir()
     if not os.path.isdir(wandb_dir):
         os.mkdir(wandb_dir)
-    with open(os.path.join(wandb_dir, "proc_%s.json" % os.getpid()), 'w') as f:
+    with open(os.path.join(wandb_dir, "proc_%s.json" % os.getpid()), "w") as f:
         json.dump(config, f)
 
 
@@ -340,7 +334,7 @@ def get_parent_process_config(wandb_dir=None):
     parent_config_file = os.path.join(wandb_dir, "proc_%s.json" % ppid)
     if not os.path.isfile(parent_config_file):
         return None
-    with open(parent_config_file, 'r') as f:
+    with open(parent_config_file, "r") as f:
         return json.load(f)
 
 

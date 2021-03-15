@@ -32,7 +32,13 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
-from .wandb_mp import get_free_port, get_parent_process_config, get_proxy, start_mp_server, write_process_config
+from .wandb_mp import (
+    get_free_port,
+    get_parent_process_config,
+    get_proxy,
+    start_mp_server,
+    write_process_config,
+)
 from .wandb_run import Run
 from .wandb_settings import Settings
 
@@ -730,15 +736,15 @@ def init(
         wandb._get_proxy = get_proxy
         run = get_proxy("wandb.run")
         module.set_global(
-        run = run,
-        config=run.config,
-        summary=run.summary,
-        log=run.log,
-        save=run.save,
-        use_artifact=run.use_artifact,
-        log_artifact=run.log_artifact,
-        alert=run.alert,
-        plot_table=run.plot_table
+            run=run,
+            config=run.config,
+            summary=run.summary,
+            log=run.log,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            alert=run.alert,
+            plot_table=run.plot_table,
         )
         kwargs = parent_proc_config["kwargs"]
         monitor_gym = kwargs.pop("monitor_gym", None)
