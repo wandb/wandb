@@ -45,6 +45,7 @@ message Record {
     Request         request = 100;
   }
   Control          control = 16;
+  // uuid to match Record to Result in MessageRouter
   string           uuid = 19;
 }
 
@@ -67,6 +68,7 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  // uuid to match Record to Result in MessageRouter
   string              uuid = 24;
 }
 
@@ -390,6 +392,7 @@ message Request {
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
     ShutdownRequest       shutdown = 64;
+    HealthRequest         health = 65;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -408,6 +411,7 @@ message Response {
     CheckVersionResponse   check_version_response = 29;
     LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
+    HealthResponse         health_response = 65;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -570,6 +574,15 @@ message CheckVersionResponse {
   string upgrade_message = 1;
   string yank_message = 2;
   string delete_message = 3;
+}
+
+/*
+ * Health:
+ */
+message HealthRequest {
+}
+
+message HealthResponse {
 }
 
 /*

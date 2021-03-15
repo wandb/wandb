@@ -531,6 +531,15 @@ class BackendSender(object):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
+    def communicate_health(self) -> Optional[pb.HealthResponse]:
+        record = pb.Record()
+        record.request.health.CopyFrom(pb.HealthRequest())
+        result = self._communicate(record)
+        if not result:
+            return None
+        health_response = result.response.health_response
+        return health_response
+
     def communicate_login(
         self, api_key: str = None, timeout: Optional[int] = 15
     ) -> pb.LoginResponse:
@@ -539,7 +548,7 @@ class BackendSender(object):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response
@@ -739,7 +748,7 @@ class BackendSender(object):
         result = self._communicate(req, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         assert result.exit_result

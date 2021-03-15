@@ -23,3 +23,21 @@ class UsageError(Error):
     """API Usage Error"""
 
     pass
+
+
+class InitError(Error):
+    """Raised when wandb.init() fails"""
+
+    pass
+
+
+class InitStartError(InitError):
+    """Raised when wandb.init() fails"""
+
+    pass
+
+
+class InitGenericError(InitError):
+    """Raised when wandb.init() fails"""
+
+    pass
