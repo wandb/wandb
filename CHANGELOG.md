@@ -4,6 +4,8 @@
 
 #### :nail_care: Enhancement
 
+- Add the ability to save artifacts without creating a run
+
 ## 0.10.22 (March 9, 2021)
 
 #### :bug: Bug Fix
