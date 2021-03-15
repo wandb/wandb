@@ -27,7 +27,7 @@ message Imports {
   bool lightgbm = 8;
   bool pytorch_lightning = 9;
   bool pytorch_ignite = 10;
-  bool transformers = 11;      // huggingface
+  bool transformers_huggingface = 11;
 }
 
 message Feature {

@@ -360,7 +360,7 @@ class Run(object):
         if mods.get("ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
-            imp.transformers = True
+            imp.transformers_huggingface = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
