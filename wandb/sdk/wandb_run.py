@@ -492,6 +492,8 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
