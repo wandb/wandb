@@ -862,7 +862,7 @@ def test_sync_tensorboard(runner, live_mock_server):
 
 
 @pytest.mark.flaky
-@pytest.mark.xfail(sys.version_info[:2] == (3, 6), reason="test seems flaky with py36")
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
