@@ -33,6 +33,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
+from wandb.integration.ngc import agent as ngc_agent
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
@@ -807,6 +808,31 @@ def sweep(
         wandb.termlog("Starting wandb controller...")
         tuner = wandb_controller.controller(sweep_id)
         tuner.run(verbose=verbose)
+
+
+@cli.command(context_settings=CONTEXT, help="Run an NGC agent", hidden=True)
+@click.pass_context
+@click.option("--project", "-p", default=None, help="The project to use.")
+@click.option("--entity", "-e", default=None, help="The entity to use.")
+@click.argument("agent_spec", nargs=-1)
+@display_error
+def ngc(ctx, project=None, entity=None, agent_spec=None):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep agent feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    if not find_executable("ngc"):
+        raise ClickException("NGC not installed, install it from https://ngc.nvidia.com")
+
+    if agent_spec is None:
+        project = project or "uncategorized"
+        entity = entity or api.default_entity
+        agent_spec = ["{}/{}".format(project, entity)]
+
+    wandb.termlog("Starting NGC agent ✨")
+    ngc_agent.run_agent(agent_spec)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
