@@ -19,10 +19,11 @@ from wandb.data_types import WBValue
 from wandb.errors.error import CommError
 from wandb.errors.term import termlog, termwarn
 
-from .interface.artifacts import (
+from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
     ArtifactManifest,
+    ArtifactsCache,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
@@ -210,6 +211,15 @@ class Artifact(ArtifactInterface):
             return self._logged_artifact.size
 
         return sum([entry.size for entry in self._manifest.entries])
+
+    @property
+    def commit_hash(self):
+        if self._logged_artifact:
+            return self._logged_artifact.commit_hash
+
+        raise ValueError(
+            "Cannot access commit_hash on an artifact before it has been logged or in offline mode"
+        )
 
     @property
     def description(self):
@@ -449,6 +459,14 @@ class Artifact(ArtifactInterface):
             "Cannot call download on an artifact before it has been logged or in offline mode"
         )
 
+    def checkout(self, root = None):
+        if self._logged_artifact:
+            return self._logged_artifact.checkout(root=root)
+
+        raise ValueError(
+            "Cannot call checkout on an artifact before it has been logged or in offline mode"
+        )
+
     def verify(self, root = None):
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
@@ -457,13 +475,48 @@ class Artifact(ArtifactInterface):
             "Cannot call verify on an artifact before it has been logged or in offline mode"
         )
 
-    def save(self):
+    def save(
+        self,
+        project = None,
+        settings = None,
+    ):
+        """
+        Persists any changes made to the artifact. If currently in a run, that run will
+        log this artifact. If not currently in a run, a run of type "auto" will be created
+        to track this artifact.
+
+        Arguments:
+            project: (str, optional) A project to use for the artifact in the case that a run is not already in context
+            settings: (wandb.Settings, optional) A settings object to use when initializing an
+            automatic run. Most commonly used in testing harness.
+
+        Returns:
+            None
+        """
         if self._logged_artifact:
             return self._logged_artifact.save()
-
-        raise ValueError(
-            "Cannot call save on an artifact before it has been logged or in offline mode"
-        )
+        else:
+            if wandb.run is None:
+                if settings is None:
+                    settings = wandb.Settings(silent=True)
+                with wandb.init(
+                    project=project, job_type="auto", settings=settings
+                ) as run:
+                    run.log_artifact(self)
+                    project_url = run._get_project_url()
+                    # Calling "wait" here is OK, since we have to wait
+                    # for the run to finish anyway.
+                    self.wait()
+                commit_hash = ""
+                if self._logged_artifact is not None:
+                    commit_hash = self._logged_artifact.commit_hash
+                termlog(
+                    "View artifact at {}/artifacts/{}/{}/{}".format(
+                        project_url, self._type, self._name, commit_hash,
+                    )
+                )
+            else:
+                wandb.run.log_artifact(self)
 
     def delete(self):
         if self._logged_artifact:
