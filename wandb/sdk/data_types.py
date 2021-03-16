@@ -79,7 +79,16 @@ class _WBValueArtifactSource(object):
     artifact: "PublicArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "PublicArtifact", name: str = None) -> None:
+    def __init__(self, artifact: "PublicArtifact", name: Optional[str] = None) -> None:
+        self.artifact = artifact
+        self.name = name
+
+
+class _WBValueArtifactTarget(object):
+    artifact: "LocalArtifact"
+    name: Optional[str]
+
+    def __init__(self, artifact: "LocalArtifact", name: Optional[str] = None) -> None:
         self.artifact = artifact
         self.name = name
 
@@ -100,9 +109,11 @@ class WBValue(object):
 
     # Instance Attributes
     artifact_source: Optional[_WBValueArtifactSource]
+    artifact_target: Optional[_WBValueArtifactTarget]
 
     def __init__(self) -> None:
         self.artifact_source = None
+        self.artifact_target = None
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
@@ -203,8 +214,25 @@ class WBValue(object):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def set_artifact_source(self, artifact: "PublicArtifact", name: str = None) -> None:
+    def set_artifact_source(
+        self, artifact: "PublicArtifact", name: Optional[str] = None
+    ) -> None:
+        assert (
+            self.artifact_source is None
+        ), "Cannot update artifact_source. Existing source: {}/{}".format(
+            self.artifact_source.artifact, self.artifact_source.name
+        )
         self.artifact_source = _WBValueArtifactSource(artifact, name)
+
+    def set_artifact_target(
+        self, artifact: "LocalArtifact", name: Optional[str] = None
+    ) -> None:
+        assert (
+            self.artifact_target is None
+        ), "Cannot update artifact_target. Existing target: {}/{}".format(
+            self.artifact_target.artifact, self.artifact_target.name
+        )
+        self.artifact_target = _WBValueArtifactTarget(artifact, name)
 
 
 class Histogram(WBValue):
@@ -1587,6 +1615,7 @@ class Image(BatchableMedia):
         self._size = wbimage._size
         self.format = wbimage.format
         self.artifact_source = wbimage.artifact_source
+        self.artifact_target = wbimage.artifact_target
 
         # We do not want to implicitly copy boxes or masks, just the image-related data.
         # self._boxes = wbimage._boxes

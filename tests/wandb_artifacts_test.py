@@ -821,3 +821,21 @@ def test_interface_commit_hash(runner):
     artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
+
+
+def test_local_references(runner, live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+
+    def make_image():
+        return wandb.Image(np.random.randint(255, size=(32, 32)))
+
+    im1 = make_image()
+    artifact1 = wandb.Artifact("test_local_references", "dataset")
+    artifact1.add(im1, "im1")
+    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
+    with pytest.raises(AssertionError):
+        artifact2.add(im1, "im2")
+    run.log_artifact(artifact1)
+    artifact2.add(im1, "im2")
+    run.log_artifact(artifact)
+    assert artifact.manifest.entries["im2.image.json"].ref is not None
