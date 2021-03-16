@@ -821,3 +821,55 @@ def test_interface_commit_hash(runner):
     artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
+
+
+def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    t1 = wandb.Table(columns=[], data=[])
+    art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
+    art.add(t1, "t1")
+    run.log_artifact(art)
+    art.wait()
+    assert art.id is not None
+    assert art.version is not None
+    assert art.name is not None
+    assert art.type is not None
+    # Purposely none due to mock
+    assert art.entity is None
+    # Purposely none due to mock
+    assert art.project is None
+    assert art.manifest is not None
+    assert art.digest is not None
+    assert art.state is not None
+    assert art.size is not None
+    assert art.commit_hash is not None
+    art.description = "desc"
+    assert art.description == "desc"
+    art.metadata = {"a": 1}
+    assert art.metadata == {"a": 1}
+    art.aliases = ["A"]
+    assert art.aliases == ["A"]
+    assert art.used_by() is not None
+    with pytest.raises(KeyError):  # expect a key error b/c project is not mocked
+        assert art.logged_by() is not None
+    with pytest.raises(ValueError):  # expect that cannot add to finalized
+        with art.new_file("test.txt") as fp:
+            assert fp is not None
+    with pytest.raises(ValueError):  # expect that cannot add to finalized
+        assert art.add_file("wandb_artifacts_test.py") is not None
+    with pytest.raises(ValueError):  # expect that cannot add to finalized
+        assert art.add_dir(".") is not None
+    with pytest.raises(ValueError):  # expect that cannot add to finalized
+        assert art.add_reference("http:something.com") is not None
+    with pytest.raises(ValueError):  # expect that cannot add to finalized
+        assert art.add(wandb.Table(), "T2") is not None
+    assert art.get_path("t1.table.json") is not None
+    assert art.get("t1") is not None
+    assert art.download() is not None
+    assert art.checkout() is not None
+    with pytest.raises(ValueError):  # mock issue
+        assert art.verify() is not None
+    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+        assert art.save() is not None
+    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+        assert art.delete() is not None
