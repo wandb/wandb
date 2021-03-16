@@ -695,7 +695,7 @@ def create_app(user_ctx=None):
                     "storagePolicyConfig": {},
                     "contents": {
                         "t1.table.json": {
-                            "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         }
                     },
@@ -811,11 +811,13 @@ index 30d74d2..9a2c773 100644
                     ),
                     200,
                 )
-            elif digest == "d9a69a69a69a69a69a69a69a69a69a69":
-                return (
-                    json.dumps({"_type": "table-file", "columns": [], "data": []}),
-                    200,
-                )
+
+        if digest == "dda69a69a69a69a69a69a69a69a69a69":
+            return (
+                json.dumps({"_type": "table-file", "columns": [], "data": []}),
+                200,
+            )
+
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
