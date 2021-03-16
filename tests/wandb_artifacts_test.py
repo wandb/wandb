@@ -847,7 +847,12 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
     art.add(t1, "t1")
     run.log_artifact(art)
+    # Must call wait first
+    with pytest.raises(ValueError):
+        assert art.id is not None
     art.wait()
+    with pytest.raises(AttributeError):
+        assert art.FAKE_ATTRIBUTE is not None
     assert art.id is not None
     assert art.version is not None
     assert art.name is not None
@@ -870,17 +875,6 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     assert art.used_by() is not None
     with pytest.raises(KeyError):  # expect a key error b/c project is not mocked
         assert art.logged_by() is not None
-    with pytest.raises(ValueError):  # expect that cannot add to finalized
-        with art.new_file("test.txt") as fp:
-            assert fp is not None
-    with pytest.raises(ValueError):  # expect that cannot add to finalized
-        assert art.add_file("wandb_artifacts_test.py") is not None
-    with pytest.raises(ValueError):  # expect that cannot add to finalized
-        assert art.add_dir(".") is not None
-    with pytest.raises(ValueError):  # expect that cannot add to finalized
-        assert art.add_reference("http:something.com") is not None
-    with pytest.raises(ValueError):  # expect that cannot add to finalized
-        assert art.add(wandb.Table(), "T2") is not None
     assert art.get_path("t1.table.json") is not None
     assert art.get("t1") is not None
     assert art.download() is not None

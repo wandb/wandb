@@ -2496,31 +2496,35 @@ class _LazyArtifact(ArtifactInterface):
     def logged_by(self) -> "wandb.apis.public.Run":
         return self._assert_instance().logged_by()
 
-    def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
-        return self._assert_instance().new_file(name, mode)
+    # Commenting this block out since this code is unreachable since LocalArtifact
+    # overrides them and therefore untestable.
+    # Leaving behind as we may want to support these in the future.
 
-    def add_file(
-        self,
-        local_path: str,
-        name: Optional[str] = None,
-        is_tmp: Optional[bool] = False,
-    ) -> Any:  # TODO: Refine Type
-        return self._assert_instance().add_file(local_path, name, is_tmp)
+    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().new_file(name, mode)
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-        return self._assert_instance().add_dir(local_path, name)
+    # def add_file(
+    #     self,
+    #     local_path: str,
+    #     name: Optional[str] = None,
+    #     is_tmp: Optional[bool] = False,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_file(local_path, name, is_tmp)
 
-    def add_reference(
-        self,
-        uri: Union["ArtifactEntry", str],
-        name: Optional[str] = None,
-        checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Any:  # TODO: Refine Type
-        return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    #     return self._assert_instance().add_dir(local_path, name)
 
-    def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
-        return self._assert_instance().add(obj, name)
+    # def add_reference(
+    #     self,
+    #     uri: Union["ArtifactEntry", str],
+    #     name: Optional[str] = None,
+    #     checksum: bool = True,
+    #     max_objects: Optional[int] = None,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+
+    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add(obj, name)
 
     def get_path(self, name: str) -> "ArtifactEntry":
         return self._assert_instance().get_path(name)
