@@ -808,3 +808,20 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log(
+        {
+            "logged_table": wandb.Table(
+                columns=["a"],
+                data=[[wandb.Image(np.random.randint(255, size=(32, 32)))]],
+            )
+        }
+    )
+    run.summary["logged_table_2"] = wandb.Table(
+        columns=["a"], data=[[wandb.Image(np.random.randint(255, size=(32, 32)))]]
+    )
+    run.finish()
+    assert True
