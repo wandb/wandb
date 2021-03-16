@@ -826,16 +826,16 @@ def test_interface_commit_hash(runner):
 def test_local_references(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
 
-    def make_image():
-        return wandb.Image(np.random.randint(255, size=(32, 32)))
+    def make_table():
+        return wandb.Table(columns=[], data=[])
 
-    im1 = make_image()
+    t1 = make_table()
     artifact1 = wandb.Artifact("test_local_references", "dataset")
-    artifact1.add(im1, "im1")
+    artifact1.add(t1, "t1")
+    assert artifact1.manifest.entries["t1.table.json"].ref is None
     artifact2 = wandb.Artifact("test_local_references_2", "dataset")
     with pytest.raises(AssertionError):
-        artifact2.add(im1, "im2")
+        artifact2.add(t1, "t2")
     run.log_artifact(artifact1)
-    artifact2.add(im1, "im2")
-    run.log_artifact(artifact)
-    assert artifact.manifest.entries["im2.image.json"].ref is not None
+    artifact2.add(t1, "t2")
+    assert artifact2.manifest.entries["t2.table.json"].ref is not None
