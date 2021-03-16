@@ -40,6 +40,7 @@ from . import wandb_config
 from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
+from .interface.artifacts import Artifact as ArtifactInterface
 from .lib import (
     apikey,
     config_util,
@@ -69,7 +70,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
-    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -79,7 +79,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from wandb.apis.public import Api as PublicApi
     from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
@@ -360,7 +360,7 @@ class Run(object):
         if mods.get("ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
-            imp.transformers = True
+            imp.transformers_huggingface = True
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -492,6 +492,8 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
@@ -2404,6 +2406,6 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(self._instance, ArtifactInterface)
         return self._instance
