@@ -246,7 +246,7 @@ class Artifact(ArtifactInterface):
     @metadata.setter
     def metadata(self, metadata):
         if self._logged_artifact:
-            self._metadata = metadata
+            self._logged_artifact.metadata = metadata
             return
 
         self._metadata = metadata
