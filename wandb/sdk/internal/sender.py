@@ -843,6 +843,7 @@ class SendManager(object):
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
+            incremental=artifact.incremental,
         )
 
     def send_alert(self, data):
