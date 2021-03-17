@@ -243,14 +243,14 @@ class WBValue(object):
                 type(self).with_suffix(self._artifact_source.name)
             )
         # Else, if the object is destined for another artifact
-        elif self._artifact_target and self._artifact_target.name:
-            if self._artifact_target.artifact._logged_artifact is None:
-                # In this case, we do not know if the artifact will ever be logged
-                return None
-            else:
-                # Currently, we do not have a way to obtain a reference URL without waiting for the
-                # upstream artifact to be logged. This implies that this only works online as well.
-                self._artifact_target.artifact.wait()
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+        ):
+            # Currently, we do not have a way to obtain a reference URL without waiting for the
+            # upstream artifact to be logged. This implies that this only works online as well.
+            self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_path(
                 type(self).with_suffix(self._artifact_target.name)
             )

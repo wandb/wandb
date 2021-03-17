@@ -430,7 +430,8 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
-        obj._set_artifact_target(self, entry.path)
+        if obj._artifact_target is None:
+            obj._set_artifact_target(self, entry.path)
 
         return entry
 
