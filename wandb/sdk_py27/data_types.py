@@ -245,11 +245,8 @@ class WBValue(object):
         # Else, if the object is destined for another artifact
         elif self._artifact_target and self._artifact_target.name:
             if self._artifact_target.artifact._logged_artifact is None:
-                raise AssertionError(
-                    "Cannot reference another artifact until it has been logged. Attempting to reference {}, please log {} first.".format(
-                        self, self._artifact_target
-                    )
-                )
+                # In this case, we do not know if the artifact will ever be logged
+                return None
             else:
                 # Currently, we do not have a way to obtain a reference URL without waiting for the
                 # upstream artifact to be logged. This implies that this only works online as well.
