@@ -833,10 +833,8 @@ def test_local_references(runner, live_mock_server, test_settings):
     artifact1 = wandb.Artifact("test_local_references", "dataset")
     artifact1.add(t1, "t1")
     assert artifact1.manifest.entries["t1.table.json"].ref is None
-    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
-    with pytest.raises(AssertionError):
-        artifact2.add(t1, "t2")
     run.log_artifact(artifact1)
+    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
