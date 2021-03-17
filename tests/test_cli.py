@@ -861,6 +861,8 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )

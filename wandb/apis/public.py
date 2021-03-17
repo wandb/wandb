@@ -137,6 +137,7 @@ fragment ArtifactFragment on Artifact {
         id
         name
     }
+    commitHash
 }
 """
 
@@ -2694,6 +2695,10 @@ class Artifact(artifacts.Artifact):
     @property
     def type(self):
         return self._attrs["artifactType"]["name"]
+
+    @property
+    def commit_hash(self):
+        return self._attrs.get("commitHash", "")
 
     @property
     def name(self):

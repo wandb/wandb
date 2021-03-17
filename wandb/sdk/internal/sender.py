@@ -45,7 +45,7 @@ def _framework_priority(
     yield imp.lightgbm, "lightgbm"
     yield imp.catboost, "catboost"
     yield imp.xgboost, "xgboost"
-    yield imp.transformers, "huggingface"
+    yield imp.transformers_huggingface, "huggingface"
     yield imp.pytorch_ignite, "ignite"
     yield imp.pytorch_lightning, "lightning"
     yield imp.fastai, "fastai"

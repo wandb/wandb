@@ -40,6 +40,7 @@ from . import wandb_config
 from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
+from .interface.artifacts import Artifact as ArtifactInterface
 from .lib import (
     apikey,
     config_util,
@@ -69,7 +70,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
-    from .interface.artifacts import Artifact as ArtifactInterface
     from .interface.interface import BackendSender
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
@@ -79,13 +79,21 @@ if wandb.TYPE_CHECKING:  # type: ignore
         MetricRecord,
     )
     from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi, Artifact as PublicArtifact
+    from wandb.apis.public import Api as PublicApi
     from .wandb_artifacts import Artifact
 
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
         from typing import NoReturn
+
+        from .data_types import WBValue
+
+        from .interface.artifacts import (
+            ArtifactEntry,
+            ArtifactManifest,
+        )
+
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -360,7 +368,7 @@ class Run(object):
         if mods.get("ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
-            imp.transformers = True
+            imp.transformers_huggingface = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -492,6 +500,8 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
@@ -2382,7 +2392,7 @@ except AttributeError:
     pass
 
 
-class _LazyArtifact(wandb_artifacts.Artifact):
+class _LazyArtifact(ArtifactInterface):
 
     _api: PublicApi
     _instance: Optional[ArtifactInterface] = None
@@ -2392,11 +2402,15 @@ class _LazyArtifact(wandb_artifacts.Artifact):
         self._api = api
         self._future = future
 
-    def __getattr__(self, item: str) -> Any:
+    def _assert_instance(self) -> ArtifactInterface:
         if not self._instance:
             raise ValueError(
                 "Must call wait() before accessing logged artifact properties"
             )
+        return self._instance
+
+    def __getattr__(self, item: str) -> Any:
+        self._assert_instance()
         return getattr(self._instance, item)
 
     def wait(self) -> ArtifactInterface:
@@ -2404,6 +2418,131 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = PublicArtifact.from_id(resp.artifact_id, self._api.client)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(self._instance, ArtifactInterface)
         return self._instance
+
+    @property
+    def id(self) -> Optional[str]:
+        return self._assert_instance().id
+
+    @property
+    def version(self) -> str:
+        return self._assert_instance().version
+
+    @property
+    def name(self) -> str:
+        return self._assert_instance().name
+
+    @property
+    def type(self) -> str:
+        return self._assert_instance().type
+
+    @property
+    def entity(self) -> str:
+        return self._assert_instance().entity
+
+    @property
+    def project(self) -> str:
+        return self._assert_instance().project
+
+    @property
+    def manifest(self) -> "ArtifactManifest":
+        return self._assert_instance().manifest
+
+    @property
+    def digest(self) -> str:
+        return self._assert_instance().digest
+
+    @property
+    def state(self) -> str:
+        return self._assert_instance().state
+
+    @property
+    def size(self) -> int:
+        return self._assert_instance().size
+
+    @property
+    def commit_hash(self) -> str:
+        return self._assert_instance().commit_hash
+
+    @property
+    def description(self) -> Optional[str]:
+        return self._assert_instance().description
+
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        self._assert_instance().description = desc
+
+    @property
+    def metadata(self) -> dict:
+        return self._assert_instance().metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        self._assert_instance().metadata = metadata
+
+    @property
+    def aliases(self) -> List[str]:
+        return self._assert_instance().aliases
+
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        self._assert_instance().aliases = aliases
+
+    def used_by(self) -> List["wandb.apis.public.Run"]:
+        return self._assert_instance().used_by()
+
+    def logged_by(self) -> "wandb.apis.public.Run":
+        return self._assert_instance().logged_by()
+
+    # Commenting this block out since this code is unreachable since LocalArtifact
+    # overrides them and therefore untestable.
+    # Leaving behind as we may want to support these in the future.
+
+    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().new_file(name, mode)
+
+    # def add_file(
+    #     self,
+    #     local_path: str,
+    #     name: Optional[str] = None,
+    #     is_tmp: Optional[bool] = False,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_file(local_path, name, is_tmp)
+
+    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    #     return self._assert_instance().add_dir(local_path, name)
+
+    # def add_reference(
+    #     self,
+    #     uri: Union["ArtifactEntry", str],
+    #     name: Optional[str] = None,
+    #     checksum: bool = True,
+    #     max_objects: Optional[int] = None,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+
+    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add(obj, name)
+
+    def get_path(self, name: str) -> "ArtifactEntry":
+        return self._assert_instance().get_path(name)
+
+    def get(self, name: str) -> "WBValue":
+        return self._assert_instance().get(name)
+
+    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+        return self._assert_instance().download(root, recursive)
+
+    def checkout(self, root: Optional[str] = None) -> str:
+        return self._assert_instance().checkout(root)
+
+    def verify(self, root: Optional[str] = None) -> Any:
+        return self._assert_instance().verify(root)
+
+    def save(self) -> None:
+        return self._assert_instance().save()
+
+    def delete(self) -> None:
+        return self._assert_instance().delete()
