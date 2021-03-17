@@ -2946,12 +2946,10 @@ class Artifact(artifacts.Artifact):
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
-        log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
+                % (self._artifact_name, size / (1024 * 1024), nfiles)
             )
         start_time = time.time()
 
@@ -2967,9 +2965,6 @@ class Artifact(artifacts.Artifact):
         pool.join()
 
         self._is_downloaded = True
-
-        if log:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 
         return dirpath
 
