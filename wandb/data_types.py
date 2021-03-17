@@ -158,8 +158,9 @@ class Table(Media):
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
+        # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
-            columns = []
+            columns = ["Input", "Output", "Expected"]
 
         # Explicit dataframe option
         if dataframe is not None:

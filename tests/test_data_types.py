@@ -812,7 +812,7 @@ def test_partitioned_table():
 
 def test_table_column_style():
     # Test Base Cases
-    table1 = wandb.Table()
+    table1 = wandb.Table(columns=[], data=[])
     table1.add_column("number", [1, 2, 3])
     table1.add_data(4)
     with pytest.raises(AssertionError):
@@ -854,7 +854,7 @@ def test_table_column_style():
     img_2 = wandb.Image(rand_2)
     img_3 = wandb.Image(rand_3)
 
-    table2 = wandb.Table()
+    table2 = wandb.Table(columns=[], data=[])
     table2.add_column("np_data", [rand_1, rand_2])
     table2.add_column("image", [img_1, img_2])
     table2.add_data(rand_3, img_3)
@@ -872,6 +872,6 @@ def test_table_column_style():
         == np.array([rand_1, rand_2, rand_3])
     )
 
-    table3 = wandb.Table()
+    table3 = wandb.Table(columns=[], data=[])
     table3.add_column("table1_fk", table1.get_column("strings"))
     assert table3.get_column("table1_fk")[0]._table == table1
