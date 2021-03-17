@@ -410,27 +410,8 @@ class Artifact(ArtifactInterface):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source and obj.artifact_source.name:
-            ref_path = obj.artifact_source.artifact.get_path(
-                type(obj).with_suffix(obj.artifact_source.name)
-            )
-            return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
-
-        # Else, if the object is destined for another artifact, also save it as a reference
-        elif obj.artifact_target and obj.artifact_target.name:
-            if obj.artifact_target.artifact._logged_artifact is None:
-                raise AssertionError(
-                    "Cannot add an object to more than 1 artifact unless the first artifact has been logged. Attempting to add {} to {}, please log {} first.".format(
-                        obj, self, obj.artifact_target
-                    )
-                )
-            else:
-                # Currently, we do not have a way to obtain a reference URL without waiting for the
-                # upstream artifact to be logged. This implies that this only works online as well.
-                obj.artifact_target.artifact.wait()
-            ref_path = obj.artifact_target.artifact.get_path(
-                type(obj).with_suffix(obj.artifact_target.name)
-            )
+        ref_path = obj._get_artifact_reference_entry()
+        if ref_path is not None:
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
         val = obj.to_json(self)
@@ -449,7 +430,7 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
-        obj.set_artifact_target(self, entry.path)
+        obj._set_artifact_target(self, entry.path)
 
         return entry
 

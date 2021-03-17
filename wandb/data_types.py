@@ -630,7 +630,7 @@ class Audio(BatchableMedia):
         if Audio.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
-        source_artifact = self.artifact_source.artifact
+        source_artifact = self._artifact_source.artifact
 
         resolved_name = source_artifact._local_path_to_name(self._path)
         if resolved_name is not None:
@@ -727,10 +727,10 @@ class JoinedTable(Media):
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
-                table.artifact_source is not None
-                and table.artifact_source.name is not None
+                table._artifact_source is not None
+                and table._artifact_source.name is not None
             ):
-                table_name = os.path.basename(table.artifact_source.name)
+                table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactEntry
