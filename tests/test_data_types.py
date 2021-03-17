@@ -808,3 +808,48 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+def test_table_columnar():
+    # Test Base Cases
+    table = wandb.Table(columns=[], data=[])
+    tables.add_column("number", [1,2,3])
+    tables.add_row(4)
+    with pytest.raises(AssertionError):
+        tables.add_column("strings", ["a"])
+    tables.add_column("strings", ["a", "b", "c", "d"])
+    tables.add_row(5, "e")
+    tables.add_column("np_numbers", np.array([101,102,103,104, 105]))
+
+    assert tables.data = [[1, "a", 101], [2, "b", 102], [3, "c", 103], [4, "d", 104], [5, "e", 105]]
+
+    assert tables.get_column("number") == [1, 2, 3, 4, 5]
+    assert tables.get_column("strings") == ["a", "b", "c", "d", "e"]
+    assert tables.get_column("np_numbers") == [101, 102, 103, 104, 105]
+
+    assert tables.get_column("number", convert_to="numpy") == np.array([1, 2, 3, 4, 5])
+    assert tables.get_column("strings", convert_to="numpy") == np.array(["a", "b", "c", "d", "e"])
+    assert tables.get_column("np_numbers", convert_to="numpy") == np.array([101, 102, 103, 104, 105])
+
+    # Test More Images and ndarrays
+    rand_1 = np.random.randint(255, size=(32,32))
+    rand_2 = np.random.randint(255, size=(32,32))
+    rand_3 = np.random.randint(255, size=(32,32))
+    img_1 =  wandb.Image(rand_1)
+    img_2 =  wandb.Image(rand_2)
+    img_3 =  wandb.Image(rand_3)
+
+    table = wandb.Table(columns=[], data=[])
+    tables.add_column("np_data", [rand_1, rand_2])
+    tables.add_column("image", [img_1, img_2])
+    tables.add_row(rand_3, img_3)
+
+    assert tables.data = [[rand_1, img_1],[rand_2, img_2],[rand_3, img_3]]
+    assert tables.get_column("np_data", convert_to="numpy") == np.array([rand_1, rand_2, rand_3])
+    assert tables.get_column("image") == [img_1, img_2, img_3]
+    assert tables.get_column("image", convert_to="numpy") == np.array([rand_1, rand_2, rand_3])
+
+
+    # Adding a column of data must always equal the current length of data
+    # OR in the case that there are no columns, can be any length
+
+    
