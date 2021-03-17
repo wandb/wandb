@@ -121,9 +121,16 @@ def run(ctx):
     }
 
 
-def artifact(ctx, collection_name="mnist", state="COMMITTED"):
+def artifact(
+    ctx,
+    collection_name="mnist",
+    state="COMMITTED",
+    request_url_root="",
+    id_override=None,
+):
+    _id = str(ctx["page_count"]) if id_override is None else id_override
     return {
-        "id": ctx["page_count"],
+        "id": _id,
         "digest": "abc123",
         "description": "",
         "state": state,
@@ -140,6 +147,12 @@ def artifact(ctx, collection_name="mnist", state="COMMITTED"):
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "currentManifest": {
+            "file": {
+                "directUrl": request_url_root
+                + "/storage?file=wandb_manifest.json&id={}".format(_id)
+            }
+        },
     }
 
 
@@ -466,7 +479,7 @@ def create_app(user_ctx=None):
                                 [
                                     {
                                         "type": "run",
-                                        "run_id": "mocker-server-run-x9",
+                                        "run_id": "mocker-sweep-run-x9",
                                         "args": {"learning_rate": {"value": 0.99124}},
                                     }
                                 ]
@@ -476,24 +489,27 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation UpsertBucket(" in body["query"]:
-            return json.dumps(
-                {
-                    "data": {
-                        "upsertBucket": {
-                            "bucket": {
-                                "id": "storageid",
-                                "name": body["variables"].get("name", "abc123"),
-                                "displayName": "lovely-dawn-32",
-                                "project": {
-                                    "name": "test",
-                                    "entity": {"name": "mock_server_entity"},
-                                },
+            response = {
+                "data": {
+                    "upsertBucket": {
+                        "bucket": {
+                            "id": "storageid",
+                            "name": body["variables"].get("name", "abc123"),
+                            "displayName": "lovely-dawn-32",
+                            "project": {
+                                "name": "test",
+                                "entity": {"name": "mock_server_entity"},
                             },
-                            "inserted": ctx["resume"] is False,
-                        }
+                        },
+                        "inserted": ctx["resume"] is False,
                     }
                 }
-            )
+            }
+            if body["variables"].get("name") == "mocker-sweep-run-x9":
+                response["data"]["upsertBucket"]["bucket"][
+                    "sweepName"
+                ] = "test-sweep-id"
+            return json.dumps(response)
         if "mutation DeleteRun(" in body["query"]:
             return json.dumps({"data": {}})
         if "mutation CreateAnonymousApiKey " in body["query"]:
@@ -531,7 +547,15 @@ def create_app(user_ctx=None):
             )
             ctx["artifacts"][collection_name].append(body["variables"])
             return {
-                "data": {"createArtifact": {"artifact": artifact(ctx, collection_name)}}
+                "data": {
+                    "createArtifact": {
+                        "artifact": artifact(
+                            ctx,
+                            collection_name,
+                            id_override=body.get("variables", {}).get("digest", ""),
+                        )
+                    }
+                }
             }
         if "mutation UseArtifact(" in body["query"]:
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
@@ -607,11 +631,18 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx)
+            art = artifact(ctx, request_url_root=request.url_root)
+            if "id" in body.get("variables", {}):
+                art = artifact(
+                    ctx,
+                    request_url_root=request.url_root,
+                    id_override=body.get("variables", {}).get("id"),
+                )
+                art["artifactType"] = {"id": 1, "name": "dataset"}
+                return {"data": {"artifact": art}}
             # code artifacts use source-RUNID names, we return the code type
-            if "source" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 2, "name": "code"}
-            else:
+            art["artifactType"] = {"id": 2, "name": "code"}
+            if "source" not in body["variables"]["name"]:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
@@ -646,6 +677,7 @@ def create_app(user_ctx=None):
                 ctx["fail_storage_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
         file = request.args.get("file")
+        _id = request.args.get("id", "")
         run = request.args.get("run", "unknown")
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
@@ -656,7 +688,19 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if file == "wandb_manifest.json":
-            if (
+            if _id == "bb8043da7d78ff168a695cff097897d2":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "t1.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif (
                 len(ctx.get("graphql", [])) >= 3
                 and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
             ):
@@ -767,6 +811,12 @@ index 30d74d2..9a2c773 100644
                     ),
                     200,
                 )
+
+        if digest == "dda69a69a69a69a69a69a69a69a69a69":
+            return (
+                json.dumps({"_type": "table-file", "columns": [], "data": []}),
+                200,
+            )
 
         return "ARTIFACT %s" % digest, 200
 

@@ -7,9 +7,8 @@ config.
 import logging
 
 import six
-from six.moves.collections_abc import Sequence
 import wandb
-from wandb.util import json_friendly
+from wandb.util import json_friendly_val
 
 from . import wandb_helper
 from .lib import config_util
@@ -40,7 +39,7 @@ class Config(object):
 
     Examples:
         Basic usage
-        ```
+        ```python
         wandb.config.epochs = 4
         wandb.init()
         for x in range(wandb.config.epochs):
@@ -48,14 +47,14 @@ class Config(object):
         ```
 
         Using wandb.init to set config
-        ```
+        ```python
         wandb.init(config={"epochs": 4, "batch_size": 32})
         for x in range(wandb.config.epochs):
             # train
         ```
 
         Nested configs
-        ```
+        ```python
         wandb.config['train']['epochs] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
@@ -63,13 +62,13 @@ class Config(object):
         ```
 
         Using absl flags
-        ```
+        ```python
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
         Argparse flags
-        ```
+        ```python
         wandb.init()
         wandb.config.epochs = 4
 
@@ -81,7 +80,7 @@ class Config(object):
         ```
 
         Using TensorFlow flags (deprecated in tensorflow v2)
-        ```
+        ```python
         flags = tf.app.flags
         flags.DEFINE_string('data_dir', '/tmp/data')
         flags.DEFINE_integer('batch_size', 128, 'Batch size.')
@@ -226,7 +225,7 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        val = self._sanitize_val(val)
+        val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
@@ -238,29 +237,6 @@ class Config(object):
                     ).format(key, self._items[key], val)
                 )
         return key, val
-
-    def _sanitize_val(self, val):
-        """Turn all non-builtin values into something safe for YAML"""
-        if isinstance(val, dict):
-            converted = {}
-            for key, value in six.iteritems(val):
-                converted[key] = self._sanitize_val(value)
-            return converted
-        if isinstance(val, slice):
-            converted = dict(
-                slice_start=val.start, slice_step=val.step, slice_stop=val.stop
-            )
-            return converted
-        val, _ = json_friendly(val)
-        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
-            converted = []
-            for value in val:
-                converted.append(self._sanitize_val(value))
-            return converted
-        else:
-            if val.__class__.__module__ not in ("builtins", "__builtin__"):
-                val = str(val)
-            return val
 
 
 class ConfigStatic(object):

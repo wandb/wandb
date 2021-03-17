@@ -236,6 +236,14 @@ class Artifact(object):
         raise NotImplementedError
 
     @property
+    def commit_hash(self) -> str:
+        """
+        Returns:
+            (str): The artifact's commit hash which is used in http URLs
+        """
+        raise NotImplementedError
+
+    @property
     def description(self) -> Optional[str]:
         """
         Returns:
