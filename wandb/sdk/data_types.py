@@ -203,6 +203,10 @@ class WBValue(object):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
+    def to_data_array(self) -> List[Any]:
+        """Converts the object to a list of primitives representing the underlying data"""
+        raise NotImplementedError
+
     def set_artifact_source(self, artifact: "PublicArtifact", name: str = None) -> None:
         self.artifact_source = _WBValueArtifactSource(artifact, name)
 
@@ -1925,6 +1929,14 @@ class Image(BatchableMedia):
                 and self._image == other._image
                 and self._classes == other._classes
             )
+
+    def to_data_array(self) -> List[Any]:
+        res = []
+        if self._image is not None:
+            data = list(self._image.getdata())
+            for i in range(self._image.height):
+                res.append(data[i * self._image.width : (i + 1) * self._image.width])
+        return res
 
 
 class Plotly(Media):

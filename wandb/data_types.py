@@ -158,9 +158,8 @@ class Table(Media):
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
-        # This is kept for legacy reasons (tss: personally, I think we should remove this)
         if columns is None:
-            columns = ["Input", "Output", "Expected"]
+            columns = []
 
         # Explicit dataframe option
         if dataframe is not None:
@@ -246,27 +245,9 @@ class Table(Media):
                 normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
             optional: (bool) - if the column should allow Nones
         """
-        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
-
-        # Assert valid options
         assert col_name in self.columns
-        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
-        is_fk = isinstance(wbtype, _TableForeignKeyType)
-        is_fi = isinstance(wbtype, _TableForeignIndexType)
-        if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
 
-        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
-            raise AssertionError("Cannot set a foreign table reference to same table")
-
-        if is_pk:
-            assert (
-                self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
-            )
+        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
 
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
@@ -284,6 +265,25 @@ class Table(Media):
                     )
                 )
             wbtype = result_type
+
+        # Assert valid options
+        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
+        is_fk = isinstance(wbtype, _TableForeignKeyType)
+        is_fi = isinstance(wbtype, _TableForeignIndexType)
+        if is_pk or is_fk or is_fi:
+            assert (
+                not optional
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+
+        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+            raise AssertionError("Cannot set a foreign table reference to same table")
+
+        if is_pk:
+            assert (
+                self._pk_col is None
+            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                self._pk_col
+            )
 
         # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
@@ -601,6 +601,70 @@ class Table(Media):
         else:
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
+
+    def add_column(self, name, data, optional=False):
+        """Add a column of data to the table.
+
+        Arguments
+            name: (str) - the unique name of the column
+            data: (list | np.array) - a column of homogenous data
+            optional: (bool) - if null-like values are permitted
+        """
+        assert isinstance(name, str) and name not in self.columns
+        is_np = util.is_numpy_array(data)
+        assert isinstance(data, list) or is_np
+        assert isinstance(optional, bool)
+        is_first_col = len(self.columns) == 0
+        assert is_first_col or len(data) == len(self.data)
+
+        # Add the new data
+        for ndx in range(max(len(data), len(self.data))):
+            if is_first_col:
+                self.data.append([])
+            if is_np:
+                self.data[ndx].append(data[ndx].tolist())
+            else:
+                self.data[ndx].append(data[ndx])
+        # add the column
+        self.columns.append(name)
+
+        try:
+            self.cast(name, _dtypes.UnknownType(), optional=optional)
+        except TypeError as err:
+            # Undo the changes
+            if is_first_col:
+                self.data = []
+                self.columns = []
+            else:
+                for ndx in range(len(self.data)):
+                    self.data[ndx] = self.data[ndx][:-1]
+                self.columns = self.columns[:-1]
+            raise err
+
+    def get_column(self, name, convert_to=None):
+        """Retrieves a column of data from the table
+
+        Arguments
+            name: (str) - the name of the column
+            convert_to: (str, optional)
+                - "numpy": will convert the underlying data to numpy object
+        """
+        assert isinstance(name, str) and name in self.columns
+        assert convert_to is None or convert_to == "numpy"
+        if convert_to == "numpy":
+            np = util.get_module(
+                "numpy", required="Converting to numpy requires installing numpy"
+            )
+        col = []
+        col_ndx = self.columns.index(name)
+        for row in self.data:
+            item = row[col_ndx]
+            if convert_to is not None and isinstance(item, WBValue):
+                item = item.to_data_array()
+            col.append(item)
+        if convert_to == "numpy":
+            col = np.array(col)
+        return col
 
 
 class _PartitionTablePartEntry:
