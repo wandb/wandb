@@ -113,16 +113,14 @@ def test_k8s_failure(wandb_init_run):
     assert wandb.run._settings.docker is None
 
 
-# @pytest.mark.wandb_args(sagemaker=True)
-# @pytest.mark.skip(
-#     reason="Sagemaker support not currently implemented, see wandb.util.parse_sm_config"
-# )
+@pytest.mark.wandb_args(sagemaker=True)
 def test_sagemaker(wandb_init_run):
-    print(wandb.run.config)
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
-    assert wandb.run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it
+    #  so its not added. Similarly add test for group
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+    # assert wandb.run.group == "sage"
 
 
 @pytest.mark.wandb_args(
