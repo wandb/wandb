@@ -335,6 +335,17 @@ def test_save_now_twice(
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
 
+def test_output(
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+):
+    start_backend()
+    for i in range(100):
+        internal_sender.publish_output("stdout", "\rSome recurring line")
+    internal_sender.publish_output("stdout", "\rFinal line baby\n")
+    stop_backend()
+    print("DUDE!", mock_server.ctx)
+    assert "Final line baby" in mock_server.ctx["file_stream"][0]["files"]["output.log"]["content"][0]
+
 
 def test_upgrade_upgraded(
     mocked_run,
