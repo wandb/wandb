@@ -2937,7 +2937,7 @@ class Artifact(artifacts.Artifact):
             with open(item_path, "r") as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
-            result.set_artifact_source(self, name)
+            result._set_artifact_source(self, name)
             return result
 
     def download(self, root=None, recursive=False):
