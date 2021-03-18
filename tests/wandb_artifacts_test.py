@@ -205,6 +205,7 @@ def test_add_reference_local_file_no_checksum(runner):
         assert manifest["contents"]["file1.txt"] == {
             "digest": "file://file1.txt",
             "ref": "file://file1.txt",
+            "size": 5,
         }
 
 
