@@ -824,3 +824,74 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     )
     run.finish()
     assert True
+
+
+def test_table_column_style():
+    # Test Base Cases
+    table1 = wandb.Table(columns=[], data=[])
+    table1.add_column("number", [1, 2, 3])
+    table1.add_data(4)
+    with pytest.raises(AssertionError):
+        table1.add_column("strings", ["a"])
+    table1.add_column("strings", ["a", "b", "c", "d"])
+    table1.set_pk("strings")
+    table1.add_data(5, "e")
+    table1.add_column("np_numbers", np.array([101, 102, 103, 104, 105]))
+
+    assert table1.data == [
+        [1, "a", 101],
+        [2, "b", 102],
+        [3, "c", 103],
+        [4, "d", 104],
+        [5, "e", 105],
+    ]
+
+    assert table1.get_column("number") == [1, 2, 3, 4, 5]
+    assert table1.get_column("strings") == ["a", "b", "c", "d", "e"]
+    assert table1.get_column("np_numbers") == [101, 102, 103, 104, 105]
+
+    assert np.all(
+        table1.get_column("number", convert_to="numpy") == np.array([1, 2, 3, 4, 5])
+    )
+    assert np.all(
+        table1.get_column("strings", convert_to="numpy")
+        == np.array(["a", "b", "c", "d", "e"])
+    )
+    assert np.all(
+        table1.get_column("np_numbers", convert_to="numpy")
+        == np.array([101, 102, 103, 104, 105])
+    )
+
+    ndxs = table1.get_index()
+    assert ndxs == [0, 1, 2, 3, 4]
+    assert [ndx._table == table1 for ndx in ndxs]
+
+    # Test More Images and ndarrays
+    rand_1 = np.random.randint(255, size=(32, 32))
+    rand_2 = np.random.randint(255, size=(32, 32))
+    rand_3 = np.random.randint(255, size=(32, 32))
+    img_1 = wandb.Image(rand_1)
+    img_2 = wandb.Image(rand_2)
+    img_3 = wandb.Image(rand_3)
+
+    table2 = wandb.Table(columns=[], data=[])
+    table2.add_column("np_data", [rand_1, rand_2])
+    table2.add_column("image", [img_1, img_2])
+    table2.add_data(rand_3, img_3)
+
+    assert table2.data == [[rand_1, img_1], [rand_2, img_2], [rand_3, img_3]]
+    assert np.all(
+        table2.get_column("np_data", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+    assert table2.get_column("image") == [img_1, img_2, img_3]
+    a = table2.get_column("image", convert_to="numpy")
+    b = np.array([rand_1, rand_2, rand_3])
+    assert np.all(
+        table2.get_column("image", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+
+    table3 = wandb.Table(columns=[], data=[])
+    table3.add_column("table1_fk", table1.get_column("strings"))
+    assert table3.get_column("table1_fk")[0]._table == table1
