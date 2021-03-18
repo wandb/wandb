@@ -846,6 +846,10 @@ def test_table_column_style():
         == np.array([101, 102, 103, 104, 105])
     )
 
+    ndxs = table1.get_indexes()
+    assert ndxs == [0, 1, 2, 3, 4]
+    assert [ndx._table == table1 for ndx in ndxs]
+
     # Test More Images and ndarrays
     rand_1 = np.random.randint(255, size=(32, 32))
     rand_2 = np.random.randint(255, size=(32, 32))

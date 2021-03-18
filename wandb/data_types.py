@@ -667,6 +667,15 @@ class Table(Media):
             col = np.array(col)
         return col
 
+    def get_indexes(self):
+        """Returns an array of row indexes which can be used in other tables to create links"""
+        ndxs = []
+        for ndx in range(len(self.data)):
+            index = _TableIndex(ndx)
+            index.set_table(self)
+            ndxs.append(index)
+        return ndxs
+
 
 class _PartitionTablePartEntry:
     """Helper class for PartitionTable to track its parts
