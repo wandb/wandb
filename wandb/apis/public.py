@@ -2951,7 +2951,6 @@ class Artifact(artifacts.Artifact):
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles)
             )
-        start_time = time.time()
 
         # Force all the files to download into the same directory.
         # Download in parallel
