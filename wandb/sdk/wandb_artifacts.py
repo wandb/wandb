@@ -1009,9 +1009,13 @@ class LocalFileHandler(StorageHandler):
                 size = os.path.getsize(local_path)
             else:
                 # TODO: update error message if we don't allow directories.
-                raise ValueError('Path "%s" must be a valid file or directory path' % path)  
+                raise ValueError(
+                    'Path "%s" must be a valid file or directory path' % path
+                )
             return [
-                ArtifactManifestEntry(name or os.path.basename(path), path, size=size, digest=path)
+                ArtifactManifestEntry(
+                    name or os.path.basename(path), path, size=size, digest=path
+                )
             ]
 
         entries = []
