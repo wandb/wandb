@@ -14,6 +14,7 @@ from . import utils
 from .utils import dummy_data
 import matplotlib
 from wandb import Api
+import time
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -895,3 +896,51 @@ def test_table_column_style():
     table3 = wandb.Table(columns=[], data=[])
     table3.add_column("table1_fk", table1.get_column("strings"))
     assert table3.get_column("table1_fk")[0]._table == table1
+
+
+def test_ndarrays_in_tables():
+    rows = 10
+    d = 128
+    c = 3
+    nda_table = wandb.Table(
+        columns=["ndarray"], data=np.random.randint(255, size=(rows, 1, d, d, c))
+    )
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)))
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)).tolist())
+
+    assert any(
+        [
+            isinstance(t, wandb.data_types._dtypes.NDArrayType)
+            for t in nda_table._column_types.params["type_map"]["ndarray"].params[
+                "allowed_types"
+            ]
+        ]
+    )
+
+    nda_table = wandb.Table(columns=[], data=[])
+    nda_table.add_column(
+        "odd_col",
+        [[[i], [i]] for i in range(rows)] + [np.random.randint(255, size=(2, 1))],
+    )
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.ListType,
+    )
+
+    nda_table.cast("odd_col", wandb.data_types._dtypes.NDArrayType(shape=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)).tolist())
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.NDArrayType,
+    )

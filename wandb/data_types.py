@@ -210,7 +210,7 @@ class Table(Media):
         self._assert_valid_columns(columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
-        for row in ndarray.tolist():
+        for row in ndarray:
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
@@ -341,8 +341,8 @@ class Table(Media):
         """Add a row of data to the table. Argument length should match column length"""
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}".format(
-                    len(self.columns), self.columns
+                "This table expects {} columns: {}, found {}".format(
+                    len(self.columns), self.columns, len(data)
                 )
             )
 
@@ -360,8 +360,11 @@ class Table(Media):
         result_type = self._get_updated_result_type(data)
         self._column_types = result_type
 
+        # rows need to be mutable
+        if isinstance(data, tuple):
+            data = list(data)
         # Add the new data
-        self.data.append(list(data))
+        self.data.append(data)
 
         # Update the wrapper values if needed
         self._update_keys(force_last=True)
@@ -459,6 +462,8 @@ class Table(Media):
                     for key in val:
                         res[key] = json_helper(val[key])
                     return res
+                elif hasattr(val, "tolist"):
+                    return val.tolist()
                 else:
                     return util.json_friendly(val)[0]
 
@@ -616,14 +621,16 @@ class Table(Media):
         assert isinstance(data, list) or is_np
         assert isinstance(optional, bool)
         is_first_col = len(self.columns) == 0
-        assert is_first_col or len(data) == len(self.data)
+        assert is_first_col or len(data) == len(
+            self.data
+        ), "Expected length {}, found {}".format(len(self.data), len(data))
 
         # Add the new data
         for ndx in range(max(len(data), len(self.data))):
             if is_first_col:
                 self.data.append([])
             if is_np:
-                self.data[ndx].append(data[ndx].tolist())
+                self.data[ndx].append(data[ndx])
             else:
                 self.data[ndx].append(data[ndx])
         # add the column
