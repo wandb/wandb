@@ -8,7 +8,6 @@ import re
 import shutil
 import sys
 import tempfile
-import time
 
 from gql import Client, gql
 from gql.client import RetryError
