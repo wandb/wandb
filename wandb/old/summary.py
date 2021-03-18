@@ -194,7 +194,8 @@ class SummarySubDict(object):
             write_items = [(k, key_vals[k]) for k in write_keys]
 
         for key, value in write_items:
-            if isinstance(value, dict):
+            if isinstance(value, (dict, SummarySubDict)):
+                self._root._root_set(self._path, [(key, {})])
                 self._dict[key] = SummarySubDict(
                     self._root, self._path + (key,))
                 self._dict[key]._update(value, overwrite)
