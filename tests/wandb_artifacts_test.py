@@ -823,6 +823,22 @@ def test_interface_commit_hash(runner):
         artifact.commit_hash()
 
 
+def test_local_references(runner, live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+
+    def make_table():
+        return wandb.Table(columns=[], data=[])
+
+    t1 = make_table()
+    artifact1 = wandb.Artifact("test_local_references", "dataset")
+    artifact1.add(t1, "t1")
+    assert artifact1.manifest.entries["t1.table.json"].ref is None
+    run.log_artifact(artifact1)
+    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
+    artifact2.add(t1, "t2")
+    assert artifact2.manifest.entries["t2.table.json"].ref is not None
+
+
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
