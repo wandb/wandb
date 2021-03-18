@@ -1,7 +1,7 @@
 import sys
 import typing as t
 
-from wandb.util import get_module
+from wandb.util import get_module, is_numpy_array
 
 np = get_module("numpy")  # intentionally not required
 
@@ -646,8 +646,60 @@ class ListType(Type):
         return "{}[]".format(self.params["element_type"])
 
 
+class NDArrayType(Type):
+    """Represents a list of homogenous types
+    """
+
+    name = "ndarray"
+    types = []  # will manually add type if np is available
+
+    def __init__(self, shape):
+        self.params.update({"shape": list(shape)})
+
+    @classmethod
+    def from_obj(cls, py_obj = None):
+        if is_numpy_array(py_obj):
+            return cls(py_obj.shape)  # type: ignore
+        elif isinstance(py_obj, list):
+            shape = []
+            target = py_obj
+            while isinstance(target, list):
+                dim = len(target)
+                shape.append(dim)
+                if dim > 0:
+                    target = target[0]
+            return cls(shape)
+        else:
+            raise TypeError(
+                "NDArrayType.from_obj expects py_obj to be ndarray or list, found {}".format(
+                    py_obj.__class__
+                )
+            )
+
+    def assign_type(self, wb_type):
+        if (
+            isinstance(wb_type, NDArrayType)
+            and self.params["shape"] == wb_type.params["shape"]
+        ):
+            return self
+        elif isinstance(wb_type, ListType):
+            # Should we return error here?
+            return self
+
+        return InvalidType()
+
+    def assign(
+        self, py_obj = None
+    ):
+        if is_numpy_array(py_obj) or isinstance(py_obj, list):
+            py_type = self.from_obj(py_obj)
+            return self.assign_type(py_type)
+
+        return InvalidType()
+
+
 if np:
-    ListType.types.append(np.ndarray)
+    NDArrayType.types.append(np.ndarray)
 
 # class KeyPolicy:
 #     EXACT = "E"  # require exact key match
@@ -763,6 +815,9 @@ TypeRegistry.add(UnionType)
 TypeRegistry.add(ObjectType)
 TypeRegistry.add(ConstType)
 
+# Common Industry Types
+TypeRegistry.add(NDArrayType)
+
 __all__ = [
     "TypeRegistry",
     "InvalidType",
@@ -779,4 +834,5 @@ __all__ = [
     "ConstType",
     "OptionalType",
     "Type",
+    "NDArrayType",
 ]
