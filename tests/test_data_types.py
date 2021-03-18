@@ -846,7 +846,7 @@ def test_table_column_style():
         == np.array([101, 102, 103, 104, 105])
     )
 
-    ndxs = table1.get_indexes()
+    ndxs = table1.get_index()
     assert ndxs == [0, 1, 2, 3, 4]
     assert [ndx._table == table1 for ndx in ndxs]
 

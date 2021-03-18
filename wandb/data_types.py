@@ -667,7 +667,7 @@ class Table(Media):
             col = np.array(col)
         return col
 
-    def get_indexes(self):
+    def get_index(self):
         """Returns an array of row indexes which can be used in other tables to create links"""
         ndxs = []
         for ndx in range(len(self.data)):
