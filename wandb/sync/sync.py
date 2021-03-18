@@ -83,7 +83,6 @@ class SyncThread(threading.Thread):
             else:
                 print("Record:", record_type)
             return pb, exit_pb, True
-        cont = False
         if record_type == "run":
             if self._run_id:
                 pb.run.run_id = self._run_id
@@ -99,12 +98,7 @@ class SyncThread(threading.Thread):
             assert exit_pb, "final seen without exit"
             pb = exit_pb
             exit_pb = None
-        elif record_type == "output":
-            # Skip over carriage returns
-            # TODO: there are likely other cases / we may want to reuse the console stuff
-            cont = pb.output.line.startswith("\r") and not pb.output.line.endswith("\n")
-
-        return pb, exit_pb, cont
+        return pb, exit_pb, False
 
     def _find_tfevent_files(self, sync_item):
         tb_event_files = 0
