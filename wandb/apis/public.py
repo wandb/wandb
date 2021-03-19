@@ -8,8 +8,8 @@ import re
 import shutil
 import sys
 import tempfile
-import time
 
+from dateutil.relativedelta import relativedelta
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -2948,12 +2948,13 @@ class Artifact(artifacts.Artifact):
         size = sum(e.size for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
+            log = True
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
                 newline=False,
             )
-        start_time = time.time()
+            start_time = datetime.datetime.now()
 
         # Force all the files to download into the same directory.
         # Download in parallel
@@ -2969,8 +2970,11 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-
+            delta = relativedelta(datetime.datetime.now() - start_time)
+            termlog(
+                "Done. %s:%s:%s" % (delta.hours, delta.minutes, delta.seconds),
+                prefix=False,
+            )
         return dirpath
 
     def checkout(self, root=None):
