@@ -669,7 +669,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
+            "my-table.table.json": {"digest": "kJPf7PcvlWghO76CNasUcA==", "size": 914},
         }
 
 
@@ -701,7 +701,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
+            "my-table.table.json": {"digest": "V1w+XYRLetoEXW3R8ANoaA==", "size": 700},
         }
 
 

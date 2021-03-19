@@ -691,7 +691,7 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if file == "wandb_manifest.json":
-            if _id == "bb8043da7d78ff168a695cff097897d2":
+            if _id == "4dbe219a39b4eead9ab4683019124acc":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -941,7 +941,11 @@ class ParseCTX(object):
                 assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                l.extend(map(json.loads, content))
+                if k == u"output.log":
+                    lines = [content]
+                else:
+                    lines = map(json.loads, content)
+                l.extend(lines)
             data[k] = l
         return data
 
