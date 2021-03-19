@@ -408,11 +408,33 @@ class Table(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
-        for row in json_obj["data"]:
+
+        np_deserialized_columns = {}
+        if (
+            "np_serialized_path" in json_obj
+            and "np_serialized_columns" in json_obj
+            and json_obj["np_serialized_path"] is not None
+            and json_obj["np_serialized_columns"] is not None
+            and len(json_obj["np_serialized_columns"]) > 0
+        ):
+            np = util.get_module(
+                "numpy",
+                required="Deserializing numpy columns requires numpy to be installed",
+            )
+            deserialized = np.load(
+                source_artifact.get_path(json_obj["np_serialized_path"]).download()
+            )
+            for col_name in json_obj["np_serialized_columns"]:
+                col_ndx = json_obj["columns"].index(col_name)
+                np_deserialized_columns[col_ndx] = deserialized[col_name]
+
+        for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
-            for item in row:
+            for c_ndx, item in enumerate(row):
                 cell = item
-                if isinstance(item, dict) and "_type" in item:
+                if c_ndx in np_deserialized_columns:
+                    cell = np_deserialized_columns[c_ndx][r_ndx]
+                elif isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
@@ -454,6 +476,39 @@ class Table(Media):
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
 
+            ndarray_col_names = []
+            ndarray_col_ndxs = set()
+            ndarray_col_data = {}
+            for col_ndx, col_name in enumerate(self.columns):
+                col_type = self._column_types.params["type_map"][col_name]
+                if isinstance(col_type, _dtypes.NDArrayType) or (
+                    isinstance(col_type, _dtypes.UnionType)
+                    and any(
+                        [
+                            isinstance(t, _dtypes.NDArrayType)
+                            for t in col_type.params["allowed_types"]
+                        ]
+                    )
+                ):
+                    ndarray_col_names.append(col_name)
+                    ndarray_col_ndxs.add(col_ndx)
+                    ndarray_col_data[col_name] = self.get_column(
+                        col_name, convert_to="numpy"
+                    )
+
+            np_serialized_path = None
+            if len(ndarray_col_names) > 0:
+                np = util.get_module(
+                    "numpy", required="Serializing numpy requires numpy to be installed"
+                )
+                file_name = str(util.generate_id()) + ".npz"
+                npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+                np.savez_compressed(npz_file_name, **ndarray_col_data)
+                entry = artifact.add_file(
+                    npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
+                )
+                np_serialized_path = entry.path
+
             def json_helper(val):
                 if isinstance(val, WBValue):
                     return val.to_json(artifact)
@@ -469,8 +524,11 @@ class Table(Media):
 
             for row in data:
                 mapped_row = []
-                for v in row:
-                    mapped_row.append(json_helper(v))
+                for ndx, v in enumerate(row):
+                    if ndx in ndarray_col_ndxs:
+                        mapped_row.append("ndarray({})".format(v.shape))
+                    else:
+                        mapped_row.append(json_helper(v))
                 mapped_data.append(mapped_row)
             json_dict.update(
                 {
@@ -480,6 +538,8 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
+                    "np_serialized_path": np_serialized_path,
+                    "np_serialized_columns": ndarray_col_names,
                 }
             )
         else:
