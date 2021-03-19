@@ -278,18 +278,22 @@ class WandbCallback(keras.callbacks.Callback):
             then a Table of validation data will not be created and instead each prediction will
             be associated with the row represented by the TableLinkMixin. The most common way to obtain
             such keys are is use Table.get_index() which will return a list of row keys.
-        val_input_processor (Callable | [Callable]): a function or list of functions to apply to the 
+        val_input_processor (Callable | [Callable], optional): a function or list of functions to apply to the 
             validation input (x) data, commonly used to visualize the data. The input data will be passed 
             to this function and the output saved in a new column in the validation table. If a list of
             functions are provided, then the data will be passed to each function in serial. For example, 
             if your input data is an ndarray, but you wish to visualize the data as an Image, then you 
-            can provide wandb.Image as the processor. Ignored if If log_evaluation is False or val_keys 
+            can provide wandb.Image as the processor. If log_evaluation is True and val_input_processor is
+            None, we will try to guess the appropriate processor based on input_type. Ignored if 
+            log_evaluation is False or val_keys 
             are present.
-        val_target_processor (Callable | [Callable]): same as val_input_processor, but applied to 
+        val_target_processor (Callable | [Callable], optional): same as val_input_processor, but applied to 
             the validation target (y).
-        val_output_processor (Callable | [Callable]): same as val_input_processor, but applied to the
-            model output. This is applied even when val_keys are present. Eg. if your model uses a softmax
-            activation layer, you probably want to provide np.argmax to this parameter.
+        val_output_processor (Callable | [Callable], optional): same as val_input_processor, but applied to the
+            model output. This is applied even when val_keys are present. If log_evaluation is True and 
+            val_output_processor is None, we will try to guess the appropriate processor based on output_type. 
+            Eg. if your model uses a softmax activation layer, you probably want to provide np.argmax to 
+            this parameter.
     """
 
     def __init__(
@@ -484,6 +488,12 @@ class WandbCallback(keras.callbacks.Callback):
                     commit=False,
                 )
 
+        if self.val_output_processor is None and self.output_type == "label":
+            if self.labels is None:
+                self.val_output_processor = np.argmax
+            else:
+                self.val_output_processor = lambda x: self.labels[np.argmax(x)]
+
         if self.log_evaluation:
             val_x = self.validation_data[0]
             y_pred = self.model.predict(val_x)
@@ -554,6 +564,15 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
+        if self.val_input_processor is None and self.input_type == "image":
+            self.val_input_processor = wandb.Image
+
+        if self.val_target_processor is None and self.output_type == "label":
+            if self.labels is None:
+                self.val_target_processor = lambda x: np.squeeze(x)[0]
+            else:
+                self.val_target_processor = lambda x: self.labels[np.squeeze(x)[0]]
+
         if self.log_evaluation and self.val_keys is None:
             val_x = self.validation_data[0]
             val_y = self.validation_data[1]
