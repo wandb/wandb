@@ -115,7 +115,9 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skipif(sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins")
+@pytest.mark.skipif(
+    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
+)
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
