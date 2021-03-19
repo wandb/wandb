@@ -249,7 +249,7 @@ def test_add_reference_local_dir_no_checksum(runner):
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://" + os.getcwd(), checksum=False)
 
-        assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
+        assert artifact.digest == "9e1322148194a0f1a120bcdf67535971"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["file1.txt"] == {
             "digest": "file://file1.txt",
@@ -375,6 +375,7 @@ def test_add_reference_s3_no_checksum(runner):
         assert manifest["contents"]["file1.txt"] == {
             "digest": "s3://my_bucket/file1.txt",
             "ref": "s3://my_bucket/file1.txt",
+            "size": 0,
         }
 
 
@@ -470,7 +471,7 @@ def test_add_reference_unknown_handler(runner):
         assert manifest["contents"]["ref"] == {
             "digest": "ref://example.com/somefile.txt",
             "ref": "ref://example.com/somefile.txt",
-            "size": 0
+            "size": 0,
         }
 
 

@@ -1019,13 +1019,14 @@ class LocalFileHandler(StorageHandler):
                             )
                     physical_path = os.path.join(root, sub_path)
                     logical_path = os.path.relpath(physical_path, start=local_path)
+                    abs_path = os.path.join(path, logical_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
                     entry = ArtifactManifestEntry(
                         logical_path,
-                        os.path.join(path, logical_path),
+                        abs_path,
                         size=os.path.getsize(physical_path),
-                        digest=md5_file_b64(physical_path) if checksum else None,
+                        digest=md5_file_b64(physical_path) if checksum else abs_path,
                     )
                     entries.append(entry)
             if checksum:
@@ -1036,7 +1037,7 @@ class LocalFileHandler(StorageHandler):
                 name,
                 path,
                 size=os.path.getsize(local_path),
-                digest=md5_file_b64(local_path) if checksum else None,
+                digest=md5_file_b64(local_path) if checksum else path,
             )
             entries.append(entry)
         else:
