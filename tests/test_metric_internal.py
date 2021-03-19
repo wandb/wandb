@@ -31,9 +31,6 @@ def test_metric_none(publish_util):
     ctx_util = publish_util(history=history)
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in ctx_util.config_wandb
-
     assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
 
@@ -45,12 +42,7 @@ def test_metric_step(publish_util):
     metrics = _make_metrics(metrics)
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" in config_wandb
-    assert "mystep" in config_wandb["x_axis"]
 
     assert dict(v1=2, v2=3, v3="pizza", mystep=3, _step=2) == summary
 
@@ -62,16 +54,11 @@ def test_metric_max(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.max": 8,
+        "v2": {"max": 8},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -85,16 +72,11 @@ def test_metric_min(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.min": 2,
+        "v2": {"min": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -108,13 +90,9 @@ def test_metric_min_str(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
-
-    assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
+    assert {"v1": 2, "v2": 3, "mystep": 3, "_step": 2,} == summary
 
 
 def test_metric_sum_none(publish_util):
@@ -123,11 +101,7 @@ def test_metric_sum_none(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
-
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" not in config_wandb
 
     assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
 
@@ -142,18 +116,11 @@ def test_metric_mult(publish_util):
     metrics = _make_metrics([m1, m2, m3])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    # TODO(jhr): remove these when UI updated
-    assert "x_axis" in config_wandb
-    assert "mystep" in config_wandb["x_axis"]
-
     assert {
-        "v1": 2,
-        "v1.max": 3,
-        "v2": 3,
-        "v2.min": 2,
+        "v1": {"max": 3},
+        "v2": {"min": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -172,14 +139,13 @@ def test_metric_best(publish_util):
     metrics = _make_metrics([m1, m2, m3])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {
         "v1": 2,
-        "v1.best": 3,
+        "v1": {"best": 3},
         "v2": 3,
-        "v2.best": 2,
+        "v2": {"best": 2},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -195,7 +161,6 @@ def test_metric_again(publish_util):
     metrics = _make_metrics([m1, m2, m3, m4])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
@@ -211,13 +176,11 @@ def test_metric_mean(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
     assert {
         "v1": 2,
-        "v2": 3,
-        "v2.mean": 13.0 / 3,
+        "v2": {"mean": 13.0 / 3},
         "v3": "pizza",
         "mystep": 3,
         "_step": 2,
@@ -241,7 +204,6 @@ def test_metric_stepsync(publish_util):
     metrics = _make_metrics([m0, m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
     history = ctx_util.history
 
@@ -311,9 +273,7 @@ def test_metric_glob_twice_norm(publish_util):
     assert summary == {
         "_step": 0,
         "metric": 1,
-        "metric.best": 1,
-        "metric.max": 1,
-        "metric.min": 1,
+        "metric": {"best": 1, "max": 1, "min": 1},
     }
 
 
@@ -337,7 +297,7 @@ def test_metric_glob_twice_over(publish_util):
     assert metrics and len(metrics) == 1
     mmetric = metrics[0]
     assert mmetric == {"1": "metric", "7": [1]}
-    assert summary == {"_step": 0, "metric": 1, "metric.min": 1}
+    assert summary == {"_step": 0, "metric": {"min": 1}}
 
 
 def test_metric_nan_max(publish_util):
@@ -351,55 +311,65 @@ def test_metric_nan_max(publish_util):
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
 
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    assert math.isnan(summary.get("v2"))
-    assert summary.get("v2.max") == 8
+    assert summary.get("v2") == {"max": 8}
 
 
 # TODO(jhr): enable before releasing run._define_metric() as
 #            run.define_metric()
 
-# def test_metric_dot_flat_escaped(publish_util):
-#     """match works if flat string was escaped."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+
+def test_metric_dot_flat_escaped(publish_util):
+    """match works if metric is escaped."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+    history.append(dict(step=3, data={"this.also": 1}))
+
+    m1 = pb.MetricRecord(name="this\.also")
+    m1.summary.max = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 1
+    mmetric = metrics[0]
+    assert mmetric == {"1": "this\.also", "7": [2]}
+    assert summary == {
+        "_step": 3,
+        "this.also": {"max": 2},
+        "nodots": 2,
+        "this.has.dots": 2,
+    }
 
 
-# def test_metric_dot_flat_nonescaped(publish_util):
-#     """match still works if flat string was not escaped (but meta is escaped)."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+def test_metric_dot_flat_notescaped(publish_util):
+    """match doesnt work if metric is not escaped."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 2}))
+    history.append(dict(step=3, data={"this.also": 1}))
 
+    m1 = pb.MetricRecord(name="this.also")
+    m1.summary.max = True
+    metrics = _make_metrics([m1])
+    ctx_util = publish_util(history=history, metrics=metrics)
 
-# def test_metric_dot_flat_nonescaped_notsent(publish_util):
-#     """metric that doesnt match is not sent."""
-#     history = []
-#     history.append(dict(step=0, data={"this.metric.is.not.matched": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
-
-
-# def test_metric_dot_step_metric(publish_util):
-#     """step metric works if escaped."""
-#
-#     assert False
-
-
-# def test_metric_dot_step_metric_notescaped(publish_util):
-#     """step metric works if not escaped."""
-#
-#     assert False
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 1
+    mmetric = metrics[0]
+    assert mmetric == {"1": "this.also", "7": [2]}
+    assert summary == {
+        "_step": 3,
+        "this.also": 1,
+        "nodots": 2,
+        "this.has.dots": 2,
+    }
 
 
 # def test_metric_dot_step_sync(publish_util):
@@ -412,11 +382,33 @@ def test_metric_nan_max(publish_util):
 #     assert False
 
 
-# def test_metric_dot_glob(publish_util):
-#     """glob should escape the defined metric name."""
-#     history = []
-#     history.append(dict(step=0, data={"this.has.dots": 2}))
-#     history.append(dict(step=1, data={"this.also": 2}))
-#     history.append(dict(step=2, data={"nodots": 2}))
-#
-#     assert False
+def test_metric_dot_glob(publish_util):
+    """glob should escape the defined metric name."""
+    history = []
+    history.append(dict(step=0, data={"this.has.dots": 2}))
+    history.append(dict(step=1, data={"this.also": 2}))
+    history.append(dict(step=2, data={"nodots": 3}))
+    history.append(dict(step=3, data={"this.also": 1}))
+
+    m1 = pb.MetricRecord(name="this\\.also")
+    m1.options.defined = True
+    m1.summary.max = True
+    m2 = pb.MetricRecord(glob_name="*")
+    m2.options.defined = True
+    m2.summary.min = True
+    metrics = _make_metrics([m1, m2])
+    ctx_util = publish_util(history=history, metrics=metrics)
+
+    metrics = ctx_util.metrics
+    summary = ctx_util.summary
+    assert metrics and len(metrics) == 3
+    # order doesnt really matter
+    assert metrics[0] == {"1": "this\\.also", "7": [2], "6": [3]}
+    assert metrics[1] == {"1": "this\\.has\\.dots", "7": [1]}
+    assert metrics[2] == {"1": "nodots", "7": [1]}
+    assert summary == {
+        "_step": 3,
+        "this.also": {"max": 2},
+        "nodots": {"min": 3},
+        "this.has.dots": {"min": 2},
+    }
