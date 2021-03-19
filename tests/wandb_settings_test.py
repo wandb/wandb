@@ -227,6 +227,20 @@ def test_prio_context_over_ignore():
     assert s.project == "pizza"
 
 
+def test_validate_base_url():
+    s = Settings()
+    with pytest.raises(TypeError):
+        s.update(base_url="https://wandb.ai")
+    with pytest.raises(TypeError):
+        s.update(base_url="https://app.wandb.ai")
+    with pytest.raises(TypeError):
+        s.update(base_url="http://api.wandb.ai")
+    s.update(base_url="https://api.wandb.ai")
+    assert s.base_url == "https://api.wandb.ai"
+    base_url = "https://wandb.ai.other.crazy.domain.com"
+    assert s.base_url == "https://wandb.ai.other.crazy.domain.com"
+
+
 def test_preprocess_base_url():
     s = Settings()
     s.update(base_url="http://host.com")
