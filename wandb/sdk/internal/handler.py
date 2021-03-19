@@ -202,7 +202,6 @@ class HandleManager(object):
         float_v: float,
         goal_max: Optional[bool],
     ) -> bool:
-        print("UPDSUMMET", kl, v, s)
         updated = False
         best_key: Optional[Tuple[str, ...]] = None
         if s.none:
