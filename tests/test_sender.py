@@ -345,6 +345,27 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     )
 
 
+def test_sync_spell_run(
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend, parse_ctx
+):
+    try:
+        os.environ["SPELL_RUN_URL"] = "https://spell.run/foo"
+        start_backend()
+        stop_backend()
+        print("CTX", mock_server.ctx)
+        ctx = parse_ctx(mock_server.ctx)
+        assert ctx.config["_wandb"]["value"]["spell_url"] == "https://spell.run/foo"
+        # Check that we pinged spells API
+        assert mock_server.ctx["spell_data"] == {
+            "access_token": None,
+            "url": "{}/mock_server_entity/test/runs/{}".format(
+                mocked_run._settings.base_url, mocked_run.id
+            ),
+        }
+    finally:
+        del os.environ["SPELL_RUN_URL"]
+
+
 def test_upgrade_upgraded(
     mocked_run,
     mock_server,
