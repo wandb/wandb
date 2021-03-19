@@ -1019,9 +1019,9 @@ class LocalFileHandler(StorageHandler):
                             )
                     physical_path = os.path.join(root, sub_path)
                     logical_path = os.path.relpath(physical_path, start=local_path)
-                    abs_path = os.path.join(path, logical_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
+                    abs_path = os.path.join(path, logical_path)
                     entry = ArtifactManifestEntry(
                         logical_path,
                         abs_path,
