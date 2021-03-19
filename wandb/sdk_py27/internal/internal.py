@@ -38,7 +38,7 @@ from ..interface import interface
 
 
 if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+    from typing import TYPE_CHECKING, Iterable
 
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
@@ -148,7 +148,7 @@ def wandb_internal(
             interrupt_count[0] += 1
             logger.warning("Internal process interrupt: {}".format(interrupt_count))
         finally:
-            if interrupt_count[0] >= 2:
+            if interrupt_count[0] >= 3:
                 logger.error("Internal process interrupted.")
                 stopped.set()
 
