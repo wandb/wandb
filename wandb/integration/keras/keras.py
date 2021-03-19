@@ -569,9 +569,9 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.val_target_processor is None and self.output_type == "label":
             if self.labels is None:
-                self.val_target_processor = lambda x: np.squeeze(x)[0]
+                self.val_target_processor = lambda x: np.squeeze(x)
             else:
-                self.val_target_processor = lambda x: self.labels[np.squeeze(x)[0]]
+                self.val_target_processor = lambda x: self.labels[np.squeeze(x)]
 
         if self.log_evaluation and self.val_keys is None:
             val_x = self.validation_data[0]
