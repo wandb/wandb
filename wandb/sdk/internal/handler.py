@@ -101,7 +101,7 @@ class HandleManager(object):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         if request_type == "resume":
-            self._interrupt_count -= 1
+            self._interrupt_count[0] -= 1
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
         logger.debug("handle_request: {}".format(request_type))
