@@ -263,8 +263,8 @@ class WandbCallback(keras.callbacks.Callback):
             ("image", "images", "segmentation_mask").
         output_type (string): type of the model output to help visualziation. can be one of:
             ("image", "images", "segmentation_mask").  
-        log_evaluation (boolean): if True save a dataframe containing the full
-            validation results at the end of training.
+        log_evaluation (boolean): if True, save a Table containing validation data and the 
+            model's preditions.
         class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency (integer): if None, callback will log every epoch.
@@ -273,6 +273,23 @@ class WandbCallback(keras.callbacks.Callback):
         log_best_prefix (string): if None, no extra summary metrics will be saved.
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
+        val_keys ([wandb.data_types._TableLinkMixin]): an ordered list of keys to associate 
+            with each validation example.  If log_evaluation is True and val_keys is provided,
+            then a Table of validation data will not be created and instead each prediction will
+            be associated with the row represented by the TableLinkMixin. The most common way to obtain
+            such keys are is use Table.get_index() which will return a list of row keys.
+        val_input_processor (Callable | [Callable]): a function or list of functions to apply to the 
+            validation input (x) data, commonly used to visualize the data. The input data will be passed 
+            to this function and the output saved in a new column in the validation table. If a list of
+            functions are provided, then the data will be passed to each function in serial. For example, 
+            if your input data is an ndarray, but you wish to visualize the data as an Image, then you 
+            can provide wandb.Image as the processor. Ignored if If log_evaluation is False or val_keys 
+            are present.
+        val_target_processor (Callable | [Callable]): same as val_input_processor, but applied to 
+            the validation target (y).
+        val_output_processor (Callable | [Callable]): same as val_input_processor, but applied to the
+            model output. This is applied even when val_keys are present. Eg. if your model uses a softmax
+            activation layer, you probably want to provide np.argmax to this parameter.
     """
 
     def __init__(
@@ -298,10 +315,10 @@ class WandbCallback(keras.callbacks.Callback):
         log_batch_frequency=None,
         log_best_prefix="best_",
         save_graph=True,
-        validation_keys=None,
-        validation_input_transformer=None,
-        validation_target_transformer=None,
-        validation_output_transformer=None,
+        val_keys=None,
+        val_input_processor=None,
+        val_target_processor=None,
+        val_output_processor=None,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -387,11 +404,8 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
-        assert validation_keys is None or all(
-            [
-                isinstance(vid, wandb.data_types._TableLinkMixin)
-                for vid in validation_keys
-            ]
+        assert val_keys is None or all(
+            [isinstance(vid, wandb.data_types._TableLinkMixin) for vid in val_keys]
         )
 
         def make_pipe(transformer):
@@ -406,10 +420,10 @@ class WandbCallback(keras.callbacks.Callback):
             else:
                 return transformer
 
-        self.validation_keys = validation_keys
-        self.validation_input_transformer = make_pipe(validation_input_transformer)
-        self.validation_target_transformer = make_pipe(validation_target_transformer)
-        self.validation_output_transformer = make_pipe(validation_output_transformer)
+        self.val_keys = val_keys
+        self.val_input_processor = make_pipe(val_input_processor)
+        self.val_target_processor = make_pipe(val_target_processor)
+        self.val_output_processor = make_pipe(val_output_processor)
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -474,12 +488,11 @@ class WandbCallback(keras.callbacks.Callback):
             val_x = self.validation_data[0]
             y_pred = self.model.predict(val_x)
             table = wandb.Table(columns=[], data=[])
-            table.add_column("val_id", self.validation_keys)
+            table.add_column("val_id", self.val_keys)
             table.add_column("y_pred", y_pred)
-            if self.validation_output_transformer is not None:
+            if self.val_output_processor is not None:
                 table.add_column(
-                    "y_pred_t",
-                    [self.validation_output_transformer(item) for item in y_pred],
+                    "y_pred_t", [self.val_output_processor(item) for item in y_pred],
                 )
             wandb.log({"validation_predictions": table}, commit=False)
 
@@ -541,28 +554,26 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        if self.log_evaluation and self.validation_keys is None:
+        if self.log_evaluation and self.val_keys is None:
             val_x = self.validation_data[0]
             val_y = self.validation_data[1]
             table = wandb.Table(columns=[], data=[])
             table.add_column("val_x", val_x)
             table.add_column("val_y", val_y)
-            if self.validation_input_transformer is not None:
+            if self.val_input_processor is not None:
                 table.add_column(
-                    "val_x_t",
-                    [self.validation_input_transformer(item) for item in val_x],
+                    "val_x_t", [self.val_input_processor(item) for item in val_x],
                 )
-            if self.validation_target_transformer is not None:
+            if self.val_target_processor is not None:
                 table.add_column(
-                    "val_y_t",
-                    [self.validation_target_transformer(item) for item in val_y],
+                    "val_y_t", [self.val_target_processor(item) for item in val_y],
                 )
             artifact = wandb.Artifact(
                 "validation_data_wbkc".format(wandb.run.id), "auto_table"
             )
             artifact.add(table, "validation_data")
             wandb.run.use_artifact(artifact)
-            self.validation_keys = table.get_index()
+            self.val_keys = table.get_index()
 
     def on_train_end(self, logs=None):
         pass
