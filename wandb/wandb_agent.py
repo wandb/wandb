@@ -296,10 +296,9 @@ class Agent(object):
 
         if "logs" in command:
             command_logs = command["logs"]
-            if "success_probability" in command_logs:
+            for line in command_logs:
                 logger.info(
-                    "Bayesian Optimizer believes probability of finding a new optimal run is {}".format(
-                        command_logs["success_probability"])
+                    line
                 )
         try:
             command_type = command["type"]
