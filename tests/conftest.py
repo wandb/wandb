@@ -622,6 +622,7 @@ def internal_hm(
             sender_q=internal_sender_q,
             writer_q=internal_writer_q,
             interface=internal_sender,
+            interrupt_count=[0],
         )
         yield hm
 
