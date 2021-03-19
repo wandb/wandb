@@ -116,6 +116,8 @@ def wandb_internal(
     )
     threads.append(record_writer_thread)
 
+    interrupt_count = [0]
+
     record_handler_thread = HandlerThread(
         settings=_settings,
         record_q=record_q,
@@ -124,6 +126,7 @@ def wandb_internal(
         sender_q=send_record_q,
         writer_q=write_record_q,
         interface=publish_interface,
+        interrupt_count=interrupt_count
     )
     threads.append(record_handler_thread)
 
@@ -132,9 +135,8 @@ def wandb_internal(
     for thread in threads:
         thread.start()
 
-    interrupt_count = 0
     while not stopped.is_set():
-        logger.warning("stopped", stopped.is_set())
+        logger.warning("Internal process stopped status: {}".format(stopped.is_set()))    
         try:
             # wait for stop event
             while not stopped.is_set():
@@ -143,10 +145,10 @@ def wandb_internal(
                     logger.error("Internal process shutdown.")
                     stopped.set()
         except KeyboardInterrupt:
-            interrupt_count += 1
+            interrupt_count[0] += 1
             logger.warning("Internal process interrupt: {}".format(interrupt_count))
         finally:
-            if interrupt_count >= 2:
+            if interrupt_count[0] >= 2:
                 logger.error("Internal process interrupted.")
                 stopped.set()
 
@@ -214,9 +216,10 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q,
         writer_q,
         interface,
+        interrupt_count
     ):
         super(HandlerThread, self).__init__(
-            input_record_q=record_q, result_q=result_q, stopped=stopped,
+            input_record_q=record_q, result_q=result_q, stopped=stopped, interrupt_count=interrupt_count
         )
         self.name = "HandlerThread"
         self._settings = settings
@@ -226,6 +229,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._interrupt_count = interrupt_count
 
     def _setup(self):
         self._hm = handler.HandleManager(
@@ -236,6 +240,7 @@ class HandlerThread(internal_util.RecordLoopThread):
             sender_q=self._sender_q,
             writer_q=self._writer_q,
             interface=self._interface,
+            interrupt_count=self._interrupt_count
         )
 
     def _process(self, record):

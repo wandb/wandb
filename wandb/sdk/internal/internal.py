@@ -38,7 +38,7 @@ from ..interface import interface
 
 
 if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+    from typing import TYPE_CHECKING, Iterable
 
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
@@ -135,8 +135,6 @@ def wandb_internal(
     for thread in threads:
         thread.start()
 
-    
-    
     while not stopped.is_set():
         logger.warning("Internal process stopped status: {}".format(stopped.is_set()))    
         try:
@@ -147,10 +145,10 @@ def wandb_internal(
                     logger.error("Internal process shutdown.")
                     stopped.set()
         except KeyboardInterrupt:
-            interrupt_count += 1
+            interrupt_count[0] += 1
             logger.warning("Internal process interrupt: {}".format(interrupt_count))
         finally:
-            if interrupt_count >= 2:
+            if interrupt_count[0] >= 2:
                 logger.error("Internal process interrupted.")
                 stopped.set()
 
@@ -218,7 +216,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "BackendSender",
-        interrupt_count: List[int]
+        interrupt_count: Iterable[int]
     ) -> None:
         super(HandlerThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped, interrupt_count=interrupt_count

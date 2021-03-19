@@ -55,7 +55,7 @@ class HandleManager(object):
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[str, float]
-    _interrupt_count: List[int]
+    _interrupt_count: Iterable
 
     def __init__(
         self,
@@ -66,7 +66,7 @@ class HandleManager(object):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: BackendSender,
-        interrupt_count: List[int]
+        interrupt_count
     ) -> None:
         self._settings = settings
         self._record_q = record_q
