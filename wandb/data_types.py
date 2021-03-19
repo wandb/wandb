@@ -683,6 +683,13 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
+    def index_ref(self, index):
+        """Get a reference to a particular row index in the table"""
+        assert index < len(self.data)
+        _index = _TableIndex(index)
+        _index.set_table(self)
+        return _index
+
 
 class _PartitionTablePartEntry:
     """Helper class for PartitionTable to track its parts
@@ -1688,7 +1695,9 @@ class _TableForeignIndexType(_dtypes.Type):
         res = super(_TableForeignIndexType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
-            entry = artifact.add(self.params["table"], table_name)
+            entry = artifact.add(
+                self.params["table"], table_name, _rename_deterministically=True
+            )
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(

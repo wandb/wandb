@@ -298,6 +298,10 @@ class WandbCallback(keras.callbacks.Callback):
         log_batch_frequency=None,
         log_best_prefix="best_",
         save_graph=True,
+        validation_keys=None,
+        validation_input_transformer=None,
+        validation_target_transformer=None,
+        validation_output_transformer=None,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -383,6 +387,30 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+        assert validation_keys is None or all(
+            [
+                isinstance(vid, wandb.data_types._TableLinkMixin)
+                for vid in validation_keys
+            ]
+        )
+
+        def make_pipe(transformer):
+            if isinstance(transformer, list):
+
+                def pipe(val):
+                    for item in transformer:
+                        val = item(val)
+                    return val
+
+                return pipe
+            else:
+                return transformer
+
+        self.validation_keys = validation_keys
+        self.validation_input_transformer = make_pipe(validation_input_transformer)
+        self.validation_target_transformer = make_pipe(validation_target_transformer)
+        self.validation_output_transformer = make_pipe(validation_output_transformer)
+
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
         outputs = self.model(inputs)
@@ -442,6 +470,19 @@ class WandbCallback(keras.callbacks.Callback):
                     commit=False,
                 )
 
+        if self.log_evaluation:
+            val_x = self.validation_data[0]
+            y_pred = self.model.predict(val_x)
+            table = wandb.Table(columns=[], data=[])
+            table.add_column("val_id", self.validation_keys)
+            table.add_column("y_pred", y_pred)
+            if self.validation_output_transformer is not None:
+                table.add_column(
+                    "y_pred_t",
+                    [self.validation_output_transformer(item) for item in y_pred],
+                )
+            wandb.log({"validation_predictions": table}, commit=False)
+
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
 
@@ -500,11 +541,30 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        pass
+        if self.log_evaluation and self.validation_keys is None:
+            val_x = self.validation_data[0]
+            val_y = self.validation_data[1]
+            table = wandb.Table(columns=[], data=[])
+            table.add_column("val_x", val_x)
+            table.add_column("val_y", val_y)
+            if self.validation_input_transformer is not None:
+                table.add_column(
+                    "val_x_t",
+                    [self.validation_input_transformer(item) for item in val_x],
+                )
+            if self.validation_target_transformer is not None:
+                table.add_column(
+                    "val_y_t",
+                    [self.validation_target_transformer(item) for item in val_y],
+                )
+            artifact = wandb.Artifact(
+                "validation_data_wbkc".format(wandb.run.id), "auto_table"
+            )
+            artifact.add(table, "validation_data")
+            wandb.run.use_artifact(artifact)
+            self.validation_keys = table.get_index()
 
     def on_train_end(self, logs=None):
-        if self.log_evaluation:
-            wandb.run.summary["results"] = self._log_dataframe()
         pass
 
     def on_test_begin(self, logs=None):

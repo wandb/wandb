@@ -47,6 +47,8 @@ _REQUEST_POOL_CONNECTIONS = 64
 
 _REQUEST_POOL_MAXSIZE = 64
 
+ARTIFACT_TMP = compat_tempfile.TemporaryDirectory("wandb-artifacts")
+
 
 class Artifact(ArtifactInterface):
     """
@@ -398,7 +400,7 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(self, obj, name):
+    def add(self, obj, name, _rename_deterministically = False):
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
@@ -419,16 +421,17 @@ class Artifact(ArtifactInterface):
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
             return entry
-        with self.new_file(name) as f:
+        file_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name)
+        folder_path, _ = os.path.split(file_path)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        with open(file_path, "w") as f:
             import json
 
             # TODO: Do we need to open with utf-8 codec?
             f.write(json.dumps(val, sort_keys=True))
 
-        # Note, we add the file from our temp directory.
-        # It will be added again later on finalize, but succeed since
-        # the checksum should match
-        entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+        entry = self.add_file(file_path, name, _rename_deterministically)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
         if obj._artifact_target is None:
             obj._set_artifact_target(self, entry.path)
