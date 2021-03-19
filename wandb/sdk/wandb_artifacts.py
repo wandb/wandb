@@ -680,7 +680,7 @@ class ArtifactManifestEntry(object):
         ref,
         digest,
         birth_artifact_id=None,
-        size=None,
+        size=0,
         extra=None,
         local_path=None,
     ):
@@ -998,43 +998,25 @@ class LocalFileHandler(StorageHandler):
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
-        if not checksum:
-            if os.path.isdir(local_path):
-                size = 0
-                for root, _, files in os.walk(local_path):
-                    for sub_path in files:
-                        physical_path = os.path.join(root, sub_path)
-                        size += os.path.getsize(physical_path)
-            elif os.path.isfile(local_path):
-                size = os.path.getsize(local_path)
-            else:
-                # TODO: update error message if we don't allow directories.
-                raise ValueError(
-                    'Path "%s" must be a valid file or directory path' % path
-                )
-            return [
-                ArtifactManifestEntry(
-                    name or os.path.basename(path), path, size=size, digest=path
-                )
-            ]
-
         entries = []
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i files in "%s"...\n'
-                % (max_objects, local_path),
-                newline=False,
-            )
+            if checksum:
+                termlog(
+                    'Generating checksum for up to %i files in "%s"...\n'
+                    % (max_objects, local_path),
+                    newline=False,
+                )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
-                    i += 1
-                    if i >= max_objects:
-                        raise ValueError(
-                            "Exceeded %i objects tracked, pass max_objects to add_reference"
-                            % max_objects
-                        )
+                    if checksum:
+                        i += 1
+                        if i >= max_objects:
+                            raise ValueError(
+                                "Exceeded %i objects tracked, pass max_objects to add_reference"
+                                % max_objects
+                            )
                     physical_path = os.path.join(root, sub_path)
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
@@ -1043,17 +1025,18 @@ class LocalFileHandler(StorageHandler):
                         logical_path,
                         os.path.join(path, logical_path),
                         size=os.path.getsize(physical_path),
-                        digest=md5_file_b64(physical_path),
+                        digest=md5_file_b64(physical_path) if checksum else None,
                     )
                     entries.append(entry)
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            if checksum:
+                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
                 name,
                 path,
                 size=os.path.getsize(local_path),
-                digest=md5_file_b64(local_path),
+                digest=md5_file_b64(local_path) if checksum else None,
             )
             entries.append(entry)
         else:
