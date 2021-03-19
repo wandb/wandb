@@ -24,6 +24,7 @@ if wandb.TYPE_CHECKING:
         Any,
         Callable,
         Dict,
+        Iterable,
         List,
         Optional,
     )
@@ -66,7 +67,7 @@ class HandleManager(object):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: BackendSender,
-        interrupt_count,
+        interrupt_count: List[int],
     ) -> None:
         self._settings = settings
         self._record_q = record_q

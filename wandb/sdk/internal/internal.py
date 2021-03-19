@@ -38,7 +38,7 @@ from ..interface import interface
 
 
 if wandb.TYPE_CHECKING:
-    from typing import List, TYPE_CHECKING
+    from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
         from ..interface.interface import BackendSender
@@ -215,7 +215,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "BackendSender",
-        interrupt_count: List[int],
+        interrupt_count: "List[int]",
     ) -> None:
         super(HandlerThread, self).__init__(
             input_record_q=record_q, result_q=result_q, stopped=stopped,

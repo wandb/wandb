@@ -24,6 +24,7 @@ if wandb.TYPE_CHECKING:
         Any,
         Callable,
         Dict,
+        Iterable,
         List,
         Optional,
     )
