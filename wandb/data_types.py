@@ -106,6 +106,22 @@ warnings.filterwarnings(
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
+class _TableLinkMixin(object):
+    def set_table(self, table):
+        self._table = table
+
+
+class _TableKey(str, _TableLinkMixin):
+    def set_table(self, table, col_name):
+        assert col_name in table.columns
+        self._table = table
+        self._col_name = col_name
+
+
+class _TableIndex(int, _TableLinkMixin):
+    pass
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -137,6 +153,8 @@ class Table(Media):
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+        self._pk_col = None
+        self._fk_cols = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -220,9 +238,40 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
+        """Casts a column to a specific type
+
+        Arguments:
+            col_name: (str) - name of the column to cast
+            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
+                normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
+            optional: (bool) - if the column should allow Nones
+        """
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+
+        # Assert valid options
+        assert col_name in self.columns
+        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
+        is_fk = isinstance(wbtype, _TableForeignKeyType)
+        is_fi = isinstance(wbtype, _TableForeignIndexType)
+        if is_pk or is_fk or is_fi:
+            assert (
+                not optional
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+
+        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+            raise AssertionError("Cannot set a foreign table reference to same table")
+
+        if is_pk:
+            assert (
+                self._pk_col is None
+            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                self._pk_col
+            )
+
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
+
+        # Cast each value in the row, raising an error if there are invalid entries.
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = wbtype.assign(row[col_ndx])
@@ -235,7 +284,12 @@ class Table(Media):
                     )
                 )
             wbtype = result_type
+
+        # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
+
+        # Wrap the data if needed
+        self._update_keys()
         return wbtype
 
     def __ne__(self, other):
@@ -290,25 +344,45 @@ class Table(Media):
                     len(self.columns), self.columns
                 )
             )
-        self._validate_data(data)
+
+        # Special case to pre-emptively cast a column as a key.
+        # Needed as String.assign(Key) is invalid
+        for ndx, item in enumerate(data):
+            if isinstance(item, _TableLinkMixin):
+                self.cast(
+                    self.columns[ndx],
+                    _dtypes.TypeRegistry.type_of(item),
+                    optional=False,
+                )
+
+        # Update the table's column types
+        result_type = self._get_updated_result_type(data)
+        self._column_types = result_type
+
+        # Add the new data
         self.data.append(list(data))
 
-    def _validate_data(self, data):
-        incoming_data_dict = {
-            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+        # Update the wrapper values if needed
+        self._update_keys(force_last=True)
+
+    def _get_updated_result_type(self, row):
+        """Returns an updated result type based on incoming row. Raises error if
+        the assignment is invalid"""
+        incoming_row_dict = {
+            col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
         }
         current_type = self._column_types
-        result_type = current_type.assign(incoming_data_dict)
+        result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
                 "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_data_dict)
+                    current_type.explain(incoming_row_dict)
                 )
             )
-        self._column_types = result_type
+        return result_type
 
     def _to_table_json(self, max_rows=None):
-        # seperate method for testing
+        # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
@@ -348,6 +422,7 @@ class Table(Media):
                 json_obj["column_types"], source_artifact
             )
 
+        new_obj._update_keys()
         return new_obj
 
     def to_json(self, run_or_artifact):
@@ -411,12 +486,121 @@ class Table(Media):
         Yields
         ------
         index : int
-            The index of the row.
+            The index of the row. Using this value in other WandB tables
+            will automatically build a relationship between the tables
         row : List[any]
             The data of the row
         """
         for ndx in range(len(self.data)):
-            yield ndx, self.data[ndx]
+            index = _TableIndex(ndx)
+            index.set_table(self)
+            yield index, self.data[ndx]
+
+    def set_pk(self, col_name):
+        # TODO: Docs
+        assert col_name in self.columns
+        self.cast(col_name, _TablePrimaryKeyType())
+
+    def set_fk(self, col_name, table, table_col):
+        # TODO: Docs
+        assert col_name in self.columns
+        assert col_name != self._pk_col
+        self.cast(col_name, _TableForeignKeyType(table, table_col))
+
+    def _update_keys(self, force_last=False):
+        """Updates the known key-like columns based on the current
+        column types. If the state has been updated since
+        the last update, we wrap the data appropriately in the Key classes
+
+        Arguments:
+        force_last: (bool) Determines wrapping the last column of data even if
+        there are no key updates.
+        """
+        _pk_col = None
+        _fk_cols = set()
+
+        # Buildup the known keys from column types
+        c_types = self._column_types.params["type_map"]
+        for t in c_types:
+            if isinstance(c_types[t], _TablePrimaryKeyType):
+                _pk_col = t
+            elif isinstance(c_types[t], _TableForeignKeyType) or isinstance(
+                c_types[t], _TableForeignIndexType
+            ):
+                _fk_cols.add(t)
+
+        # If there are updates to perform, safely update them
+        has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
+        if has_update:
+            # If we removed the PK
+            if _pk_col is None and self._pk_col is not None:
+                raise AssertionError(
+                    "Cannot unset primary key (column {})".format(self._pk_col)
+                )
+            # If there is a removed FK
+            if len(self._fk_cols - _fk_cols) > 0:
+                raise AssertionError(
+                    "Cannot unset foreign key. Attempted to unset ({})".format(
+                        self._fk_cols - _fk_cols
+                    )
+                )
+
+            self._pk_col = _pk_col
+            self._fk_cols = _fk_cols
+
+        # Apply updates to data only if there are update or the caller
+        # requested the final row to be updated
+        if has_update or force_last:
+            self._apply_key_updates(not has_update)
+
+    def _apply_key_updates(self, only_last=False):
+        """Appropriately wraps the underlying data in special key classes.
+
+        Arguments:
+            only_last: only apply the updates to the last row (used for performance when
+            the caller knows that the only new data is the last row and no updates were
+            applied to the column types)
+        """
+        c_types = self._column_types.params["type_map"]
+
+        # Define a helper function which will wrap the data of a single row
+        # in the appropriate class wrapper.
+        def update_row(row_ndx):
+            for fk_col in self._fk_cols:
+                col_ndx = self.columns.index(fk_col)
+
+                # Wrap the Foreign Keys
+                if isinstance(c_types[fk_col], _TableForeignKeyType) and not isinstance(
+                    self.data[row_ndx][col_ndx], _TableKey
+                ):
+                    self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"],
+                        c_types[fk_col].params["col_name"],
+                    )
+
+                # Wrap the Foreign Indexes
+                elif isinstance(
+                    c_types[fk_col], _TableForeignIndexType
+                ) and not isinstance(self.data[row_ndx][col_ndx], _TableIndex):
+                    self.data[row_ndx][col_ndx] = _TableIndex(
+                        self.data[row_ndx][col_ndx]
+                    )
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"]
+                    )
+
+            # Wrap the Primary Key
+            if self._pk_col is not None:
+                col_ndx = self.columns.index(self._pk_col)
+                self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                self.data[row_ndx][col_ndx].set_table(self, self._pk_col)
+
+        if only_last:
+            update_row(len(self.data) - 1)
+        else:
+            for row_ndx in range(len(self.data)):
+                update_row(row_ndx)
 
 
 class _PartitionTablePartEntry:
@@ -630,7 +814,7 @@ class Audio(BatchableMedia):
         if Audio.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
-        source_artifact = self.artifact_source.artifact
+        source_artifact = self._artifact_source.artifact
 
         resolved_name = source_artifact._local_path_to_name(self._path)
         if resolved_name is not None:
@@ -727,10 +911,10 @@ class JoinedTable(Media):
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
-                table.artifact_source is not None
-                and table.artifact_source.name is not None
+                table._artifact_source is not None
+                and table._artifact_source.name is not None
             ):
-                table_name = os.path.basename(table.artifact_source.name)
+                table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactEntry
@@ -1333,5 +1517,142 @@ class _TableType(_dtypes.Type):
             return cls(py_obj._column_types)
 
 
+class _TableForeignKeyType(_dtypes.Type):
+    name = "wandb.TableForeignKey"
+    types = [_TableKey]
+
+    def __init__(self, table, col_name):
+        assert isinstance(table, Table)
+        assert isinstance(col_name, str)
+        assert col_name in table.columns
+        self.params.update({"table": table, "col_name": col_name})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.StringType):
+            return self
+        elif (
+            isinstance(wb_type, _TableForeignKeyType)
+            and id(self.params["table"]) == id(wb_type.params["table"])
+            and self.params["col_name"] == wb_type.params["col_name"]
+        ):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableKey):
+            raise TypeError("py_obj must be a _TableKey")
+        else:
+            return cls(py_obj._table, py_obj._col_name)
+
+    def to_json(self, artifact=None):
+        res = super(_TableForeignKeyType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
+        else:
+            raise AssertionError(
+                "_TableForeignKeyType does not support serialization without an artifact"
+            )
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        col_name = None
+        if artifact is None:
+            raise AssertionError(
+                "_TableForeignKeyType does not support deserialization without an artifact"
+            )
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+            col_name = json_dict["params"]["col_name"]
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table, col_name)
+
+
+class _TableForeignIndexType(_dtypes.Type):
+    name = "wandb.TableForeignIndex"
+    types = [_TableIndex]
+
+    def __init__(self, table):
+        assert isinstance(table, Table)
+        self.params.update({"table": table})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.NumberType):
+            return self
+        elif isinstance(wb_type, _TableForeignIndexType) and id(
+            self.params["table"]
+        ) == id(wb_type.params["table"]):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableIndex):
+            raise TypeError("py_obj must be a _TableIndex")
+        else:
+            return cls(py_obj._table)
+
+    def to_json(self, artifact=None):
+        res = super(_TableForeignIndexType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
+        else:
+            raise AssertionError(
+                "_TableForeignIndexType does not support serialization without an artifact"
+            )
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        if artifact is None:
+            raise AssertionError(
+                "_TableForeignIndexType does not support deserialization without an artifact"
+            )
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table)
+
+
+class _TablePrimaryKeyType(_dtypes.Type):
+    name = "wandb.TablePrimaryKey"
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.StringType) or isinstance(
+            wb_type, _TablePrimaryKeyType
+        ):
+            return self
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableKey):
+            raise TypeError("py_obj must be a wandb.Table")
+        else:
+            return cls()
+
+
 _dtypes.TypeRegistry.add(_ImageType)
 _dtypes.TypeRegistry.add(_TableType)
+_dtypes.TypeRegistry.add(_TableForeignKeyType)
+_dtypes.TypeRegistry.add(_TablePrimaryKeyType)
+_dtypes.TypeRegistry.add(_TableForeignIndexType)
