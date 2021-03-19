@@ -24,7 +24,7 @@ if wandb.TYPE_CHECKING:
         Any,
         Callable,
         Dict,
-        Iterable,
+        List,
         Optional,
     )
     from .settings_static import SettingsStatic
@@ -55,6 +55,7 @@ class HandleManager(object):
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[str, float]
+    _interrupt_count: List[int]
 
     def __init__(
         self,
@@ -65,6 +66,7 @@ class HandleManager(object):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: BackendSender,
+        interrupt_count,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -73,6 +75,8 @@ class HandleManager(object):
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+
+        self._interrupt_count = interrupt_count
 
         self._tb_watcher = None
         self._system_stats = None
@@ -96,6 +100,8 @@ class HandleManager(object):
     def handle_request(self, record: Record) -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
+        if request_type == "resume":
+            self._interrupt_count[0] -= 1
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
         logger.debug("handle_request: {}".format(request_type))
