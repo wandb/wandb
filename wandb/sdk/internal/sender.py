@@ -83,8 +83,6 @@ class SendManager(object):
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
-        # TODO: remove default_xaxis
-        self._config_default_xaxis: str = None
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
@@ -457,9 +455,6 @@ class SendManager(object):
             return
         wandb_key = "_wandb"
         config_dict.setdefault(wandb_key, dict())
-        # TODO(jhr): remove this
-        if self._config_default_xaxis:
-            config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
         config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
@@ -754,12 +749,6 @@ class SendManager(object):
             old_metric.MergeFrom(metric)
         self._config_metric_dict[metric.name] = old_metric
         metric = old_metric
-
-        # TODO(jhr): remove this code before shipping (only for prototype UI)
-        if metric.step_metric:
-            if metric.step_metric != self._config_default_xaxis:
-                self._config_default_xaxis = metric.step_metric
-                self._update_config()
 
         # convert step_metric to index
         if metric.step_metric:
