@@ -133,8 +133,9 @@ def wandb_internal(
         thread.start()
 
     interrupt_count = 0
+    
     while not stopped.is_set():
-        logger.warning("stopped", stopped.is_set())
+        logger.warning("Internal process stopped status: {}".format(stopped.is_set()))    
         try:
             # wait for stop event
             while not stopped.is_set():

@@ -134,7 +134,7 @@ def wandb_internal(
 
     interrupt_count = 0
     while not stopped.is_set():
-        print("stopped", stopped.is_set())
+        logger.warning("stopped", stopped.is_set())
         try:
             # wait for stop event
             while not stopped.is_set():
