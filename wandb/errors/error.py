@@ -23,3 +23,14 @@ class UsageError(Error):
     """API Usage Error"""
 
     pass
+
+
+class ShellCommandException(Error):
+    """Shell command Error"""
+    pass
+
+
+class ExecutionException(Error):
+    """Generic execution exception"""
+
+    pass

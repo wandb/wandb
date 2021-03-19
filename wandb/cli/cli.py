@@ -33,7 +33,6 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
-from wandb.integration.ngc import agent as ngc_agent
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
@@ -43,8 +42,10 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
+    from wandb.sdk import launch as wandb_launch
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
+    from wandb.sdk_py27 import launch as wandb_launch
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
 # DANGER this changes the sys.path so we should never do this in a user script
@@ -810,29 +811,199 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-@cli.command(context_settings=CONTEXT, help="Run an NGC agent", hidden=True)
+def _user_args_to_dict(arguments, argument_type="P"):
+    user_dict = {}
+    for arg in arguments:
+        split = arg.split("=", maxsplit=1)
+        # Docker arguments such as `t` don't require a value -> set to True if specified
+        if len(split) == 1 and argument_type == "A":
+            name = split[0]
+            value = True
+        elif len(split) == 2:
+            name = split[0]
+            value = split[1]
+        else:
+            wandb.termerror(
+                "Invalid format for -%s parameter: '%s'. "
+                "Use -%s name=value." % (argument_type, arg, argument_type)
+            )
+            sys.exit(1)
+        if name in user_dict:
+            wandb.termerror("Repeated parameter: '%s'" % name)
+            sys.exit(1)
+        user_dict[name] = value
+    return user_dict
+
+
+@cli.command()
+@click.argument("uri")
+@click.option(
+    "--entry-point",
+    "-e",
+    metavar="NAME",
+    default="main",
+    help="Entry point within project. [default: main]. If the entry point is not found, "
+    "attempts to run the project file with the specified name as a script, "
+    "using 'python' to run .py files and the default shell (specified by "
+    "environment variable $SHELL) to run .sh files",
+)
+@click.option(
+    "--version",
+    "-v",
+    metavar="VERSION",
+    help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--param-list",
+    "-P",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="A parameter for the run, of the form -P name=value. Provided parameters that "
+    "are not in the list of parameters for an entry point will be passed to the "
+    "corresponding entry point as command-line arguments in the form `--name value`",
+)
+@click.option(
+    "--docker-args",
+    "-A",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
+    "or -A name (e.g. -A t). The argument will then be passed as "
+    "`docker run --name value` or `docker run --name` respectively. ",
+)
+@click.option(
+    "--experiment-name",
+    envvar="WANDB_NAME",
+    help="Name of the experiment under which to launch the run. If not "
+    "specified, 'experiment-id' option will be used to launch run.",
+)
+@click.option(
+    "--experiment-id",
+    envvar="WANDB_RUN_GROUP",
+    type=click.STRING,
+    help="ID of the experiment under which to launch the run.",
+)
+@click.option(
+    "--backend",
+    "-b",
+    metavar="BACKEND",
+    default="local",
+    help="Execution backend to use for run. Supported values: 'local', 'ngc'"
+    "(experimental). Defaults to 'local'.",
+)
+@click.option(
+    "--backend-config",
+    "-c",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as config to the backend. The exact content which should be "
+    "provided is different for each execution backend and is documented "
+    "at https://www.mlflow.org/docs/latest/projects.html.",
+)
+@click.option(
+    "--no-conda",
+    is_flag=True,
+    help="If specified, will assume that MLmodel/MLproject is running within "
+    "a Conda environment with the necessary dependencies for "
+    "the current project instead of attempting to create a new "
+    "conda environment.",
+)
+@click.option(
+    "--storage-dir",
+    envvar="WANDB_TMP_DIR",
+    help="Only valid when ``backend`` is local. "
+    "MLflow downloads artifacts from distributed URIs passed to parameters of "
+    "type 'path' to subdirectories of storage_dir.",
+)
+@click.option(
+    "--run-id",
+    metavar="RUN_ID",
+    help="If specified, the given run ID will be used instead of creating a new run. "
+    "Note: this argument is used internally by the MLflow project APIs "
+    "and should not be specified.",
+)
+def launch(
+    uri,
+    entry_point,
+    version,
+    param_list,
+    docker_args,
+    experiment_name,
+    experiment_id,
+    backend,
+    backend_config,
+    no_conda,
+    storage_dir,
+    run_id,
+):
+    """
+    Run an W&B project from the given URI.
+    For local runs, the run will block until it completes.
+    Otherwise, the project will run asynchronously.
+    If running locally (the default), the URI can be either a Git repository URI or a local path.
+    If running on Databricks, the URI must be a Git repository.
+    By default, Git projects run in a new working directory with the given parameters, while
+    local projects run from the project's root directory.
+    """
+    param_dict = _user_args_to_dict(param_list)
+    args_dict = _user_args_to_dict(docker_args, argument_type="A")
+
+    if backend_config is not None and os.path.splitext(backend_config)[-1] != ".json":
+        try:
+            backend_config = json.loads(backend_config)
+        except ValueError as e:
+            wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
+            raise
+
+    if backend == "ngc":
+        # TODO: add queue support?
+        if backend_config is None:
+            wandb.termerror("Specify 'backend_config' when using ngc mode.")
+            sys.exit(1)
+
+    try:
+        wandb_launch.run(
+            uri,
+            entry_point,
+            version,
+            experiment_name=experiment_name,
+            experiment_id=experiment_id,
+            parameters=param_dict,
+            docker_args=args_dict,
+            backend=backend,
+            backend_config=backend_config,
+            use_conda=(not no_conda),
+            storage_dir=storage_dir,
+            synchronous=backend in ("local", "ngc") or backend is None,
+            run_id=run_id,
+        )
+    except wandb_launch.ExecutionException as e:
+        logger.error("=== %s ===", e)
+        sys.exit(1)
+
+
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
+@click.option("--max", default=4, type=int, help="The maximum number of launchs to manage in parallel.")
+@click.argument("agent")
 @click.argument("agent_spec", nargs=-1)
 @display_error
-def ngc(ctx, project=None, entity=None, agent_spec=None):
+def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=None):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if not find_executable("ngc"):
-        raise ClickException("NGC not installed, install it from https://ngc.nvidia.com")
-
     if agent_spec is None:
         project = project or "uncategorized"
         entity = entity or api.default_entity
         agent_spec = ["{}/{}".format(project, entity)]
 
-    wandb.termlog("Starting NGC agent ✨")
-    ngc_agent.run_agent(agent_spec)
+    wandb.termlog("Starting {} agent ✨".format(agent))
+    wandb_launch.run_agent(agent_spec, agent=agent or "local")
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

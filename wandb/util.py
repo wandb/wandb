@@ -8,6 +8,7 @@ import colorsys
 import contextlib
 import codecs
 import errno
+import gzip
 import hashlib
 import json
 import getpass
@@ -25,11 +26,13 @@ import random
 import stat
 import shortuuid
 import importlib
+import tarfile
+import tempfile
 import types
 import yaml
 from datetime import date, datetime
 import platform
-from six.moves.urllib.parse import urlparse
+from six.moves import urllib
 
 import click
 import requests
@@ -48,7 +51,7 @@ from wandb.env import error_reporting_enabled
 
 import wandb
 from wandb.old.core import wandb_dir
-from wandb.errors.error import CommError
+from wandb.errors.error import CommError, ShellCommandException
 from wandb import env
 
 logger = logging.getLogger(__name__)
@@ -302,6 +305,102 @@ def get_h5_typename(o):
         return "torch.Tensor"
     else:
         return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+
+
+def is_uri(string):
+    parsed_uri = urllib.parse.urlparse(string)
+    return len(parsed_uri.scheme) > 0
+
+
+def local_file_uri_to_path(uri):
+    """
+    Convert URI to local filesystem path.
+    No-op if the uri does not have the expected scheme.
+    """
+    path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
+    return urllib.request.url2pathname(path)
+
+
+def get_local_path_or_none(path_or_uri):
+    """Check if the argument is a local path (no scheme or file:///) and return local path if true,
+    None otherwise.
+    """
+    parsed_uri = urllib.parse.urlparse(path_or_uri)
+    if len(parsed_uri.scheme) == 0 or parsed_uri.scheme == "file" and len(parsed_uri.netloc) == 0:
+        return local_file_uri_to_path(path_or_uri)
+    else:
+        return None
+
+
+def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
+    # Helper for filtering out modification timestamps
+    def _filter_timestamps(tar_info):
+        tar_info.mtime = 0
+        return tar_info if custom_filter is None else custom_filter(tar_info)
+
+    unzipped_filename = tempfile.mktemp()
+    try:
+        with tarfile.open(unzipped_filename, "w") as tar:
+            tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
+        # When gzipping the tar, don't include the tar's filename or modification time in the
+        # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
+        with gzip.GzipFile(
+            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
+        ) as gzipped_tar, open(unzipped_filename, "rb") as tar:
+            gzipped_tar.write(tar.read())
+    finally:
+        os.remove(unzipped_filename)
+
+
+def exec_cmd(
+    cmd, throw_on_error=True, env=None, stream_output=False, cwd=None, cmd_stdin=None, **kwargs
+):
+    """
+    Runs a command as a child process.
+    A convenience wrapper for running a command from a Python script.
+    Keyword arguments:
+    cmd -- the command to run, as a list of strings
+    throw_on_error -- if true, raises an Exception if the exit code of the program is nonzero
+    env -- additional environment variables to be defined when running the child process
+    cwd -- working directory for child process
+    stream_output -- if true, does not capture standard output and error; if false, captures these
+      streams and returns them
+    cmd_stdin -- if specified, passes the specified string as stdin to the child process.
+    Note on the return value: If stream_output is true, then only the exit code is returned. If
+    stream_output is false, then a tuple of the exit code, standard output and standard error is
+    returned.
+    """
+    cmd_env = os.environ.copy()
+    if env:
+        cmd_env.update(env)
+
+    if stream_output:
+        child = subprocess.Popen(
+            cmd, env=cmd_env, cwd=cwd, universal_newlines=True, stdin=subprocess.PIPE, **kwargs
+        )
+        child.communicate(cmd_stdin)
+        exit_code = child.wait()
+        if throw_on_error and exit_code != 0:
+            raise ShellCommandException("Non-zero exitcode: %s" % (exit_code))
+        return exit_code
+    else:
+        child = subprocess.Popen(
+            cmd,
+            env=cmd_env,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=cwd,
+            universal_newlines=True,
+            **kwargs
+        )
+        (stdout, stderr) = child.communicate(cmd_stdin)
+        exit_code = child.wait()
+        if throw_on_error and exit_code != 0:
+            raise ShellCommandException(
+                "Non-zero exit code: %s\n\nSTDOUT:\n%s\n\nSTDERR:%s" % (exit_code, stdout, stderr)
+            )
+        return exit_code, stdout, stderr
 
 
 def is_tf_tensor(obj):
@@ -1215,13 +1314,13 @@ def hex_to_b64_id(encoded_string):
 
 def host_from_path(path):
     """returns the host of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.netloc
 
 
 def uri_from_path(path):
     """returns the URI of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
 
 
