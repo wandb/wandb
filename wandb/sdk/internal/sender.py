@@ -704,6 +704,8 @@ class SendManager(object):
         line = out.line
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
+            if line.startswith("\r"):
+                self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
             # we might need this for other stuff like telemetry

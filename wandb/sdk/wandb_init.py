@@ -102,6 +102,8 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
+            with telemetry.context() as tel:
+                tel.feature.sagemaker = True
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
