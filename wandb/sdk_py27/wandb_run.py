@@ -234,6 +234,8 @@ class Run(object):
     # _stdout_slave_fd: Optional[int]
     # _stderr_slave_fd: Optional[int]
 
+    # _pid: int
+
     def __init__(
         self,
         settings,
@@ -333,6 +335,8 @@ class Run(object):
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
+
+        self._pid = os.getpid()
 
     def _telemetry_callback(self, telem_obj):
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -1001,7 +1005,16 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        # TODO(cling): sync is a noop for now
+        current_pid = os.getpid()
+        if current_pid != self._pid:
+            wandb.termwarn(
+                "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                    current_pid, self._pid
+                ),
+                repeat=False,
+            )
+            return
+
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
