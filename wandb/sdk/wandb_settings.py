@@ -636,7 +636,9 @@ class Settings(object):
         if value is not None:
             if re.match(r".*wandb.ai[^.]*", value) and "api." not in value:
                 # user might guess app.wandb.ai or wandb.ai is the default cloud server
-                return "{} is not a valid server address, did you mean https://api.wandb.ai?".format(value)
+                return "{} is not a valid server address, did you mean https://api.wandb.ai?".format(
+                    value
+                )
             elif re.match(value, r"wandb.ai[^.]*$") and "http://" in value:
                 return "http is not secure, please use https://api.wandb.ai"
         return None
