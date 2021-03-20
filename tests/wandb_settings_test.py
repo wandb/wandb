@@ -237,7 +237,7 @@ def test_validate_base_url():
         s.update(base_url="http://api.wandb.ai")
     s.update(base_url="https://api.wandb.ai")
     assert s.base_url == "https://api.wandb.ai"
-    base_url = "https://wandb.ai.other.crazy.domain.com"
+    s.update(base_url="https://wandb.ai.other.crazy.domain.com")
     assert s.base_url == "https://wandb.ai.other.crazy.domain.com"
 
 
