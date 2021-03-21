@@ -25,12 +25,14 @@ def test_multiproc_default(live_mock_server, parse_ctx):
     assert dict(val=3, val2=1, mystep=3) == s
 
 
+def train():
+    time.sleep(1)
+    wandb.log(dict(ignore1=2))
+    wandb.log(dict(ignore1=3))
+    time.sleep(1)
+
+
 def test_multiproc_ignore(live_mock_server, parse_ctx):
-    def train():
-        time.sleep(1)
-        wandb.log(dict(ignore1=2))
-        wandb.log(dict(ignore1=3))
-        time.sleep(1)
 
     run = wandb.init()
 
