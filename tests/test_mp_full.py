@@ -3,6 +3,7 @@ multiproc full tests.
 """
 
 import multiprocessing
+import pytest
 import time
 
 import six
@@ -82,3 +83,8 @@ def test_multiproc_strict(live_mock_server, parse_ctx):
     summary = ctx_util.summary
     s = {k: v for k, v in dict(summary).items() if not k.startswith("_")}
     assert dict(val=3, val2=1, mystep=3) == s
+
+
+def test_multiproc_strict_bad(live_mock_server, parse_ctx):
+    with pytest.raises(TypeError):
+        run = wandb.init(settings=wandb.Settings(strict="bad"))
