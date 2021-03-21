@@ -67,7 +67,7 @@ def graph_json(run):
 
 
 def test_no_init():
-    with pytest.raises(wandb.errors.error.Error):
+    with pytest.raises(wandb.errors.Error):
         WandbCallback()
 
 
