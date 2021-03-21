@@ -46,6 +46,7 @@ def test_multiproc_ignore(live_mock_server, parse_ctx):
     finally:
         for p in procs:
             p.join()
+            assert p.exitcode == 0
 
     run.finish()
 
@@ -57,7 +58,7 @@ def test_multiproc_ignore(live_mock_server, parse_ctx):
 
 
 def test_multiproc_strict(live_mock_server, parse_ctx):
-    run = wandb.init()
+    run = wandb.init(settings=wandb.Settings(strict="true"))
 
     train(0)
 
@@ -71,6 +72,8 @@ def test_multiproc_strict(live_mock_server, parse_ctx):
     finally:
         for p in procs:
             p.join()
+            # expect fail
+            assert p.exitcode != 0
 
     run.finish()
 

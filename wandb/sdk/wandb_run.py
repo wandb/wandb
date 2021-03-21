@@ -1012,7 +1012,7 @@ class Run(object):
             )
             if self._settings._strict:
                 wandb.termerror(message, repeat=False)
-                raise Exception("problem")
+                raise Exception("log() does not support multiprocessing")
             wandb.termwarn(message, repeat=False)
             return
 
