@@ -31,6 +31,7 @@ def test_multiproc_ignore(live_mock_server, parse_ctx):
         wandb.log(dict(ignore1=2))
         wandb.log(dict(ignore1=3))
         time.sleep(1)
+
     run = wandb.init()
 
     run.log(dict(mystep=1, val=2))
