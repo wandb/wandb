@@ -3,6 +3,7 @@ multiproc full tests.
 """
 
 import multiprocessing
+import platform
 import pytest
 import time
 
