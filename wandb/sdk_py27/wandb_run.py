@@ -1007,12 +1007,11 @@ class Run(object):
         """
         current_pid = os.getpid()
         if current_pid != self._pid:
-            wandb.termwarn(
-                "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._pid
-                ),
-                repeat=False,
-            )
+            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(current_pid, self._pid)
+            if self._settings._strict:
+                wandb.termerror(message, repeat=False)
+                raise Exception("problem")
+            wandb.termwarn(message, repeat=False)
             return
 
         if not isinstance(data, Mapping):

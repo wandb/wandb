@@ -32,7 +32,31 @@ def test_multiproc_default(live_mock_server, parse_ctx):
 
 
 def test_multiproc_ignore(live_mock_server, parse_ctx):
+    run = wandb.init()
 
+    train(0)
+
+    procs = []
+    for i in range(2):
+        procs.append(multiprocessing.Process(target=train, kwargs=dict(add_val=100)))
+
+    try:
+        for p in procs:
+            p.start()
+    finally:
+        for p in procs:
+            p.join()
+
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+
+    summary = ctx_util.summary
+    s = {k: v for k, v in dict(summary).items() if not k.startswith("_")}
+    assert dict(val=3, val2=1, mystep=3) == s
+
+
+def test_multiproc_strict(live_mock_server, parse_ctx):
     run = wandb.init()
 
     train(0)
