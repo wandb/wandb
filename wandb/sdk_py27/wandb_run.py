@@ -23,6 +23,7 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -1012,7 +1013,9 @@ class Run(object):
             )
             if self._settings._strict:
                 wandb.termerror(message, repeat=False)
-                raise Exception("log() does not support multiprocessing")
+                raise errors.LogMultiprocessError(
+                    "log() does not support multiprocessing"
+                )
             wandb.termwarn(message, repeat=False)
             return
 

@@ -23,3 +23,15 @@ class UsageError(Error):
     """API Usage Error"""
 
     pass
+
+
+class LogError(Error):
+    """Raised when wandb.log() fails"""
+
+    pass
+
+
+class LogMultiprocessError(LogError):
+    """Raised when wandb.log() fails because of multiprocessing"""
+
+    pass

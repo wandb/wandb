@@ -539,7 +539,7 @@ class BackendSender(object):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response
@@ -739,7 +739,7 @@ class BackendSender(object):
         result = self._communicate(req, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(
+            raise wandb.Error(  # type: ignore
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         assert result.exit_result
