@@ -29,8 +29,12 @@ def test_metric_run_metric_obj(user_test):
     assert len(r.metric) == 2
 
     mr1, mr2 = r.metric
-    assert mr1 == pb.MetricRecord(name="glob")
-    assert mr2 == pb.MetricRecord(name="val", step_metric="glob")
+    glob_metric = pb.MetricRecord(name="glob")
+    glob_metric.options.defined = True
+    step_metric = pb.MetricRecord(name="val", step_metric="glob")
+    step_metric.options.defined = True
+    assert mr1 == glob_metric
+    assert mr2 == step_metric
 
 
 def test_metric_run_hide(user_test):

@@ -43,6 +43,7 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
+    mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
     mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
@@ -848,6 +849,12 @@ index 30d74d2..9a2c773 100644
             ]
         )
 
+    @app.route("/wandb_url", methods=["PUT"])
+    def spell_url():
+        ctx = get_ctx()
+        ctx["spell_data"] = request.get_json()
+        return json.dumps({"success": True})
+
     @app.route("/pypi/<library>/json")
     def pypi(library):
         version = getattr(wandb, "__hack_pypi_latest_version__", wandb.__version__)
@@ -908,7 +915,11 @@ class ParseCTX(object):
                 assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                l.extend(map(json.loads, content))
+                if k == u"output.log":
+                    lines = [content]
+                else:
+                    lines = map(json.loads, content)
+                l.extend(lines)
             data[k] = l
         return data
 

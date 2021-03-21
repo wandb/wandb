@@ -1866,8 +1866,9 @@ class Run(object):
             step_sync: Automatically add `step_metric` to history if needed.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best"
-                (best defaults to goal==minimize)
+                Supported aggregations: "min,max,mean,best,last,none"
+                Default aggregation is `copy`
+                Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
                 Supported direections: "minimize,maximize"
 
@@ -1909,7 +1910,7 @@ class Run(object):
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best"}
+            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(

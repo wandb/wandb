@@ -10,7 +10,7 @@ import wandb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
-def test_metric_none(live_mock_server, parse_ctx):
+def test_metric_default(live_mock_server, parse_ctx):
     run = wandb.init()
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=2, val=8))
@@ -21,26 +21,76 @@ def test_metric_none(live_mock_server, parse_ctx):
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
 
-    # no default axis
-    config_wandb = ctx_util.config_wandb
-    assert "x_axis" not in config_wandb
-
     # by default we use last value
     summary = ctx_util.summary
     assert six.viewitems(dict(val=3, val2=1)) <= six.viewitems(summary)
 
 
-def test_metric_xaxis(live_mock_server, parse_ctx):
+def test_metric_copy(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("*", summary="copy")
+    run.log(dict(mystep=1, val=2))
+    run.log(dict(mystep=2, val=8))
+    run.log(dict(mystep=3, val=3))
+    run.log(dict(val2=4))
+    run.log(dict(val2=1))
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+
+    summary = ctx_util.summary
+    assert six.viewitems(dict(val=3, val2=1, mystep=3)) <= six.viewitems(summary)
+
+
+def test_metric_glob_none(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("*", summary="copy")
+    run._define_metric("val", summary="none")
+    run.log(dict(mystep=1, val=2))
+    run.log(dict(mystep=2, val=8))
+    run.log(dict(mystep=3, val=3))
+    run.log(dict(val2=4))
+    run.log(dict(val2=1))
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+
+    summary = ctx_util.summary
+    assert six.viewitems(dict(val2=1, mystep=3)) <= six.viewitems(summary)
+    assert "val" not in summary
+
+
+def test_metric_glob(live_mock_server, parse_ctx):
     run = wandb.init()
     run._define_metric("*", step_metric="mystep")
     run.log(dict(mystep=1, val=2))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
-    config_wandb = ctx_util.config_wandb
     summary = ctx_util.summary
 
-    assert six.viewitems({"x_axis": "mystep"}) <= six.viewitems(config_wandb)
     assert six.viewitems(dict(val=2)) <= six.viewitems(summary)
+
+
+def test_metric_nosummary(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("val")
+    run.log(dict(val2=4))
+    run.log(dict(val2=1))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert six.viewitems(dict(val2=1)) <= six.viewitems(summary)
+
+
+def test_metric_none(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("val2", summary="none")
+    run.log(dict(val2=4))
+    run.log(dict(val2=1))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert "val2" not in summary
 
 
 def test_metric_sum_none(live_mock_server, parse_ctx):
@@ -64,10 +114,11 @@ def test_metric_max(live_mock_server, parse_ctx):
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
+    assert run.summary.get("val") and run.summary["val"].get("max") == 8
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert six.viewitems({"val": 3, "val.max": 8}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("max") == 8
 
 
 def test_metric_min(live_mock_server, parse_ctx):
@@ -76,10 +127,24 @@ def test_metric_min(live_mock_server, parse_ctx):
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
+    assert run.summary.get("val") and run.summary["val"].get("min") == 2
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("min") == 2
+
+
+def test_metric_last(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("val", summary="last")
+    run.log(dict(mystep=1, val=2))
+    run.log(dict(mystep=1, val=8))
+    run.log(dict(mystep=1, val=3))
+    assert run.summary.get("val") and run.summary["val"].get("last") == 3
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert summary.get("val", {}).get("last") == 3
 
 
 def _gen_metric_sync_step(run):
@@ -99,7 +164,7 @@ def test_metric_no_sync_step(live_mock_server, parse_ctx):
     summary = ctx_util.summary
     history = ctx_util.history
     metrics = ctx_util.metrics
-    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("min") == 2
     history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
     assert history_val == [(2, 1), (8, None), (3, 5)]
 
@@ -115,7 +180,7 @@ def test_metric_sync_step(live_mock_server, parse_ctx):
     history = ctx_util.history
     telemetry = ctx_util.telemetry
     metrics = ctx_util.metrics
-    assert six.viewitems({"val": 3, "val.min": 2}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("min") == 2
     history_val = [(h.get("val"), h.get("mystep")) for h in history if "val" in h]
     assert history_val == [(2, 1), (8, 3), (3, 5)]
     assert not any([item[1] is None for item in history_val])
@@ -154,7 +219,7 @@ def test_metric_nan_mean(live_mock_server, parse_ctx):
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert six.viewitems({"val": 4, "val.mean": 3}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("mean") == 3
 
 
 def test_metric_nan_min_norm(live_mock_server, parse_ctx):
@@ -164,8 +229,7 @@ def test_metric_nan_min_norm(live_mock_server, parse_ctx):
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert math.isnan(summary.get("val"))
-    assert "val.min" not in summary
+    assert "min" not in summary.get("val", {})
 
 
 def test_metric_nan_min_more(live_mock_server, parse_ctx):
@@ -176,4 +240,87 @@ def test_metric_nan_min_more(live_mock_server, parse_ctx):
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
-    assert six.viewitems({"val": 4, "val.min": 4}) <= six.viewitems(summary)
+    assert summary.get("val", {}).get("min") == 4
+
+
+def test_metric_nested_default(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert summary.get("this", {}).get("that", {}) == 4
+
+
+def test_metric_nested_copy(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this.that", summary="copy")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert summary.get("this", {}).get("that", {}) == 4
+
+
+def test_metric_nested_min(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this.that", summary="min")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    assert summary.get("this", {}).get("that", {}).get("min") == 2
+
+
+def test_metric_nested_mult(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("this.that", summary="min,max")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    metrics = ctx_util.metrics
+    assert summary.get("this", {}).get("that", {}).get("min") == 2
+    assert summary.get("this", {}).get("that", {}).get("max") == 4
+    assert len(metrics) == 1
+    assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
+
+
+def test_metric_dotted(live_mock_server, parse_ctx):
+    """escaped dotted define metric matches dotted metrics."""
+    run = wandb.init()
+    run._define_metric("this\\.that", summary="min")
+    run.log({"this.that": 3})
+    run.log({"this.that": 2})
+    run.log({"this.that": 4})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    metrics = ctx_util.metrics
+    assert summary.get("this.that", {}).get("min") == 2
+    assert len(metrics) == 1
+    assert metrics[0] == {"1": "this\\.that", "7": [1], "6": [3]}
+
+
+def test_metric_nested_glob(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run._define_metric("*", summary="min,max")
+    run.log(dict(this=dict(that=3)))
+    run.log(dict(this=dict(that=2)))
+    run.log(dict(this=dict(that=4)))
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    summary = ctx_util.summary
+    metrics = ctx_util.metrics
+    assert summary.get("this", {}).get("that", {}).get("min") == 2
+    assert summary.get("this", {}).get("that", {}).get("max") == 4
+    assert len(metrics) == 1
+    assert metrics[0] == {"1": "this.that", "7": [1, 2]}
