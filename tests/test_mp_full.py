@@ -9,13 +9,19 @@ import six
 import wandb
 
 
+def train(add_val):
+    time.sleep(1)
+    wandb.log(dict(mystep=1, val=2 + add_val))
+    wandb.log(dict(mystep=2, val=8 + add_val))
+    wandb.log(dict(mystep=3, val=3 + add_val))
+    wandb.log(dict(val2=4 + add_val))
+    wandb.log(dict(val2=1 + add_val))
+    time.sleep(1)
+
+
 def test_multiproc_default(live_mock_server, parse_ctx):
     run = wandb.init()
-    run.log(dict(mystep=1, val=2))
-    run.log(dict(mystep=2, val=8))
-    run.log(dict(mystep=3, val=3))
-    run.log(dict(val2=4))
-    run.log(dict(val2=1))
+    train(0)
     run.finish()
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -25,31 +31,22 @@ def test_multiproc_default(live_mock_server, parse_ctx):
     assert dict(val=3, val2=1, mystep=3) == s
 
 
-def train():
-    time.sleep(1)
-    wandb.log(dict(ignore1=2))
-    wandb.log(dict(ignore1=3))
-    time.sleep(1)
-
-
 def test_multiproc_ignore(live_mock_server, parse_ctx):
 
     run = wandb.init()
 
-    run.log(dict(mystep=1, val=2))
-    run.log(dict(mystep=2, val=8))
-    run.log(dict(mystep=3, val=3))
-    run.log(dict(val2=4))
-    run.log(dict(val2=1))
+    train(0)
 
     procs = []
     for i in range(2):
-        procs.append(multiprocessing.Process(target=train))
+        procs.append(multiprocessing.Process(target=train, kwargs=dict(add_val=100)))
 
-    for p in procs:
-        p.start()
-    for p in procs:
-        p.join()
+    try:
+        for p in procs:
+            p.start()
+    finally:
+        for p in procs:
+            p.join()
 
     run.finish()
 
