@@ -412,22 +412,28 @@ class WandbCallback(keras.callbacks.Callback):
             [isinstance(vid, wandb.data_types._TableLinkMixin) for vid in val_keys]
         )
 
-        def make_pipe(transformer):
-            if isinstance(transformer, list):
+        # def make_pipe(transformer):
+        #     if isinstance(transformer, list):
 
-                def pipe(val):
-                    for item in transformer:
-                        val = item(val)
-                    return val
+        #         def pipe(val):
+        #             for item in transformer:
+        #                 val = item(val)
+        #             return val
 
-                return pipe
+        #         return pipe
+        #     else:
+        #         return transformer
+
+        def make_dict(processor):
+            if processor is None or isinstance(processor, dict):
+                return processor
             else:
-                return transformer
+                return {"processed": processor}
 
         self.val_keys = val_keys
-        self.val_input_processor = make_pipe(val_input_processor)
-        self.val_target_processor = make_pipe(val_target_processor)
-        self.val_output_processor = make_pipe(val_output_processor)
+        self.val_input_processor = make_dict(val_input_processor)
+        self.val_target_processor = make_dict(val_target_processor)
+        self.val_output_processor = make_dict(val_output_processor)
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -490,20 +496,22 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.val_output_processor is None and self.output_type == "label":
             if self.labels is None:
-                self.val_output_processor = np.argmax
+                self.val_output_processor = {"lbl": np.argmax}
             else:
-                self.val_output_processor = lambda x: self.labels[np.argmax(x)]
+                self.val_output_processor = {"lbl": lambda x: self.labels[np.argmax(x)]}
 
         if self.log_evaluation:
             val_x = self.validation_data[0]
             y_pred = self.model.predict(val_x)
             table = wandb.Table(columns=[], data=[])
-            table.add_column("val_id", self.val_keys)
-            table.add_column("y_pred", y_pred)
+            table.add_column("val_data", self.val_keys)
+            table.add_column("pred", y_pred)
             if self.val_output_processor is not None:
-                table.add_column(
-                    "y_pred_t", [self.val_output_processor(item) for item in y_pred],
-                )
+                for key in self.val_output_processor:
+                    table.add_column(
+                        "pred_" + key,
+                        [self.val_output_processor[key](item) for item in y_pred],
+                    )
             wandb.log({"validation_predictions": table}, commit=False)
 
         wandb.log({"epoch": epoch}, commit=False)
@@ -565,28 +573,34 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_begin(self, logs=None):
         if self.val_input_processor is None and self.input_type == "image":
-            self.val_input_processor = wandb.Image
+            self.val_input_processor = {"img": wandb.Image}
 
         if self.val_target_processor is None and self.output_type == "label":
             if self.labels is None:
-                self.val_target_processor = lambda x: np.squeeze(x)
+                self.val_target_processor = {"lbl": lambda x: np.squeeze(x)}
             else:
-                self.val_target_processor = lambda x: self.labels[np.squeeze(x)]
+                self.val_target_processor = {
+                    "lbl": lambda x: self.labels[np.squeeze(x)]
+                }
 
         if self.log_evaluation and self.val_keys is None:
             val_x = self.validation_data[0]
             val_y = self.validation_data[1]
             table = wandb.Table(columns=[], data=[])
-            table.add_column("val_x", val_x)
-            table.add_column("val_y", val_y)
+            table.add_column("x", val_x)
+            table.add_column("y", val_y)
             if self.val_input_processor is not None:
-                table.add_column(
-                    "val_x_t", [self.val_input_processor(item) for item in val_x],
-                )
+                for key in self.val_input_processor:
+                    table.add_column(
+                        "x_" + key,
+                        [self.val_input_processor[key](item) for item in val_x],
+                    )
             if self.val_target_processor is not None:
-                table.add_column(
-                    "val_y_t", [self.val_target_processor(item) for item in val_y],
-                )
+                for key in self.val_target_processor:
+                    table.add_column(
+                        "y_" + key,
+                        [self.val_target_processor[key](item) for item in val_y],
+                    )
             artifact = wandb.Artifact(
                 "validation_data_wbkc".format(wandb.run.id), "auto_table"
             )
