@@ -20,7 +20,7 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -102,6 +102,8 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
+            with telemetry.context() as tel:
+                tel.feature.sagemaker = True
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
