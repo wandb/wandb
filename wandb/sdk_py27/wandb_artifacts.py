@@ -498,7 +498,7 @@ class Artifact(ArtifactInterface):
         else:
             if wandb.run is None:
                 if settings is None:
-                    settings = wandb.Settings(silent=True)
+                    settings = wandb.Settings(silent="true")
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:
