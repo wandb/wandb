@@ -1,8 +1,15 @@
 import itertools
 import random
 import string
+import sys
 
 import wandb
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib.file_stream_utils import split_files
+else:
+    from wandb.sdk_py27.lib.file_stream_utils import split_files
 
 
 def test_split_files():
@@ -34,9 +41,7 @@ def test_split_files():
         % i: {"content": rand_string_list(int(file_size * 1024 * 1024)), "offset": 0}
         for i in range(num_files)
     }
-    chunks = list(
-        wandb.wandb_sdk.lib.file_stream_utils.split_files(files, MAX_MB=chunk_size)
-    )
+    chunks = list(split_files(files, MAX_MB=chunk_size))
 
     # re-combine chunks
     buff = {}
