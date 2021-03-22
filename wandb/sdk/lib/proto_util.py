@@ -39,5 +39,6 @@ def proto_encode_to_dict(
             bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
             if bool_msg:
                 items = [d.number for d, v in nested if v]
-                data[desc.number] = items
+                if items:
+                    data[desc.number] = items
     return data

@@ -9,9 +9,11 @@ import os
 import json
 import pytest
 import platform
+import sys
 
 import wandb
 from wandb import Api
+from tests import utils
 
 
 @pytest.fixture
@@ -89,6 +91,21 @@ def test_run_from_path(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
     assert run.url == "https://wandb.ai/test/test/runs/test"
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_run_from_tensorboard(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+        run_id = wandb.util.generate_id()
+        api.sync_tensorboard(".", project="test", run_id=run_id)
+        assert mock_server.ctx["graphql"][-1]["variables"] == {
+            "entity": "mock_server_entity",
+            "name": run_id,
+            "project": "test",
+        }
 
 
 def test_run_retry(mock_server, api):
@@ -394,6 +411,38 @@ def test_artifact_verify(runner, mock_server, api):
     art.download()
     with pytest.raises(ValueError):
         art.verify()
+
+
+def test_artifact_save_norun(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save(settings=test_settings)
+
+
+def test_artifact_save_run(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        run = wandb.init(settings=test_settings)
+        artifact.save()
+        run.finish()
+
+
+def test_artifact_save_norun_nosettings(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save()
 
 
 def test_sweep(runner, mock_server, api):

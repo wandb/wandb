@@ -213,6 +213,15 @@ class Artifact(ArtifactInterface):
         return sum([entry.size for entry in self._manifest.entries])
 
     @property
+    def commit_hash(self) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.commit_hash
+
+        raise ValueError(
+            "Cannot access commit_hash on an artifact before it has been logged or in offline mode"
+        )
+
+    @property
     def description(self) -> Optional[str]:
         if self._logged_artifact:
             return self._logged_artifact.description
@@ -237,7 +246,7 @@ class Artifact(ArtifactInterface):
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
         if self._logged_artifact:
-            self._metadata = metadata
+            self._logged_artifact.metadata = metadata
             return
 
         self._metadata = metadata
@@ -401,10 +410,8 @@ class Artifact(ArtifactInterface):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source and obj.artifact_source.name:
-            ref_path = obj.artifact_source.artifact.get_path(
-                type(obj).with_suffix(obj.artifact_source.name)
-            )
+        ref_path = obj._get_artifact_reference_entry()
+        if ref_path is not None:
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
         val = obj.to_json(self)
@@ -423,6 +430,8 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
+        if obj._artifact_target is None:
+            obj._set_artifact_target(self, entry.path)
 
         return entry
 
@@ -466,13 +475,48 @@ class Artifact(ArtifactInterface):
             "Cannot call verify on an artifact before it has been logged or in offline mode"
         )
 
-    def save(self) -> None:
+    def save(
+        self,
+        project: Optional[str] = None,
+        settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
+    ) -> None:
+        """
+        Persists any changes made to the artifact. If currently in a run, that run will
+        log this artifact. If not currently in a run, a run of type "auto" will be created
+        to track this artifact.
+
+        Arguments:
+            project: (str, optional) A project to use for the artifact in the case that a run is not already in context
+            settings: (wandb.Settings, optional) A settings object to use when initializing an
+            automatic run. Most commonly used in testing harness.
+
+        Returns:
+            None
+        """
         if self._logged_artifact:
             return self._logged_artifact.save()
-
-        raise ValueError(
-            "Cannot call save on an artifact before it has been logged or in offline mode"
-        )
+        else:
+            if wandb.run is None:
+                if settings is None:
+                    settings = wandb.Settings(silent="true")
+                with wandb.init(
+                    project=project, job_type="auto", settings=settings
+                ) as run:
+                    run.log_artifact(self)
+                    project_url = run._get_project_url()
+                    # Calling "wait" here is OK, since we have to wait
+                    # for the run to finish anyway.
+                    self.wait()
+                commit_hash = ""
+                if self._logged_artifact is not None:
+                    commit_hash = self._logged_artifact.commit_hash
+                termlog(
+                    "View artifact at {}/artifacts/{}/{}/{}".format(
+                        project_url, self._type, self._name, commit_hash,
+                    )
+                )
+            else:
+                wandb.run.log_artifact(self)
 
     def delete(self) -> None:
         if self._logged_artifact:

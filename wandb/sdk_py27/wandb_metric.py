@@ -81,6 +81,7 @@ class Metric(object):
 
     def _commit(self):
         m = pb.MetricRecord()
+        m.options.defined = True
         if self._name.endswith("*"):
             m.glob_name = self._name
         else:
@@ -99,6 +100,12 @@ class Metric(object):
                 m.summary.max = True
             if "mean" in summary_set:
                 m.summary.mean = True
+            if "last" in summary_set:
+                m.summary.last = True
+            if "copy" in summary_set:
+                m.summary.copy = True
+            if "none" in summary_set:
+                m.summary.none = True
             if "best" in summary_set:
                 m.summary.best = True
         if self._goal == "min":

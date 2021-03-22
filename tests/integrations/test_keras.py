@@ -83,6 +83,21 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
 @pytest.mark.skipif(
     sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
 )
+def test_keras_telemetry(
+    dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
+):
+    wandb.init(settings=test_settings)
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36, callbacks=[WandbCallback()])
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    config_wandb = ctx_util.config_wandb
+    assert telemetry and 8 in telemetry.get("3", [])
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
+)
 def test_keras_resume_best_metric(
     dummy_model, dummy_data, live_mock_server, test_settings
 ):
