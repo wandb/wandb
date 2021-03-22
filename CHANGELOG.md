@@ -12,6 +12,7 @@
 - Add Foreign Table References to wandb.Table
 - Allow the same runtime object to be logged to multiple artifacts
 - Add experimental `run._define_metric()` support
+- Warn and ignore unsupported multiprocess `wandb.log()` calls
 
 ## 0.10.22 (March 9, 2021)
 
