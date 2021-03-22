@@ -998,11 +998,26 @@ class LocalFileHandler(StorageHandler):
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
-        entries = []
         if not checksum:
+            if os.path.isdir(local_path):
+                size = 0
+                for root, _, files in os.walk(local_path):
+                    for sub_path in files:
+                        physical_path = os.path.join(root, sub_path)
+                        size += os.path.getsize(physical_path)
+            elif os.path.isfile(local_path):
+                size = os.path.getsize(local_path)
+            else:
+                # TODO: update error message if we don't allow directories.
+                raise ValueError(
+                    'Path "%s" must be a valid file or directory path' % path
+                )
             return [
-                ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
+                ArtifactManifestEntry(
+                    name or os.path.basename(path), path, size=size, digest=path
+                )
             ]
+        entries = []
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
