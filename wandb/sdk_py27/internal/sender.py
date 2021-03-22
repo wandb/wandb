@@ -13,6 +13,7 @@ import os
 import time
 
 from pkg_resources import parse_version
+import requests
 from six.moves import queue
 import wandb
 from wandb import util
@@ -473,6 +474,24 @@ class SendManager(object):
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
+    def _sync_spell(self, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            self._interface.publish_config(
+                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
+            )
+            url = "{}/{}/{}/runs/{}".format(
+                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
+            )
+            return requests.put(
+                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
+                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
+                timeout=2,
+            )
+        except requests.RequestException:
+            return False
+
     def send_run(self, data):
         run = data.run
         error = None
@@ -601,6 +620,8 @@ class SendManager(object):
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
+        if os.getenv("SPELL_RUN_URL"):
+            self._sync_spell()
 
     def _start_run_threads(self):
         self._fs = file_stream.FileStreamApi(
