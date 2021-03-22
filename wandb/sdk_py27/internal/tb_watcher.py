@@ -258,23 +258,26 @@ class TBDirWatcher(object):
 
         return EventFileLoader
 
+    def _process_events(self, shutdown_call = False):
+        try:
+            for event in self._generator.Load():
+                self.process_event(event)
+        except (
+            self.directory_watcher.DirectoryDeletedError,
+            StopIteration,
+            RuntimeError,
+            OSError,
+        ) as e:
+            # When listing s3 the directory may not yet exist, or could be empty
+            logger.debug("Encountered tensorboard directory watcher error: %s", e)
+            if not self._shutdown.is_set() and not shutdown_call:
+                time.sleep(ERROR_DELAY)
+
     def _thread_body(self):
         """Check for new events every second"""
         shutdown_time = None
         while True:
-            try:
-                for event in self._generator.Load():
-                    self.process_event(event)
-            except (
-                self.directory_watcher.DirectoryDeletedError,
-                StopIteration,
-                RuntimeError,
-                OSError,
-            ) as e:
-                # When listing s3 the directory may not yet exist, or could be empty
-                logger.debug("Encountered tensorboard directory watcher error: %s", e)
-                if not self._shutdown.is_set():
-                    time.sleep(ERROR_DELAY)
+            self._process_events()
             if self._shutdown.is_set():
                 now = time.time()
                 if not shutdown_time:
@@ -295,6 +298,7 @@ class TBDirWatcher(object):
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self):
+        self._process_events(shutdown_call=True)
         self._shutdown.set()
 
     def finish(self):

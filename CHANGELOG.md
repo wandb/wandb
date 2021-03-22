@@ -1,3 +1,34 @@
+## 0.10.23 (March 22, 2021)
+
+#### :bug: Bug Fix
+
+- Fix logged artifacts to be accessible after wait()
+- Fix spell.run integration
+- Performance fix syncing console logs with carriage returns
+- Fix confusion matrix with class names and unlabeled data
+
+#### :nail_care: Enhancement
+
+- Add the ability to save artifacts without creating a run
+- Add Foreign Table References to wandb.Table
+- Allow the same runtime object to be logged to multiple artifacts
+- Add experimental `run._define_metric()` support
+- Warn and ignore unsupported multiprocess `wandb.log()` calls
+
+## 0.10.22 (March 9, 2021)
+
+#### :bug: Bug Fix
+
+- Fix system metric logging rate in 0.10.x
+- Fix Audio external reference issue
+- Fix short runs with tensorboard_sync
+- Ignore `wandb.init(id=)` when running a sweep
+- Sanitize artifact metadata if needed
+
+#### :nail_care: Enhancement
+
+- Allow syncing of tfevents with `wandb sync --sync-tensorboard`
+
 ## 0.10.21 (March 2, 2021)
 
 #### :bug: Bug Fix
