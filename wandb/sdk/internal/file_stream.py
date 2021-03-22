@@ -290,7 +290,7 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in wandb.util.split_files(files, MAX_MB=10):
+        for fs in wandb.wandb_sdk.lib.file_stream_utils.split_files(files, max_mb=10):
             self._handle_response(
                 util.request_with_retry(
                     self._client.post, self._endpoint, json={"files": fs}
