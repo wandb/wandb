@@ -5,6 +5,7 @@
 - Fix logged artifacts to be accessible after wait()
 - Fix spell.run integration
 - Performance fix syncing console logs with carriage returns
+- Fix confusion matrix with class names and unlabeled data
 
 #### :nail_care: Enhancement
 
