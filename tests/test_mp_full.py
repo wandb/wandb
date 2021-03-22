@@ -60,7 +60,9 @@ def test_multiproc_ignore(live_mock_server, parse_ctx):
     assert dict(val=3, val2=1, mystep=3) == s
 
 
+@pytest.mark.flaky
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
+@pytest.mark.xfail(platform.system() == "darwin", reason="console parse_ctx issues")
 def test_multiproc_strict(live_mock_server, parse_ctx):
     run = wandb.init(settings=wandb.Settings(strict="true"))
 
