@@ -38,6 +38,9 @@ class Api(object):
     def download_file(self, *args, **kwargs):
         return self.api.download_file(*args, **kwargs)
 
+    def download_write_file(self, metadata, out_dir=None):
+        return self.api.download_write_file(metadata, out_dir=out_dir)
+
     def set_current_run_id(self, run_id):
         return self.api.set_current_run_id(run_id)
 
