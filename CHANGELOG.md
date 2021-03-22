@@ -1,3 +1,19 @@
+## 0.10.23 (March 22, 2021)
+
+#### :bug: Bug Fix
+
+- Fix logged artifacts to be accessible after wait()
+- Fix spell.run integration
+- Performance fix syncing console logs with carriage returns
+
+#### :nail_care: Enhancement
+
+- Add the ability to save artifacts without creating a run
+- Add Foreign Table References to wandb.Table
+- Allow the same runtime object to be logged to multiple artifacts
+- Add experimental `run._define_metric()` support
+- Warn and ignore unsupported multiprocess `wandb.log()` calls
+
 ## 0.10.22 (March 9, 2021)
 
 #### :bug: Bug Fix
