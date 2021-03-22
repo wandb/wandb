@@ -16,7 +16,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import

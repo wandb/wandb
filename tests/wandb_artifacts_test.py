@@ -879,7 +879,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     assert art.checkout() is not None
     with pytest.raises(ValueError):  # mock issue
         assert art.verify() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+    with pytest.raises(wandb.errors.CommError):  # mock issue
         assert art.save() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+    with pytest.raises(wandb.errors.CommError):  # mock issue
         assert art.delete() is not None
