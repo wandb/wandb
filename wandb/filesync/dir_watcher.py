@@ -131,7 +131,7 @@ class PolicyLive(FileEventHandler):
             return 0
 
         time_elapsed = self.last_uploaded()
-        if not self.synced or time_elapsed > self.min_wait_for_size(self.current_size):
+        if not self.synced and time_elapsed > self.min_wait_for_size(self.current_size):
             self.save_file()
         # if the run is finished, or wandb.save is called explicitly save me
         elif force and not self.synced:
