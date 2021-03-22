@@ -339,9 +339,10 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     internal_sender.publish_output("stdout", "\rFinal line baby\n")
     stop_backend()
     print("DUDE!", mock_server.ctx)
+    stream = next(m for m in mock_server.ctx["file_stream"] if m.get("files"))
     assert (
         "Final line baby"
-        in mock_server.ctx["file_stream"][0]["files"]["output.log"]["content"][0]
+        in stream["files"]["output.log"]["content"][0]
     )
 
 
