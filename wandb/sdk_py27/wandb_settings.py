@@ -102,6 +102,7 @@ env_settings = dict(
     silent=None,
     sagemaker_disable=None,
     start_method=None,
+    strict=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -241,6 +242,7 @@ class Settings(object):
     # notebook_name: Optional[str]
     # host: Optional[str]
     # resume: str
+    strict = None
 
     # Public attributes
     entity = None
@@ -308,7 +310,7 @@ class Settings(object):
         relogin = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
-        # strict=None,  # set to "on" to enforce current best practices (also "warn")
+        strict = None,
         problem = "fatal",
         # dynamic settings
         system_sample_seconds = 2,
@@ -422,6 +424,12 @@ class Settings(object):
         if not self.silent:
             return None
         return _str_as_bool(self.silent)
+
+    @property
+    def _strict(self):
+        if not self.strict:
+            return None
+        return _str_as_bool(self.strict)
 
     @property
     def _show_info(self):
@@ -606,6 +614,12 @@ class Settings(object):
         if value in choices:
             return None
         return _error_choices(value, choices)
+
+    def _validate_strict(self, value):
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+        return None
 
     def _validate_silent(self, value):
         val = _str_as_bool(value)

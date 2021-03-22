@@ -941,7 +941,11 @@ class ParseCTX(object):
                 assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                l.extend(map(json.loads, content))
+                if k == u"output.log":
+                    lines = [content]
+                else:
+                    lines = map(json.loads, content)
+                l.extend(lines)
             data[k] = l
         return data
 
