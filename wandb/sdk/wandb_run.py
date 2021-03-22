@@ -23,6 +23,7 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -234,6 +235,8 @@ class Run(object):
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
 
+    _pid: int
+
     def __init__(
         self,
         settings: Settings,
@@ -333,6 +336,8 @@ class Run(object):
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
+
+        self._pid = os.getpid()
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -1001,7 +1006,19 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        # TODO(cling): sync is a noop for now
+        current_pid = os.getpid()
+        if current_pid != self._pid:
+            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                current_pid, self._pid
+            )
+            if self._settings._strict:
+                wandb.termerror(message, repeat=False)
+                raise errors.LogMultiprocessError(
+                    "log() does not support multiprocessing"
+                )
+            wandb.termwarn(message, repeat=False)
+            return
+
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
@@ -1866,8 +1883,9 @@ class Run(object):
             step_sync: Automatically add `step_metric` to history if needed.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best"
-                (best defaults to goal==minimize)
+                Supported aggregations: "min,max,mean,best,last,none"
+                Default aggregation is `copy`
+                Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
                 Supported direections: "minimize,maximize"
 
@@ -1909,7 +1927,7 @@ class Run(object):
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best"}
+            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(

@@ -81,7 +81,7 @@ def mock_sagemaker(mocker):
         if path in (config_path, secrets_path, resource_path):
             return True
         else:
-            orig_exist(path)
+            return orig_exist(path)
 
     mocker.patch("wandb.util.os.path.exists", exists)
 
@@ -95,8 +95,7 @@ def mock_sagemaker(mocker):
         else:
             return six.StringIO()
 
-    mocker.patch("wandb.open", magic, create=True)
-    mocker.patch("wandb.util.open", magic, create=True)
+    mocker.patch("builtins.open", magic, create=True)
     return env
 
 
