@@ -16,7 +16,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
@@ -498,7 +498,7 @@ class Artifact(ArtifactInterface):
         else:
             if wandb.run is None:
                 if settings is None:
-                    settings = wandb.Settings(silent=True)
+                    settings = wandb.Settings(silent="true")
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:
