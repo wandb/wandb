@@ -999,45 +999,45 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
+        if not checksum:
+            return [
+                ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
+            ]
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
-            if checksum:
-                termlog(
-                    'Generating checksum for up to %i files in "%s"...\n'
-                    % (max_objects, local_path),
-                    newline=False,
-                )
+            termlog(
+                'Generating checksum for up to %i files in "%s"...\n'
+                % (max_objects, local_path),
+                newline=False,
+            )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
-                    if checksum:
-                        i += 1
-                        if i >= max_objects:
-                            raise ValueError(
-                                "Exceeded %i objects tracked, pass max_objects to add_reference"
-                                % max_objects
-                            )
+                    i += 1
+                    if i >= max_objects:
+                        raise ValueError(
+                            "Exceeded %i objects tracked, pass max_objects to add_reference"
+                            % max_objects
+                        )
                     physical_path = os.path.join(root, sub_path)
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
-                    abs_path = os.path.join(path, logical_path)
                     entry = ArtifactManifestEntry(
                         logical_path,
-                        abs_path,
+                        os.path.join(path, logical_path),
                         size=os.path.getsize(physical_path),
-                        digest=md5_file_b64(physical_path) if checksum else abs_path,
+                        digest=md5_file_b64(physical_path),
                     )
                     entries.append(entry)
-            if checksum:
-                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
                 name,
                 path,
                 size=os.path.getsize(local_path),
-                digest=md5_file_b64(local_path) if checksum else path,
+                digest=md5_file_b64(local_path),
             )
             entries.append(entry)
         else:
