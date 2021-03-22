@@ -820,9 +820,6 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
             )
         }
     )
-    run.summary["logged_table_2"] = wandb.Table(
-        columns=["a"], data=[[wandb.Image(np.zeros(shape=(32, 32)))]]
-    )
     run.finish()
     assert True
 
