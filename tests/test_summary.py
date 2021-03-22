@@ -1,6 +1,6 @@
 import pytest
 import wandb
-import numpy
+import numpy as np
 
 
 @pytest.fixture
