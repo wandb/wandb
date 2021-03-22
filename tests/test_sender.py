@@ -340,10 +340,7 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     stop_backend()
     print("DUDE!", mock_server.ctx)
     stream = next(m for m in mock_server.ctx["file_stream"] if m.get("files"))
-    assert (
-        "Final line baby"
-        in stream["files"]["output.log"]["content"][0]
-    )
+    assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 
 def test_sync_spell_run(
