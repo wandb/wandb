@@ -680,7 +680,7 @@ class ArtifactManifestEntry(object):
         ref,
         digest,
         birth_artifact_id=None,
-        size=None,
+        size=0,
         extra=None,
         local_path=None,
     ):
