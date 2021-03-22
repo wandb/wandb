@@ -717,7 +717,7 @@ class Table(Media):
             convert_to: (str, optional)
                 - "numpy": will convert the underlying data to numpy object
         """
-        assert isinstance(name, str) and name in self.columns
+        assert name in self.columns
         assert convert_to is None or convert_to == "numpy"
         if convert_to == "numpy":
             np = util.get_module(
