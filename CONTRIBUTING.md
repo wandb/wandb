@@ -83,6 +83,12 @@ You should run this before you make a commit.  To run specific tests in a specif
 tox -e py37 -- tests/test_public_api.py -k substring_of_test
 ```
 
+Sometimes pytest will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
+
+```shell
+tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
+```
+
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
