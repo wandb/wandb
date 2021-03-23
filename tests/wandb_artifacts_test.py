@@ -506,6 +506,47 @@ def test_add_obj_wbimage(runner):
         }
 
 
+def test_add_obj_using_brackets(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact["my-image"] = wb_image
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
+            },
+        }
+
+    with pytest.raises(ValueError):
+        image = artifact["my-image"]
+
+
+def test_artifact_interface_get_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        image = art["my-image"]
+
+
+def test_artifact_interface_set_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        art["my-image"] = 1
+
+
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
@@ -669,7 +710,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "kJPf7PcvlWghO76CNasUcA==", "size": 914},
+            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
         }
 
 
@@ -701,7 +742,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "V1w+XYRLetoEXW3R8ANoaA==", "size": 700},
+            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
         }
 
 

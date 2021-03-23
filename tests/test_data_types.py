@@ -941,3 +941,16 @@ def test_ndarrays_in_tables():
         nda_table._column_types.params["type_map"]["odd_col"],
         wandb.data_types._dtypes.NDArrayType,
     )
+
+
+def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log(
+        {
+            "logged_table": wandb.Table(
+                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+            )
+        }
+    )
+    run.finish()
+    assert True

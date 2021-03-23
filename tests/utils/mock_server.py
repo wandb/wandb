@@ -691,13 +691,37 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if file == "wandb_manifest.json":
-            if _id == "4dbe219a39b4eead9ab4683019124acc":
+            if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
                     "storagePolicyConfig": {},
                     "contents": {
                         "t1.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "f006aa8f99aa79d7b68e079c0a200d21":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "b9a598178557aed1d89bd93ec0db989b":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table_2.table.json": {
                             "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         }
@@ -746,6 +770,10 @@ def create_app(user_ctx=None):
                         "parts/1.table.json": {
                             "digest": "1aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
+                        },
+                        "t.table.json": {
+                            "digest": "2aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 123,
                         },
                     },
                 }
@@ -837,6 +865,23 @@ index 30d74d2..9a2c773 100644
                             "data": [[0, 0, 1]],
                             "ncols": 3,
                             "nrows": 1,
+                        }
+                    ),
+                    200,
+                )
+            elif digest == "d9a69a69a69a69a69a69a69a69a69a69":  # "t.table.json"
+                return (
+                    json.dumps(
+                        {
+                            "_type": "table",
+                            "column_types": {
+                                "params": {"type_map": {}},
+                                "wb_type": "dictionary",
+                            },
+                            "columns": [],
+                            "data": [],
+                            "ncols": 0,
+                            "nrows": 0,
                         }
                     ),
                     200,

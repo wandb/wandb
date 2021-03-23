@@ -122,6 +122,20 @@ class _TableIndex(int, _TableLinkMixin):
     pass
 
 
+def _json_helper(val, artifact):
+    if isinstance(val, WBValue):
+        return val.to_json(artifact)
+    elif val.__class__ == dict:
+        res = {}
+        for key in val:
+            res[key] = _json_helper(val[key], artifact)
+        return res
+    elif hasattr(val, "tolist"):
+        return val.tolist()
+    else:
+        return util.json_friendly(val)[0]
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -315,19 +329,24 @@ class Table(Media):
         ), "Found column type {}, expected column type {}".format(
             other._column_types, self._column_types
         )
-        for row_ndx in range(len(self.data)):
-            for col_ndx in range(len(self.data[row_ndx])):
-                eq = eq and self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
-                assert (
-                    not should_assert or eq
-                ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                    row_ndx,
-                    col_ndx,
-                    other.data[row_ndx][col_ndx],
-                    self.data[row_ndx][col_ndx],
-                )
-                if not eq:
-                    return eq
+        if eq:
+            for row_ndx in range(len(self.data)):
+                for col_ndx in range(len(self.data[row_ndx])):
+                    _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                    # equal if all are equal
+                    if util.is_numpy_array(_eq):
+                        _eq = ((_eq * -1) + 1).sum() == 0
+                    eq = eq and _eq
+                    assert (
+                        not should_assert or eq
+                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                        row_ndx,
+                        col_ndx,
+                        other.data[row_ndx][col_ndx],
+                        self.data[row_ndx][col_ndx],
+                    )
+                    if not eq:
+                        return eq
         return eq
 
     def __eq__(self, other):
@@ -408,25 +427,37 @@ class Table(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
-
+        column_types = None
         np_deserialized_columns = {}
-        if (
-            "np_serialized_path" in json_obj
-            and "np_serialized_columns" in json_obj
-            and json_obj["np_serialized_path"] is not None
-            and json_obj["np_serialized_columns"] is not None
-            and len(json_obj["np_serialized_columns"]) > 0
-        ):
-            np = util.get_module(
-                "numpy",
-                required="Deserializing numpy columns requires numpy to be installed",
+        if json_obj.get("column_types") is not None:
+            column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
             )
-            deserialized = np.load(
-                source_artifact.get_path(json_obj["np_serialized_path"]).download()
-            )
-            for col_name in json_obj["np_serialized_columns"]:
-                col_ndx = json_obj["columns"].index(col_name)
-                np_deserialized_columns[col_ndx] = deserialized[col_name]
+            for col_name in column_types.params["type_map"]:
+                col_type = column_types.params["type_map"][col_name]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if (
+                    ndarray_type is not None
+                    and ndarray_type._get_serialization_path() is not None
+                ):
+                    serialization_path = ndarray_type._get_serialization_path()
+                    np = util.get_module(
+                        "numpy",
+                        required="Deserializing numpy columns requires numpy to be installed",
+                    )
+                    deserialized = np.load(
+                        source_artifact.get_path(serialization_path["path"]).download()
+                    )
+                    np_deserialized_columns[
+                        json_obj["columns"].index(col_name)
+                    ] = deserialized[serialization_path["key"]]
+                    ndarray_type._clear_serialization_path()
 
         for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
@@ -443,10 +474,8 @@ class Table(Media):
 
         new_obj = cls(columns=json_obj["columns"], data=data)
 
-        if json_obj.get("column_types") is not None:
-            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-                json_obj["column_types"], source_artifact
-            )
+        if column_types is not None:
+            new_obj._column_types = column_types
 
         new_obj._update_keys()
         return new_obj
@@ -476,51 +505,34 @@ class Table(Media):
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
 
-            ndarray_col_names = []
             ndarray_col_ndxs = set()
-            ndarray_col_data = {}
             for col_ndx, col_name in enumerate(self.columns):
                 col_type = self._column_types.params["type_map"][col_name]
-                if isinstance(col_type, _dtypes.NDArrayType) or (
-                    isinstance(col_type, _dtypes.UnionType)
-                    and any(
-                        [
-                            isinstance(t, _dtypes.NDArrayType)
-                            for t in col_type.params["allowed_types"]
-                        ]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if ndarray_type is not None:
+                    np = util.get_module(
+                        "numpy",
+                        required="Serializing numpy requires numpy to be installed",
                     )
-                ):
-                    ndarray_col_names.append(col_name)
+                    file_name = "{}_{}.npz".format(
+                        str(col_name), str(util.generate_id())
+                    )
+                    npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+                    np.savez_compressed(
+                        npz_file_name,
+                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                    )
+                    entry = artifact.add_file(
+                        npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
+                    )
+                    ndarray_type._set_serialization_path(entry.path, str(col_name))
                     ndarray_col_ndxs.add(col_ndx)
-                    ndarray_col_data[col_name] = self.get_column(
-                        col_name, convert_to="numpy"
-                    )
-
-            np_serialized_path = None
-            if len(ndarray_col_names) > 0:
-                np = util.get_module(
-                    "numpy", required="Serializing numpy requires numpy to be installed"
-                )
-                file_name = str(util.generate_id()) + ".npz"
-                npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
-                np.savez_compressed(npz_file_name, **ndarray_col_data)
-                entry = artifact.add_file(
-                    npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
-                )
-                np_serialized_path = entry.path
-
-            def json_helper(val):
-                if isinstance(val, WBValue):
-                    return val.to_json(artifact)
-                elif val.__class__ == dict:
-                    res = {}
-                    for key in val:
-                        res[key] = json_helper(val[key])
-                    return res
-                elif hasattr(val, "tolist"):
-                    return val.tolist()
-                else:
-                    return util.json_friendly(val)[0]
 
             for row in data:
                 mapped_row = []
@@ -528,8 +540,9 @@ class Table(Media):
                     if ndx in ndarray_col_ndxs:
                         mapped_row.append("ndarray({})".format(v.shape))
                     else:
-                        mapped_row.append(json_helper(v))
+                        mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
+
             json_dict.update(
                 {
                     "_type": Table.artifact_type,
@@ -538,8 +551,6 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
-                    "np_serialized_path": np_serialized_path,
-                    "np_serialized_columns": ndarray_col_names,
                 }
             )
         else:
