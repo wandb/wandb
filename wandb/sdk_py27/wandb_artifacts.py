@@ -16,7 +16,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
@@ -246,7 +246,7 @@ class Artifact(ArtifactInterface):
     @metadata.setter
     def metadata(self, metadata):
         if self._logged_artifact:
-            self._metadata = metadata
+            self._logged_artifact.metadata = metadata
             return
 
         self._metadata = metadata
@@ -410,10 +410,8 @@ class Artifact(ArtifactInterface):
             return self._added_objs[obj_id]["entry"]
 
         # If the object is coming from another artifact, save it as a reference
-        if obj.artifact_source and obj.artifact_source.name:
-            ref_path = obj.artifact_source.artifact.get_path(
-                type(obj).with_suffix(obj.artifact_source.name)
-            )
+        ref_path = obj._get_artifact_reference_entry()
+        if ref_path is not None:
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
         val = obj.to_json(self)
@@ -432,6 +430,8 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
         self._added_objs[obj_id] = {"entry": entry, "obj": obj}
+        if obj._artifact_target is None:
+            obj._set_artifact_target(self, entry.path)
 
         return entry
 
@@ -498,7 +498,7 @@ class Artifact(ArtifactInterface):
         else:
             if wandb.run is None:
                 if settings is None:
-                    settings = wandb.Settings(silent=True)
+                    settings = wandb.Settings(silent="true")
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:

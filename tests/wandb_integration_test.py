@@ -153,7 +153,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
     assert "baz" not in run.config
     run.join()
 
-    with pytest.raises(wandb.errors.error.UsageError):
+    with pytest.raises(wandb.errors.UsageError):
         run = wandb.init(
             reinit=True,
             resume=True,
