@@ -383,6 +383,15 @@ def test_artifact_manual_use(runner, mock_server, api):
     assert True
 
 
+def test_artifact_bracket_accessor(runner, mock_server, api):
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    assert art["t"].__class__ == wandb.Table
+    assert art["s"] is None
+    # TODO: Remove this once we support incremental adds
+    with pytest.raises(ValueError):
+        art["s"] = wandb.Table(data=[], columns=[])
+
+
 def test_artifact_manual_log(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
