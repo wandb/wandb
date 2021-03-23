@@ -15,12 +15,7 @@ from wandb import env
 
 from six.moves import queue
 
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib.file_stream_utils import split_files
-else:
-    from wandb.sdk_py27.lib.file_stream_utils import split_files
+from ..lib import file_stream_utils
 
 
 logger = logging.getLogger(__name__)
@@ -277,7 +272,7 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in split_files(files, max_mb=10):
+        for fs in file_stream_utils.split_files(files, max_mb=10):
             self._handle_response(
                 util.request_with_retry(
                     self._client.post, self._endpoint, json={"files": fs}
