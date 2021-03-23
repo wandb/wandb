@@ -41,7 +41,7 @@ def test_split_files():
         % i: {"content": rand_string_list(int(file_size * 1024 * 1024)), "offset": 0}
         for i in range(num_files)
     }
-    chunks = list(split_files(files, MAX_MB=chunk_size))
+    chunks = list(split_files(files, max_mb=chunk_size))
 
     # re-combine chunks
     buff = {}

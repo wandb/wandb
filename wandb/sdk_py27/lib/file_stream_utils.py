@@ -6,7 +6,7 @@ if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
 
 
-def split_files(files, max_mb = 10):
+def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, Dict]]:
     """
     Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_MB` size.
     This method is used in `FileStreamAPI._send()` to limit the size of post requests sent
