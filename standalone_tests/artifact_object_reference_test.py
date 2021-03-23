@@ -33,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio", "np_data"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -200,7 +200,7 @@ def _make_wandb_table():
         {"id": 3, "name": "road"},
     ])
     table = wandb.Table(
-        columns=columns,
+        columns=[c for c in columns[:-1]],
         data=[
             [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
             [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud_ref_https],
@@ -209,7 +209,7 @@ def _make_wandb_table():
         ],
     )
     table.cast("class_id", classes.get_type())
-    table.add_column("np_data", np_data)
+    table.add_column(columns[-1], np_data)
     return table
 
 def _make_wandb_joinedtable():

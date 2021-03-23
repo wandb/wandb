@@ -525,9 +525,7 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        **{
-                            str(col_name): self.get_column(col_name, convert_to="numpy")
-                        },
+                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
