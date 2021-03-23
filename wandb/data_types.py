@@ -331,7 +331,11 @@ class Table(Media):
         )
         for row_ndx in range(len(self.data)):
             for col_ndx in range(len(self.data[row_ndx])):
-                eq = eq and self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                # equal if all are equal
+                if util.is_numpy_array(_eq):
+                    _eq = ((_eq * -1) + 1).sum() == 0
+                eq = eq and _eq
                 assert (
                     not should_assert or eq
                 ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
@@ -422,11 +426,14 @@ class Table(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
-
+        column_types = None
         np_deserialized_columns = {}
         if json_obj.get("column_types") is not None:
-            for col_name in json_obj["column_types"].params["type_map"]:
-                col_type = json_obj["column_types"].params["type_map"][col_name]
+            column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
+            for col_name in column_types.params["type_map"]:
+                col_type = column_types.params["type_map"][col_name]
                 ndarray_type = None
                 if isinstance(col_type, _dtypes.NDArrayType):
                     ndarray_type = col_type
@@ -436,19 +443,19 @@ class Table(Media):
                             ndarray_type = t
                 if (
                     ndarray_type is not None
-                    and ndarray_type.params.get("serialization_path") is not None
+                    and ndarray_type._get_serialization_path() is not None
                 ):
+                    serialization_path = ndarray_type._get_serialization_path()
                     np = util.get_module(
                         "numpy",
                         required="Deserializing numpy columns requires numpy to be installed",
                     )
                     deserialized = np.load(
-                        source_artifact.get_path(
-                            ndarray_type.params["serialization_path"]["path"]
-                        ).download()
-                    )[ndarray_type.params["serialization_path"]["key"]]
-                    col_ndx = json_obj["columns"].index(col_name)
-                    np_deserialized_columns[col_ndx] = deserialized[col_name]
+                        source_artifact.get_path(serialization_path["path"]).download()
+                    )
+                    np_deserialized_columns[
+                        json_obj["columns"].index(col_name)
+                    ] = deserialized[serialization_path["key"]]
                     ndarray_type._clear_serialization_path()
 
         for r_ndx, row in enumerate(json_obj["data"]):
@@ -466,10 +473,8 @@ class Table(Media):
 
         new_obj = cls(columns=json_obj["columns"], data=data)
 
-        if json_obj.get("column_types") is not None:
-            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-                json_obj["column_types"], source_artifact
-            )
+        if column_types is not None:
+            new_obj._column_types = column_types
 
         new_obj._update_keys()
         return new_obj
@@ -520,7 +525,9 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        {str(col_name): self.get_column(col_name, convert_to="numpy")},
+                        **{
+                            str(col_name): self.get_column(col_name, convert_to="numpy")
+                        },
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True

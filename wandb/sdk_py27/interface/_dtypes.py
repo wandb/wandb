@@ -274,7 +274,8 @@ class Type(object):
         return self is other or (
             isinstance(self, Type)
             and isinstance(other, Type)
-            and self.to_json() == other.to_json()
+            and self.params.keys() == other.params.keys()
+            and all([self.params[k] == other.params[k] for k in self.params])
         )
 
 
@@ -652,9 +653,15 @@ class NDArrayType(Type):
 
     name = "ndarray"
     types = []  # will manually add type if np is available
+    # _serialization_path: t.Optional[t.Dict[str, str]]
 
-    def __init__(self, shape):
+    def __init__(
+        self,
+        shape,
+        serialization_path = None,
+    ):
         self.params.update({"shape": list(shape)})
+        self._serialization_path = serialization_path
 
     @classmethod
     def from_obj(cls, py_obj = None):
@@ -697,21 +704,28 @@ class NDArrayType(Type):
 
         return InvalidType()
 
-    def __eq__(self, other):
-        # Purposely overriding equality operator since serialization path
-        # should not be taken into consideration when determining equality
-        return self is other or (
-            isinstance(self, Type)
-            and isinstance(other, Type)
-            and self.params["shape"] == other.params["shape"]
-        )
+    def to_json(
+        self, artifact = None
+    ):
+        # custom override to support serialization path outside of params internal dict
+        res = {
+            "wb_type": self.name,
+            "params": {
+                "shape": self.params["shape"],
+                "serialization_path": self._serialization_path,
+            },
+        }
+
+        return res
+
+    def _get_serialization_path(self):
+        return self._serialization_path
 
     def _set_serialization_path(self, path, key):
-        self.params.update({"serialization_path": {"path": path, "str": str}})
+        self._serialization_path = {"path": path, "key": key}
 
     def _clear_serialization_path(self):
-        if "serialization_path" in self.params:
-            del self.params["serialization_path"]
+        self._serialization_path = None
 
 
 if np:

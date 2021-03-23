@@ -191,6 +191,7 @@ aud_ref_gs = wandb.Audio(
     caption="star wars gs"
 )
 
+np_data = np.random.randint(255, size=(4, 16, 16, 3))
 
 def _make_wandb_table():
     classes = wandb.Classes([
@@ -208,6 +209,7 @@ def _make_wandb_table():
         ],
     )
     table.cast("class_id", classes.get_type())
+    table.add_column("np_data", np_data)
     return table
 
 def _make_wandb_joinedtable():
