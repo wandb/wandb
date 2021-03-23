@@ -511,8 +511,20 @@ def test_table_slice_reference_artifact():
     assert not os.path.isdir(os.path.join(artifact_2._default_root()))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
-    assert t1.data[:1] == table1.data
-    assert t1.data[1:] == table2.data
+
+    def assert_eq_data(d1, d2):
+        assert len(d1) == len(d2)
+        for ndx in range(len(d1)):
+            assert len(d1[ndx]) == len(d2[ndx])
+            for i in range(len(d1[ndx])):
+                eq = d1[ndx][i] == d2[ndx][i]
+                if isinstance(eq, list) or isinstance(eq, np.ndarray):
+                    assert np.all(eq)
+                else:
+                    assert eq
+    
+    assert_eq_data(t1.data[:1], table1.data)
+    assert_eq_data(t1.data[1:], table2.data)
 
 # General helper function which will perform the following:
 #   Add the object to an artifact

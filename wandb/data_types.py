@@ -329,23 +329,24 @@ class Table(Media):
         ), "Found column type {}, expected column type {}".format(
             other._column_types, self._column_types
         )
-        for row_ndx in range(len(self.data)):
-            for col_ndx in range(len(self.data[row_ndx])):
-                _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
-                # equal if all are equal
-                if util.is_numpy_array(_eq):
-                    _eq = ((_eq * -1) + 1).sum() == 0
-                eq = eq and _eq
-                assert (
-                    not should_assert or eq
-                ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                    row_ndx,
-                    col_ndx,
-                    other.data[row_ndx][col_ndx],
-                    self.data[row_ndx][col_ndx],
-                )
-                if not eq:
-                    return eq
+        if eq:
+            for row_ndx in range(len(self.data)):
+                for col_ndx in range(len(self.data[row_ndx])):
+                    _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                    # equal if all are equal
+                    if util.is_numpy_array(_eq):
+                        _eq = ((_eq * -1) + 1).sum() == 0
+                    eq = eq and _eq
+                    assert (
+                        not should_assert or eq
+                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                        row_ndx,
+                        col_ndx,
+                        other.data[row_ndx][col_ndx],
+                        self.data[row_ndx][col_ndx],
+                    )
+                    if not eq:
+                        return eq
         return eq
 
     def __eq__(self, other):
