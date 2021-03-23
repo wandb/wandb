@@ -697,6 +697,22 @@ class NDArrayType(Type):
 
         return InvalidType()
 
+    def __eq__(self, other):
+        # Purposely overriding equality operator since serialization path
+        # should not be taken into consideration when determining equality
+        return self is other or (
+            isinstance(self, Type)
+            and isinstance(other, Type)
+            and self.params["shape"] == other.params["shape"]
+        )
+
+    def _set_serialization_path(self, path: str, key: str) -> None:
+        self.params.update({"serialization_path": {"path": path, "str": str}})
+
+    def _clear_serialization_path(self) -> None:
+        if "serialization_path" in self.params:
+            del self.params["serialization_path"]
+
 
 if np:
     NDArrayType.types.append(np.ndarray)
