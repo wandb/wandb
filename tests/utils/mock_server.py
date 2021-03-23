@@ -689,7 +689,7 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if file == "wandb_manifest.json":
-            if _id == "4dbe219a39b4eead9ab4683019124acc":
+            if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
