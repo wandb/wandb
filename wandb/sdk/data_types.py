@@ -428,8 +428,6 @@ class Media(WBValue):
         # Following assertion required for mypy
         assert self._run is not None
 
-        base_path = os.path.join(self._run.dir, self.get_media_subdir())
-
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
         else:
@@ -440,7 +438,7 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        new_path = os.path.join(base_path, file_path)
+        new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:
@@ -497,6 +495,9 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is not None:
+                json_obj["artifact_path"] = artifact_entry.ref_url()
         elif isinstance(run, artifact_class):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
@@ -2115,6 +2116,14 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
+            if hasattr(val, "artifact_type") and val.artifact_type == "table":
+                # Special conditional to log tables as artifact entries as well.
+                # I suspect we will generalize this as we transition to storing all
+                # files in an artifact
+                _, artifact_class = _safe_sdk_import()
+                art = artifact_class("run-{}-{}".format(run.id, key), "run_table")
+                art.add(val, key)
+                run.log_artifact(art)
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
@@ -2136,7 +2145,7 @@ def _wb_filename(
 
 def _numpy_arrays_to_lists(
     payload: Union[dict, Sequence, "np.ndarray"]
-) -> Union[Sequence, dict]:
+) -> Union[Sequence, dict, str, int, float, bool]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
@@ -2150,7 +2159,9 @@ def _numpy_arrays_to_lists(
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
-
+    # Protects against logging non serializable objects
+    elif isinstance(payload, Media):
+        return str(payload.__class__.__name__)
     return payload
 
 
