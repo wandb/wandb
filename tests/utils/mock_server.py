@@ -30,6 +30,7 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
+        "file_bytes": 0,
     }
 
 
@@ -296,6 +297,7 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
+            app.logger.info("graphql requested file: %s", requested_file)
             url = request.url_root + "/storage?file={}&run={}".format(
                 urllib.parse.quote(requested_file), ctx["current_run"]
             )
@@ -688,6 +690,8 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
+        if request.method == "PUT":
+            ctx["file_bytes"] += request.content_length
         if file == "wandb_manifest.json":
             if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {

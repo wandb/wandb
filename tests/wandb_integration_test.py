@@ -5,6 +5,7 @@ specific backend logic, or wandb_test.py for testing frontend logic.
 Be sure to use `test_settings` or an isolated directory
 """
 import wandb
+from wandb.filesync.dir_watcher import PolicyLive
 import pytest
 import json
 import platform
@@ -15,6 +16,13 @@ import shutil
 from .utils import fixture_open
 import sys
 import six
+import time
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -348,3 +356,24 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+
+
+def test_live_policy_file_upload(live_mock_server, monkeypatch, test_settings):
+    run = wandb.init(settings=test_settings)
+    fpath = "/tmp/testFile"
+    time.sleep(1)
+    with open(fpath, "w") as fp:
+        fp.write("a" * 5000)
+        fp.close()
+    wandb.save(fpath, policy="live")
+
+    with open(fpath, "w") as fp:
+        fp.write("b" * 5000)
+        fp.close()
+    # time.sleep(5)
+    with open(fpath, "a") as fp:
+        fp.write("a" * 5000)
+        fp.close()
+    time.sleep(5)
+    server_ctx = live_mock_server.get_ctx()
+    assert False
