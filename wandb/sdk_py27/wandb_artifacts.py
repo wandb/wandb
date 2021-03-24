@@ -1706,7 +1706,7 @@ class WBArtifactHandler(StorageHandler):
         if local:
             link_target_path = dep_artifact.get_path(artifact_file_path).download()
         else:
-            link_target_path = dep_artifact.get_path(artifact_file_path).ref
+            link_target_path = dep_artifact.get_path(artifact_file_path).ref()
 
         return link_target_path
 
