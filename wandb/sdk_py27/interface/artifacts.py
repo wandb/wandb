@@ -475,7 +475,9 @@ class Artifact(object):
         ```
 
         Arguments:
-            obj: (wandb.WBValue) The object to add.
+            obj: (wandb.WBValue) The object to add. Currently support one of
+                Bokeh, JoinedTable, PartitionedTable, Table, Classes, ImageMask,
+                BoundingBoxes2D, Audio, Image, Video, Html, Object3D
             name: (str) The path within the artifact to add the object.
 
         Returns:
