@@ -267,7 +267,7 @@ class BackendSender(object):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
-            proto_entry.size = entry.size
+            proto_entry.size = entry.size  # type: ignore
             if entry.birth_artifact_id:
                 proto_entry.birth_artifact_id = entry.birth_artifact_id
             if entry.ref:

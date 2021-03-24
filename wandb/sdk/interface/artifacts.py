@@ -11,7 +11,16 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict, Callable, TYPE_CHECKING
+    from typing import (
+        List,
+        Optional,
+        Union,
+        Dict,
+        Callable,
+        TYPE_CHECKING,
+        Sequence,
+        Tuple,
+    )
 
     if TYPE_CHECKING:
         import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
@@ -49,6 +58,8 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest(object):
+    entries: Dict[str, "ArtifactEntry"]
+
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
@@ -82,7 +93,7 @@ class ArtifactManifest(object):
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path):
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
@@ -100,7 +111,7 @@ class ArtifactEntry(object):
     ref: Optional[str]
     digest: str
     birth_artifact_id: Optional[str]
-    size: Optional[int]
+    size: int
     extra: Dict
     local_path: Optional[str]
 
@@ -595,7 +606,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def verify(self, root: Optional[str] = None):
+    def verify(self, root: Optional[str] = None) -> bool:
         """
         Verify that the actual contents of an artifact at a specified directory
         `root` match the expected contents of the artifact according to its
@@ -782,7 +793,9 @@ class StorageHandler(object):
         """
         pass
 
-    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+    def store_path(
+        self, artifact, path, name=None, checksum=True, max_objects=None
+    ) -> Sequence[ArtifactEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -804,7 +817,7 @@ class ArtifactsCache(object):
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id = {}
 
-    def check_md5_obj_path(self, b64_md5, size):
+    def check_md5_obj_path(self, b64_md5, size) -> Tuple[str, bool]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         if os.path.isfile(path) and os.path.getsize(path) == size:
@@ -812,7 +825,7 @@ class ArtifactsCache(object):
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False
 
-    def check_etag_obj_path(self, etag, size):
+    def check_etag_obj_path(self, etag, size) -> Tuple[str, bool]:
         path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True

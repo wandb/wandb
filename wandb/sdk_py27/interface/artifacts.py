@@ -11,7 +11,16 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict, Callable, TYPE_CHECKING
+    from typing import (
+        List,
+        Optional,
+        Union,
+        Dict,
+        Callable,
+        TYPE_CHECKING,
+        Sequence,
+        Tuple,
+    )
 
     if TYPE_CHECKING:
         import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
@@ -49,6 +58,8 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest(object):
+    # entries: Dict[str, "ArtifactEntry"]
+
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
@@ -100,7 +111,7 @@ class ArtifactEntry(object):
     # ref: Optional[str]
     # digest: str
     # birth_artifact_id: Optional[str]
-    # size: Optional[int]
+    # size: int
     # extra: Dict
     # local_path: Optional[str]
 
@@ -782,7 +793,9 @@ class StorageHandler(object):
         """
         pass
 
-    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+    def store_path(
+        self, artifact, path, name=None, checksum=True, max_objects=None
+    ):
         """
         Stores the file or directory at the given path within the specified artifact.
 
