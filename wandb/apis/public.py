@@ -2479,73 +2479,6 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-class ArtifactEntry(artifacts.ArtifactEntry):
-    def __init__(self, name, entry, parent_artifact):
-        self.name = name
-        self.entry = entry
-        self._parent_artifact = parent_artifact
-
-    def parent_artifact(self):
-        return self._parent_artifact
-
-    @staticmethod
-    def copy(cache_path, target_path):
-        # can't have colons in Windows
-        if platform.system() == "Windows":
-            head, tail = os.path.splitdrive(target_path)
-            target_path = head + tail.replace(":", "-")
-
-        need_copy = (
-            not os.path.isfile(target_path)
-            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-        )
-        if need_copy:
-            util.mkdir_exists_ok(os.path.dirname(target_path))
-            # We use copy2, which preserves file metadata including modified
-            # time (which we use above to check whether we should do the copy).
-            shutil.copy2(cache_path, target_path)
-        return target_path
-
-    def download(self, root=None):
-        root = root or self._parent_artifact._default_root()
-        self._parent_artifact._add_download_root(root)
-        manifest = self._parent_artifact._load_manifest()
-        if self.entry.ref is not None:
-            cache_path = manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
-                manifest.entries[self.name],
-                local=True,
-            )
-        else:
-            cache_path = manifest.storage_policy.load_file(
-                self._parent_artifact, self.name, manifest.entries[self.name]
-            )
-
-        return ArtifactEntry(self.name, self.entry, self._parent_artifact).copy(
-            cache_path, os.path.join(root, self.name)
-        )
-
-    def ref(self):
-        manifest = self._load_manifest()
-        if self.entry.ref is not None:
-            return manifest.storage_policy.load_reference(
-                self._parent_artifact,
-                self.name,
-                manifest.entries[self.name],
-                local=False,
-            )
-        raise ValueError("Only reference entries support ref().")
-
-    def ref_url(self):
-        return (
-            "wandb-artifact://"
-            + util.b64_to_hex_id(self._parent_artifact.id)
-            + "/"
-            + self.name
-        )
-
-
 class Artifact(artifacts.Artifact):
     """
     An artifact that has been logged, including all its attributes, links to the runs
@@ -2917,7 +2850,84 @@ class Artifact(artifacts.Artifact):
             else:
                 name = entry.path
 
-        return ArtifactEntry(name, entry, self)
+        # TODO: Pull this class out
+        class DownloadedArtifactEntry(artifacts.ArtifactEntry):
+            def __init__(self, name, entry, parent_artifact):
+                self.name = name
+                self.entry = entry
+                self._parent_artifact = parent_artifact
+
+                # Have to copy over a bunch of variables to get this ArtifactEntry interface
+                # to work properly
+                self.path = entry.path
+                self.ref = entry.ref
+                self.digest = entry.digest
+                self.birth_artifact_id = entry.birth_artifact_id
+                self.size = entry.size
+                self.extra = entry.extra
+                self.local_path = entry.local_path
+
+            def parent_artifact(self):
+                return self._parent_artifact
+
+            @staticmethod
+            def copy(cache_path, target_path):
+                # can't have colons in Windows
+                if platform.system() == "Windows":
+                    head, tail = os.path.splitdrive(target_path)
+                    target_path = head + tail.replace(":", "-")
+
+                need_copy = (
+                    not os.path.isfile(target_path)
+                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
+                )
+                if need_copy:
+                    util.mkdir_exists_ok(os.path.dirname(target_path))
+                    # We use copy2, which preserves file metadata including modified
+                    # time (which we use above to check whether we should do the copy).
+                    shutil.copy2(cache_path, target_path)
+                return target_path
+
+            def download(self, root=None):
+                root = root or self._parent_artifact._default_root()
+                self._parent_artifact._add_download_root(root)
+                manifest = self._parent_artifact._load_manifest()
+                if self.entry.ref is not None:
+                    cache_path = manifest.storage_policy.load_reference(
+                        self._parent_artifact,
+                        self.name,
+                        manifest.entries[self.name],
+                        local=True,
+                    )
+                else:
+                    cache_path = manifest.storage_policy.load_file(
+                        self._parent_artifact, self.name, manifest.entries[self.name]
+                    )
+
+                return DownloadedArtifactEntry(
+                    self.name, self.entry, self._parent_artifact
+                ).copy(cache_path, os.path.join(root, self.name))
+
+            def ref_target(self):
+                manifest = self._load_manifest()
+                if self.entry.ref is not None:
+                    return manifest.storage_policy.load_reference(
+                        self._parent_artifact,
+                        self.name,
+                        manifest.entries[self.name],
+                        local=False,
+                    )
+                raise ValueError("Only reference entries support ref_target().")
+
+            def ref_url(self):
+                return (
+                    "wandb-artifact://"
+                    + util.b64_to_hex_id(self._parent_artifact.id)
+                    + "/"
+                    + self.name
+                )
+
+        return DownloadedArtifactEntry(name, entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)

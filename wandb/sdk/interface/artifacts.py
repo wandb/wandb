@@ -138,6 +138,16 @@ class ArtifactEntry(object):
         """
         raise NotImplementedError
 
+    def ref_target(self) -> str:
+        """
+        Gets the reference URL that this artifact entry targets.
+        Returns:
+            (str): The reference URL of this artifact entry.
+        Raises:
+            ValueError: If this artifact entry was not a reference.
+        """
+        raise NotImplementedError
+
     def ref_url(self) -> str:
         """
         Gets a URL to this artifact entry such that it can be referenced
