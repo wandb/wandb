@@ -111,7 +111,7 @@ class ArtifactEntry(object):
     ref: Optional[str]
     digest: str
     birth_artifact_id: Optional[str]
-    size: int
+    size: Optional[int]
     extra: Dict
     local_path: Optional[str]
 

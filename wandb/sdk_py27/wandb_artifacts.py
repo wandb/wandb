@@ -236,10 +236,13 @@ class Artifact(ArtifactInterface):
     def size(self):
         if self._logged_artifact:
             return self._logged_artifact.size
-
-        return sum(
-            [self._manifest.entries[entry].size for entry in self._manifest.entries]
-        )
+        # sizes: List[int]
+        sizes = []
+        for entry in self._manifest.entries:
+            e_size = self._manifest.entries[entry].size
+            if e_size is not None:
+                sizes.append(e_size)
+        return sum(sizes)
 
     @property
     def commit_hash(self):
@@ -740,7 +743,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         self.ref = ref  # This is None for files stored in the artifact.
         self.digest = digest
         self.birth_artifact_id = birth_artifact_id
-        self.size = size if size is not None else 0
+        self.size = size
         self.extra = extra or {}
         # This is not stored in the manifest json, it's only used in the process
         # of saving
