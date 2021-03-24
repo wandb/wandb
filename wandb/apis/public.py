@@ -2507,19 +2507,22 @@ class ArtifactEntry(artifacts.ArtifactEntry):
         return target_path
 
     def download(self, root=None):
-        root = root or self.parent_artifact._default_root()
-        self.parent_artifact()._add_download_root(root)
-        manifest = self._load_manifest()
+        root = root or self._parent_artifact._default_root()
+        self._parent_artifact._add_download_root(root)
+        manifest = self._parent_artifact._load_manifest()
         if self.entry.ref is not None:
             cache_path = manifest.storage_policy.load_reference(
-                self.parent_artifact, self.name, manifest.entries[self.name], local=True
+                self._parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=True,
             )
         else:
             cache_path = manifest.storage_policy.load_file(
-                self.parent_artifact, self.name, manifest.entries[self.name]
+                self._parent_artifact, self.name, manifest.entries[self.name]
             )
 
-        return ArtifactEntry(self.name, self.entry, self.parent_artifact).copy(
+        return ArtifactEntry(self.name, self.entry, self._parent_artifact).copy(
             cache_path, os.path.join(root, self.name)
         )
 
@@ -2527,7 +2530,7 @@ class ArtifactEntry(artifacts.ArtifactEntry):
         manifest = self._load_manifest()
         if self.entry.ref is not None:
             return manifest.storage_policy.load_reference(
-                self.parent_artifact,
+                self._parent_artifact,
                 self.name,
                 manifest.entries[self.name],
                 local=False,
@@ -2537,7 +2540,7 @@ class ArtifactEntry(artifacts.ArtifactEntry):
     def ref_url(self):
         return (
             "wandb-artifact://"
-            + util.b64_to_hex_id(self.parent_artifact.id)
+            + util.b64_to_hex_id(self._parent_artifact.id)
             + "/"
             + self.name
         )
