@@ -18,7 +18,7 @@ if wandb.TYPE_CHECKING:
         from wandb.proto import wandb_internal_pb2
 
 
-def _manifest_json_from_proto(manifest: wandb_internal_pb2.ArtifactManifest) -> Dict:
+def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
     if manifest.version == 1:
         contents = {
             content.path: {
@@ -56,10 +56,10 @@ class ArtifactSaver(object):
 
     def __init__(
         self,
-        api: InternalApi,
+        api: "InternalApi",
         digest: str,
         manifest_json: Dict,
-        file_pusher: FilePusher,
+        file_pusher: "FilePusher",
         is_user_created: bool = False,
     ) -> None:
         self._api = api
