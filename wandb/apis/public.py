@@ -2479,6 +2479,70 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
+class ArtifactEntry(artifacts.ArtifactEntry):
+    def __init__(self, name, entry, parent_artifact):
+        self.name = name
+        self.entry = entry
+        self._parent_artifact = parent_artifact
+
+    def parent_artifact(self):
+        return self._parent_artifact
+
+    @staticmethod
+    def copy(cache_path, target_path):
+        # can't have colons in Windows
+        if platform.system() == "Windows":
+            head, tail = os.path.splitdrive(target_path)
+            target_path = head + tail.replace(":", "-")
+
+        need_copy = (
+            not os.path.isfile(target_path)
+            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
+        )
+        if need_copy:
+            util.mkdir_exists_ok(os.path.dirname(target_path))
+            # We use copy2, which preserves file metadata including modified
+            # time (which we use above to check whether we should do the copy).
+            shutil.copy2(cache_path, target_path)
+        return target_path
+
+    def download(self, root=None):
+        root = root or self.parent_artifact._default_root()
+        self.parent_artifact()._add_download_root(root)
+        manifest = self._load_manifest()
+        if self.entry.ref is not None:
+            cache_path = manifest.storage_policy.load_reference(
+                self.parent_artifact, self.name, manifest.entries[self.name], local=True
+            )
+        else:
+            cache_path = manifest.storage_policy.load_file(
+                self.parent_artifact, self.name, manifest.entries[self.name]
+            )
+
+        return ArtifactEntry(self.name, self.entry, self.parent_artifact).copy(
+            cache_path, os.path.join(root, self.name)
+        )
+
+    def ref(self):
+        manifest = self._load_manifest()
+        if self.entry.ref is not None:
+            return manifest.storage_policy.load_reference(
+                self.parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=False,
+            )
+        raise ValueError("Only reference entries support ref().")
+
+    def ref_url(self):
+        return (
+            "wandb-artifact://"
+            + util.b64_to_hex_id(self.parent_artifact.id)
+            + "/"
+            + self.name
+        )
+
+
 class Artifact(artifacts.Artifact):
     """
     An artifact that has been logged, including all its attributes, links to the runs
@@ -2841,11 +2905,7 @@ class Artifact(artifacts.Artifact):
         return None, None
 
     def get_path(self, name):
-        parent_self = self
-        manifest = parent_self._load_manifest()
-        storage_policy = manifest.storage_policy
-        default_root = parent_self._default_root()
-
+        manifest = self._load_manifest()
         entry = manifest.entries.get(name)
         if entry is None:
             entry = self._get_obj_entry(name)[0]
@@ -2854,63 +2914,7 @@ class Artifact(artifacts.Artifact):
             else:
                 name = entry.path
 
-        class ArtifactEntry(artifacts.ArtifactEntry):
-            def __init__(self):
-                self.name = name
-                self.entry = entry
-                self._parent_artifact = parent_self
-
-            def parent_artifact(self):
-                return self._parent_artifact
-
-            @staticmethod
-            def copy(cache_path, target_path):
-                # can't have colons in Windows
-                if platform.system() == "Windows":
-                    head, tail = os.path.splitdrive(target_path)
-                    target_path = head + tail.replace(":", "-")
-
-                need_copy = (
-                    not os.path.isfile(target_path)
-                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-                )
-                if need_copy:
-                    util.mkdir_exists_ok(os.path.dirname(target_path))
-                    # We use copy2, which preserves file metadata including modified
-                    # time (which we use above to check whether we should do the copy).
-                    shutil.copy2(cache_path, target_path)
-                return target_path
-
-            def download(self, root=None):
-                root = root or default_root
-                self.parent_artifact()._add_download_root(root)
-                if entry.ref is not None:
-                    cache_path = storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=True
-                    )
-                else:
-                    cache_path = storage_policy.load_file(
-                        parent_self, name, manifest.entries[name]
-                    )
-
-                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
-
-            def ref(self):
-                if entry.ref is not None:
-                    return storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=False
-                    )
-                raise ValueError("Only reference entries support ref().")
-
-            def ref_url(self):
-                return (
-                    "wandb-artifact://"
-                    + util.b64_to_hex_id(parent_self.id)
-                    + "/"
-                    + name
-                )
-
-        return ArtifactEntry()
+        return ArtifactEntry(name, entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)
