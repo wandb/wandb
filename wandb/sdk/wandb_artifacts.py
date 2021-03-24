@@ -13,10 +13,7 @@ import wandb
 from wandb import env
 from wandb import util
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public import (
-    Artifact as PublicArtifact,
-    ArtifactEntry as PublicArtifactEntry,
-)
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
 from wandb.data_types import WBValue
 from wandb.errors import CommError
@@ -35,8 +32,23 @@ from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     StoragePolicy,
 )
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict, Tuple
+if wandb.TYPE_CHECKING:
+    from typing import (
+        List,
+        Optional,
+        Union,
+        Dict,
+        Tuple,
+        TYPE_CHECKING,
+        Callable,
+        Sequence,
+        Mapping,
+    )
+
+    if TYPE_CHECKING:
+        import google.cloud.storage as gcs_module  # type: ignore
+        import boto3  # type: ignore
+        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -160,15 +172,18 @@ class Artifact(ArtifactInterface):
     def entity(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.entity
-
-        return self._api.settings("entity") or self._api.viewer().get("entity")
+        res = self._api.settings("entity") or self._api.viewer().get("entity")
+        assert isinstance(res, str)
+        return res
 
     @property
     def project(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.project
 
-        return self._api.settings("project")
+        res = self._api.settings("project")
+        assert isinstance(res, str)
+        return res
 
     @property
     def manifest(self) -> ArtifactManifest:
@@ -321,7 +336,7 @@ class Artifact(ArtifactInterface):
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-    ):
+    ) -> ArtifactEntry:
         self._ensure_can_add()
         if not os.path.isfile(local_path):
             raise ValueError("Path is not a file: %s" % local_path)
@@ -358,7 +373,7 @@ class Artifact(ArtifactInterface):
                     logical_path = os.path.join(name, logical_path)
                 paths.append((logical_path, physical_path))
 
-        def add_manifest_file(log_phy_path):
+        def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
             self._add_local_file(logical_path, physical_path)
 
@@ -378,30 +393,33 @@ class Artifact(ArtifactInterface):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ):
+    ) -> Sequence[ArtifactEntry]:
         self._ensure_can_add()
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
         # wandb/apis/public.py. If so, then recover the reference URL.
+        uri_str: str
         if isinstance(uri, ArtifactEntry) and uri.parent_artifact() != self:
             ref_url_fn = uri.ref_url
-            uri = ref_url_fn()
-        url = urlparse(str(uri))
+            uri_str = ref_url_fn()
+        elif isinstance(uri, str):
+            uri_str = uri
+        url = urlparse(str(uri_str))
         if not url.scheme:
             raise ValueError(
                 "References must be URIs. To reference a local file, use file://"
             )
 
         manifest_entries = self._storage_policy.store_reference(
-            self, uri, name=name, checksum=checksum, max_objects=max_objects
+            self, uri_str, name=name, checksum=checksum, max_objects=max_objects
         )
         for entry in manifest_entries:
             self._manifest.add_entry(entry)
 
         return manifest_entries
 
-    def add(self, obj: WBValue, name: str):
+    def add(self, obj: WBValue, name: str) -> ArtifactEntry:
         self._ensure_can_add()
 
         # Validate that the object is wandb.Media type
@@ -438,7 +456,7 @@ class Artifact(ArtifactInterface):
 
         return entry
 
-    def get_path(self, name: str):
+    def get_path(self, name: str) -> ArtifactEntry:
         if self._logged_artifact:
             return self._logged_artifact.get_path(name)
 
@@ -446,7 +464,7 @@ class Artifact(ArtifactInterface):
             "Cannot load paths from an artifact before it has been logged or in offline mode"
         )
 
-    def get(self, name: str):
+    def get(self, name: str) -> WBValue:
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
@@ -454,7 +472,7 @@ class Artifact(ArtifactInterface):
             "Cannot call get on an artifact before it has been logged or in offline mode"
         )
 
-    def download(self, root: str = None, recursive: bool = False):
+    def download(self, root: str = None, recursive: bool = False) -> str:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 
@@ -470,7 +488,7 @@ class Artifact(ArtifactInterface):
             "Cannot call checkout on an artifact before it has been logged or in offline mode"
         )
 
-    def verify(self, root: Optional[str] = None):
+    def verify(self, root: Optional[str] = None) -> bool:
         if self._logged_artifact:
             return self._logged_artifact.verify(root=root)
 
@@ -537,7 +555,7 @@ class Artifact(ArtifactInterface):
             "Cannot call wait on an artifact before it has been logged or in offline mode"
         )
 
-    def get_added_local_path_name(self, local_path: str):
+    def get_added_local_path_name(self, local_path: str) -> Optional[str]:
         """
         Get the artifact relative name of a file added by a local filesystem path.
 
@@ -562,7 +580,7 @@ class Artifact(ArtifactInterface):
             return None
         return entry.path
 
-    def finalize(self):
+    def finalize(self) -> None:
         """
         Marks this artifact as final, which disallows further additions to the artifact.
         This happens automatically when calling `log_artifact`.
@@ -578,11 +596,13 @@ class Artifact(ArtifactInterface):
         self._final = True
         self._digest = self._manifest.digest()
 
-    def _ensure_can_add(self):
+    def _ensure_can_add(self) -> None:
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
 
-    def _add_local_file(self, name, path, digest=None):
+    def _add_local_file(
+        self, name: str, path: str, digest: Optional[str] = None
+    ) -> ArtifactEntry:
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
 
@@ -598,7 +618,7 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
-    def __setitem__(self, name: str, item: WBValue):
+    def __setitem__(self, name: str, item: WBValue) -> ArtifactEntry:
         return self.add(item, name)
 
     def __getitem__(self, name: str) -> Optional[WBValue]:
@@ -607,11 +627,13 @@ class Artifact(ArtifactInterface):
 
 class ArtifactManifestV1(ArtifactManifest):
     @classmethod
-    def version(cls):
+    def version(cls) -> int:
         return 1
 
     @classmethod
-    def from_manifest_json(cls, artifact, manifest_json):
+    def from_manifest_json(
+        cls, artifact: ArtifactInterface, manifest_json: Dict
+    ) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(
                 "Expected manifest version 1, got %s" % manifest_json["version"]
@@ -623,6 +645,7 @@ class ArtifactManifestV1(ArtifactManifest):
         if storage_policy_cls is None:
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
 
+        entries: Mapping[str, ArtifactManifestEntry]
         entries = {
             name: ArtifactManifestEntry(
                 path=name,
@@ -640,12 +663,17 @@ class ArtifactManifestV1(ArtifactManifest):
             artifact, storage_policy_cls.from_config(storage_policy_config), entries
         )
 
-    def __init__(self, artifact, storage_policy, entries=None):
+    def __init__(
+        self,
+        artifact: ArtifactInterface,
+        storage_policy: StoragePolicy,
+        entries: Optional[Mapping[str, ArtifactEntry]] = None,
+    ) -> None:
         super(ArtifactManifestV1, self).__init__(
             artifact, storage_policy, entries=entries
         )
 
-    def to_manifest_json(self):
+    def to_manifest_json(self) -> Dict:
         """This is the JSON that's stored in wandb_manifest.json
 
         If include_local is True we also include the local paths to files. This is
@@ -674,7 +702,7 @@ class ArtifactManifestV1(ArtifactManifest):
             "contents": contents,
         }
 
-    def digest(self):
+    def digest(self) -> str:
         hasher = hashlib.md5()
         hasher.update("wandb-artifact-manifest-v1\n".encode())
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
@@ -682,16 +710,16 @@ class ArtifactManifestV1(ArtifactManifest):
         return hasher.hexdigest()
 
 
-class ArtifactManifestEntry(object):
+class ArtifactManifestEntry(ArtifactEntry):
     def __init__(
         self,
-        path,
-        ref,
-        digest,
-        birth_artifact_id=None,
-        size=None,
-        extra=None,
-        local_path=None,
+        path: str,
+        ref: Optional[str],
+        digest: str,
+        birth_artifact_id: Optional[str] = None,
+        size: Optional[int] = None,
+        extra: Dict = None,
+        local_path: Optional[str] = None,
     ):
         if local_path is not None and size is None:
             raise AssertionError(
@@ -707,7 +735,7 @@ class ArtifactManifestEntry(object):
         # of saving
         self.local_path = local_path
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.ref is not None:
             summary = "ref: %s/%s" % (self.ref, self.path)
         else:
@@ -718,14 +746,14 @@ class ArtifactManifestEntry(object):
 
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
-    def name(cls):
+    def name(cls) -> str:
         return "wandb-storage-policy-v1"
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: Dict) -> "WandbStoragePolicy":
         return cls(config=config)
 
-    def __init__(self, config=None):
+    def __init__(self, config: Dict = None) -> None:
         self._cache = get_artifacts_cache()
         self._config = config or {}
         self._session = requests.Session()
@@ -750,10 +778,12 @@ class WandbStoragePolicy(StoragePolicy):
             default_handler=TrackingHandler(),
         )
 
-    def config(self):
+    def config(self) -> Dict:
         return self._config
 
-    def load_file(self, artifact, name, manifest_entry):
+    def load_file(
+        self, artifact: ArtifactInterface, name: str, manifest_entry: ArtifactEntry
+    ) -> str:
         path, hit = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
@@ -772,16 +802,29 @@ class WandbStoragePolicy(StoragePolicy):
         return path
 
     def store_reference(
-        self, artifact, path, name=None, checksum=True, max_objects=None
-    ):
+        self,
+        artifact: ArtifactInterface,
+        path: str,
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence[ArtifactEntry]:
         return self._handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
 
-    def load_reference(self, artifact, name, manifest_entry, local=False):
-        return self._handler.load_path(self._cache, manifest_entry, local)
+    def load_reference(
+        self,
+        artifact: ArtifactInterface,
+        name: str,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
+    ) -> str:
+        return self._handler.load_path(artifact, manifest_entry, local)
 
-    def _file_url(self, api, entity_name, manifest_entry):
+    def _file_url(
+        self, api: InternalApi, entity_name: str, manifest_entry: ArtifactEntry
+    ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
         md5_hex = util.bytes_to_hex(base64.b64decode(manifest_entry.digest))
@@ -795,19 +838,29 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"),
                 storage_region,
                 entity_name,
-                quote(manifest_entry.birth_artifact_id),
+                quote(
+                    manifest_entry.birth_artifact_id
+                    if manifest_entry.birth_artifact_id is not None
+                    else ""
+                ),
                 md5_hex,
             )
         else:
             raise Exception("unrecognized storage layout: {}".format(storage_layout))
 
     def store_file(
-        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
-    ):
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional[Callable] = None,
+    ) -> bool:
         # write-through cache
         cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
         if not hit:
-            shutil.copyfile(entry.local_path, cache_path)
+            if entry.local_path is not None:
+                shutil.copyfile(entry.local_path, cache_path)
 
         resp = preparer.prepare(
             lambda: {
@@ -821,34 +874,35 @@ class WandbStoragePolicy(StoragePolicy):
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None
         if not exists:
-            with open(entry.local_path, "rb") as file:
-                # This fails if we don't send the first byte before the signed URL
-                # expires.
-                self._api.upload_file_retry(
-                    resp.upload_url,
-                    file,
-                    progress_callback,
-                    extra_headers={
-                        header.split(":", 1)[0]: header.split(":", 1)[1]
-                        for header in (resp.upload_headers or {})
-                    },
-                )
+            if entry.local_path is not None:
+                with open(entry.local_path, "rb") as file:
+                    # This fails if we don't send the first byte before the signed URL
+                    # expires.
+                    self._api.upload_file_retry(
+                        resp.upload_url,
+                        file,
+                        progress_callback,
+                        extra_headers={
+                            header.split(":", 1)[0]: header.split(":", 1)[1]
+                            for header in (resp.upload_headers or {})
+                        },
+                    )
         return exists
 
 
 # Don't use this yet!
 class __S3BucketPolicy(StoragePolicy):
     @classmethod
-    def name(cls):
+    def name(cls) -> str:
         return "wandb-s3-bucket-policy-v1"
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: Dict[str, str]) -> "__S3BucketPolicy":
         if "bucket" not in config:
             raise ValueError("Bucket name not found in config")
         return cls(config["bucket"])
 
-    def __init__(self, bucket):
+    def __init__(self, bucket: str) -> None:
         self._bucket = bucket
         s3 = S3Handler(bucket)
         local = LocalFileHandler()
@@ -857,15 +911,15 @@ class __S3BucketPolicy(StoragePolicy):
             handlers=[s3, local,], default_handler=TrackingHandler()
         )
 
-    def config(self):
+    def config(self) -> Dict[str, str]:
         return {"bucket": self._bucket}
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         return self._handler.load_path(artifact, manifest_entry, local=local)
 
     def store_path(
@@ -882,7 +936,13 @@ class __S3BucketPolicy(StoragePolicy):
 
 
 class MultiHandler(StorageHandler):
-    def __init__(self, handlers=None, default_handler=None):
+    _handlers: Dict[str, StorageHandler]
+
+    def __init__(
+        self,
+        handlers: Optional[List[StorageHandler]] = None,
+        default_handler: Optional[StorageHandler] = None,
+    ) -> None:
         self._handlers = {}
         self._default_handler = default_handler
 
@@ -896,10 +956,10 @@ class MultiHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         url = urlparse(manifest_entry.ref)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
@@ -909,13 +969,13 @@ class MultiHandler(StorageHandler):
             raise ValueError(
                 'No storage handler registered for scheme "%s"' % url.scheme
             )
-        return self._handlers[url.scheme].load_path(
+        return self._handlers[str(url.scheme)].load_path(
             artifact, manifest_entry, local=local
         )
 
     def store_path(
         self,
-        artifact: Artifact,
+        artifact: ArtifactInterface,
         path: str,
         name: Optional[str] = None,
         checksum: bool = True,
@@ -923,7 +983,7 @@ class MultiHandler(StorageHandler):
     ) -> List[ArtifactManifestEntry]:
         url = urlparse(path)
         if url.scheme not in self._handlers:
-            if self._handlers is not None:
+            if self._default_handler is not None:
                 return self._default_handler.store_path(
                     artifact,
                     path,
@@ -940,7 +1000,7 @@ class MultiHandler(StorageHandler):
 
 
 class TrackingHandler(StorageHandler):
-    def __init__(self, scheme=None):
+    def __init__(self, scheme: Optional[str] = None) -> None:
         """
         Tracks paths as is, with no modification or special processing. Useful
         when paths being tracked are on file systems mounted at a standardized
@@ -949,7 +1009,7 @@ class TrackingHandler(StorageHandler):
         For example, if the data to track is located on an NFS share mounted on
         `/data`, then it is sufficient to just track the paths.
         """
-        self._scheme = scheme
+        self._scheme = scheme or ""
 
     @property
     def scheme(self) -> str:
@@ -957,10 +1017,10 @@ class TrackingHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -1000,7 +1060,7 @@ DEFAULT_MAX_OBJECTS = 10000
 class LocalFileHandler(StorageHandler):
     """Handles file:// references"""
 
-    def __init__(self, scheme=None):
+    def __init__(self, scheme: Optional[str] = None) -> None:
         """
         Tracks files or directories on a local filesystem. Directories
         are expanded to create an entry for each file contained within.
@@ -1014,10 +1074,10 @@ class LocalFileHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         url = urlparse(manifest_entry.ref)
         local_path = "%s%s" % (url.netloc, url.path)
         if not os.path.exists(local_path):
@@ -1105,7 +1165,11 @@ class LocalFileHandler(StorageHandler):
 
 
 class S3Handler(StorageHandler):
-    def __init__(self, scheme=None):
+    _s3: Optional["boto3.resources.base.ServiceResource"]
+    _scheme: str
+    _versioning_enabled: Optional[bool]
+
+    def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
         self._versioning_enabled = None
@@ -1115,7 +1179,7 @@ class S3Handler(StorageHandler):
     def scheme(self) -> str:
         return self._scheme
 
-    def init_boto(self):
+    def init_boto(self) -> "boto3.resources.base.ServiceResource":
         if self._s3 is not None:
             return self._s3
         boto3 = util.get_module(
@@ -1130,14 +1194,15 @@ class S3Handler(StorageHandler):
         self._botocore = util.get_module("botocore")
         return self._s3
 
-    def _parse_uri(self, uri):
+    def _parse_uri(self, uri: str) -> Tuple[str, str]:
         url = urlparse(uri)
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
         return bucket, key
 
-    def versioning_enabled(self, bucket):
+    def versioning_enabled(self, bucket: str) -> bool:
         self.init_boto()
+        assert self._s3 is not None  # mypy: unwraps optionality
         if self._versioning_enabled is not None:
             return self._versioning_enabled
         res = self._s3.BucketVersioning(bucket)
@@ -1146,11 +1211,12 @@ class S3Handler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         if not local:
+            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
         path, hit = self._cache.check_etag_obj_path(
@@ -1160,6 +1226,8 @@ class S3Handler(StorageHandler):
             return path
 
         self.init_boto()
+        assert self._s3 is not None  # mypy: unwraps optionality
+        assert manifest_entry.ref is not None
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
@@ -1187,7 +1255,7 @@ class S3Handler(StorageHandler):
                     if obj is None:
                         raise ValueError(
                             "Couldn't find object version for %s/%s matching etag %s"
-                            % (self._bucket, key, manifest_entry.extra.get("etag"))
+                            % (bucket, key, manifest_entry.extra.get("etag"))
                         )
                 else:
                     raise ValueError(
@@ -1210,6 +1278,7 @@ class S3Handler(StorageHandler):
         max_objects: Optional[int] = None,
     ) -> List[ArtifactManifestEntry]:
         self.init_boto()
+        assert self._s3 is not None  # mypy: unwraps optionality
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
@@ -1256,7 +1325,7 @@ class S3Handler(StorageHandler):
             )
         return entries
 
-    def _size_from_obj(self, obj):
+    def _size_from_obj(self, obj: "boto3.s3.Object") -> int:
         # ObjectSummary has size, Object has content_length
         if hasattr(obj, "size"):
             size = obj.size
@@ -1264,7 +1333,14 @@ class S3Handler(StorageHandler):
             size = obj.content_length
         return size
 
-    def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
+    def _entry_from_obj(
+        self,
+        obj: "boto3.s3.Object",
+        path: str,
+        name: str = None,
+        prefix: str = "",
+        multi: bool = False,
+    ) -> ArtifactManifestEntry:
         ref = path
         if name is None:
             if prefix in obj.key and prefix != obj.key:
@@ -1287,11 +1363,11 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj):
+    def _etag_from_obj(obj: "boto3.s3.Object") -> str:
         return obj.e_tag[1:-1]  # escape leading and trailing quote
 
     @staticmethod
-    def _extra_from_obj(obj):
+    def _extra_from_obj(obj: "boto3.s3.Object") -> Dict[str, str]:
         extra = {
             "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
         }
@@ -1301,7 +1377,7 @@ class S3Handler(StorageHandler):
         return extra
 
     @staticmethod
-    def _content_addressed_path(md5):
+    def _content_addressed_path(md5: str) -> str:
         # TODO: is this the structure we want? not at all human
         # readable, but that's probably OK. don't want people
         # poking around in the bucket
@@ -1309,16 +1385,20 @@ class S3Handler(StorageHandler):
 
 
 class GCSHandler(StorageHandler):
-    def __init__(self, scheme=None):
+    _client: Optional["gcs_module.client.Client"]
+    _versioning_enabled: Optional[bool]
+
+    def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "gs"
         self._client = None
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-    def versioning_enabled(self, bucket):
+    def versioning_enabled(self, bucket: "gcs_module.bucket.Bucket") -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
         self.init_gcs()
+        assert self._client is not None  # mypy: unwraps optionality
         bucket = self._client.bucket(bucket)
         bucket.reload()
         self._versioning_enabled = bucket.versioning_enabled
@@ -1328,7 +1408,7 @@ class GCSHandler(StorageHandler):
     def scheme(self) -> str:
         return self._scheme
 
-    def init_gcs(self):
+    def init_gcs(self) -> "gcs_module.client.Client":
         if self._client is not None:
             return self._client
         storage = util.get_module(
@@ -1338,7 +1418,7 @@ class GCSHandler(StorageHandler):
         self._client = storage.Client()
         return self._client
 
-    def _parse_uri(self, uri):
+    def _parse_uri(self, uri: str) -> Tuple[str, str]:
         url = urlparse(uri)
         bucket = url.netloc
         key = url.path[1:]
@@ -1346,11 +1426,12 @@ class GCSHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         if not local:
+            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
         path, hit = self._cache.check_md5_obj_path(
@@ -1360,6 +1441,8 @@ class GCSHandler(StorageHandler):
             return path
 
         self.init_gcs()
+        assert self._client is not None  # mypy: unwraps optionality
+        assert manifest_entry.ref is not None
         bucket, key = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
@@ -1396,6 +1479,7 @@ class GCSHandler(StorageHandler):
         max_objects: Optional[int] = None,
     ) -> List[ArtifactManifestEntry]:
         self.init_gcs()
+        assert self._client is not None  # mypy: unwraps optionality
         bucket, key = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
 
@@ -1430,7 +1514,14 @@ class GCSHandler(StorageHandler):
             )
         return entries
 
-    def _entry_from_obj(self, obj, path, name=None, prefix="", multi=False):
+    def _entry_from_obj(
+        self,
+        obj: "gcs_module.blob.Blob",
+        path: str,
+        name: Optional[str] = None,
+        prefix: str = "",
+        multi: bool = False,
+    ) -> ArtifactManifestEntry:
         ref = path
         if name is None:
             if prefix in obj.name and prefix != obj.name:
@@ -1447,7 +1538,7 @@ class GCSHandler(StorageHandler):
         )
 
     @staticmethod
-    def _extra_from_obj(obj):
+    def _extra_from_obj(obj: "gcs_module.blob.Blob") -> Dict[str, str]:
         return {
             "etag": obj.etag,
             "versionID": obj.generation,
@@ -1473,11 +1564,12 @@ class HTTPHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         if not local:
+            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
         path, hit = self._cache.check_etag_obj_path(
@@ -1486,6 +1578,7 @@ class HTTPHandler(StorageHandler):
         if hit:
             return path
 
+        assert manifest_entry.ref is not None
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
@@ -1566,10 +1659,10 @@ class WBArtifactHandler(StorageHandler):
 
     def load_path(
         self,
-        artifact: Artifact,
-        manifest_entry: ArtifactManifestEntry,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> PublicArtifactEntry:
+    ) -> str:
         """
         Loads the file within the specified artifact given its
         corresponding entry. In this case, the referenced artifact is downloaded

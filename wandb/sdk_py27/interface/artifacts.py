@@ -11,7 +11,10 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict
+    from typing import List, Optional, Union, Dict, Callable, TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string):
@@ -93,6 +96,14 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
+    # path: str
+    # ref: Optional[str]
+    # digest: str
+    # birth_artifact_id: Optional[str]
+    # size: Optional[int]
+    # extra: Dict
+    # local_path: Optional[str]
+
     def parent_artifact(self):
         """
         Get the artifact to which this artifact entry belongs.
@@ -113,18 +124,6 @@ class ArtifactEntry(object):
         Returns:
             (str): The path of the downloaded artifact entry.
 
-        """
-        raise NotImplementedError
-
-    def ref(self):
-        """
-        Gets the reference URL of this artifact entry.
-
-        Returns:
-            (str): The reference URL of this artifact entry.
-
-        Raises:
-            ValueError: If this artifact entry was not a reference.
         """
         raise NotImplementedError
 
@@ -730,11 +729,18 @@ class StoragePolicy(object):
     def config(self):
         pass
 
-    def load_file(self, artifact, name, manifest_entry):
+    def load_file(
+        self, artifact, name, manifest_entry
+    ):
         raise NotImplementedError
 
     def store_file(
-        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
+        self,
+        artifact_id,
+        artifact_manifest_id,
+        entry,
+        preparer,
+        progress_callback = None,
     ):
         raise NotImplementedError
 
@@ -743,11 +749,18 @@ class StoragePolicy(object):
     ):
         raise NotImplementedError
 
-    def load_reference(self, artifact, name, manifest_entry, local=False):
+    def load_reference(
+        self,
+        artifact,
+        name,
+        manifest_entry,
+        local = False,
+    ):
         raise NotImplementedError
 
 
 class StorageHandler(object):
+    @property
     def scheme(self):
         """
         :return: The scheme to which this handler applies.
@@ -755,7 +768,9 @@ class StorageHandler(object):
         """
         pass
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(
+        self, artifact, manifest_entry, local = False,
+    ):
         """
         Loads the file or directory within the specified artifact given its
         corresponding index entry.
@@ -763,7 +778,7 @@ class StorageHandler(object):
         :param manifest_entry: The index entry to load
         :type manifest_entry: ArtifactManifestEntry
         :return: A path to the file represented by `index_entry`
-        :rtype: os.PathLike
+        :rtype: str
         """
         pass
 
