@@ -123,6 +123,7 @@ class Api(object):
             return self.client.execute(*args, **kwargs)
         except requests.exceptions.HTTPError as err:
             res = err.response
+            logger.error("hihihihi %s %s" % (args, kwargs))
             logger.error("%s response executing GraphQL." % res.status_code)
             logger.error(res.text)
             self.display_gorilla_error_if_found(res)
