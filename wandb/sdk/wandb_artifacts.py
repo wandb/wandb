@@ -181,18 +181,14 @@ class Artifact(ArtifactInterface):
     def entity(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.entity
-        res = self._api.settings("entity") or self._api.viewer().get("entity")
-        assert isinstance(res, str)
-        return res
+        return self._api.settings("entity") or self._api.viewer().get("entity")  # type: ignore
 
     @property
     def project(self) -> str:
         if self._logged_artifact:
             return self._logged_artifact.project
 
-        res = self._api.settings("project")
-        assert isinstance(res, str)
-        return res
+        return self._api.settings("project")  # type: ignore
 
     @property
     def manifest(self) -> ArtifactManifest:

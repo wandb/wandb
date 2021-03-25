@@ -885,42 +885,118 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
     art.add(t1, "t1")
+
+    # These properties should be valid both before and after logging
+    testable_getters_valid = set(
+        [
+            "id",
+            "entity",
+            "project",
+            "manifest",
+            "digest",
+            "type",
+            "name",
+            "state",
+            "size",
+            "description",
+            "metadata",
+        ]
+    )
+
+    # These are valid even before waiting!
+    testable_getters_always_valid = set(["distributed_id"])
+
+    # These properties should be valid only after logging
+    testable_getters_invalid = set(["version", "commit_hash", "aliases"])
+
+    # These setters should be valid both before and after logging
+    testable_setters_valid = set(["description", "metadata"])
+
+    # These are valid even before waiting!
+    testable_setters_always_valid = set(["distributed_id"])
+
+    # These setters should be valid only after logging
+    testable_setters_invalid = set(["aliases"])
+
+    # These methods should be valid both before and after logging
+    testable_methods_valid = set([])
+
+    # These methods should be valid only after logging
+    testable_methods_invalid = set(
+        [
+            "used_by",
+            "logged_by",
+            "get_path",
+            "get",
+            "download",
+            "checkout",
+            "verify",
+            "delete",
+        ]
+    )
+
+    params = {"get_path": ["t1.table.json"], "get": ["t1"]}
+
+    # these are failures of mocking
+    special_errors = {
+        "save": wandb.errors.CommError,
+        "delete": wandb.errors.CommError,
+        "verify": ValueError,
+        "logged_by": KeyError,
+    }
+
+    for valid_getter in testable_getters_valid | testable_getters_always_valid:
+        _ = getattr(art, valid_getter)
+
+    for invalid_getter in testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, invalid_getter)
+
+    for valid_setter in testable_setters_valid | testable_setters_always_valid:
+        setattr(art, valid_setter, "TEST")
+
+    for invalid_setter in testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(art, invalid_setter, "TEST")
+
+    for valid_method in testable_methods_valid:
+        attr_method = getattr(art, valid_method)
+        _ = attr_method(*params.get(valid_method, []))
+
+    for invalid_method in testable_methods_invalid:
+        attr_method = getattr(art, invalid_method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(invalid_method, []))
+
+    # THE LOG
     run.log_artifact(art)
-    # Must call wait first
-    with pytest.raises(ValueError):
-        assert art.id is not None
+
+    for getter in testable_getters_valid | testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, getter)
+
+    for setter in testable_setters_valid | testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid | testable_methods_invalid:
+        attr_method = getattr(art, method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(method, []))
+
+    # THE ALL IMPORTANT WAIT
     art.wait()
-    with pytest.raises(AttributeError):
-        assert art.FAKE_ATTRIBUTE is not None
-    assert art.id is not None
-    assert art.version is not None
-    assert art.name is not None
-    assert art.type is not None
-    # Purposely none due to mock
-    assert art.entity is None
-    # Purposely none due to mock
-    assert art.project is None
-    assert art.manifest is not None
-    assert art.digest is not None
-    assert art.state is not None
-    assert art.size is not None
-    assert art.commit_hash is not None
-    art.description = "desc"
-    assert art.description == "desc"
-    art.metadata = {"a": 1}
-    assert art.metadata == {"a": 1}
-    art.aliases = ["A"]
-    assert art.aliases == ["A"]
-    assert art.used_by() is not None
-    with pytest.raises(KeyError):  # expect a key error b/c project is not mocked
-        assert art.logged_by() is not None
-    assert art.get_path("t1.table.json") is not None
-    assert art.get("t1") is not None
-    assert art.download() is not None
-    assert art.checkout() is not None
-    with pytest.raises(ValueError):  # mock issue
-        assert art.verify() is not None
-    with pytest.raises(wandb.errors.CommError):  # mock issue
-        assert art.save() is not None
-    with pytest.raises(wandb.errors.CommError):  # mock issue
-        assert art.delete() is not None
+
+    for getter in testable_getters_valid | testable_getters_invalid:
+        _ = getattr(art, getter)
+
+    for setter in testable_setters_valid | testable_setters_invalid:
+        setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid | testable_methods_invalid:
+        attr_method = getattr(art, method)
+        if method in special_errors:
+            with pytest.raises(special_errors[method]):
+                _ = attr_method(*params.get(method, []))
+        else:
+            _ = attr_method(*params.get(method, []))
