@@ -1,6 +1,5 @@
 import pytest
 import wandb
-import numpy as np
 
 
 @pytest.fixture
@@ -16,7 +15,6 @@ def test_nested_summary(api, mock_server):
 
 
 def test_summary_setitem(api, mock_server):
-    img = np.random.random((100, 100))
     run = api.runs("test/test")[0]
     run.summary["acc2"] = run.summary["acc"]
     run.summary["nested"] = {"a": 1, "b": {"c": 2, "d": 3}}
