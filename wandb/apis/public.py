@@ -2869,7 +2869,6 @@ class Artifact(artifacts.Artifact):
                     head, tail = os.path.splitdrive(target_path)
                     target_path = head + tail.replace(":", "-")
 
-                target_stat = os.stat(target_path)
                 cache_stat = os.stat(cache_path)
                 if self.entry.size != cache_stat.st_size:
                     raise ValueError(
@@ -2879,7 +2878,7 @@ class Artifact(artifacts.Artifact):
 
                 need_copy = (
                     not os.path.isfile(target_path)
-                    or cache_stat.st_mtime != target_stat.st_mtime
+                    or cache_stat.st_mtime != os.stat(target_path).st_mtime
                 )
                 if need_copy:
                     util.mkdir_exists_ok(os.path.dirname(target_path))

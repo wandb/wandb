@@ -855,7 +855,7 @@ class ArtifactsCache(object):
     def _cache_opener(path):
         @contextlib.contextmanager
         def helper(mode="w"):
-            dirname, fname = os.path.dirname(path), os.path.basename(path)
+            dirname = os.path.dirname(path)
             tmp_file = os.path.join(
                 dirname,
                 "%s_%s"
