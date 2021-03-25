@@ -2537,7 +2537,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         ).copy(cache_path, os.path.join(root, self.name))
 
     def ref_target(self):
-        manifest = self._load_manifest()
+        manifest = self._parent_artifact._load_manifest()
         if self.entry.ref is not None:
             return manifest.storage_policy.load_reference(
                 self._parent_artifact,

@@ -1009,3 +1009,30 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
                 _ = attr_method(*params.get(method, []))
         else:
             _ = attr_method(*params.get(method, []))
+
+
+def test_reference_download(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run.log_artifact(artifact)
+        run.finish()
+
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("my-test_reference_download:latest")
+        entry = artifact.get_path("StarWars3.wav")
+        entry.download()
+        assert (
+            entry.ref_target()
+            == "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+
+        entry = artifact.get_path("file1.txt")
+        entry.download()
+        with pytest.raises(ValueError):
+            assert entry.ref_target()
