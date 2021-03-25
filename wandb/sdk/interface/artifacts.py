@@ -4,8 +4,6 @@ import codecs
 import contextlib
 import hashlib
 import os
-import tempfile
-import shutil
 
 import wandb
 from wandb import env
