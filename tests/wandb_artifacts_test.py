@@ -934,7 +934,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             "delete",
         ]
     )
-
+    setter_data = {"metadata": {}}
     params = {"get_path": ["t1.table.json"], "get": ["t1"]}
 
     # these are failures of mocking
@@ -953,15 +953,20 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             _ = getattr(art, invalid_getter)
 
     for valid_setter in testable_setters_valid | testable_setters_always_valid:
-        setattr(art, valid_setter, "TEST")
+        setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
 
     for invalid_setter in testable_setters_invalid:
         with pytest.raises(ValueError):
-            setattr(art, invalid_setter, "TEST")
+            setattr(
+                art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
+            )
 
-    for valid_method in testable_methods_valid:
-        attr_method = getattr(art, valid_method)
-        _ = attr_method(*params.get(valid_method, []))
+    # Uncomment if there are ever entries in testable_methods_valid
+    # leaving commented for now since test coverage wants all lines to
+    # run
+    # for valid_method in testable_methods_valid:
+    #     attr_method = getattr(art, valid_method)
+    #     _ = attr_method(*params.get(valid_method, []))
 
     for invalid_method in testable_methods_invalid:
         attr_method = getattr(art, invalid_method)
