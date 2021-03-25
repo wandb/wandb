@@ -2077,8 +2077,8 @@ def val_to_json(
         assert run
         run_class, _ = _safe_sdk_import()
         if not isinstance(run, run_class):  # PublicRun
-            if wandb.run and wandb.run.id == run.id:
-                run = wandb.run
+            if wandb.run and wandb.run.id == run.id:  # type: ignore
+                run = wandb.run  # type: ignore
             else:
                 raise Exception("Cannot bind Media object to an inactive run.")
         # This check will break down if Image/Audio/... have child classes.
@@ -2111,8 +2111,8 @@ def val_to_json(
         assert run
         run_class, _ = _safe_sdk_import()
         if not isinstance(run, run_class):  # PublicRun
-            if wandb.run and wandb.run.id == run.id:
-                run = wandb.run
+            if wandb.run and wandb.run.id == run.id:  # type: ignore
+                run = wandb.run  # type: ignore
             else:
                 raise Exception("Cannot bind Media object to an inactive run.")
         if isinstance(val, Media) and not val.is_bound():
