@@ -79,7 +79,10 @@ class Api(object):
         if not (
             base_url.endswith("api.wandb.ai") or base_url.endswith("api.wandb.ai/")
         ):
-            retry_warning = "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
+            retry_warning = (
+                "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
+                % base_url
+            )
         else:
             retry_warning = None
 
