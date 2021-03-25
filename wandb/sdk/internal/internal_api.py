@@ -67,6 +67,13 @@ class Api(object):
             "ignore_globs": [],
             "base_url": "https://api.wandb.ai",
         }
+        base_url = self.settings("base_url")
+        if not (
+            base_url.endswith("api.wandb.ai") or base_url.endswith("api.wandb.ai/")
+        ):
+            retry_warning = "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
+        else:
+            retry_warning = None
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
@@ -95,11 +102,17 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
+
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException),
+            retryable_exceptions=(
+                RetryError,
+                requests.RequestException,
+                json.JSONDecodeError,
+            ),
+            retry_warning=retry_warning,
         )
         self._current_run_id = None
         self._file_stream_api = None
