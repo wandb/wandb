@@ -183,7 +183,8 @@ def test_add_reference_local_file(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        artifact.add_reference("file://file1.txt")
+        e = artifact.add_reference("file://file1.txt")[0]
+        assert e.ref_target() == "file://file1.txt"
 
         assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
         manifest = artifact.manifest.to_manifest_json()
@@ -884,7 +885,10 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
-    art.add(t1, "t1")
+    e = art.add(t1, "t1")
+
+    with pytest.raises(ValueError):
+        e.ref_target()
 
     # These properties should be valid both before and after logging
     testable_getters_valid = set(

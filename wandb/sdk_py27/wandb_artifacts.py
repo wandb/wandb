@@ -745,6 +745,11 @@ class ArtifactManifestEntry(ArtifactEntry):
         # of saving
         self.local_path = local_path
 
+    def ref_target(self):
+        if self.ref is None:
+            raise ValueError("Only reference entries support ref_target().")
+        return self.ref
+
     def __repr__(self):
         if self.ref is not None:
             summary = "ref: %s/%s" % (self.ref, self.path)
