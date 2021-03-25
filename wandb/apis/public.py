@@ -2863,16 +2863,23 @@ class Artifact(artifacts.Artifact):
             def parent_artifact(self):
                 return self._parent_artifact
 
-            @staticmethod
-            def copy(cache_path, target_path):
+            def copy(self, cache_path, target_path):
                 # can't have colons in Windows
                 if platform.system() == "Windows":
                     head, tail = os.path.splitdrive(target_path)
                     target_path = head + tail.replace(":", "-")
 
+                target_stat = os.stat(target_path)
+                cache_stat = os.stat(cache_path)
+                if self.entry.size != cache_stat.st_size:
+                    raise ValueError(
+                        "Cache corruption detected in %s: expected size %d, actual %d. Clear the cache and try again."
+                        % (cache_path, self.entry.size, cache_stat.st_size)
+                    )
+
                 need_copy = (
                     not os.path.isfile(target_path)
-                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
+                    or cache_stat.st_mtime != target_stat.st_mtime
                 )
                 if need_copy:
                     util.mkdir_exists_ok(os.path.dirname(target_path))
@@ -2893,7 +2900,7 @@ class Artifact(artifacts.Artifact):
                         parent_self, name, manifest.entries[name]
                     )
 
-                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
+                return self.copy(cache_path, os.path.join(root, name))
 
             def ref(self):
                 if entry.ref is not None:
