@@ -116,7 +116,7 @@ class Api(object):
             retryable_exceptions=(
                 RetryError,
                 requests.RequestException,
-                json.JSONDecodeError,
+                json.JSONDecodeError if sys.version_info[0] > 2 else ValueError,
             ),
             retry_warning=retry_warning,
         )
