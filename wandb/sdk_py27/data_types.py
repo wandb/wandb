@@ -38,6 +38,7 @@ if wandb.TYPE_CHECKING:
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
+        from wandb.apis.public import Run as PublicRun
         import numpy as np  # type: ignore
         import pandas as pd  # type: ignore
         import matplotlib  # type: ignore
@@ -2074,6 +2075,12 @@ def val_to_json(
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
         assert run
+        run_class, _ = _safe_sdk_import()
+        if not isinstance(run, run_class):  # PublicRun
+            if wandb.run and wandb.run.id == run.id:  # type: ignore
+                run = wandb.run  # type: ignore
+            else:
+                raise Exception("Cannot bind Media object to an inactive run.")
         # This check will break down if Image/Audio/... have child classes.
         if (
             len(val)
@@ -2102,6 +2109,12 @@ def val_to_json(
 
     if isinstance(val, WBValue):
         assert run
+        run_class, _ = _safe_sdk_import()
+        if not isinstance(run, run_class):  # PublicRun
+            if wandb.run and wandb.run.id == run.id:  # type: ignore
+                run = wandb.run  # type: ignore
+            else:
+                raise Exception("Cannot bind Media object to an inactive run.")
         if isinstance(val, Media) and not val.is_bound():
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
