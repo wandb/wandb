@@ -573,7 +573,7 @@ class Settings(object):
         return self._path_convert(self.settings_workspace_spec)
 
     def _validate_start_method(self, value: str) -> Optional[str]:
-        available_methods = ["thread"]
+        available_methods = ["thread", "loky"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value in available_methods:

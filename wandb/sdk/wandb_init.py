@@ -459,6 +459,8 @@ class _WandbInit(object):
                 tel.env.start_forkserver = True
             elif active_start_method == "thread":
                 tel.env.start_thread = True
+            elif active_start_method == "loky":
+                tel.env.start_loky = True
 
         logger.info("updated telemetry")
 

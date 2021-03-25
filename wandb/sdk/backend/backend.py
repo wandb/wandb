@@ -58,6 +58,11 @@ class Backend(object):
         if self._settings.start_method == "thread":
             return
 
+        if self._settings.start_method == "loky":
+            from joblib.externals.loky.backend.context import get_context
+            ctx = get_context('loky')
+            self._multiprocessing = ctx
+
         # defaulting to spawn for now, fork needs more testing
         start_method = self._settings.start_method or "spawn"
 
