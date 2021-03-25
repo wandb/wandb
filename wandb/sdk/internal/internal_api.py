@@ -67,6 +67,14 @@ class Api(object):
             "ignore_globs": [],
             "base_url": "https://api.wandb.ai",
         }
+
+        self.retry_timedelta = retry_timedelta
+        self.default_settings.update(default_settings or {})
+        self.retry_uploads = 10
+        self._settings = Settings(
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+        )
+
         base_url = self.settings("base_url")
         if not (
             base_url.endswith("api.wandb.ai") or base_url.endswith("api.wandb.ai/")
@@ -74,12 +82,7 @@ class Api(object):
             retry_warning = "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
         else:
             retry_warning = None
-        self.retry_timedelta = retry_timedelta
-        self.default_settings.update(default_settings or {})
-        self.retry_uploads = 10
-        self._settings = Settings(
-            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
-        )
+
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
