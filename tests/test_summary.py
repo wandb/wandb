@@ -19,5 +19,5 @@ def test_summary_setitem(api, mock_server):
     img = np.random.random((100, 100))
     run = api.runs("test/test")[0]
     run.summary["acc2"] = run.summary["acc"]
-    run.summary["img"] = wandb.Image(img)
+    run.summary["nested"] = {"a": 1, "b": {"c": 2, "d": 3}}
     run.summary.update()
