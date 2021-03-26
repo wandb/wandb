@@ -866,6 +866,7 @@ index 30d74d2..9a2c773 100644
                 200,
             )
 
+        print("shoop %s" % digest)
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])

@@ -2869,16 +2869,9 @@ class Artifact(artifacts.Artifact):
                     head, tail = os.path.splitdrive(target_path)
                     target_path = head + tail.replace(":", "-")
 
-                cache_stat = os.stat(cache_path)
-                if self.entry.size != cache_stat.st_size:
-                    raise ValueError(
-                        "Cache corruption detected in %s: expected size %d, actual %d. Clear the cache and try again."
-                        % (cache_path, self.entry.size, cache_stat.st_size)
-                    )
-
                 need_copy = (
                     not os.path.isfile(target_path)
-                    or cache_stat.st_mtime != os.stat(target_path).st_mtime
+                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
                 )
                 if need_copy:
                     util.mkdir_exists_ok(os.path.dirname(target_path))
