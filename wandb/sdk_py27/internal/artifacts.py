@@ -52,7 +52,7 @@ def _manifest_json_from_proto(manifest):
 
 
 class ArtifactSaver(object):
-    # _server_artifact: Optional[Dict]  # TODO better deine this dict
+    # _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
         self,
@@ -196,10 +196,8 @@ class ArtifactSaver(object):
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp2:
-                self._api.upload_file_retry(
-                    upload_url, fp2, extra_headers=extra_headers
-                )
+            with open(path, "rb") as fp:  # type: ignore
+                self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
 
         def on_commit():
             if finalize and use_after_commit:
