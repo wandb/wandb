@@ -50,8 +50,8 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
+from wandb.errors import CommError, ShellCommandException
 from wandb.old.core import wandb_dir
-from wandb.errors.error import CommError, ShellCommandException
 from wandb import env
 
 logger = logging.getLogger(__name__)
@@ -841,7 +841,10 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409}:
+                if e.response.status_code in {400, 403, 404, 409} or (
+                    e.response.status_code == 500
+                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
+                ):
                     return e
 
             if retry_count == max_retries:
@@ -854,9 +857,12 @@ def request_with_retry(func, *args, **kwargs):
             ):
                 logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
+                pass
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
                     e,
+                    func,
+                    e.response.content,
                     args,
                     kwargs,
                 )

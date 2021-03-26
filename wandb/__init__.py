@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.23.dev1"
+__version__ = "0.10.24.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -58,7 +58,7 @@ Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors.error import CommError, UsageError
+from wandb.errors import CommError, UsageError
 
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader

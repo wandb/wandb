@@ -32,6 +32,7 @@ import json
 import multiprocessing
 import os
 import platform
+import re
 import socket
 import sys
 import tempfile
@@ -102,6 +103,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     silent=None,
     sagemaker_disable=None,
     start_method=None,
+    strict=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -241,6 +243,7 @@ class Settings(object):
     notebook_name: Optional[str]
     host: Optional[str]
     resume: str
+    strict: Optional[str] = None
 
     # Public attributes
     entity: Optional[str] = None
@@ -308,7 +311,7 @@ class Settings(object):
         relogin: bool = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
-        # strict=None,  # set to "on" to enforce current best practices (also "warn")
+        strict: str = None,
         problem: str = "fatal",
         # dynamic settings
         system_sample_seconds: int = 2,
@@ -422,6 +425,12 @@ class Settings(object):
         if not self.silent:
             return None
         return _str_as_bool(self.silent)
+
+    @property
+    def _strict(self) -> Optional[bool]:
+        if not self.strict:
+            return None
+        return _str_as_bool(self.strict)
 
     @property
     def _show_info(self) -> Optional[bool]:
@@ -607,6 +616,12 @@ class Settings(object):
             return None
         return _error_choices(value, choices)
 
+    def _validate_strict(self, value: str) -> Optional[str]:
+        val = _str_as_bool(value)
+        if val is None:
+            return "{} is not a boolean".format(value)
+        return None
+
     def _validate_silent(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
@@ -629,6 +644,17 @@ class Settings(object):
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
+
+    def _validate_base_url(self, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+                # user might guess app.wandb.ai or wandb.ai is the default cloud server
+                return "{} is not a valid server address, did you mean https://api.wandb.ai?".format(
+                    value
+                )
+            elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
+                return "http is not secure, please use https://api.wandb.ai"
         return None
 
     def _preprocess_base_url(self, value: Optional[str]) -> Optional[str]:

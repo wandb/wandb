@@ -238,14 +238,19 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if key:
         relogin = True
 
-    wandb.setup(
-        settings=wandb.Settings(
-            _cli_only_mode=True,
-            _disable_viewer=relogin,
-            anonymous=anon_mode,
-            base_url=host,
+    try:
+        wandb.setup(
+            settings=wandb.Settings(
+                _cli_only_mode=True,
+                _disable_viewer=relogin,
+                anonymous=anon_mode,
+                base_url=host,
+            )
         )
-    )
+    except TypeError as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
+
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 

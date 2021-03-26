@@ -20,7 +20,7 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration import ngc
 from wandb.integration.magic import magic_install
@@ -103,6 +103,8 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
+            with telemetry.context() as tel:
+                tel.feature.sagemaker = True
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
@@ -657,9 +659,6 @@ def init(
             be stored. When you call download() on an artifact, this is the
             directory where downloaded files will be saved. By default this is
             the ./wandb directory.
-        sync_tensorboard: (bool, optional) Whether to copy all TensorBoard logs
-            to W&B (default: False).
-            [Tensorboard](https://docs.wandb.com/integrations/tensorboard)
         resume (bool, str, optional): Sets the resuming behavior. Options:
             "allow", "must", "never", "auto" or None. Defaults to None.
             Cases:
@@ -709,7 +708,7 @@ def init(
             logged in to W&B. If False, this will let the script run in offline
             mode if a user isn't logged in to W&B. (default: False)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
-            tensorboardX and saves the relevant events file. Defaults to false.
+            tensorboardX and saves the relevant events file. (default: False)
         monitor_gym: (bool, optional) automatically logs videos of environment when
             using OpenAI Gym. (default: False)
             See https://docs.wandb.com/library/integrations/openai-gym
