@@ -236,6 +236,14 @@ class Artifact(object):
         raise NotImplementedError
 
     @property
+    def commit_hash(self) -> str:
+        """
+        Returns:
+            (str): The artifact's commit hash which is used in http URLs
+        """
+        raise NotImplementedError
+
+    @property
     def description(self) -> Optional[str]:
         """
         Returns:
@@ -496,7 +504,7 @@ class Artifact(object):
         Gets the path to the file located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact` or the API.
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
@@ -529,7 +537,7 @@ class Artifact(object):
         Gets the WBValue object located at the artifact relative `name`.
 
         NOTE: This will raise an error unless the artifact has been fetched using
-        `use_artifact` or the API.
+        `use_artifact`, fetched using the API, or `wait()` has been called.
 
         Arguments:
             name: (str) The artifact relative name to get
@@ -634,6 +642,66 @@ class Artifact(object):
 
         Returns:
             Artifact
+        """
+        raise NotImplementedError
+
+    def __getitem__(self, name: str) -> Optional[WBValue]:
+        """
+        Gets the WBValue object located at the artifact relative `name`.
+
+        NOTE: This will raise an error unless the artifact has been fetched using
+        `use_artifact`, fetched using the API, or `wait()` has been called.
+
+        Arguments:
+            name: (str) The artifact relative name to get
+
+        Raises:
+            Exception: if problem
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_table', 'dataset')
+            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            artifact["my_table"] = table
+
+            wandb.log_artifact(artifact)
+            ```
+
+            Retrieving an object:
+            ```
+            artifact = wandb.use_artifact('my_table:latest')
+            table = artifact["my_table"]
+            ```
+        """
+        raise NotImplementedError
+
+    def __setitem__(self, name: str, item: WBValue):
+        """
+        Adds `item` to the artifact at path `name`
+
+        Arguments:
+            name: (str) The path within the artifact to add the object.
+            item: (wandb.WBValue) The object to add.
+
+        Returns:
+            ArtifactManifestEntry: the added manifest entry
+
+        Examples:
+            Basic usage
+            ```
+            artifact = wandb.Artifact('my_table', 'dataset')
+            table = wandb.Table(columns=["a", "b", "c"], data=[[i, i*2, 2**i]])
+            artifact["my_table"] = table
+
+            wandb.log_artifact(artifact)
+            ```
+
+            Retrieving an object:
+            ```
+            artifact = wandb.use_artifact('my_table:latest')
+            table = artifact["my_table"]
+            ```
         """
         raise NotImplementedError
 

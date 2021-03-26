@@ -5,6 +5,7 @@ import logging
 import numbers
 import os
 import shutil
+import sys
 
 import six
 from six.moves.collections_abc import Sequence as SixSequence
@@ -33,6 +34,7 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
+        from .interface.artifacts import ArtifactEntry
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
@@ -78,7 +80,16 @@ class _WBValueArtifactSource(object):
     artifact: "PublicArtifact"
     name: Optional[str]
 
-    def __init__(self, artifact: "PublicArtifact", name: str = None) -> None:
+    def __init__(self, artifact: "PublicArtifact", name: Optional[str] = None) -> None:
+        self.artifact = artifact
+        self.name = name
+
+
+class _WBValueArtifactTarget(object):
+    artifact: "LocalArtifact"
+    name: Optional[str]
+
+    def __init__(self, artifact: "LocalArtifact", name: Optional[str] = None) -> None:
         self.artifact = artifact
         self.name = name
 
@@ -98,10 +109,12 @@ class WBValue(object):
     artifact_type: ClassVar[Optional[str]] = None
 
     # Instance Attributes
-    artifact_source: Optional[_WBValueArtifactSource]
+    _artifact_source: Optional[_WBValueArtifactSource]
+    _artifact_target: Optional[_WBValueArtifactTarget]
 
     def __init__(self) -> None:
-        self.artifact_source = None
+        self._artifact_source = None
+        self._artifact_target = None
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data.
@@ -170,7 +183,7 @@ class WBValue(object):
         class_option = WBValue.type_mapping().get(json_obj["_type"])
         if class_option is not None:
             obj = class_option.from_json(json_obj, source_artifact)
-            obj.set_artifact_source(source_artifact)
+            obj._set_artifact_source(source_artifact)
             return obj
 
         return None
@@ -202,8 +215,46 @@ class WBValue(object):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def set_artifact_source(self, artifact: "PublicArtifact", name: str = None) -> None:
-        self.artifact_source = _WBValueArtifactSource(artifact, name)
+    def _set_artifact_source(
+        self, artifact: "PublicArtifact", name: Optional[str] = None
+    ) -> None:
+        assert (
+            self._artifact_source is None
+        ), "Cannot update artifact_source. Existing source: {}/{}".format(
+            self._artifact_source.artifact, self._artifact_source.name
+        )
+        self._artifact_source = _WBValueArtifactSource(artifact, name)
+
+    def _set_artifact_target(
+        self, artifact: "LocalArtifact", name: Optional[str] = None
+    ) -> None:
+        assert (
+            self._artifact_target is None
+        ), "Cannot update artifact_target. Existing target: {}/{}".format(
+            self._artifact_target.artifact, self._artifact_target.name
+        )
+        self._artifact_target = _WBValueArtifactTarget(artifact, name)
+
+    def _get_artifact_reference_entry(self) -> Optional["ArtifactEntry"]:
+        ref_entry = None
+        # If the object is coming from another artifact
+        if self._artifact_source and self._artifact_source.name:
+            ref_entry = self._artifact_source.artifact.get_path(
+                type(self).with_suffix(self._artifact_source.name)
+            )
+        # Else, if the object is destined for another artifact
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+        ):
+            # Currently, we do not have a way to obtain a reference URL without waiting for the
+            # upstream artifact to be logged. This implies that this only works online as well.
+            self._artifact_target.artifact.wait()
+            ref_entry = self._artifact_target.artifact.get_path(
+                type(self).with_suffix(self._artifact_target.name)
+            )
+        return ref_entry
 
 
 class Histogram(WBValue):
@@ -214,12 +265,12 @@ class Histogram(WBValue):
 
     Examples:
         Generate histogram from a sequence
-        ```
+        ```python
         wandb.Histogram([1,2,3])
         ```
 
         Efficiently initialize from np.histogram.
-        ```
+        ```python
         hist = np.histogram(data)
         wandb.Histogram(np_histogram=hist)
         ```
@@ -277,6 +328,12 @@ class Histogram(WBValue):
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
         return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
+
+    def __sizeof__(self) -> int:
+        """This returns an estimated size in bytes, currently the factor of 1.7
+        is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory
+        """
+        return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)
 
 
 class Media(WBValue):
@@ -367,8 +424,6 @@ class Media(WBValue):
         # Following assertion required for mypy
         assert self._run is not None
 
-        base_path = os.path.join(self._run.dir, self.get_media_subdir())
-
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
         else:
@@ -379,7 +434,7 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        new_path = os.path.join(base_path, file_path)
+        new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:
@@ -436,6 +491,9 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is not None:
+                json_obj["artifact_path"] = artifact_entry.ref_url()
         elif isinstance(run, artifact_class):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
@@ -462,18 +520,18 @@ class Media(WBValue):
 
                     # if not, check to see if there is a source artifact for this object
                     if (
-                        self.artifact_source
+                        self._artifact_source
                         is not None
-                        # and self.artifact_source.artifact != artifact
+                        # and self._artifact_source.artifact != artifact
                     ):
-                        default_root = self.artifact_source.artifact._default_root()
+                        default_root = self._artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self.artifact_source.artifact.get_path(name)
+                        path = self._artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     elif isinstance(self, Audio) and Audio.path_is_reference(
                         self._path
@@ -540,7 +598,7 @@ class Object3D(BatchableMedia):
                 a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
 
     The shape of the numpy array must be one of either:
-    ```
+    ```python
     [[x y z],       ...] nx3
     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
     [x y z r g b], ...] nx4 where is rgb is color
@@ -1579,7 +1637,8 @@ class Image(BatchableMedia):
         self._sha256 = wbimage._sha256
         self._size = wbimage._size
         self.format = wbimage.format
-        self.artifact_source = wbimage.artifact_source
+        self._artifact_source = wbimage._artifact_source
+        self._artifact_target = wbimage._artifact_target
 
         # We do not want to implicitly copy boxes or masks, just the image-related data.
         # self._boxes = wbimage._boxes
@@ -1645,7 +1704,7 @@ class Image(BatchableMedia):
             _masks = {}
             for key in masks:
                 _masks[key] = ImageMask.from_json(masks[key], source_artifact)
-                _masks[key].set_artifact_source(source_artifact)
+                _masks[key]._set_artifact_source(source_artifact)
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
@@ -2045,6 +2104,14 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
+            if hasattr(val, "artifact_type") and val.artifact_type == "table":
+                # Special conditional to log tables as artifact entries as well.
+                # I suspect we will generalize this as we transition to storing all
+                # files in an artifact
+                _, artifact_class = _safe_sdk_import()
+                art = artifact_class("run-{}-{}".format(run.id, key), "run_table")
+                art.add(val, key)
+                run.log_artifact(art)
             val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
@@ -2066,7 +2133,7 @@ def _wb_filename(
 
 def _numpy_arrays_to_lists(
     payload: Union[dict, Sequence, "np.ndarray"]
-) -> Union[Sequence, dict]:
+) -> Union[Sequence, dict, str, int, float, bool]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
@@ -2080,7 +2147,9 @@ def _numpy_arrays_to_lists(
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
-
+    # Protects against logging non serializable objects
+    elif isinstance(payload, Media):
+        return str(payload.__class__.__name__)
     return payload
 
 

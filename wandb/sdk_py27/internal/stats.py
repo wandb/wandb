@@ -120,13 +120,13 @@ class SystemStats(object):
     @property
     def sample_rate_seconds(self):
         """Sample system stats every this many seconds, defaults to 2, min is 0.5"""
-        return 1
+        return 2
         # return max(0.5, self._api.dynamic_settings["system_sample_seconds"])
 
     @property
     def samples_to_average(self):
         """The number of samples to average before pushing, defaults to 15 valid range (2:30)"""
-        return 4
+        return 15
         # return min(30, max(2, self._api.dynamic_settings["system_samples"]))
 
     def _thread_body(self):

@@ -534,6 +534,48 @@ def test_table_default():
     }
 
 
+def test_table_eq_debug():
+    # Invalid Type
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = {}
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Rows
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Columns
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]], columns=["a", "b", "c"])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Types
+    a = wandb.Table(data=[[1, 2, 3]])
+    b = wandb.Table(data=[["1", "2", "3"]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Data
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 100]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    a._eq_debug(b, True)
+    assert a == b
+
+
 def test_table_custom():
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
@@ -766,3 +808,16 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log(
+        {
+            "logged_table": wandb.Table(
+                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+            )
+        }
+    )
+    run.finish()
+    assert True

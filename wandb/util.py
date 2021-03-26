@@ -47,14 +47,14 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
+from wandb.errors import CommError
 from wandb.old.core import wandb_dir
-from wandb.errors.error import CommError
 from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
-
+MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla
@@ -479,6 +479,30 @@ def json_friendly(obj):
     return obj, converted
 
 
+def json_friendly_val(val):
+    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
+    if isinstance(val, dict):
+        converted = {}
+        for key, value in six.iteritems(val):
+            converted[key] = json_friendly_val(value)
+        return converted
+    if isinstance(val, slice):
+        converted = dict(
+            slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+        )
+        return converted
+    val, _ = json_friendly(val)
+    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+        converted = []
+        for value in val:
+            converted.append(json_friendly_val(value))
+        return converted
+    else:
+        if val.__class__.__module__ not in ("builtins", "__builtin__"):
+            val = str(val)
+        return val
+
+
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
@@ -718,7 +742,10 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409}:
+                if e.response.status_code in {400, 403, 404, 409} or (
+                    e.response.status_code == 500
+                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
+                ):
                     return e
 
             if retry_count == max_retries:
@@ -731,9 +758,12 @@ def request_with_retry(func, *args, **kwargs):
             ):
                 logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
+                pass
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
                     e,
+                    func,
+                    e.response.content,
                     args,
                     kwargs,
                 )
