@@ -199,7 +199,7 @@ def test_add_reference_local_file_no_checksum(runner):
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://file1.txt", checksum=False)
-        assert artifact.digest == "955a12ddc5ef762143f72f6d3642d676"
+        assert artifact.digest == "2f66dd01e5aea4af52445f7602fe88a0"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["file1.txt"] == {
             "digest": "file://file1.txt",
@@ -240,31 +240,23 @@ def test_add_reference_local_dir(runner):
 
 def test_add_reference_local_dir_no_checksum(runner):
     with runner.isolated_filesystem():
-        open("file1.txt", "w").write("hello")
-        os.mkdir("nest")
-        open("nest/file2.txt", "w").write("my")
-        os.mkdir("nest/nest")
-        open("nest/nest/file3.txt", "w").write("dude")
+        os.mkdir("tmp")
+        open("tmp/file1.txt", "w").write("hello")
+        os.mkdir("tmp/nest")
+        open("tmp/nest/file2.txt", "w").write("my")
+        os.mkdir("tmp/nest/nest")
+        open("tmp/nest/nest/file3.txt", "w").write("dude")
 
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        artifact.add_reference("file://" + os.getcwd(), checksum=False)
+        artifact.add_reference("file://tmp", checksum=False)
 
-        assert artifact.digest == "bd4bd89903919fb0e2a2adb7edff8712"
+        assert artifact.digest == "f4133c1eba94db90c39129569f8790fd"
         manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"]["file1.txt"] == {
-            "digest": "file://file1.txt",
-            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
-            "size": 5,
-        }
-        assert manifest["contents"]["nest/file2.txt"] == {
-            "digest": "file://nest/file2.txt",
-            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
-            "size": 2,
-        }
-        assert manifest["contents"]["nest/nest/file3.txt"] == {
-            "digest": "file://nest/nest/file3.txt",
-            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
-            "size": 4,
+        print(manifest)
+        assert manifest["contents"]["tmp"] == {
+            "digest": "file://tmp",
+            "ref": "file://tmp",
+            "size": 11,
         }
 
 
