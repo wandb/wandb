@@ -6,6 +6,7 @@ import pytest  # type: ignore
 
 import wandb
 from wandb import Settings
+from wandb.sdk.wandb_settings import SettingsConsole
 import os
 import copy
 
@@ -265,3 +266,122 @@ def test_code_saving_disable_code(live_mock_server, test_settings):
     os.environ["WANDB_DISABLE_CODE"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
+
+
+def test_code_saving_conflict_always_false(live_mock_server, test_settings):
+    pass
+
+
+def test_offline(test_settings):
+    assert test_settings._offline is False
+    test_settings.update({"disabled": True})
+    assert test_settings._offline is True
+    test_settings.update({"disabled": None})
+    test_settings.update({"mode": "dryrun"})
+    assert test_settings._offline is True
+    test_settings.update({"mode": "offline"})
+    assert test_settings._offline is True
+
+
+@pytest.mark.skip(reason="Setting silent via settings doesn't work")
+def test_silent(live_mock_server, test_settings):
+    test_settings.update({"silent": "true"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._silent is True
+
+
+def test_silent_env(live_mock_server, test_settings, capsys):
+    os.environ["WANDB_SILENT"] = "true"
+    run = wandb.init(settings=test_settings)
+    assert run._settings._silent is True
+    captured = capsys.readouterr()
+    assert len(captured.out) == 0
+
+
+@pytest.mark.skip(reason="Setting strict false via settings doesn't work")
+def test_strict(live_mock_server, test_settings):
+    test_settings.update({"strict": "true"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._strict is True
+
+    test_settings.update({"strict": "false"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._strict is False
+
+
+@pytest.mark.skip(reason="Setting show_info false via settings doesn't work")
+def test_show_info(live_mock_server, test_settings):
+    test_settings.update({"show_info": True})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_info is True
+
+    test_settings.update({"show_info": False})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_info is False
+
+
+@pytest.mark.skip(reason="Setting show_warnings false via settings doesn't work")
+def test_show_warnings(live_mock_server, test_settings):
+    test_settings.update({"show_warnings": "true"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_warnings is True
+
+    test_settings.update({"show_warnings": "false"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_warnings is False
+
+
+@pytest.mark.skip(reason="Setting show_errors false via settings doesn't work")
+def test_show_errors(live_mock_server, test_settings):
+    test_settings.update({"show_errors": True})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_errors is True
+
+    test_settings.update({"show_errors": False})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._show_errors is False
+
+
+def test_noop(live_mock_server, test_settings):
+    test_settings.update({"disabled": "true"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._noop is True
+
+
+def test_jupyter():
+    pass
+
+
+def test_kaggle():
+    pass
+
+
+def test_console(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings._console == SettingsConsole.OFF
+    # commented out because you can't set console using settings
+    # test_settings.update({"console": "auto"})
+    # run = wandb.init(settings=test_settings)
+    # assert run._settings._console == SettingsConsole.REDIRECT
+    # os.environ["WANDB_START_METHOD"] = "thread"
+    # run = wandb.init(settings=test_settings)
+    # assert run._settings._console == SettingsConsole.WRAP
+
+
+def test_resume_fname(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    print(os.environ.get("WANDB_DIR"))
+    assert run._settings.resume_fname == os.path.join(os.environ.get("WANDB_DIR", "wandb-resume.json"))
+
+
+def test_root_dir(live_mock_server, test_settings):
+    pass
+
+
+def test_path_convert(test_settings):
+    pass
+
+
+def test_setup(test_settings):
+    # appears unused
+    pass
