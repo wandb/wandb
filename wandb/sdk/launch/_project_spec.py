@@ -98,21 +98,23 @@ def load_project(directory):
             entry_points=entry_points,
             docker_env=docker_env,
             name=project_name,
+            directory=directory
         )
 
     return Project(
-        conda_env_path=None, entry_points=entry_points, docker_env=docker_env, name=project_name
+        conda_env_path=None, entry_points=entry_points, docker_env=docker_env, name=project_name, directory=directory
     )
 
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
-    def __init__(self, conda_env_path, entry_points, docker_env, name):
+    def __init__(self, conda_env_path, entry_points, docker_env, name, directory):
         self.conda_env_path = conda_env_path
         self._entry_points = entry_points
         self.docker_env = docker_env
         self.name = name
+        self.dir = directory
 
     def get_entry_point(self, entry_point):
         if entry_point in self._entry_points:

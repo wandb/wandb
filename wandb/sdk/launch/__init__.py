@@ -7,7 +7,7 @@ import wandb
 from wandb.errors import ExecutionException
 from .backend import loader
 from .utils import PROJECT_USE_CONDA, PROJECT_SYNCHRONOUS, PROJECT_DOCKER_ARGS, PROJECT_STORAGE_DIR
-from .agents import agent_class
+from .agent import LaunchAgent
 
 _logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ def run_agent(spec, agent="local", max_parallel=4, queue=None):
     spec = spec[0]
     entity, project = spec.split("/")
 
-    agent = agent_class(agent)(entity, project, max_parallel, queue)
+    agent = LaunchAgent(entity, project, agent, max_parallel, queue)
     agent.verify()
     agent.loop()
 

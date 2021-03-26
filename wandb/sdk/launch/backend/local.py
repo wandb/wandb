@@ -2,28 +2,73 @@ import logging
 import os
 import platform
 import posixpath
+import signal
 import subprocess
 import sys
 
 from wandb.errors import ExecutionException
 
-from ..submitted_run import LocalSubmittedRun
-from .abstract_backend import AbstractBackend
+from .abstract import AbstractBackend, AbstractRun
 from ..utils import (
-    fetch_and_validate_project,
-    load_project,
     get_run_env_vars,
     get_entry_point_command,
+    get_conda_command, 
+    get_or_create_conda_env,
     WANDB_DOCKER_WORKDIR_PATH,
     PROJECT_USE_CONDA,
     PROJECT_SYNCHRONOUS,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
 )
-from ..utils import get_conda_command, get_or_create_conda_env
-
 
 _logger = logging.getLogger(__name__)
+
+
+class LocalSubmittedRun(AbstractRun):
+    """
+    Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point
+    command locally.
+    """
+
+    def __init__(self, run_id, command_proc):
+        super().__init__(run_id)
+        self.command_proc = command_proc
+
+    @property
+    def id(self):
+        return self.command_proc.pid
+
+    def wait(self):
+        return self.command_proc.wait() == 0
+
+    def cancel(self):
+        # Interrupt child process if it hasn't already exited
+        if self.command_proc.poll() is None:
+            # Kill the the process tree rooted at the child if it's the leader of its own process
+            # group, otherwise just kill the child
+            try:
+                if self.command_proc.pid == os.getpgid(self.command_proc.pid):
+                    os.killpg(self.command_proc.pid, signal.SIGTERM)
+                else:
+                    self.command_proc.terminate()
+            except OSError:
+                # The child process may have exited before we attempted to terminate it, so we
+                # ignore OSErrors raised during child process termination
+                _logger.info(
+                    "Failed to terminate child process (PID %s) corresponding to W&B "
+                    "run with ID %s. The process may have already exited.",
+                    self.command_proc.pid,
+                    self._run_id,
+                )
+            self.command_proc.wait()
+
+    def get_status(self):
+        exit_code = self.command_proc.poll()
+        if exit_code is None:
+            return "running"
+        if exit_code == 0:
+            return "finished"
+        return "failed"
 
 
 class LocalBackend(AbstractBackend):
@@ -31,14 +76,14 @@ class LocalBackend(AbstractBackend):
         self, project_uri, entry_point, params, version, backend_config, experiment_id
     ):
         run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
-        work_dir = fetch_and_validate_project(project_uri, version, entry_point, params)
-        project = load_project(work_dir)
-        command_args = []
-        command_separator = " "
+        project = self.fetch_and_validate_project(project_uri, version, entry_point, params)
         use_conda = backend_config[PROJECT_USE_CONDA]
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
+
+        command_args = []
+        command_separator = " "
         # If a docker_env attribute is defined in MLproject then it takes precedence over conda yaml
         # environments, so the project will be executed inside a docker container.
         if project.docker_env:
@@ -51,7 +96,7 @@ class LocalBackend(AbstractBackend):
             validate_docker_env(project)
             validate_docker_installation()
             image = build_docker_image(
-                work_dir=work_dir,
+                work_dir=project.dir,
                 repository_uri=project.name,
                 base_image=project.docker_env.get("image"),
                 run_id=run_id
@@ -76,11 +121,11 @@ class LocalBackend(AbstractBackend):
             command_args += get_entry_point_command(project, entry_point, params, storage_dir)
             command_str = command_separator.join(command_args)
             return _run_entry_point(
-                command_str, work_dir, experiment_id, run_id=run_id
+                command_str, project.dir, experiment_id, run_id=run_id
             )
         # Otherwise, invoke `mlflow run` in a subprocess
         return _invoke_wandb_run_subprocess(
-            work_dir=work_dir,
+            work_dir=project.dir,
             entry_point=entry_point,
             parameters=params,
             experiment_id=experiment_id,
@@ -89,6 +134,49 @@ class LocalBackend(AbstractBackend):
             storage_dir=storage_dir,
             run_id=run_id,
         )
+
+
+def _run_launch_cmd(cmd, env_map):
+    """
+    Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
+    Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
+    """
+    final_env = os.environ.copy()
+    final_env.update(env_map)
+    # Launch `mlflow run` command as the leader of its own process group so that we can do a
+    # best-effort cleanup of all its descendant processes if needed
+    if sys.platform == "win32":
+        return subprocess.Popen(
+            cmd,
+            env=final_env,
+            universal_newlines=True,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+    else:
+        return subprocess.Popen(
+            cmd, env=final_env, universal_newlines=True, preexec_fn=os.setsid
+        )
+
+
+def _run_entry_point(command, work_dir, experiment_id, run_id):
+    """
+    Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
+    query the run's status.
+    :param command: Entry point command to run
+    :param work_dir: Working directory in which to run the command
+    :param run: SubmittedRun object associated with the entry point execution.
+    """
+    env = os.environ.copy()
+    env.update(get_run_env_vars(run_id))
+    _logger.info("=== Running command '%s' in run with ID '%s' === ", command, run_id)
+    # in case os name is not 'nt', we are not running on windows. It introduces
+    # bash command otherwise.
+    if os.name != "nt":
+        process = subprocess.Popen(["bash", "-c", command], close_fds=True, cwd=work_dir, env=env)
+    else:
+        # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
+        process = subprocess.Popen(["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env)
+    return LocalSubmittedRun(run_id, process)
 
 
 def _invoke_wandb_run_subprocess(
@@ -109,7 +197,7 @@ def _invoke_wandb_run_subprocess(
         parameters=parameters,
     )
     env_vars = get_run_env_vars(run_id)
-    wandb_run_subprocess = _run_wandb_run_cmd(wandb_run_arr, env_vars)
+    wandb_run_subprocess = _run_launch_cmd(wandb_run_arr, env_vars)
     return LocalSubmittedRun(run_id, wandb_run_subprocess)
 
 
@@ -132,49 +220,6 @@ def _build_wandb_run_cmd(
     for key, value in parameters.items():
         wandb_run_arr.extend(["-P", "%s=%s" % (key, value)])
     return wandb_run_arr
-
-
-def _run_wandb_run_cmd(wandb_run_arr, env_map):
-    """
-    Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
-    Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
-    """
-    final_env = os.environ.copy()
-    final_env.update(env_map)
-    # Launch `mlflow run` command as the leader of its own process group so that we can do a
-    # best-effort cleanup of all its descendant processes if needed
-    if sys.platform == "win32":
-        return subprocess.Popen(
-            wandb_run_arr,
-            env=final_env,
-            universal_newlines=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        )
-    else:
-        return subprocess.Popen(
-            wandb_run_arr, env=final_env, universal_newlines=True, preexec_fn=os.setsid
-        )
-
-
-def _run_entry_point(command, work_dir, experiment_id, run_id):
-    """
-    Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
-    query the run's status.
-    :param command: Entry point command to run
-    :param work_dir: Working directory in which to run the command
-    :param run_id: W&B run ID associated with the entry point execution.
-    """
-    env = os.environ.copy()
-    env.update(get_run_env_vars(run_id))
-    _logger.info("=== Running command '%s' in run with ID '%s' === ", command, run_id)
-    # in case os name is not 'nt', we are not running on windows. It introduces
-    # bash command otherwise.
-    if os.name != "nt":
-        process = subprocess.Popen(["bash", "-c", command], close_fds=True, cwd=work_dir, env=env)
-    else:
-        # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
-        process = subprocess.Popen(["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env)
-    return LocalSubmittedRun(run_id, process)
 
 
 def _get_docker_command(image, run_id, docker_args=None, volumes=None, user_env_vars=None):
