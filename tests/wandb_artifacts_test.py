@@ -891,53 +891,50 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         e.ref_target()
 
     # These properties should be valid both before and after logging
-    testable_getters_valid = set(
-        [
-            "id",
-            "entity",
-            "project",
-            "manifest",
-            "digest",
-            "type",
-            "name",
-            "state",
-            "size",
-            "description",
-            "metadata",
-        ]
-    )
+    testable_getters_valid = [
+        "id",
+        "entity",
+        "project",
+        "manifest",
+        "digest",
+        "type",
+        "name",
+        "state",
+        "size",
+        "description",
+        "metadata",
+    ]
 
     # These are valid even before waiting!
-    testable_getters_always_valid = set(["distributed_id"])
+    testable_getters_always_valid = ["distributed_id"]
 
     # These properties should be valid only after logging
-    testable_getters_invalid = set(["version", "commit_hash", "aliases"])
+    testable_getters_invalid = ["version", "commit_hash", "aliases"]
 
     # These setters should be valid both before and after logging
-    testable_setters_valid = set(["description", "metadata"])
+    testable_setters_valid = ["description", "metadata"]
 
     # These are valid even before waiting!
-    testable_setters_always_valid = set(["distributed_id"])
+    testable_setters_always_valid = ["distributed_id"]
 
     # These setters should be valid only after logging
-    testable_setters_invalid = set(["aliases"])
+    testable_setters_invalid = ["aliases"]
 
     # These methods should be valid both before and after logging
-    testable_methods_valid = set([])
+    testable_methods_valid = []
 
     # These methods should be valid only after logging
-    testable_methods_invalid = set(
-        [
-            "used_by",
-            "logged_by",
-            "get_path",
-            "get",
-            "download",
-            "checkout",
-            "verify",
-            "delete",
-        ]
-    )
+    testable_methods_invalid = [
+        "used_by",
+        "logged_by",
+        "get_path",
+        "get",
+        "download",
+        "checkout",
+        "verify",
+        "delete",
+    ]
+
     setter_data = {"metadata": {}}
     params = {"get_path": ["t1.table.json"], "get": ["t1"]}
 
@@ -949,14 +946,14 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         "logged_by": KeyError,
     }
 
-    for valid_getter in testable_getters_valid | testable_getters_always_valid:
+    for valid_getter in testable_getters_valid + testable_getters_always_valid:
         _ = getattr(art, valid_getter)
 
     for invalid_getter in testable_getters_invalid:
         with pytest.raises(ValueError):
             _ = getattr(art, invalid_getter)
 
-    for valid_setter in testable_setters_valid | testable_setters_always_valid:
+    for valid_setter in testable_setters_valid + testable_setters_always_valid:
         setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
 
     for invalid_setter in testable_setters_invalid:
@@ -980,15 +977,15 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     # THE LOG
     run.log_artifact(art)
 
-    for getter in testable_getters_valid | testable_getters_invalid:
+    for getter in testable_getters_valid + testable_getters_invalid:
         with pytest.raises(ValueError):
             _ = getattr(art, getter)
 
-    for setter in testable_setters_valid | testable_setters_invalid:
+    for setter in testable_setters_valid + testable_setters_invalid:
         with pytest.raises(ValueError):
             setattr(art, setter, "TEST")
 
-    for method in testable_methods_valid | testable_methods_invalid:
+    for method in testable_methods_valid + testable_methods_invalid:
         attr_method = getattr(art, method)
         with pytest.raises(ValueError):
             _ = attr_method(*params.get(method, []))
@@ -996,13 +993,13 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     # THE ALL IMPORTANT WAIT
     art.wait()
 
-    for getter in testable_getters_valid | testable_getters_invalid:
+    for getter in testable_getters_valid + testable_getters_invalid:
         _ = getattr(art, getter)
 
-    for setter in testable_setters_valid | testable_setters_invalid:
+    for setter in testable_setters_valid + testable_setters_invalid:
         setattr(art, setter, "TEST")
 
-    for method in testable_methods_valid | testable_methods_invalid:
+    for method in testable_methods_valid + testable_methods_invalid:
         attr_method = getattr(art, method)
         if method in special_errors:
             with pytest.raises(special_errors[method]):
