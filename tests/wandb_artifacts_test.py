@@ -1033,3 +1033,14 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
+
+
+def test_communicate_artifact(
+    mocked_run, test_settings, mock_server, internal_sender, start_backend, stop_backend
+):
+    start_backend()
+    art = internal_sender.communicate_artifact(
+        run=mocked_run, artifact=wandb.Artifact("mnist", "dataset"), aliases=["latest"]
+    )
+    res = art.get().response.log_artifact_response
+    stop_backend()
