@@ -362,7 +362,7 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-@pytest.mark.skip(reason="Not functional")
+@pytest.mark.skip(reason="TODO: Get mocked live policy working")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     run = wandb.init(settings=test_settings)
     fpath = os.path.join(run.dir, "testFile")

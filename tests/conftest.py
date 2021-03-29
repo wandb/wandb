@@ -24,7 +24,6 @@ import psutil
 import atexit
 import wandb
 import shutil
-from wandb.filesync.dir_watcher import PolicyLive
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 
@@ -774,46 +773,3 @@ def tbwatcher_util(
         return ctx_util
 
     yield fn
-
-
-@pytest.fixture
-def mocked_live_policy(monkeypatch, wandb_init_run):
-    fpath = os.path.join(wandb_init_run.dir, "test_file")
-    with open(fpath, "w") as fp:
-        fp.write("")
-        fp.close()
-
-    livePolicy = PolicyLive(fpath, "saved_file", None, None)
-
-    def spoof_save(livePolicy):
-        livePolicy._last_sync = os.path.getmtime(livePolicy.file_path)
-        livePolicy._last_uploaded_time = time.time()
-        livePolicy._last_uploaded_size = livePolicy.current_size
-
-    def spoof_min_wait_for_size(livePolicy, size):
-        return 1
-
-    monkeypatch.setattr(PolicyLive, "save_file", spoof_save)
-    monkeypatch.setattr(PolicyLive, "min_wait_for_size", spoof_min_wait_for_size)
-    monkeypatch.setattr(PolicyLive, "RATE_LIMIT_SECONDS", 1)
-
-    livePolicy._last_uploaded_time = time.time() - 60
-    yield livePolicy
-
-
-@pytest.fixture
-def mocked_live_policy_integration(monkeypatch):
-    fpath = "/tmp/testFile"
-    with open(fpath, "w") as fp:
-        fp.write("")
-        fp.close()
-
-    livePolicy = PolicyLive(fpath, "saved_file", None, None)
-
-    def spoof_min_wait_for_size(livePolicy, size):
-        return 1
-
-    monkeypatch.setattr(livePolicy, "min_wait_for_size", spoof_min_wait_for_size)
-    monkeypatch.setattr(livePolicy, "RATE_LIMIT_SECONDS", 1)
-
-    yield livePolicy
