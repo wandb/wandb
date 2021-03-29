@@ -595,6 +595,12 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
+    def __setitem__(self, name, item):
+        return self.add(item, name)
+
+    def __getitem__(self, name):
+        return self.get(name)
+
 
 class ArtifactManifestV1(ArtifactManifest):
     @classmethod

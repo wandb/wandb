@@ -32,6 +32,7 @@ import json
 import multiprocessing
 import os
 import platform
+import re
 import socket
 import sys
 import tempfile
@@ -643,6 +644,17 @@ class Settings(object):
         val = _str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
+        return None
+
+    def _validate_base_url(self, value):
+        if value is not None:
+            if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+                # user might guess app.wandb.ai or wandb.ai is the default cloud server
+                return "{} is not a valid server address, did you mean https://api.wandb.ai?".format(
+                    value
+                )
+            elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
+                return "http is not secure, please use https://api.wandb.ai"
         return None
 
     def _preprocess_base_url(self, value):
