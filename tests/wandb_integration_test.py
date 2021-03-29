@@ -4,8 +4,12 @@ specific backend logic, or wandb_test.py for testing frontend logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
-import wandb
+# from wandb.filesync.dir_watcher import PolicyLive
 from wandb.filesync.dir_watcher import PolicyLive
+import wandb
+
+# from wandb.filesync.dir_watcher import PolicyLive
+# from wandb.sdk.internal.sender.wandb.filesync.dir_watcher import PolicyLive
 import pytest
 import json
 import platform
@@ -358,22 +362,27 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-def test_live_policy_file_upload(live_mock_server, monkeypatch, test_settings):
+@pytest.mark.skip(reason="Not functional")
+def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     run = wandb.init(settings=test_settings)
-    fpath = "/tmp/testFile"
-    time.sleep(1)
-    with open(fpath, "w") as fp:
-        fp.write("a" * 5000)
+    fpath = os.path.join(run.dir, "testFile")
+
+    # time.sleep(1)
+    with open(fpath, "wb") as fp:
+        fp.seek(10000)
+        fp.write(b"\0")
         fp.close()
     wandb.save(fpath, policy="live")
-
-    with open(fpath, "w") as fp:
-        fp.write("b" * 5000)
-        fp.close()
-    # time.sleep(5)
-    with open(fpath, "a") as fp:
-        fp.write("a" * 5000)
-        fp.close()
-    time.sleep(5)
+    # time.sleep(2.1)
+    # with open(fpath, "w") as fp:
+    #     fp.write("b" * 5000)
+    #     fp.close()
+    print("modifying")
+    time.sleep(2.1)
+    with open(fpath, "wb") as fp:
+        fp.seek(100000)
+        fp.write(b"\0")
+    time.sleep(2.1)
     server_ctx = live_mock_server.get_ctx()
+    print(server_ctx["file_bytes"])
     assert False
