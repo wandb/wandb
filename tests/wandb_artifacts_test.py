@@ -8,6 +8,9 @@ import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
 import time
+from wandb.proto import wandb_internal_pb2 as pb
+
+sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def mock_boto(artifact, path=False):
@@ -1036,11 +1039,21 @@ def test_reference_download(runner, live_mock_server, test_settings):
 
 
 def test_communicate_artifact(
-    mocked_run, test_settings, mock_server, internal_sender, start_backend, stop_backend
+    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
 ):
     start_backend()
-    art = internal_sender.communicate_artifact(
-        run=mocked_run, artifact=wandb.Artifact("mnist", "dataset"), aliases=["latest"]
-    )
-    res = art.get().response.log_artifact_response
+    proto_run = internal_sender._make_run(mocked_run)
+    proto_artifact = internal_sender._make_artifact(wandb.Artifact("mnist", "dataset"))
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+    rec = internal_sender._make_request(log_artifact=log_artifact)
+    art = internal_sm.send_artifact(rec)
     stop_backend()
