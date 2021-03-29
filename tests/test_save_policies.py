@@ -29,24 +29,6 @@ def mocked_live_policy(monkeypatch, wandb_init_run):
     yield livePolicy
 
 
-@pytest.fixture
-def mocked_live_policy_integration(monkeypatch):
-    fpath = "/tmp/testFile"
-    with open(fpath, "w") as fp:
-        fp.write("")
-        fp.close()
-
-    livePolicy = PolicyLive(fpath, "saved_file", None, None)
-
-    def spoof_min_wait_for_size(livePolicy, size):
-        return 1
-
-    monkeypatch.setattr(livePolicy, "min_wait_for_size", spoof_min_wait_for_size)
-    monkeypatch.setattr(livePolicy, "RATE_LIMIT_SECONDS", 1)
-
-    yield livePolicy
-
-
 def test_policy_on_modified(monkeypatch, wandb_init_run, mocked_live_policy):
     # policy does not save empty files
     mocked_live_policy.on_modified()
