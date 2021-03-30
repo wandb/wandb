@@ -182,9 +182,7 @@ def test_save_live_glob_multi_write(
     print(
         "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
-    # TODO: Get PolicyLive mock working so this test can be performed properly
-    # then set this line back to 3. Right now it only does 2, one on first creation
-    # second on finish, because there's a 60 second rate limit
+
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
