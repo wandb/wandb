@@ -52,10 +52,12 @@ def test_check_etag_obj_path(runner):
 def test_check_write_parallel(runner):
     with runner.isolated_filesystem() as t:
         cache = os.path.join(t, "cache")
-        print(cache)
         num_parallel = 5
-        with Pool(num_parallel) as p:
-            p.map(_cache_writer, [cache for _ in range(num_parallel)])
+
+        p = Pool(num_parallel)
+        p.map(_cache_writer, [cache for _ in range(num_parallel)])
+        p.close()
+        p.join()
 
         # Regardless of the ordering, we should be left with one
         # file at the end.
