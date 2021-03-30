@@ -273,7 +273,10 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "://api.wandb." in api_url:
+    if "://api.wandb.test" in api_url:
+        # dev mode
+        return api_url.replace("://api.", "://app.")
+    elif "://api.wandb." in api_url:
         # cloud
         return api_url.replace("://api.", "://")
     elif "://api." in api_url:
