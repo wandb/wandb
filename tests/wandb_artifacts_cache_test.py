@@ -20,16 +20,16 @@ def test_check_md5_obj_path(runner):
         os.mkdir("cache")
         cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
 
-        md5 = base64.b64encode('abcdef'.encode('ascii'))
+        md5 = base64.b64encode("abcdef".encode("ascii"))
         path, exists, opener = cache.check_md5_obj_path(md5, 10)
         with opener() as f:
-            f.write('hi')
+            f.write("hi")
         with open(path) as f:
             contents = f.read()
 
         assert path == "cache/obj/md5/61/6263646566"
         assert exists is False
-        assert contents == 'hi'
+        assert contents == "hi"
 
 
 def test_check_etag_obj_path(runner):
@@ -40,13 +40,13 @@ def test_check_etag_obj_path(runner):
         etag = "abcdef"
         path, exists, opener = cache.check_etag_obj_path(etag, 10)
         with opener() as f:
-            f.write('hi')
+            f.write("hi")
         with open(path) as f:
             contents = f.read()
 
         assert path == "cache/obj/etag/ab/cdef"
         assert exists is False
-        assert contents == 'hi'
+        assert contents == "hi"
 
 
 def test_check_write_parallel(runner):
@@ -59,7 +59,7 @@ def test_check_write_parallel(runner):
 
         # Regardless of the ordering, we should be left with one
         # file at the end.
-        assert os.listdir("cache/obj/etag/ab") == ['cdef']
+        assert os.listdir("cache/obj/etag/ab") == ["cdef"]
 
 
 def test_artifacts_cache_cleanup_empty(runner):
