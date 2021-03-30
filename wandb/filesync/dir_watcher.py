@@ -119,6 +119,7 @@ class PolicyLive(FileEventHandler):
             time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
             if time_elapsed < self.RATE_LIMIT_SECONDS:
+                print("Less than ratenlimit",self.RATE_LIMIT_SECONDS)
                 return False
 
             # Check rate limit by size increase
