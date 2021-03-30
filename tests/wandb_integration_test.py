@@ -375,32 +375,35 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
 
     wandb.init(settings=test_settings)
     fpath = "/tmp/saveFile"
-
+    sent = 0
     # file created, should be uploaded
     with open(fpath, "w") as fp:
-        fp.write("a" * 100000)
+        fp.write("a" * 1000)
         fp.close()
     wandb.save(fpath, policy="live")
+    # on save file is sent
+    sent += os.path.getsize(fpath)
     time.sleep(5.1)
-    print("modifying keep")
     with open(fpath, "a") as fp:
         fp.write("a" * 100000)
         fp.close()
+    # 5 seconds is longer than set rate limit
+    sent += os.path.getsize(fpath)
     # give watchdog time to register the change
     time.sleep(1.5)
     # file updated within modified time, should not be uploaded
-    print("modifying no keep")
     with open(fpath, "a") as fp:
         fp.write("a" * 25000)
         fp.close()
     time.sleep(5.1)
-    print("modifying keep")
-    # file updated outsie of rate limit should be uploaded
+    
+    # file updated outside of rate limit should be uploaded
     with open(fpath, "a") as fp:
         fp.write("a" * 100000)
         fp.close()
+    sent += os.path.getsize(fpath)
     time.sleep(2)
+
     server_ctx = live_mock_server.get_ctx()
     print(server_ctx["file_bytes"])
-    assert 10000 < server_ctx["file_bytes"] < 100000
-    assert False
+    assert server_ctx["file_bytes"] - sent < 10000
