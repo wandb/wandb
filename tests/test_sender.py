@@ -152,8 +152,10 @@ def test_save_live_glob_multi_write(
     def mock_min_size(self, size):
         return 1
 
-    mocker.patch('wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS', 1)
-    mocker.patch('wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size', mock_min_size)
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 1)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
 
     start_backend()
     internal_sender.publish_files({"files": [("checkpoints/*", "live")]})

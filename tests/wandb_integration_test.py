@@ -363,8 +363,10 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     def mock_min_size(self, size):
         return 5
 
-    mocker.patch('wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS', 5)
-    mocker.patch('wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size', mock_min_size)
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 5)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
 
     wandb.init(settings=test_settings)
     fpath = "/tmp/saveFile"
@@ -389,7 +391,7 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
         fp.write("a" * 25000)
         fp.close()
     time.sleep(5.1)
-    
+
     # file updated outside of rate limit should be uploaded
     with open(fpath, "a") as fp:
         fp.write("a" * 100000)
