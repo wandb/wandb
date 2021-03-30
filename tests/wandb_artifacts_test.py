@@ -1041,9 +1041,13 @@ def test_reference_download(runner, live_mock_server, test_settings):
 def test_communicate_artifact(
     mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
 ):
+    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
     start_backend()
+
     proto_run = internal_sender._make_run(mocked_run)
-    proto_artifact = internal_sender._make_artifact(wandb.Artifact("mnist", "dataset"))
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(artifact)
     proto_artifact.run_id = proto_run.run_id
     proto_artifact.project = proto_run.project
     proto_artifact.entity = proto_run.entity
@@ -1054,6 +1058,6 @@ def test_communicate_artifact(
         proto_artifact.aliases.append(alias)
     log_artifact = pb.LogArtifactRequest()
     log_artifact.artifact.CopyFrom(proto_artifact)
-    rec = internal_sender._make_request(log_artifact=log_artifact)
-    art = internal_sm.send_artifact(rec)
+
+    art = internal_sm.send_artifact(log_artifact)
     stop_backend()

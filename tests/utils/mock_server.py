@@ -554,7 +554,38 @@ def create_app(user_ctx=None):
                             ctx,
                             collection_name,
                             id_override=body.get("variables", {}).get("digest", ""),
+                            state="COMMITTED"
+                            if "PENDING" not in collection_name
+                            else "PENDING",
                         )
+                    }
+                }
+            }
+        if "mutation CreateArtifactManifest(" in body["query"]:
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": {
+                            "id": 1,
+                            "file": {
+                                "id": 1,
+                                "directUrl": request.url_root
+                                + "/storage?file=wandb_manifest.json&name={}".format(
+                                    body.get("variables", {}).get("name", "")
+                                ),
+                                "uploadUrl": request.url_root
+                                + "/storage?file=wandb_manifest.json",
+                                "uploadHeaders": "",
+                            },
+                        }
+                    }
+                }
+            }
+        if "mutation CommitArtifact(" in body["query"]:
+            return {
+                "data": {
+                    "commitArtifact": {
+                        "artifact": {"id": 1, "digest": "0000===================="}
                     }
                 }
             }
