@@ -4,12 +4,7 @@ specific backend logic, or wandb_test.py for testing frontend logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
-# from wandb.filesync.dir_watcher import PolicyLive
-from wandb.filesync.dir_watcher import PolicyLive
 import wandb
-
-# from wandb.filesync.dir_watcher import PolicyLive
-# from wandb.sdk.internal.sender.wandb.filesync.dir_watcher import PolicyLive
 import pytest
 import json
 import platform
@@ -362,27 +357,48 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-@pytest.mark.skip(reason="TODO: Get mocked live policy working")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
-    run = wandb.init(settings=test_settings)
-    fpath = os.path.join(run.dir, "testFile")
+    test_settings.update({"start_method": "thread"})
 
-    # time.sleep(1)
-    with open(fpath, "wb") as fp:
-        fp.seek(10000)
-        fp.write(b"\0")
+    def mock_min_size(self, size):
+        return 5
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 5)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
+    wandb.init(settings=test_settings)
+    fpath = "/tmp/saveFile"
+    sent = 0
+    # file created, should be uploaded
+    with open(fpath, "w") as fp:
+        fp.write("a" * 1000)
         fp.close()
     wandb.save(fpath, policy="live")
-    # time.sleep(2.1)
-    # with open(fpath, "w") as fp:
-    #     fp.write("b" * 5000)
-    #     fp.close()
-    print("modifying")
-    time.sleep(2.1)
-    with open(fpath, "wb") as fp:
-        fp.seek(100000)
-        fp.write(b"\0")
-    time.sleep(2.1)
+    # on save file is sent
+    sent += os.path.getsize(fpath)
+    time.sleep(5.1)
+    with open(fpath, "a") as fp:
+        fp.write("a" * 100000)
+        fp.close()
+    # 5 seconds is longer than set rate limit
+    sent += os.path.getsize(fpath)
+    # give watchdog time to register the change
+    time.sleep(1.5)
+    # file updated within modified time, should not be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 25000)
+        fp.close()
+    time.sleep(5.1)
+
+    # file updated outside of rate limit should be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 100000)
+        fp.close()
+    sent += os.path.getsize(fpath)
+    time.sleep(2)
+
     server_ctx = live_mock_server.get_ctx()
     print(server_ctx["file_bytes"])
-    assert False
+    assert server_ctx["file_bytes"] - sent < 10000
