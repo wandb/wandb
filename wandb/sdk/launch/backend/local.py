@@ -10,15 +10,15 @@ from wandb.errors import ExecutionException
 
 from .abstract import AbstractBackend, AbstractRun
 from ..utils import (
-    get_run_env_vars,
+    get_conda_command,
     get_entry_point_command,
-    get_conda_command, 
     get_or_create_conda_env,
-    WANDB_DOCKER_WORKDIR_PATH,
-    PROJECT_USE_CONDA,
-    PROJECT_SYNCHRONOUS,
+    get_run_env_vars,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
+    PROJECT_SYNCHRONOUS,
+    PROJECT_USE_CONDA,
+    WANDB_DOCKER_WORKDIR_PATH,
 )
 
 _logger = logging.getLogger(__name__)
@@ -76,7 +76,9 @@ class LocalBackend(AbstractBackend):
         self, project_uri, entry_point, params, version, backend_config, experiment_id
     ):
         run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
-        project = self.fetch_and_validate_project(project_uri, version, entry_point, params)
+        project = self.fetch_and_validate_project(
+            project_uri, version, entry_point, params
+        )
         use_conda = backend_config[PROJECT_USE_CONDA]
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
@@ -99,7 +101,7 @@ class LocalBackend(AbstractBackend):
                 work_dir=project.dir,
                 repository_uri=project.name,
                 base_image=project.docker_env.get("image"),
-                run_id=run_id
+                run_id=run_id,
             )
             command_args += _get_docker_command(
                 image=image,
@@ -118,7 +120,9 @@ class LocalBackend(AbstractBackend):
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            command_args += get_entry_point_command(project, entry_point, params, storage_dir)
+            command_args += get_entry_point_command(
+                project, entry_point, params, storage_dir
+            )
             command_str = command_separator.join(command_args)
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id
@@ -172,15 +176,26 @@ def _run_entry_point(command, work_dir, experiment_id, run_id):
     # in case os name is not 'nt', we are not running on windows. It introduces
     # bash command otherwise.
     if os.name != "nt":
-        process = subprocess.Popen(["bash", "-c", command], close_fds=True, cwd=work_dir, env=env)
+        process = subprocess.Popen(
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env
+        )
     else:
         # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
-        process = subprocess.Popen(["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env)
+        process = subprocess.Popen(
+            ["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env
+        )
     return LocalSubmittedRun(run_id, process)
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, experiment_id, use_conda, docker_args, storage_dir, run_id
+    work_dir,
+    entry_point,
+    parameters,
+    experiment_id,
+    use_conda,
+    docker_args,
+    storage_dir,
+    run_id,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
@@ -222,7 +237,9 @@ def _build_wandb_run_cmd(
     return wandb_run_arr
 
 
-def _get_docker_command(image, run_id, docker_args=None, volumes=None, user_env_vars=None):
+def _get_docker_command(
+    image, run_id, docker_args=None, volumes=None, user_env_vars=None
+):
     docker_path = "docker"
     cmd = [docker_path, "run", "--rm"]
 
@@ -303,7 +320,9 @@ def _get_s3_artifact_cmd_and_envs():
 def _get_azure_blob_artifact_cmd_and_envs():
     # pylint: disable=unused-argument
     envs = {
-        "AZURE_STORAGE_CONNECTION_STRING": os.environ.get("AZURE_STORAGE_CONNECTION_STRING"),
+        "AZURE_STORAGE_CONNECTION_STRING": os.environ.get(
+            "AZURE_STORAGE_CONNECTION_STRING"
+        ),
         "AZURE_STORAGE_ACCESS_KEY": os.environ.get("AZURE_STORAGE_ACCESS_KEY"),
     }
     envs = dict((k, v) for k, v in envs.items() if v is not None)

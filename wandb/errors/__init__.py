@@ -39,6 +39,7 @@ class LogMultiprocessError(LogError):
 
 class ShellCommandException(Error):
     """Shell command Error"""
+
     pass
 
 
@@ -55,5 +56,5 @@ __all__ = [
     "LogError",
     "LogMultiprocessError",
     "ShellCommandException",
-    "ExecutionException"
+    "ExecutionException",
 ]

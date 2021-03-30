@@ -679,7 +679,12 @@ class Api(object):
         """
         )
         response = self.gql(
-            mutation, variable_values={"entity": entity, "project": project, "queueName": queue_name}
+            mutation,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+            },
         )
         return response["popFromRunQueue"]
 

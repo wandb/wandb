@@ -2,11 +2,11 @@
 
 import os
 from shlex import quote
-import yaml
 
 import six
 from wandb import util
 from wandb.errors import Error as ExecutionException
+import yaml
 
 
 MLPROJECT_FILE_NAME = "mlproject"
@@ -54,7 +54,10 @@ def load_project(directory):
             if not (
                 isinstance(docker_env["environment"], list)
                 and all(
-                    [isinstance(i, list) or isinstance(i, str) for i in docker_env["environment"]]
+                    [
+                        isinstance(i, list) or isinstance(i, str)
+                        for i in docker_env["environment"]
+                    ]
                 )
             ):
                 raise ExecutionException(
@@ -68,7 +71,9 @@ def load_project(directory):
     # Validate config if conda_env parameter is present
     conda_path = yaml_obj.get("conda_env")
     if conda_path and docker_env:
-        raise ExecutionException("Project cannot contain both a docker and " "conda environment.")
+        raise ExecutionException(
+            "Project cannot contain both a docker and " "conda environment."
+        )
 
     # Parse entry points
     entry_points = {}
@@ -98,11 +103,15 @@ def load_project(directory):
             entry_points=entry_points,
             docker_env=docker_env,
             name=project_name,
-            directory=directory
+            directory=directory,
         )
 
     return Project(
-        conda_env_path=None, entry_points=entry_points, docker_env=docker_env, name=project_name, directory=directory
+        conda_env_path=None,
+        entry_points=entry_points,
+        docker_env=docker_env,
+        name=project_name,
+        directory=directory,
     )
 
 
@@ -129,7 +138,9 @@ class Project(object):
         raise ExecutionException(
             "Could not find {0} among entry points {1} or interpret {0} as a "
             "runnable script. Supported script file extensions: "
-            "{2}".format(entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys()))
+            "{2}".format(
+                entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
+            )
         )
 
 
@@ -175,18 +186,29 @@ class EntryPoint(object):
         for key in parameter_keys:
             param_obj = self.parameters[key]
             key_position = parameter_keys.index(key)
-            value = user_parameters[key] if key in user_parameters else self.parameters[key].default
-            final_params[key] = param_obj.compute_value(value, storage_dir, key_position)
+            value = (
+                user_parameters[key]
+                if key in user_parameters
+                else self.parameters[key].default
+            )
+            final_params[key] = param_obj.compute_value(
+                value, storage_dir, key_position
+            )
         for key in user_parameters:
             if key not in final_params:
                 extra_params[key] = user_parameters[key]
-        return self._sanitize_param_dict(final_params), self._sanitize_param_dict(extra_params)
+        return (
+            self._sanitize_param_dict(final_params),
+            self._sanitize_param_dict(extra_params),
+        )
 
     def compute_command(self, user_parameters, storage_dir):
         params, extra_params = self.compute_parameters(user_parameters, storage_dir)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
-        command_arr.extend(["--%s %s" % (key, value) for key, value in extra_params.items()])
+        command_arr.extend(
+            ["--%s %s" % (key, value) for key, value in extra_params.items()]
+        )
         return " ".join(command_arr)
 
     @staticmethod
@@ -209,7 +231,8 @@ class Parameter(object):
     def _compute_uri_value(self, user_param_value):
         if not util.is_uri(user_param_value):
             raise ExecutionException(
-                "Expected URI for parameter %s but got " "%s" % (self.name, user_param_value)
+                "Expected URI for parameter %s but got "
+                "%s" % (self.name, user_param_value)
             )
         return user_param_value
 
@@ -226,9 +249,9 @@ class Parameter(object):
         download_dir = os.path.join(storage_dir, target_sub_dir)
         os.mkdir(download_dir)
         raise ExecutionException("Haven't implemented artifact download yet")
-        #return artifact_utils._download_artifact_from_uri(
+        # return artifact_utils._download_artifact_from_uri(
         #    artifact_uri=user_param_value, output_path=download_dir
-        #)
+        # )
 
     def compute_value(self, param_value, storage_dir, key_position):
         if storage_dir and self.type == "path":

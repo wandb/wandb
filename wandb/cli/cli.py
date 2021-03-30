@@ -991,7 +991,12 @@ def launch(
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option("--max", default=4, type=int, help="The maximum number of launchs to manage in parallel.")
+@click.option(
+    "--max",
+    default=4,
+    type=int,
+    help="The maximum number of launchs to manage in parallel.",
+)
 @click.argument("agent")
 @click.argument("agent_spec", nargs=-1)
 @display_error

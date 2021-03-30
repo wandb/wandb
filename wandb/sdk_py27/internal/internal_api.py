@@ -728,11 +728,11 @@ class Api(object):
         return response["upsertModel"]["model"]
 
     @normalize_exceptions
-    def pop_from_run_queue(self, entity=None, project=None):
+    def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project }) {
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
+            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName }) {
                 runQueueItemId
                 runSpec
             }
@@ -740,7 +740,12 @@ class Api(object):
         """
         )
         response = self.gql(
-            mutation, variable_values={"entity": entity, "project": project}
+            mutation,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+            },
         )
         return response["popFromRunQueue"]
 

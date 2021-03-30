@@ -21,8 +21,8 @@ import six
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
-from wandb.integration import sagemaker
 from wandb.integration import ngc
+from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
 

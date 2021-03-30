@@ -326,7 +326,11 @@ def get_local_path_or_none(path_or_uri):
     None otherwise.
     """
     parsed_uri = urllib.parse.urlparse(path_or_uri)
-    if len(parsed_uri.scheme) == 0 or parsed_uri.scheme == "file" and len(parsed_uri.netloc) == 0:
+    if (
+        len(parsed_uri.scheme) == 0
+        or parsed_uri.scheme == "file"
+        and len(parsed_uri.netloc) == 0
+    ):
         return local_file_uri_to_path(path_or_uri)
     else:
         return None
@@ -353,7 +357,13 @@ def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
 
 
 def exec_cmd(
-    cmd, throw_on_error=True, env=None, stream_output=False, cwd=None, cmd_stdin=None, **kwargs
+    cmd,
+    throw_on_error=True,
+    env=None,
+    stream_output=False,
+    cwd=None,
+    cmd_stdin=None,
+    **kwargs
 ):
     """
     Runs a command as a child process.
@@ -376,7 +386,12 @@ def exec_cmd(
 
     if stream_output:
         child = subprocess.Popen(
-            cmd, env=cmd_env, cwd=cwd, universal_newlines=True, stdin=subprocess.PIPE, **kwargs
+            cmd,
+            env=cmd_env,
+            cwd=cwd,
+            universal_newlines=True,
+            stdin=subprocess.PIPE,
+            **kwargs
         )
         child.communicate(cmd_stdin)
         exit_code = child.wait()
@@ -398,7 +413,8 @@ def exec_cmd(
         exit_code = child.wait()
         if throw_on_error and exit_code != 0:
             raise ShellCommandException(
-                "Non-zero exit code: %s\n\nSTDOUT:\n%s\n\nSTDERR:%s" % (exit_code, stdout, stderr)
+                "Non-zero exit code: %s\n\nSTDOUT:\n%s\n\nSTDERR:%s"
+                % (exit_code, stdout, stderr)
             )
         return exit_code, stdout, stderr
 

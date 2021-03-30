@@ -7,10 +7,7 @@ __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_BACKENDS = {
-    "local": LocalBackend,
-    "ngc": NGCBackend
-}
+WANDB_BACKENDS = {"local": LocalBackend, "ngc": NGCBackend}
 
 
 def load_backend(backend_name, api_key=None):

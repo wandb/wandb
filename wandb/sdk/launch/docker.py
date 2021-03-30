@@ -6,9 +6,9 @@ import tempfile
 
 import docker
 from dockerpycreds.utils import find_executable
-
 import wandb
 from wandb.errors import ExecutionException
+
 from .utils import WANDB_DOCKER_WORKDIR_PATH
 from ..lib.git import GitRepo
 
@@ -33,7 +33,8 @@ def validate_docker_installation():
 def validate_docker_env(project):
     if not project.name:
         raise ExecutionException(
-            "Project name in MLProject must be specified when using docker " "for image tagging."
+            "Project name in MLProject must be specified when using docker "
+            "for image tagging."
         )
     if not project.docker_env.get("image"):
         raise ExecutionException(
@@ -48,7 +49,9 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id):
     """
     image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=work_dir)
     dockerfile = (
-        "FROM {imagename}\n" "COPY {build_context_path}/ {workdir}\n" "WORKDIR {workdir}\n"
+        "FROM {imagename}\n"
+        "COPY {build_context_path}/ {workdir}\n"
+        "WORKDIR {workdir}\n"
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -58,7 +61,9 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id):
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out
-        dockerfile = posixpath.join(_PROJECT_TAR_ARCHIVE_NAME, _GENERATED_DOCKERFILE_NAME)
+        dockerfile = posixpath.join(
+            _PROJECT_TAR_ARCHIVE_NAME, _GENERATED_DOCKERFILE_NAME
+        )
         # wandb.util.exec_cmd(["docker", "build", "--rm",  dockerfile,])
         # TODO: remove the dependency on docker / potentially just do the append builder
         # found at: https://github.com/google/containerregistry/blob/master/client/v2_2/append_.py
@@ -74,7 +79,9 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id):
     try:
         os.remove(build_ctx_path)
     except Exception:
-        _logger.info("Temporary docker context file %s was not deleted.", build_ctx_path)
+        _logger.info(
+            "Temporary docker context file %s was not deleted.", build_ctx_path
+        )
     #  tracking.MlflowClient().set_tag(run_id, MLFLOW_DOCKER_IMAGE_URI, image_uri)
     #  tracking.MlflowClient().set_tag(run_id, MLFLOW_DOCKER_IMAGE_ID, image.id)
     return image
@@ -88,7 +95,9 @@ def _get_docker_image_uri(repository_uri, work_dir):
                            repository URI is used as the prefix of the image URI.
     :param work_dir: Path to the working directory in which to search for a git commit hash
     """
-    repository_uri = repository_uri.replace(" ", "-") if repository_uri else "docker-project"
+    repository_uri = (
+        repository_uri.replace(" ", "-") if repository_uri else "docker-project"
+    )
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
@@ -108,7 +117,9 @@ def _create_docker_build_ctx(work_dir, dockerfile_contents):
             handle.write(dockerfile_contents)
         _, result_path = tempfile.mkstemp()
         wandb.util.make_tarfile(
-            output_filename=result_path, source_dir=dst_path, archive_name=_PROJECT_TAR_ARCHIVE_NAME
+            output_filename=result_path,
+            source_dir=dst_path,
+            archive_name=_PROJECT_TAR_ARCHIVE_NAME,
         )
     finally:
         shutil.rmtree(directory)

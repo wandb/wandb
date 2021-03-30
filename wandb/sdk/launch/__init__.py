@@ -5,9 +5,15 @@ import sys
 
 import wandb
 from wandb.errors import ExecutionException
-from .backend import loader
-from .utils import PROJECT_USE_CONDA, PROJECT_SYNCHRONOUS, PROJECT_DOCKER_ARGS, PROJECT_STORAGE_DIR
+
 from .agent import LaunchAgent
+from .backend import loader
+from .utils import (
+    PROJECT_DOCKER_ARGS,
+    PROJECT_STORAGE_DIR,
+    PROJECT_SYNCHRONOUS,
+    PROJECT_USE_CONDA,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -48,16 +54,15 @@ def _run(
     backend = loader.load_backend(backend_name)
     if backend:
         submitted_run = backend.run(
-            uri,
-            entry_point,
-            parameters,
-            version,
-            backend_config,
-            experiment_id,
+            uri, entry_point, parameters, version, backend_config, experiment_id,
         )
         return submitted_run
     else:
-        raise ExecutionException("Unavailable backend {}, available backends: {}".format(backend_name, ", ".join(loader.WANDB_BACKENDS.keys())))
+        raise ExecutionException(
+            "Unavailable backend {}, available backends: {}".format(
+                backend_name, ", ".join(loader.WANDB_BACKENDS.keys())
+            )
+        )
 
 
 def run(

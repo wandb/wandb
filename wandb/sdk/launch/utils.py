@@ -1,16 +1,16 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+from distutils import dir_util
+import hashlib
+import json
 import logging
 import os
 import re
 import tempfile
 import urllib.parse
-import hashlib
-import json
-
-from distutils import dir_util
 
 import wandb
 from wandb.errors import ExecutionException
+
 from . import _project_spec
 
 
@@ -134,23 +134,31 @@ def _fetch_project(uri, version=None):
             parsed_file_uri = urllib.parse.urlparse(urllib.parse.unquote(parsed_uri))
             parsed_uri = os.path.join(parsed_file_uri.netloc, parsed_file_uri.path)
         _unzip_repo(
-            zip_file=(parsed_uri if _is_local_uri(parsed_uri) else _fetch_zip_repo(parsed_uri)),
+            zip_file=(
+                parsed_uri if _is_local_uri(parsed_uri) else _fetch_zip_repo(parsed_uri)
+            ),
             dst_dir=dst_dir,
         )
     elif _is_local_uri(uri):
         if version is not None:
-            raise ExecutionException("Setting a version is only supported for Git project URIs")
+            raise ExecutionException(
+                "Setting a version is only supported for Git project URIs"
+            )
         if use_temp_dst_dir:
             dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
     elif _is_wandb_uri(uri):
         # TODO: so much hotness
         pass
     else:
-        assert _GIT_URI_REGEX.match(parsed_uri), "Non-local URI %s should be a Git URI" % parsed_uri
+        assert _GIT_URI_REGEX.match(parsed_uri), (
+            "Non-local URI %s should be a Git URI" % parsed_uri
+        )
         _fetch_git_repo(parsed_uri, version, dst_dir)
     res = os.path.abspath(os.path.join(dst_dir, subdirectory))
     if not os.path.exists(res):
-        raise ExecutionException("Could not find subdirectory %s of %s" % (subdirectory, dst_dir))
+        raise ExecutionException(
+            "Could not find subdirectory %s of %s" % (subdirectory, dst_dir)
+        )
     return res
 
 
@@ -233,7 +241,9 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     )
     commands = []
     commands.append(
-        project.get_entry_point(entry_point).compute_command(parameters, storage_dir_for_run)
+        project.get_entry_point(entry_point).compute_command(
+            parameters, storage_dir_for_run
+        )
     )
     return commands
 
@@ -246,7 +256,9 @@ _logger = logging.getLogger(__name__)
 
 def get_conda_command(conda_env_name):
     #  Checking for newer conda versions
-    if os.name != "nt" and ("CONDA_EXE" in os.environ or "WANDB_CONDA_HOME" in os.environ):
+    if os.name != "nt" and (
+        "CONDA_EXE" in os.environ or "WANDB_CONDA_HOME" in os.environ
+    ):
         conda_path = get_conda_bin_executable("conda")
         activate_conda_env = [
             "source {}/../etc/profile.d/conda.sh".format(os.path.dirname(conda_path))
@@ -319,11 +331,20 @@ def get_or_create_conda_env(conda_env_path, env_id=None):
         _logger.info("=== Creating conda environment %s ===", project_env_name)
         if conda_env_path:
             wandb.util.exec_cmd(
-                [conda_path, "env", "create", "-n", project_env_name, "--file", conda_env_path],
+                [
+                    conda_path,
+                    "env",
+                    "create",
+                    "-n",
+                    project_env_name,
+                    "--file",
+                    conda_env_path,
+                ],
                 stream_output=True,
             )
         else:
             wandb.util.exec_cmd(
-                [conda_path, "create", "-n", project_env_name, "python"], stream_output=True
+                [conda_path, "create", "-n", project_env_name, "python"],
+                stream_output=True,
             )
     return project_env_name
