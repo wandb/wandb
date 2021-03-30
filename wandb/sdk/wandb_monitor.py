@@ -174,7 +174,6 @@ class Monitor(object):
             return self._func(*args, **kwargs)
         else:
             if self._to_table is None and self._is_method:
-                print("ADDING TABLE?", args[0], hasattr(args[0], "to_table"))
                 if hasattr(args[0], "to_table"):
                     self._to_table = args[0].to_table
             self.input(*args, **kwargs)
