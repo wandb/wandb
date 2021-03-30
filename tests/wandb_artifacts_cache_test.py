@@ -56,6 +56,7 @@ def test_check_write_parallel(runner):
 
         p = Pool(num_parallel)
         p.map(_cache_writer, [cache for _ in range(num_parallel)])
+        _cache_writer(cache)  # run in this process too for code coverage
         p.close()
         p.join()
 
