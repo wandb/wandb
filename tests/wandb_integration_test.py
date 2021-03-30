@@ -401,4 +401,3 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     server_ctx = live_mock_server.get_ctx()
     print(server_ctx["file_bytes"], sent)
     assert abs(server_ctx["file_bytes"] - sent) < 15000
-
