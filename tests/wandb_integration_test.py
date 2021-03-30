@@ -4,14 +4,7 @@ specific backend logic, or wandb_test.py for testing frontend logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
-# from wandb.filesync.dir_watcher import PolicyLive
-from unittest.mock import Mock
-import glob
-from wandb.filesync.dir_watcher import PolicyLive, PolicyEnd, PolicyNow
 import wandb
-
-# from wandb.filesync.dir_watcher import PolicyLive
-# from wandb.sdk.internal.sender.wandb.filesync.dir_watcher import PolicyLive
 import pytest
 import json
 import platform
