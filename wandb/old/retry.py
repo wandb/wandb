@@ -109,6 +109,7 @@ class Retry(object):
                     raise
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
+                    logger.exception(e, exc_info=True)
                     wandb.termlog(
                         '{} ({}), entering retry loop. See {} for full traceback.'.format(
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
