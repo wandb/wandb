@@ -40,7 +40,7 @@ def check(
         assert tuple(record_sizes) == expected_record_sizes
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def with_datastore(request):
     """Fixture which returns an initialized datastore."""
     try:
@@ -55,7 +55,9 @@ def with_datastore(request):
         os.unlink(FNAME)
 
     request.addfinalizer(fin)
-    return s
+    yield s
+    # Undoes `wandb._set_internal_process()` so that parallel tests work
+    wandb._IS_INTERNAL_PROCESS = False
 
 
 def test_proto_write_partial():
@@ -75,6 +77,7 @@ def test_proto_write_partial():
     s.open_for_write(FNAME)
     s.write(rec)
     s.close()
+    wandb._IS_INTERNAL_PROCESS = False
 
 
 def test_data_write_full(with_datastore):

@@ -94,7 +94,9 @@ def start_mock_server(worker_id):
     env = os.environ
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
-    logfname = os.path.join(root, "tests", "logs", "live_mock_server-{}.log".format(worker_id))
+    logfname = os.path.join(
+        root, "tests", "logs", "live_mock_server-{}.log".format(worker_id)
+    )
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
@@ -137,9 +139,7 @@ def start_mock_server(worker_id):
             else:
                 raise ValueError("Server failed to start.")
     if started:
-        print(
-            "Mock server listing on {} see {}".format(server._port, logfname)
-        )
+        print("Mock server listing on {} see {}".format(server._port, logfname))
     else:
         server.terminate()
         print("Server failed to launch, see {}".format(logfname))
