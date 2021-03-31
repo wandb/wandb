@@ -26,8 +26,8 @@ from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     ArtifactsCache,
     b64_string_to_hex,
     get_artifacts_cache,
-    md5_string,
     md5_file_b64,
+    md5_string,
     StorageHandler,
     StorageLayout,
     StoragePolicy,
@@ -1008,7 +1008,11 @@ class LocalFileHandler(StorageHandler):
         entries = []
 
         def md5(path):
-            return md5_file_b64(path) if checksum else md5_string(str(os.stat(path).st_size))
+            return (
+                md5_file_b64(path)
+                if checksum
+                else md5_string(str(os.stat(path).st_size))
+            )
 
         if os.path.isdir(local_path):
             i = 0
