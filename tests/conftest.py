@@ -57,21 +57,36 @@ except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
-server = None
+
+
+class ServerMap(object):
+    def __init__(self):
+        self._map = {}
+
+    def items(self):
+        return self._map.items()
+
+    def __getitem__(self, worker_id):
+        if self._map.get(worker_id) is None:
+            self._map[worker_id] = start_mock_server(worker_id)
+        return self._map[worker_id]
+
+
+servers = ServerMap()
 
 
 def test_cleanup(*args, **kwargs):
-    global server
-    print("Shutting down mock server")
-    server.terminate()
+    print("Shutting down mock servers")
+    for wid, server in servers.items():
+        print("Shutting down {}".format(wid))
+        server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
     print(proc.open_files())
 
 
-def start_mock_server():
-    """We start a server on boot for use by tests"""
-    global server
+def start_mock_server(worker_id):
+    """We start a flask server process for each pytest-xdist worker_id"""
     port = utils.free_port()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     path = os.path.join(root, "tests", "utils", "mock_server.py")
@@ -79,7 +94,8 @@ def start_mock_server():
     env = os.environ
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
-    logfile = open("tests/logs/live_mock_server.log", "w")
+    logfname = os.path.join(root, "tests", "logs", "live_mock_server-{}.log".format(worker_id))
+    logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
         stdout=logfile,
@@ -122,17 +138,16 @@ def start_mock_server():
                 raise ValueError("Server failed to start.")
     if started:
         print(
-            "Mock server listing on %s see tests/logs/live_mock_server.log"
-            % server._port
+            "Mock server listing on {} see {}".format(server._port, logfname)
         )
     else:
         server.terminate()
-        print("Server failed to launch, see tests/logs/live_mock_server.log")
+        print("Server failed to launch, see {}".format(logfname))
         try:
             print("=" * 40)
-            with open("tests/logs/live_mock_server.log") as f:
-                for l in f.readlines():
-                    print(l.strip())
+            with open(logfname) as f:
+                for logline in f.readlines():
+                    print(logline.strip())
             print("=" * 40)
         except Exception as e:
             print("EXCEPTION:", e)
@@ -140,7 +155,6 @@ def start_mock_server():
     return server
 
 
-start_mock_server()
 atexit.register(test_cleanup)
 
 
@@ -225,7 +239,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     yield settings
     # Just incase someone forgets to join in tests
     if wandb.run is not None:
-        wandb.run.join()
+        wandb.run.finish()
 
 
 @pytest.fixture
@@ -295,9 +309,11 @@ def mock_server(mocker):
     return utils.mock_server(mocker)
 
 
+# We create one live_mock_server per pytest-xdist worker
 @pytest.fixture
-def live_mock_server(request):
-    global server
+def live_mock_server(request, worker_id):
+    global servers
+    server = servers[worker_id]
     name = urllib.parse.quote(request.node.name)
     # We set the username so the mock backend can namespace state
     os.environ["WANDB_USERNAME"] = name
