@@ -655,7 +655,10 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
                 },
             }
             return {"data": {"project": {"artifact": art}}}
@@ -733,7 +736,7 @@ def create_app(user_ctx=None):
             elif (
                 len(ctx.get("graphql", [])) >= 3
                 and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
-            ):
+            ) or request.args.get("name") == "dummy:v0":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
