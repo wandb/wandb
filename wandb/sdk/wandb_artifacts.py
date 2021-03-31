@@ -139,7 +139,7 @@ class Artifact(ArtifactInterface):
         self._logged_artifact = None
         self._incremental = False
 
-        if incremental is not None:
+        if incremental:
             self._incremental = incremental
             wandb.termwarn("Using experimental arg `incremental`")
 
@@ -505,6 +505,11 @@ class Artifact(ArtifactInterface):
         Returns:
             None
         """
+
+        if wandb.run is not None:
+            with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+                tel.feature.incremental = True
+
         if self._logged_artifact:
             return self._logged_artifact.save()
         else:
@@ -514,6 +519,10 @@ class Artifact(ArtifactInterface):
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:
+                    # redoing this here because in this branch we know we didn't
+                    # have the run at the beginning of the method
+                    with wandb.wandb_lib.telemetry.context(run=run) as tel:
+                        tel.feature.incremental = True
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait
