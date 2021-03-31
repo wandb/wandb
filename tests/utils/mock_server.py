@@ -30,6 +30,7 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
+        "file_bytes": 0,
     }
 
 
@@ -690,6 +691,8 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
+        if request.method == "PUT":
+            ctx["file_bytes"] += request.content_length
         if file == "wandb_manifest.json":
             if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
