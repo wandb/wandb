@@ -3,4 +3,3 @@ grpcio==1.27.2
 grpcio-tools==1.27.2
 bumpversion
 twine
-mypy-protobuf==2.4
