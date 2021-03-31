@@ -644,10 +644,13 @@ def create_app(user_ctx=None):
                 return {"data": {"artifact": art}}
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
+            app.logger.info(body["variables"]["name"])
             if "source" not in body["variables"]["name"]:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             if "logged_table" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 3, "name": "run_table"}
+            if "validation_data_wbkc" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "auto_table"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)

@@ -341,3 +341,19 @@ def test_keras_convert_model_non_sequential():
         ["dense_2", "main_output"],
         ["lstm", "aux_output"],
     ]
+
+# def test_keras_dsviz(dummy_model, dummy_data, runner, live_mock_server, test_settings):
+#     with wandb.init(settings=test_settings) as run:
+#         import pdb; pdb.set_trace()
+#         dummy_model.fit(
+#             *dummy_data,
+#             epochs=2,
+#             batch_size=36,
+#             validation_data=dummy_data,
+#             callbacks=[WandbCallback(
+#                 log_evaluation = True
+#             )]
+#         )
+#         print(wandb.run._backend.history)
+#         import pdb; pdb.set_trace()
+#         assert False
