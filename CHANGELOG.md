@@ -1,3 +1,310 @@
+## 0.10.24 (March 30, 2021)
+
+#### :bug: Bug Fix
+
+- Significant fixes to stdout/stderr console logging
+- Prevent excessive network when saving files with policy=`live`
+- Fix errors when trying to send large updates (most common with `wandb sync`)
+
+#### :nail_care: Enhancement
+
+- Automatically generate `run_table` artifact for logged tables
+- Add bracket notation to artifacts
+- Improve URL validation when specifying server url to `wandb login`
+
+## 0.10.23 (March 22, 2021)
+
+#### :bug: Bug Fix
+
+- Fix logged artifacts to be accessible after wait()
+- Fix spell.run integration
+- Performance fix syncing console logs with carriage returns
+- Fix confusion matrix with class names and unlabeled data
+
+#### :nail_care: Enhancement
+
+- Add the ability to save artifacts without creating a run
+- Add Foreign Table References to wandb.Table
+- Allow the same runtime object to be logged to multiple artifacts
+- Add experimental `run._define_metric()` support
+- Warn and ignore unsupported multiprocess `wandb.log()` calls
+
+## 0.10.22 (March 9, 2021)
+
+#### :bug: Bug Fix
+
+- Fix system metric logging rate in 0.10.x
+- Fix Audio external reference issue
+- Fix short runs with tensorboard_sync
+- Ignore `wandb.init(id=)` when running a sweep
+- Sanitize artifact metadata if needed
+
+#### :nail_care: Enhancement
+
+- Allow syncing of tfevents with `wandb sync --sync-tensorboard`
+
+## 0.10.21 (March 2, 2021)
+
+#### :bug: Bug Fix
+
+- Fix artifact.get() regression since 0.10.18
+- Allow 0 byte artifacts
+- Fix codesaving and program name reporting
+
+#### :nail_care: Enhancement
+
+- Added support for glb files for `wandb.Object3D()`
+- Added support for external references for `wandb.Audio()`
+- Custom chart support tensorboard `pr_curves` plugin
+- Support saving entire code directory in an artifact
+
+## 0.10.20 (February 22, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() now respects disabled mode
+- handle exception when trying to log TPUs in colab
+
+#### :nail_care: Enhancement
+
+- Add `WANDB_START_METHOD=thread` to support non-multiprocessing
+- Add `group` and `job_type` to Run object in the export API
+- Improve artifact docstrings
+
+## 0.10.19 (February 14, 2021)
+
+#### :bug: Bug Fix
+
+- Fix artifact manifest files incorrectly named with patch suffix
+
+## 0.10.18 (February 8, 2021)
+
+#### :nail_care: Enhancement
+
+- Add run delete and file delete to the public API
+- Align steps between `tensorboard_sync` and wandb.log() history
+- Add `WANDB_START_METHOD` to allow POSIX systems to use fork
+- Support mixed types in wandb.Table() with `allow_mixed_types`
+
+#### :bug: Bug Fix
+
+- Fix potential leaked file due to log not being closed properly
+- Improve `wandb verify` to better handle network issues and report errors
+- Made file downloads more deterministic with respect to filesystem caches
+
+## 0.10.17 (February 1, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression seen with python 3.5
+- Silence vendored watchdog warnings on mac
+
+## 0.10.16 (February 1, 2021)
+
+#### :nail_care: Enhancement
+
+- Artifacts now support parallel writers for large distributed workflows.
+- Artifacts support distributed tables for dataset visualization.
+- Improvements to PR templates
+- Added more type annotations
+- Vendored watchdog 0.9.0 removing it as a dependency
+- New documentation generator
+- Public api now has `file.direct_url` to avoid redirects for signed urls.
+
+#### :bug: Bug Fix
+
+- Allow `config-defaults.yaml` to be overwritten when running sweeps
+- General bug fixes and improvements to `wandb verify`
+- Disabled widgets in Spyder IDE
+- Fixed WANDB_SILENT in Spyder IDE
+- Reference file:// artifacts respect the `name` attribute.
+
+## 0.10.15 (January 24, 2021)
+
+#### :nail_care: Enhancement
+
+- Add `wandb verify` to troubleshoot local installs
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync issue writing to s3
+- Prevent git secrets from being stored
+- Disable verbose console messages when using moviepy
+- Fix artifacts with checkpoints to be more robust when overwriting files
+- Fix artifacts recycled id issue
+
+## 0.10.14 (January 15, 2021)
+
+#### :nail_care: Enhancement
+
+- Add wandb.Audio support to Artifacts
+
+#### :bug: Bug Fix
+
+- Fix wandb config regressions introduced in 0.10.13
+- Rollback changes supporting media with slashes in keys
+
+## 0.10.13 (January 11, 2021)
+
+#### :nail_care: Enhancement
+
+- Add support for Mac M1 GPU monitoring
+- Add support for TPU monitoring
+- Add setting to disable sagemaker integration
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync with tensorboardX and tf1
+- Fix issues logging images with slashes
+- Fix custom charts issues
+- Improve error messages using `wandb pull`
+- Improve error messages with `wandb.Table()`
+- Make sure silent mode is silent
+- Fix `wandb online` to renable logging
+- Multiple artifact fixes
+
+## 0.10.12 (December 3, 2020)
+
+#### :nail_care: Enhancement
+
+- Add Artifact.used_by and Artifact.logged_by
+- Validate type consistency when logging Artifacts
+- Enhance JoinedTable to not require downloaded assets
+- Add ability to recursively download dependent artifacts
+- Enable gradient logging with keras and tf2+
+- Validate pytorch models are passed to wandb.watch()
+- Improved docstrings for public methods / objects
+- Warn when image sequences are logged with different sizes
+
+#### :bug: Bug Fix
+
+- Fix incorrectly generated filenames in summary
+- Fix anonymous mode to include the api key in URLs
+- Fix pickle issue with disabled mode
+- Fix artifact from_id query
+- Fix handling of Tables with different image paths
+
+## 0.10.11 (November 18, 2020)
+
+#### :nail_care: Enhancement
+
+- Disable wandb logging with `wandb disabled` or `wandb.init(mode="disabled")`
+- Support cloning an artifact when logging wandb.Image() 
+
+#### :bug: Bug Fix
+
+- Multiple media artifact improvements and internal refactor
+- Improve handling of artifact errors
+- Fix issue where notebook name was ignored
+- Extend silent mode for jupyter logging
+- Fix issue where vendored libraries interfered with python path
+- Fix various exceptions (divide by zero, int conversion, TypeError)
+
+## 0.10.10 (November 9, 2020)
+
+#### :nail_care: Enhancement
+
+- Added confusion matrix plot
+- Better jupyter messages with wandb.init()/reinit/finish
+
+#### :bug: Bug Fix
+
+- Fix for fastai 2.1.5 (removed log_args)
+- Fixed media logging when directories are changed
+
+## 0.10.9 (November 4, 2020)
+
+#### :nail_care: Enhancement
+
+- Added artifact media logging (alpha)
+- Add scriptable alerts
+- Add url attribute for sweep public api
+- Update docstrings for wandb sdk functions
+
+#### :bug: Bug Fix
+
+- Fix cases where offline mode was making network connections
+- Fix issues with python sweeps and run stopping
+- Fix logging issue where we could accidently display an api key
+- Fix wandb login issues with malformed hosts
+- Allow wandb.restore() to be called without wandb.init()
+- Fix resuming (reusing run_id) with empty summary
+- Fix artitifact download issue
+- Add missing wandb.unwatch() function
+- Avoid creating spurious wandb directories
+- Fix collections import issue when using an old version of six
+
+## 0.10.8 (October 22, 2020)
+
+#### :nail_care: Enhancement
+
+- Allow callables to be serialized
+
+#### :bug: Bug Fix
+
+- Fix compatibility issue with python 3.9
+- Fix `wandb sync` failure introduced in 0.10.6
+- Improve python agent handling of failing runs
+- Fix rare condition where resuming runs does not work
+- Improve symlink handling when called in thread context
+- Fix issues when changing directories before calling wandb.init()
+
+## 0.10.7 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Fix issue when checking for updated releases on pypi
+
+## 0.10.6 (October 15, 2020)
+
+#### :bug: Bug Fix
+
+- Make sure code saving is enabled in jupyter environments after login
+- Sweep agents have extended timeout for large sweep configs
+- Support WANDB_SILENT environment variable
+- Warn about missing python package when logging images
+- Fix wandb.restore() to apply diff patch
+- Improve artifact error messages
+- Fix loading of config-defaults.yaml and specified list of yaml config files
+
+## 0.10.5 (October 7, 2020)
+
+#### :nail_care: Enhancement
+
+- Add new custom plots: `wandb.plot.*`
+- Add new python based sweep agent: `wandb.agent()`
+
+#### :bug: Bug Fix
+
+- Console log fixes (tqdm on windows, fix close exceptions)
+- Add more attributes to the Run object (group, job_type, urls)
+- Fix sagemaker login issues
+- Fix issue where plots were not uploaded until the end of run
+
+## 0.10.4 (September 29, 2020)
+
+#### :bug: Bug Fix
+
+-  Fix an issue where wandb.init(allow_val_change=) throws exception
+
+## 0.10.3 (September 29, 2020)
+
+#### :nail_care: Enhancement
+
+-  Added warning when trying to sync pre 0.10.0 run dirs
+-  Improved jupyter support for wandb run syncing information
+
+#### :bug: Bug Fix
+
+-  Fix artifact download issues
+-  Fix multiple issues with tensorboard_sync
+-  Fix multiple issues with juypter/python sweeps
+-  Fix issue where login was timing out
+-  Fix issue where config was overwritten when resuming runs
+-  Ported sacred observer to 0.10.x release
+-  Fix predicted bounding boxes overwritten by ground truth boxes
+-  Add missing save_code parameter to wandb.init()
+
 ## 0.10.2 (September 20, 2020)
 
 #### :nail_care: Enhancement

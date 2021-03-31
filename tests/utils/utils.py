@@ -1,4 +1,5 @@
 import os
+import shutil
 import six
 import socket
 
@@ -9,21 +10,34 @@ def subdict(d, expected_dict):
     return {k: v for k, v in d.items() if k in expected_dict}
 
 
-def fixture_open(path):
+def fixture_path(path):
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path
+    )
+
+
+def fixture_open(path, mode="r"):
     """Returns an opened fixture file"""
-    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "..", "fixtures", path))
+    return open(fixture_path(path), mode)
+
+
+def fixture_copy(path, dst=None):
+    if os.path.isfile(fixture_path(path)):
+        return shutil.copy(fixture_path(path), dst or path)
+    else:
+        return shutil.copytree(fixture_path(path), dst or path)
 
 
 def notebook_path(path):
     """Returns the path to a notebook"""
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "..", "notebooks", path)
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "notebooks", path)
+    )
 
 
 def free_port():
     sock = socket.socket()
-    sock.bind(('', 0))
+    sock.bind(("", 0))
 
     _, port = sock.getsockname()
     return port
@@ -50,7 +64,7 @@ def assert_deep_lists_equal(a, b, indices=None):
                 raise
             finally:
                 if top and indices:
-                    print('Diff at index: %s' % list(reversed(indices)))
+                    print("Diff at index: %s" % list(reversed(indices)))
 
 
 def mock_sagemaker(mocker):
@@ -58,8 +72,8 @@ def mock_sagemaker(mocker):
     config_path = "/opt/ml/input/config/hyperparameters.json"
     resource_path = "/opt/ml/input/config/resourceconfig.json"
     secrets_path = "secrets.env"
-    env['TRAINING_JOB_NAME'] = 'sage'
-    env['CURRENT_HOST'] = 'maker'
+    env["TRAINING_JOB_NAME"] = "sage"
+    env["CURRENT_HOST"] = "maker"
 
     orig_exist = os.path.exists
 
@@ -67,8 +81,9 @@ def mock_sagemaker(mocker):
         if path in (config_path, secrets_path, resource_path):
             return True
         else:
-            orig_exist(path)
-    mocker.patch('wandb.util.os.path.exists', exists)
+            return orig_exist(path)
+
+    mocker.patch("wandb.util.os.path.exists", exists)
 
     def magic(path, *args, **kwargs):
         if path == config_path:
@@ -76,12 +91,11 @@ def mock_sagemaker(mocker):
         elif path == resource_path:
             return six.StringIO('{"hosts":["a", "b"]}')
         elif path == secrets_path:
-            return six.StringIO('WANDB_TEST_SECRET=TRUE')
+            return six.StringIO("WANDB_TEST_SECRET=TRUE")
         else:
             return six.StringIO()
 
-    mocker.patch('wandb.open', magic, create=True)
-    mocker.patch('wandb.util.open', magic, create=True)
+    mocker.patch("builtins.open", magic, create=True)
     return env
 
 
@@ -96,9 +110,10 @@ def mock_k8s(mocker):
 
     def magic(path, *args, **kwargs):
         if path == token_path:
-            return six.StringIO('token')
-    mocker.patch('wandb.util.open', magic, create=True)
-    mocker.patch('wandb.util.os.path.exists', exists)
+            return six.StringIO("token")
+
+    mocker.patch("wandb.util.open", magic, create=True)
+    mocker.patch("wandb.util.os.path.exists", exists)
     env["KUBERNETES_SERVICE_HOST"] = "k8s"
     env["KUBERNETES_PORT_443_TCP_PORT"] = "123"
     env["HOSTNAME"] = "test"

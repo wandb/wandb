@@ -55,7 +55,7 @@ class SweepConfigElement:
             self._version_dict.setdefault(module, version)
 
     def _config(self, base, args, kwargs, root=False):
-        kwargs = {k:v for k, v in kwargs.items() if v is not None and k is not "self"}
+        kwargs = {k:v for k, v in kwargs.items() if v is not None and k != "self"}
         # remove kwargs if empty
         if kwargs.get("kwargs") == {}:
             del kwargs["kwargs"]

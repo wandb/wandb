@@ -9,9 +9,11 @@ import os
 import json
 import pytest
 import platform
+import sys
 
 import wandb
 from wandb import Api
+from tests import utils
 
 
 @pytest.fixture
@@ -88,6 +90,22 @@ def test_parse_path_proj(mock_server, api):
 def test_run_from_path(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
+    assert run.url == "https://wandb.ai/test/test/runs/test"
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_run_from_tensorboard(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+        run_id = wandb.util.generate_id()
+        api.sync_tensorboard(".", project="test", run_id=run_id)
+        assert mock_server.ctx["graphql"][-1]["variables"] == {
+            "entity": "mock_server_entity",
+            "name": run_id,
+            "project": "test",
+        }
 
 
 def test_run_retry(mock_server, api):
@@ -98,24 +116,29 @@ def test_run_retry(mock_server, api):
 
 def test_run_history(mock_server, api):
     run = api.run("test/test/test")
-    assert run.history(pandas=False)[0] == {'acc': 10, 'loss': 90}
+    assert run.history(pandas=False)[0] == {"acc": 10, "loss": 90}
 
 
 def test_run_history_keys(mock_server, api):
     run = api.run("test/test/test")
     assert run.history(keys=["acc", "loss"], pandas=False) == [
-           {"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]
+        {"loss": 0, "acc": 100},
+        {"loss": 1, "acc": 0},
+    ]
 
 
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
-    assert run.config == {'epochs': 10}
+    assert run.config == {"epochs": 10}
 
 
 def test_run_history_system(mock_server, api):
     run = api.run("test/test/test")
     assert run.history(stream="system", pandas=False) == [
-        {'cpu': 10}, {'cpu': 20}, {'cpu': 30}]
+        {"cpu": 10},
+        {"cpu": 20},
+        {"cpu": 30},
+    ]
 
 
 def test_run_summary(mock_server, api):
@@ -127,7 +150,7 @@ def test_run_summary(mock_server, api):
 
 def test_run_create(mock_server, api):
     run = api.create_run(project="test")
-    variables = {'entity': "mock_server_entity", 'name': run.id, 'project': 'test'}
+    variables = {"entity": "mock_server_entity", "name": run.id, "project": "test"}
     assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
 
@@ -139,6 +162,18 @@ def test_run_update(mock_server, api):
     res = json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"])
     assert {"acc": 100, "loss": 0} == res
     assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
+
+
+def test_run_delete(mock_server, api):
+    run = api.run("test/test/test")
+
+    run.delete()
+    variables = {"id": run.storage_id, "deleteArtifacts": False}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
+
+    run.delete(delete_artifacts=True)
+    variables = {"id": run.storage_id, "deleteArtifacts": True}
+    assert mock_server.ctx["graphql"][-1]["variables"] == variables
 
 
 def test_run_files(runner, mock_server, api):
@@ -162,6 +197,16 @@ def test_run_file(runner, mock_server, api):
         assert not os.path.exists("weights.h5")
         file.download()
         assert os.path.exists("weights.h5")
+
+
+def test_run_file_direct(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        file = run.file("weights.h5")
+        assert (
+            file.direct_url
+            == "https://api.wandb.ai//storage?file=weights.h5&direct=true"
+        )
 
 
 def test_run_upload_file(runner, mock_server, api):
@@ -200,6 +245,8 @@ def test_runs_from_path(mock_server, api):
     list(runs)
     assert len(runs.objects) == 2
     assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
+    assert runs[0].group == "A"
+    assert runs[0].job_type == "test"
 
 
 def test_runs_from_path_index(mock_server, api):
@@ -219,6 +266,14 @@ def test_projects(mock_server, api):
     for proj in projects:
         count += 1
     assert count == 2
+
+
+def test_delete_file(runner, mock_server, api):
+    run = api.run("test/test/test")
+    file = run.files()[0]
+    file.delete()
+
+    assert mock_server.ctx["graphql"][-1]["variables"] == {"files": [file.id]}
 
 
 def test_artifact_versions(runner, mock_server, api):
@@ -256,8 +311,10 @@ def test_artifact_get_path(runner, mock_server, api):
     with runner.isolated_filesystem():
         path = art.get_path("digits.h5")
         res = path.download()
-        path = os.path.join(os.path.expanduser("~"), ".cache", "wandb", "artifacts",
-                            "obj", "md5", "4d", "e489e31c57834a21b8be7111dab613")
+        part = art.name
+        if platform.system() == "Windows":
+            part = "mnist-v0"
+        path = os.path.join(".", "artifacts", part, "digits.h5")
         assert res == path
 
 
@@ -289,6 +346,20 @@ def test_artifact_download(runner, mock_server, api):
         else:
             part = "mnist:v0"
         assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+
+
+def test_artifact_checkout(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        # Create a file that should be removed as part of checkout
+        os.makedirs(os.path.join(".", "artifacts", "mnist"))
+        with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
+            f.write("delete me, i'm a bogus file")
+
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        path = art.checkout()
+        assert path == os.path.join(".", "artifacts", "mnist")
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_run_used(runner, mock_server, api):
@@ -312,6 +383,15 @@ def test_artifact_manual_use(runner, mock_server, api):
     assert True
 
 
+def test_artifact_bracket_accessor(runner, mock_server, api):
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    assert art["t"].__class__ == wandb.Table
+    assert art["s"] is None
+    # TODO: Remove this once we support incremental adds
+    with pytest.raises(ValueError):
+        art["s"] = wandb.Table(data=[], columns=[])
+
+
 def test_artifact_manual_log(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
@@ -332,8 +412,9 @@ def test_artifact_manual_error(runner, mock_server, api):
         run.log_artifact("entity/project/mnist:v0")
 
 
-@pytest.mark.skipif(platform.system() == "Windows",
-                    reason="Verify is broken on Windows")
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Verify is broken on Windows"
+)
 def test_artifact_verify(runner, mock_server, api):
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     art.download()
@@ -341,7 +422,40 @@ def test_artifact_verify(runner, mock_server, api):
         art.verify()
 
 
+def test_artifact_save_norun(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save(settings=test_settings)
+
+
+def test_artifact_save_run(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        run = wandb.init(settings=test_settings)
+        artifact.save()
+        run.finish()
+
+
+def test_artifact_save_norun_nosettings(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save()
+
+
 def test_sweep(runner, mock_server, api):
     sweep = api.sweep("test/test/test")
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
+    assert sweep.url == "https://wandb.ai/test/test/sweeps/test"

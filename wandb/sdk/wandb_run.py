@@ -1,15 +1,10 @@
 #
 # -*- coding: utf-8 -*-
-"""Run - Run object.
-
-Manage wandb run.
-
-"""
 
 from __future__ import print_function
 
 import atexit
-import collections
+from datetime import timedelta
 import glob
 import json
 import logging
@@ -24,31 +19,83 @@ import traceback
 import click
 from six import iteritems, string_types
 from six.moves import _thread as thread
+from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
+from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
+from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
-from wandb.data_types import _datatypes_set_callback
 from wandb.errors import Error
-from wandb.interface.summary_record import SummaryRecord
-from wandb.lib import (
+from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
+from wandb.viz import (
+    create_custom_chart,
+    custom_chart_panel_config,
+    CustomChart,
+    Visualize,
+)
+
+from . import wandb_artifacts
+from . import wandb_config
+from . import wandb_history
+from . import wandb_metric
+from . import wandb_summary
+from .interface.artifacts import Artifact as ArtifactInterface
+from .lib import (
+    apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
     redirect,
     sparkline,
+    telemetry,
 )
-from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
-from wandb.viz import Visualize
 
-from . import wandb_config
-from . import wandb_history
-from . import wandb_summary
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Sequence, Tuple
+    from typing import (
+        Any,
+        Dict,
+        List,
+        Optional,
+        Sequence,
+        TextIO,
+        Tuple,
+        Union,
+        Type,
+        Callable,
+    )
+    from types import TracebackType
+    from .wandb_settings import Settings, SettingsConsole
+    from .interface.summary_record import SummaryRecord
+    from .interface.interface import BackendSender
+    from .lib.reporting import Reporter
+    from wandb.proto.wandb_internal_pb2 import (
+        RunRecord,
+        FilePusherStats,
+        PollExitResponse,
+        MetricRecord,
+    )
+    from .wandb_setup import _WandbSetup
+    from wandb.apis.public import Api as PublicApi
+    from .wandb_artifacts import Artifact
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from typing import NoReturn
+
+        from .data_types import WBValue
+
+        from .interface.artifacts import (
+            ArtifactEntry,
+            ArtifactManifest,
+        )
+
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -56,16 +103,19 @@ RUN_NAME_COLOR = "#cdcd00"
 
 
 class ExitHooks(object):
-    def __init__(self):
+
+    exception: Optional[BaseException] = None
+
+    def __init__(self) -> None:
         self.exit_code = 0
         self.exception = None
 
-    def hook(self):
+    def hook(self) -> None:
         self._orig_exit = sys.exit
         sys.exit = self.exit
         sys.excepthook = self.exc_handler
 
-    def exit(self, code=0):
+    def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
         if code is None:
             code = 0
@@ -74,10 +124,12 @@ class ExitHooks(object):
         self.exit_code = code
         self._orig_exit(orig_code)
 
-    def was_ctrl_c(self):
+    def was_ctrl_c(self) -> bool:
         return isinstance(self.exception, KeyboardInterrupt)
 
-    def exc_handler(self, exc_type, exc, *tb):
+    def exc_handler(
+        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
+    ) -> None:
         self.exit_code = 1
         self.exception = exc
         if issubclass(exc_type, Error):
@@ -86,7 +138,7 @@ class ExitHooks(object):
         if self.was_ctrl_c():
             self.exit_code = 255
 
-        traceback.print_exception(exc_type, exc, *tb)
+        traceback.print_exception(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -95,7 +147,7 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface, polling_interval=15):
+    def __init__(self, interface: BackendSender, polling_interval: int = 15) -> None:
         self._interface = interface
         self._polling_interval = polling_interval
 
@@ -104,138 +156,94 @@ class RunStatusChecker(object):
         self._thread.daemon = True
         self._thread.start()
 
-    def check_status(self):
+    def check_status(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = (
-                # 'or False' because this could return None.
-                self._interface.communicate_status(check_stop_req=True)
-                or False
-            )
-            if status_response.run_should_stop:
-                thread.interrupt_main()
-                return
+            status_response = self._interface.communicate_status(check_stop_req=True)
+            if status_response and status_response.run_should_stop:
+                # TODO(frz): This check is required
+                # until WB-3606 is resolved on server side.
+                if not wandb.agents.pyagent.is_running():
+                    thread.interrupt_main()
+                    return
             join_requested = self._join_event.wait(self._polling_interval)
 
-    def stop(self):
+    def stop(self) -> None:
         self._join_event.set()
 
-    def join(self):
+    def join(self) -> None:
         self.stop()
         self._thread.join()
 
 
-class RunBase(object):
-    pass
+class Run(object):
+    """
+    The run object corresponds to a single execution of your script,
+    typically this is an ML experiment. Create a run with `wandb.init()`.
 
+    In distributed training, use `wandb.init()` to create a run for each process,
+    and set the group argument to organize runs into a larger experiment.
 
-class ConfigDummy(object):
-    def __init__(self):
-        pass
+    Currently there is a parallel Run object in the wandb.Api. Eventually these
+    two objects will be merged.
 
-    def __getitem__(self, key):
-        pass
+    Attributes:
+        history: (History) Time series values, created with `wandb.log()`.
+            History can contain scalar values, rich media, or even custom plots
+            across multiple steps.
+        summary: (Summary) Single values set for each `wandb.log()` key. By
+            default, summary is set to the last value logged. You can manually
+            set summary to the best value, like max accuracy, instead of the
+            final value.
+    """
 
-    def __setitem__(self, key, val):
-        pass
+    _telemetry_obj: telemetry.TelemetryRecord
+    _teardown_hooks: List[Callable[[], None]]
+    _tags: Optional[Tuple[Any, ...]]
 
-    __setattr__ = __setitem__
+    _entity: Optional[str]
+    _project: Optional[str]
+    _group: Optional[str]
+    _job_type: Optional[str]
+    _name: Optional[str]
+    _notes: Optional[str]
 
-    def __getattr__(self, key):
-        pass
+    _run_obj: Optional[RunRecord]
+    _run_obj_offline: Optional[RunRecord]
+    # Use string literal anotation because of type reference loop
+    _backend: Optional["wandb.sdk.backend.backend.Backend"]
+    _wl: Optional[_WandbSetup]
 
+    _upgraded_version_message: Optional[str]
+    _deleted_version_message: Optional[str]
+    _yanked_version_message: Optional[str]
 
-class SummaryDummy(object):
-    def __init__(self):
-        pass
+    _out_redir: Optional[redirect.RedirectBase]
+    _err_redir: Optional[redirect.RedirectBase]
+    _redirect_cb: Optional[Callable[[str, str], None]]
+    _output_writer: Optional["filesystem.CRDedupedFile"]
 
-    def __getitem__(self, key):
-        pass
+    _atexit_cleanup_called: bool
+    _hooks: Optional[ExitHooks]
+    _exit_code: Optional[int]
 
-    def __setitem__(self, key, val):
-        pass
+    _run_status_checker: Optional[RunStatusChecker]
+    _poll_exit_response: Optional[PollExitResponse]
 
+    _sampled_history: Optional[Dict[str, Union[List[int], List[float]]]]
 
-class RunDummy(RunBase):
-    def __init__(self):
-        self._config = ConfigDummy()
-        self.summary = SummaryDummy()
+    _use_redirect: bool
+    _stdout_slave_fd: Optional[int]
+    _stderr_slave_fd: Optional[int]
 
-    @property
-    def id(self):
-        pass
+    _pid: int
 
-    @property
-    def sweep_id(self):
-        pass
-
-    def get_url(self):
-        pass
-
-    def project_name(self):
-        pass
-
-    @property
-    def project(self):
-        pass
-
-    @property
-    def config(self):
-        return self._config
-
-    @property
-    def dir(self):
-        return ""
-
-    @property
-    def resumed(self):
-        pass
-
-    @property
-    def step(self):
-        pass
-
-    def log(self, data, step=None, commit=None, sync=None):
-        pass
-
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
-        pass
-
-    def join(self, exit_code=None):
-        pass
-
-    def finish(self, exit_code=None):
-        pass
-
-    def save(
+    def __init__(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
-        policy: str = "live",
-    ):
-        pass
-
-    def restore(
-        self,
-        name: str,
-        run_path: Optional[str] = None,
-        replace: bool = False,
-        root: Optional[str] = None,
-    ):
-        pass
-
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return exc_type is None
-
-
-class Run(RunBase):
-    def __init__(self, config=None, settings=None):
+        settings: Settings,
+        config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+    ) -> None:
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
@@ -251,8 +259,7 @@ class Run(RunBase):
 
         self._settings = settings
         self._wl = None
-        self._reporter = None
-        self._data = dict()
+        self._reporter: Optional[Reporter] = None
 
         self._entity = None
         self._project = None
@@ -281,17 +288,25 @@ class Run(RunBase):
         self._final_summary = None
         self._sampled_history = None
         self._jupyter_progress = None
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
+        self._upgraded_version_message = None
+        self._deleted_version_message = None
+        self._yanked_version_message = None
 
         # Pull info from settings
         self._init_from_settings(settings)
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
-        sentry_set_scope("user", self._entity, self._project)
+        sentry_set_scope(
+            "user",
+            entity=self._entity,
+            project=self._project,
+            email=self._settings.email,
+        )
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -302,67 +317,66 @@ class Run(RunBase):
 
         self._poll_exit_response = None
 
+        # Initialize telemetry object
+        self._telemetry_obj = telemetry.TelemetryRecord()
+
+        # Populate config
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-
-        wandb_data = dict()
-        wandb_data["cli_version"] = wandb.__version__
-        wandb_data["python_version"] = platform.python_version()
-        wandb_data["is_jupyter_run"] = settings._jupyter or False
-        wandb_data["is_kaggle_kernel"] = settings._kaggle or False
-        hf_version = huggingface_version()
-        if hf_version:
-            wandb_data["huggingface_version"] = hf_version
-        framework = self._telemetry_get_framework()
-        if framework:
-            wandb_data["framework"] = framework
-        config[wandb_key].update(wandb_data)
-
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
             )
-        self._config._update(config)
-        self._atexit_cleanup_called = None
+        if sweep_config:
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
+        self._config._update(config, ignore_locked=True)
+
+        self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
 
-    def _freeze(self):
+        self._pid = os.getpid()
+
+    def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
+        self._telemetry_obj.MergeFrom(telem_obj)
+
+    def _freeze(self) -> None:
         self._frozen = True
 
-    def __setattr__(self, attr, value):
+    def __setattr__(self, attr: str, value: object) -> None:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
 
-    def _telemetry_get_framework(self):
-        """Get telemetry data for internal config structure."""
-        # detect framework by checking what is loaded
-        loaded = {}
-        loaded["lightgbm"] = sys.modules.get("lightgbm")
-        loaded["catboost"] = sys.modules.get("catboost")
-        loaded["xgboost"] = sys.modules.get("xgboost")
-        loaded["fastai"] = sys.modules.get("fastai")
-        loaded["torch"] = sys.modules.get("torch")
-        loaded["keras"] = sys.modules.get("keras")  # vanilla keras
-        loaded["tensorflow"] = sys.modules.get("tensorflow")
-        loaded["sklearn"] = sys.modules.get("sklearn")
+    def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
+        mods = sys.modules
+        if mods.get("torch"):
+            imp.torch = True
+        if mods.get("keras"):
+            imp.keras = True
+        if mods.get("tensorflow"):
+            imp.tensorflow = True
+        if mods.get("sklearn"):
+            imp.sklearn = True
+        if mods.get("fastai"):
+            imp.fastai = True
+        if mods.get("xgboost"):
+            imp.xgboost = True
+        if mods.get("catboost"):
+            imp.catboost = True
+        if mods.get("lightgbm"):
+            imp.lightgbm = True
+        if mods.get("pytorch_lightning"):
+            imp.pytorch_lightning = True
+        if mods.get("ignite"):
+            imp.pytorch_ignite = True
+        if mods.get("transformers"):
+            imp.transformers_huggingface = True
 
-        priority = (
-            "lightgbm",
-            "catboost",
-            "xgboost",
-            "fastai",
-            "torch",
-            "keras",
-            "tensorflow",
-            "sklearn",
-        )
-        framework = next((f for f in priority if loaded.get(f)), None)
-        return framework
-
-    def _init_from_settings(self, settings):
+    def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
             self._entity = settings.entity
         if settings.project is not None:
@@ -378,7 +392,7 @@ class Run(RunBase):
         if settings.run_tags is not None:
             self._tags = settings.run_tags
 
-    def _make_proto_run(self, run):
+    def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
         if self._entity is not None:
             run.entity = self._entity
@@ -401,22 +415,41 @@ class Run(RunBase):
             run.start_time.FromSeconds(int(self._start_time))
         # Note: run.config is set in interface/interface:_make_run()
 
-    def __getstate__(self):
+    def __getstate__(self) -> None:
         pass
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: Any) -> None:
         pass
 
     @property
-    def dir(self):
+    def dir(self) -> str:
+        """
+        Returns:
+            (str): The directory where all of the files associated with the run are
+                placed.
+        """
         return self._settings.files_dir
 
     @property
-    def config(self):
+    def config(self) -> wandb_config.Config:
+        """
+        Returns:
+            (Config): A config object (similar to a nested dict) of key
+                value pairs associated with the hyperparameters of the run.
+        """
         return self._config
 
     @property
-    def name(self):
+    def config_static(self) -> wandb_config.ConfigStatic:
+        return wandb_config.ConfigStatic(self._config)
+
+    @property
+    def name(self) -> Optional[str]:
+        """
+        Returns:
+            (str): the display name of the run. It does not need to be unique
+                and ideally is descriptive.
+        """
         if self._name:
             return self._name
         if not self._run_obj:
@@ -424,13 +457,17 @@ class Run(RunBase):
         return self._run_obj.display_name
 
     @name.setter
-    def name(self, name):
+    def name(self, name: str) -> None:
         self._name = name
         if self._backend:
             self._backend.interface.publish_run(self)
 
     @property
-    def notes(self):
+    def notes(self) -> Optional[str]:
+        r"""
+        Returns:
+            (str): notes associated with the run. Notes can be a multiline string
+                and can also use markdown and latex equations inside $$ like $\\{x}"""
         if self._notes:
             return self._notes
         if not self._run_obj:
@@ -438,37 +475,57 @@ class Run(RunBase):
         return self._run_obj.notes
 
     @notes.setter
-    def notes(self, notes):
+    def notes(self, notes: str) -> None:
         self._notes = notes
         if self._backend:
             self._backend.interface.publish_run(self)
 
     @property
     def tags(self) -> Optional[Tuple]:
+        """
+        Returns:
+            (Tuple[str]): tags associated with the run
+        """
         if self._tags:
             return self._tags
-        if not self._run_obj:
-            return None
-        return self._run_obj.tags
+        run_obj = self._run_obj or self._run_obj_offline
+        if run_obj:
+            return tuple(run_obj.tags)
+        return None
 
     @tags.setter
-    def tags(self, tags: Sequence):
+    def tags(self, tags: Sequence) -> None:
         self._tags = tuple(tags)
         if self._backend:
             self._backend.interface.publish_run(self)
 
     @property
-    def id(self):
+    def id(self) -> str:
+        """id property.
+
+        Returns:
+            (str): the run_id associated with the run
+        """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
-    def sweep_id(self):
+    def sweep_id(self) -> Optional[str]:
+        """
+        Returns:
+            (str, optional): the sweep id associated with the run or None
+        """
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
 
     @property
-    def path(self):
+    def path(self) -> str:
+        """
+        Returns:
+            (str): the path to the run `[entity]/[project]/[run_id]`
+        """
         parts = []
         for e in [self._entity, self._project, self._run_id]:
             if e is not None:
@@ -476,124 +533,305 @@ class Run(RunBase):
         return "/".join(parts)
 
     @property
-    def start_time(self):
+    def start_time(self) -> float:
+        """
+        Returns:
+            (int): the unix time stamp in seconds when the run started
+        """
         if not self._run_obj:
             return self._start_time
         else:
             return self._run_obj.start_time.ToSeconds()
 
     @property
-    def starting_step(self):
+    def starting_step(self) -> int:
+        """
+        Returns:
+            (int): the first step of the run
+        """
         if not self._run_obj:
             return self._starting_step
         else:
             return self._run_obj.starting_step
 
     @property
-    def resumed(self):
-        return self.starting_step > 0
+    def resumed(self) -> bool:
+        """
+        Returns:
+            (bool): whether or not the run was resumed
+        """
+        if self._run_obj:
+            return self._run_obj.resumed
+        return False
 
     @property
-    def step(self):
+    def step(self) -> int:
+        """
+        Every time you call wandb.log() it will by default increment the step
+        counter.
+
+        Returns:
+            (int): step counter
+        """
         return self.history._step
 
-    def project_name(self, api=None):
+    def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.project
+        return run_obj.project if run_obj else ""
 
     @property
-    def project(self):
+    def mode(self) -> str:
+        """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        return "dryrun" if self._settings._offline else "run"
+
+    @property
+    def offline(self) -> bool:
+        return self._settings._offline
+
+    @property
+    def disabled(self) -> bool:
+        return self._settings._noop
+
+    @property
+    def group(self) -> str:
+        """
+        Setting a group helps the W&B UI organize runs in a sensible way.
+
+        If you are doing a distributed training you should give all of the
+            runs in the training the same group.
+        If you are doing crossvalidation you should give all the crossvalidation
+            folds the same group.
+
+        Returns:
+            (str): name of W&B group associated with run.
+        """
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group if run_obj else ""
+
+    @property
+    def job_type(self) -> str:
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.job_type if run_obj else ""
+
+    @property
+    def project(self) -> str:
+        """
+        Returns:
+            (str): name of W&B project associated with run.
+        """
         return self.project_name()
 
-    def get_url(self):
+    def log_code(
+        self,
+        root: str = ".",
+        name: str = None,
+        include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
+        exclude_fn: Callable[[str], bool] = lambda path: os.sep + "wandb" + os.sep
+        in path,
+    ) -> Optional[Artifact]:
+        """
+        log_code() saves the current state of your code to a W&B artifact.  By
+        default it walks the current directory and logs all files that end with ".py".
+
+        Arguments:
+            root (str, optional): The relative (to os.getcwd()) or absolute path to
+                recursively find code from.
+            name (str, optional): The name of our code artifact.  By default we'll name
+                the artifact "source-$RUN_ID".  There may be scenarios where you want
+                many runs to share the same artifact.  Specifying name allows you to achieve that.
+            include_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be included and False otherwise.  This
+                defaults to: `lambda path: path.endswith(".py")`
+            exclude_fn (callable, optional): A callable that accepts a file path and
+                returns True when it should be excluded and False otherwise.  This
+                defaults to: `lambda path: False`
+
+        Examples:
+            Basic usage
+            ```python
+            run.log_code()
+            ```
+
+            Advanced usage
+            ```python
+            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            ```
+
+        Returns:
+            An `Artifact` object if code was logged
+        """
+        name = name or "{}-{}".format("source", self.id)
+        art = wandb.Artifact(name, "code")
+        files_added = False
+        if root is not None:
+            root = os.path.abspath(root)
+            for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
+                files_added = True
+                save_name = os.path.relpath(file_path, root)
+                art.add_file(file_path, name=save_name)
+        # Add any manually staged files such is ipynb notebooks
+        for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
+            for fname in files:
+                file_path = os.path.join(dirpath, fname)
+                save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
+                files_added = True
+                art.add_file(file_path, name=save_name)
+        if not files_added:
+            return None
+        return self.log_artifact(art)
+
+    def get_url(self) -> Optional[str]:
+        """
+        Returns:
+            A url (str, optional) for the W&B run or None if the run
+            is offline
+        """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
-            return
+            return None
         return self._get_run_url()
 
+    def get_project_url(self) -> Optional[str]:
+        """
+        Returns:
+            A url (str, optional) for the W&B project associated with
+            the run or None if the run is offline
+        """
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._get_project_url()
+
+    def get_sweep_url(self) -> Optional[str]:
+        """
+        Returns:
+            A url (str, optional) for the sweep associated with the run
+            or None if there is no associated sweep or the run is offline.
+        """
+        if not self._run_obj:
+            wandb.termwarn("URL not available in offline run")
+            return None
+        return self._get_sweep_url()
+
     @property
-    def url(self):
+    def url(self) -> Optional[str]:
+        """
+        Returns:
+            (str): name of W&B url associated with run.
+        """
         return self.get_url()
 
     @property
-    def entity(self):
-        return self._entity
+    def entity(self) -> str:
+        """
+        Returns:
+            (str): name of W&B entity associated with run. Entity is either
+                a user name or an organization name.
+        """
+        return self._entity or ""
 
-    # def _repr_html_(self):
-    #     url = "https://app.wandb.test/jeff/uncategorized/runs/{}".format(
-    #       self.run_id)
-    #     style = "border:none;width:100%;height:400px"
-    #     s = "<h1>Run({})</h1><iframe src=\"{}\" style=\"{}\"></iframe>".format(
-    #       self.run_id, url, style)
-    #     return s
-
-    def _repr_mimebundle_(self, include=None, exclude=None):
+    def _repr_mimebundle_(
+        self, include: Any = None, exclude: Any = None
+    ) -> Dict[str, str]:
         url = self._get_run_url()
         style = "border:none;width:100%;height:400px"
-        note = ""
-        if include or exclude:
-            note = "(DEBUG: include={}, exclude={})".format(include, exclude)
-        s = '<h1>Run({})</h1><p>{}</p><iframe src="{}" style="{}"></iframe>'.format(
-            self._run_id, note, url, style
+        s = '<h1>Run({})</h1><iframe src="{}" style="{}"></iframe>'.format(
+            self._run_id, url, style
         )
         return {"text/html": s}
 
-    def _config_callback(self, key=None, val=None, data=None):
+    def _config_callback(
+        self,
+        key: Union[Tuple[str, ...], str] = None,
+        val: Any = None,
+        data: Dict[str, object] = None,
+    ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
-        self._backend.interface.publish_config(data)
+        if not self._backend or not self._backend.interface:
+            return
+        self._backend.interface.publish_config(key=key, val=val, data=data)
 
-    def _summary_update_callback(self, summary_record: SummaryRecord):
-        self._backend.interface.publish_summary(summary_record)
+    def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
+        if self._backend:
+            self._backend.interface.publish_summary(summary_record)
 
-    def _summary_get_current_summary_callback(self):
+    def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if not self._backend:
+            return {}
         ret = self._backend.interface.communicate_summary()
         return proto_util.dict_from_proto_list(ret.item)
 
-    def _datatypes_callback(self, fname):
+    def _metric_callback(self, metric_record: MetricRecord) -> None:
+        if self._backend:
+            self._backend.interface._publish_metric(metric_record)
+
+    def _datatypes_callback(self, fname: str) -> None:
+        if not self._backend:
+            return
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
-    def _history_callback(self, row=None, step=None):
+    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
+    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
 
         # TODO(jhr): move visualize hack somewhere else
-        visualize_persist_config = False
+        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
-                if "viz" not in self._config["_wandb"]:
-                    self._config["_wandb"]["viz"] = dict()
-                self._config["_wandb"]["viz"][k] = {
+                config = {
                     "id": row[k].viz_id,
                     "historyFieldSettings": {"key": k, "x-axis": "_step"},
                 }
                 row[k] = row[k].value
-                visualize_persist_config = True
-        if visualize_persist_config:
-            self._config_callback(data=self._config._as_dict())
+                self._config_callback(val=config, key=("_wandb", "viz", k))
+            elif isinstance(row[k], CustomChart):
+                custom_charts[k] = row[k]
+                custom_chart = row[k]
 
-        self._backend.interface.publish_history(row, step)
+        for k, custom_chart in custom_charts.items():
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row.pop(k)
+            # add the table under a different key
+            table_key = k + "_table"
+            row[table_key] = custom_chart.table
+            # add the panel
+            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
+            self._add_panel(k, "Vega2", panel_config)
 
-    def _console_callback(self, name, data):
+        if self._backend:
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            self._backend.interface.publish_history(
+                row, step, publish_step=not_using_tensorboard
+            )
+
+    def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
-        self._backend.interface.publish_output(name, data)
+        if self._backend:
+            self._backend.interface.publish_output(name, data)
 
-    def _tensorboard_callback(self, logdir, save=None):
+    def _tensorboard_callback(
+        self, logdir: str, save: bool = None, root_logdir: str = None
+    ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        self._backend.interface.publish_tbdata(logdir, save)
+        if self._backend:
+            self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
-    def _set_library(self, library):
+    def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend):
+    def _set_backend(self, backend: "wandb.sdk.backend.backend.Backend") -> None:
         self._backend = backend
 
-    def _set_reporter(self, reporter):
+    def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
-    def _set_teardown_hooks(self, hooks):
+    def _set_teardown_hooks(self, hooks: List[Callable[[], None]]) -> None:
         self._teardown_hooks = hooks
 
-    def _set_run_obj(self, run_obj):
+    def _set_run_obj(self, run_obj: RunRecord) -> None:
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -604,7 +842,7 @@ class Run(RunBase):
             if "_wandb" in c_dict:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
-            self.config._update(c_dict, allow_val_change=True)
+            self.config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
@@ -613,12 +851,20 @@ class Run(RunBase):
             self.summary.update(summary_dict)
         self.history._update_step()
         # TODO: It feels weird to call this twice..
-        sentry_set_scope("user", run_obj.entity, run_obj.project, self._get_run_url())
+        sentry_set_scope(
+            "user",
+            entity=run_obj.entity,
+            project=run_obj.project,
+            email=self._settings.email,
+            url=self._get_run_url(),
+        )
 
-    def _set_run_obj_offline(self, run_obj):
+    def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
 
-    def _add_singleton(self, type, key, value):
+    def _add_singleton(
+        self, data_type: str, key: str, value: Dict[Union[int, str], str]
+    ) -> None:
         """Stores a singleton item to wandb config.
 
         A singleton in this context is a piece of data that is continually
@@ -630,114 +876,124 @@ class Run(RunBase):
         Add singleton can be called many times in one run and it will only be
         updated when the value changes. The last value logged will be the one
         persisted to the server"""
-        value_extra = {"type": type, "key": key, "value": value}
+        value_extra = {"type": data_type, "key": key, "value": value}
 
-        if type not in self.config["_wandb"]:
-            self.config["_wandb"][type] = {}
+        if data_type not in self.config["_wandb"]:
+            self.config["_wandb"][data_type] = {}
 
-        if type in self.config["_wandb"][type]:
-            old_value = self.config["_wandb"][type][key]
+        if data_type in self.config["_wandb"][data_type]:
+            old_value = self.config["_wandb"][data_type][key]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config["_wandb"][type][key] = value_extra
+            self.config["_wandb"][data_type][key] = value_extra
             self.config.persist()
 
-    def log(self, data, step=None, commit=None, sync=None):
+    def log(
+        self,
+        data: Dict[str, Any],
+        step: int = None,
+        commit: bool = None,
+        sync: bool = None,
+    ) -> None:
         """Log a dict to the global run's history.
 
-        wandb.log can be used to log everything from scalars to histograms, media
-            and matplotlib plots.
+        Use `wandb.log` to log data from runs, such as scalars, images, video,
+        histograms, and matplotlib plots.
 
-        The most basic usage is wandb.log({'train-loss': 0.5, 'accuracy': 0.9}).
-            This will save a history row associated with the run with train-loss=0.5
-            and accuracy=0.9. The history values can be plotted on app.wandb.ai or
-            on a local server. The history values can also be downloaded through
-            the wandb API.
+        The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
+        This will save a history row associated with the run with `train-loss=0.5`
+        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
+        or locally on a self-hosted instance of the W&B app:
+        https://docs.wandb.ai/self-hosted
 
-        Logging a value will update the summary values for any metrics logged.
-            The summary values will appear in the run table at app.wandb.ai or
-            a local server. If a summary value is manually set with for example
-            wandb.run.summary["accuracy"] = 0.9 wandb.log will no longer automatically
-            update the run's accuracy.
+        Export data to explore in a Jupyter notebook, for example, with the API:
+        https://docs.wandb.ai/ref/public-api
 
-        Logging values don't have to be scalars. Logging any wandb object is supported.
-            For example wandb.log({"example": wandb.Image("myimage.jpg")}) will log an
-            example image which will be displayed nicely in the wandb UI. See
-            https://docs.wandb.com/library/reference/data_types for all of the different
-            supported types.
+        Each time you call wandb.log(), this adds a new row to history and updates
+        the summary values for each key logged. In the UI, summary values show
+        up in the run table to compare single values across runs. You might want
+        to update summary manually to set the *best* value instead of the *last*
+        value for a given metric. After you finish logging, you can set summary:
+        `wandb.run.summary["accuracy"] = 0.9`.
+
+        Logged values don't have to be scalars. Logging any wandb object is supported.
+        For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
+        example image which will be displayed nicely in the wandb UI. See
+        https://docs.wandb.com/library/reference/data_types for all of the different
+        supported types.
 
         Logging nested metrics is encouraged and is supported in the wandb API, so
-            you could log multiple accuracy values with wandb.log({'dataset-1':
-            {'acc': 0.9, 'loss': 0.3} ,'dataset-2': {'acc': 0.8, 'loss': 0.2}})
-            and the metrics will be organized in the wandb UI.
+        you could log multiple accuracy values with `wandb.log({'dataset-1':
+        {'acc': 0.9, 'loss': 0.3} ,'dataset-2': {'acc': 0.8, 'loss': 0.2}})`
+        and the metrics will be organized in the wandb UI.
 
         W&B keeps track of a global step so logging related metrics together is
-            encouraged, so by default each time wandb.log is called a global step
-            is incremented. If it's inconvenient to log related metrics together
-            calling wandb.log({'train-loss': 0.5, commit=False}) and then
-            wandb.log({'accuracy': 0.9}) is equivalent to calling
-            wandb.log({'train-loss': 0.5, 'accuracy': 0.9})
+        encouraged, so by default each time wandb.log is called a global step
+        is incremented. If it's inconvenient to log related metrics together
+        calling `wandb.log({'train-loss': 0.5, commit=False})` and then
+        `wandb.log({'accuracy': 0.9})` is equivalent to calling
+        `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`
 
         wandb.log is not intended to be called more than a few times per second.
-            If you want to log more frequently than that it's better to aggregate
-            the data on the client side or you may get degraded performance.
+        If you want to log more frequently than that it's better to aggregate
+        the data on the client side or you may get degraded performance.
 
-        Args:
-            row (dict, optional): A dict of serializable python objects i.e str,
-                ints, floats, Tensors, dicts, or wandb.data_types
-            commit (boolean, optional): Save the metrics dict to the wandb server
-                and increment the step.  If false wandb.log just updates the current
+        Arguments:
+            row: (dict, optional) A dict of serializable python objects i.e `str`,
+                `ints`, `floats`, `Tensors`, `dicts`, or `wandb.data_types`.
+            commit: (boolean, optional) Save the metrics dict to the wandb server
+                and increment the step.  If false `wandb.log` just updates the current
                 metrics dict with the row argument and metrics won't be saved until
-                wandb.log is called with commit=True.
-            step (integer, optional): The global step in processing. This persists
+                `wandb.log` is called with `commit=True`.
+            step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
                 specified step.
-            sync (boolean, True): This argument is deprecated and currently doesn't
-                change the behaviour of wandb.log
+            sync: (boolean, True) This argument is deprecated and currently doesn't
+                change the behaviour of `wandb.log`.
 
         Examples:
             Basic usage
-            ```
+            ```python
             wandb.log({'accuracy': 0.9, 'epoch': 5})
             ```
 
             Incremental logging
-            ```
+            ```python
             wandb.log({'loss': 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
             wandb.log({'accuracy': 0.8})
             ```
 
             Histogram
-            ```
+            ```python
             wandb.log({"gradients": wandb.Histogram(numpy_array_or_sequence)})
             ```
 
             Image
-            ```
+            ```python
             wandb.log({"examples": [wandb.Image(numpy_array_or_pil, caption="Label")]})
             ```
 
             Video
-            ```
+            ```python
             wandb.log({"video": wandb.Video(numpy_array_or_video_path, fps=4,
                 format="gif")})
             ```
 
             Matplotlib Plot
-            ```
+            ```python
             wandb.log({"chart": plt})
             ```
 
             PR Curve
-            ```
+            ```python
             wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             3D Object
-            ```
+            ```python
             wandb.log({"generated_samples":
             [wandb.Object3D(open("sample.obj")),
                 wandb.Object3D(open("sample.gltf")),
@@ -747,18 +1003,39 @@ class Run(RunBase):
             For more examples, see https://docs.wandb.com/library/log
 
         Raises:
-            wandb.Error - if called before wandb.init
-            ValueError - if invalid data is passed
+            wandb.Error: if called before `wandb.init`
+            ValueError: if invalid data is passed
 
         """
-        # TODO(cling): sync is a noop for now
-        if not isinstance(data, collections.Mapping):
+        current_pid = os.getpid()
+        if current_pid != self._pid:
+            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                current_pid, self._pid
+            )
+            if self._settings._strict:
+                wandb.termerror(message, repeat=False)
+                raise errors.LogMultiprocessError(
+                    "log() does not support multiprocessing"
+                )
+            wandb.termwarn(message, repeat=False)
+            return
+
+        if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, string_types) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             if self.history._step > step:
                 wandb.termwarn(
                     (
@@ -784,17 +1061,17 @@ class Run(RunBase):
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
         policy: str = "live",
-    ):
+    ) -> Union[bool, List[str]]:
         """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
 
-        Args:
-            glob_str (string): a relative or absolute path to a unix glob or regular
+        Arguments:
+            glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
-            base_path (string): the base path to run the glob relative to
-            policy (string): on of "live", "now", or "end"
-                live: upload the file as it changes, overwriting the previous version
-                now: upload the file once now
-                end: only upload file when the run ends
+            base_path: (string) the base path to run the glob relative to
+            policy: (string) on of `live`, `now`, or `end`
+                - live: upload the file as it changes, overwriting the previous version
+                - now: upload the file once now
+                - end: only upload file when the run ends
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
@@ -829,6 +1106,10 @@ class Run(RunBase):
         wandb_glob_str = os.path.relpath(glob_str, base_path)
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
+
+        with telemetry.context(run=self) as tel:
+            tel.feature.save = True
+
         if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
             wandb.termlog(
                 "%s is a cloud storage url, can't save file to wandb." % glob_str
@@ -862,7 +1143,8 @@ class Run(RunBase):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        self._backend.interface.publish_files(files_dict)
+        if self._backend:
+            self._backend.interface.publish_files(files_dict)
         return files
 
     def restore(
@@ -871,111 +1153,134 @@ class Run(RunBase):
         run_path: Optional[str] = None,
         replace: bool = False,
         root: Optional[str] = None,
-    ):
-        """ Downloads the specified file from cloud storage into the current run directory
-        if it doesn't exist.
+    ) -> Union[None, TextIO]:
+        return restore(name, run_path or self.path, replace, root or self.dir)
 
-        Args:
-            name: the name of the file
-            run_path: optional path to a different run to pull files from
-            replace: whether to download the file even if it already exists locally
-            root: the directory to download the file to.  Defaults to the current
-                directory or the run directory if wandb.init was called.
-
-        Returns:
-            None if it can't find the file, otherwise a file object open for reading
-
-        Raises:
-            wandb.CommError if it can't find the run
-            ValueError if the file is not found
-        """
-
-        #  TODO: handle restore outside of a run context?
-        api = public.Api()
-        api_run = api.run(run_path or self.path)
-        if root is None:
-            root = self.dir  # TODO: runless else '.'
-        path = os.path.join(root, name)
-        if os.path.exists(path) and replace is False:
-            return open(path, "r")
-        files = api_run.files([name])
-        if len(files) == 0:
-            return None
-        # if the file does not exist, the file has an md5 of 0
-        if files[0].md5 == "0":
-            raise ValueError("File {} not found.".format(path))
-        return files[0].download(root=root, replace=True)
-
-    def finish(self, exit_code=None):
+    def finish(self, exit_code: int = None) -> None:
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        with telemetry.context(run=self) as tel:
+            tel.feature.finish = True
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
             hook()
+        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
-        if len(self._wl._global_run_stack) > 0:
+        if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
 
-    def join(self, exit_code=None):
+    def join(self, exit_code: int = None) -> None:
+        """Deprecated alias for `finish()` - please use finish"""
         self.finish(exit_code=exit_code)
 
-    def _add_panel(self, visualize_key: str, panel_type: str, panel_config: dict):
-        if "visualize" not in self._config["_wandb"]:
-            self._config["_wandb"]["visualize"] = dict()
-        self._config["_wandb"]["visualize"][visualize_key] = {
+    # TODO(jhr): annotate this
+    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+        """Creates a custom plot on a table.
+        Arguments:
+            vega_spec_name: the name of the spec for the plot
+            table_key: the key used to log the data table
+            data_table: a wandb.Table object containing the data to
+                be used on the visualization
+            fields: a dict mapping from table keys to fields that the custom
+                visualization needs
+            string_fields: a dict that provides values for any string constants
+                the custom visualization needs
+        """
+        visualization = create_custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
+        return visualization
+
+    def _set_upgraded_version_message(self, msg: str) -> None:
+        self._upgraded_version_message = msg
+
+    def _set_deleted_version_message(self, msg: str) -> None:
+        self._deleted_version_message = msg
+
+    def _set_yanked_version_message(self, msg: str) -> None:
+        self._yanked_version_message = msg
+
+    def _add_panel(
+        self, visualize_key: str, panel_type: str, panel_config: dict
+    ) -> None:
+        config = {
             "panel_type": panel_type,
             "panel_config": panel_config,
         }
+        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-        self._config_callback(data=self._config._as_dict())
+    def _get_url_query_string(self) -> str:
+        s = self._settings
 
-    def _get_project_url(self):
+        # TODO(jhr): migrate to new settings, but for now this is safer
+        api = internal.Api()
+        if api.settings().get("anonymous") != "true":
+            return ""
+
+        api_key = apikey.api_key(settings=s)
+        return "?" + urlencode({"apiKey": api_key})
+
+    def _get_project_url(self) -> str:
         s = self._settings
         r = self._run_obj
+        if not r:
+            return ""
         app_url = wandb.util.app_url(s.base_url)
-        url = "{}/{}/{}".format(app_url, url_quote(r.entity), url_quote(r.project))
-        return url
-
-    def _get_run_url(self):
-        s = self._settings
-        r = self._run_obj
-        app_url = wandb.util.app_url(s.base_url)
-        url = "{}/{}/{}/runs/{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id)
+        qs = self._get_url_query_string()
+        url = "{}/{}/{}{}".format(
+            app_url, url_quote(r.entity), url_quote(r.project), qs
         )
         return url
 
-    def _get_sweep_url(self):
+    def _get_run_url(self) -> str:
+        s = self._settings
+        r = self._run_obj
+        if not r:
+            return ""
+        app_url = wandb.util.app_url(s.base_url)
+        qs = self._get_url_query_string()
+        url = "{}/{}/{}/runs/{}{}".format(
+            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id), qs
+        )
+        return url
+
+    def _get_sweep_url(self) -> str:
         """Generate a url for a sweep.
 
         Returns:
-            string - url if the run is part of a sweep
-            None - if the run is not part of the sweep
+            (str): url if the run is part of a sweep
+            (None): if the run is not part of the sweep
         """
 
         r = self._run_obj
+        if not r:
+            return ""
         sweep_id = r.sweep_id
         if not sweep_id:
-            return
+            return ""
 
         app_url = wandb.util.app_url(self._settings.base_url)
+        qs = self._get_url_query_string()
 
-        return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
+        return "{base}/{entity}/{project}/sweeps/{sweepid}{qs}".format(
             base=app_url,
             entity=url_quote(r.entity),
             project=url_quote(r.project),
             sweepid=url_quote(sweep_id),
+            qs=qs,
         )
 
-    def _get_run_name(self):
+    def _get_run_name(self) -> str:
         r = self._run_obj
+        if not r:
+            return ""
         return r.display_name
 
-    def _display_run(self):
+    def _display_run(self) -> None:
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
@@ -991,7 +1296,7 @@ class Run(RunBase):
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             sweep_line = (
                 'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
                     sweep_url, sweep_url
@@ -1052,33 +1357,50 @@ class Run(RunBase):
             )
             wandb.termlog(dir_str)
             if not self._settings._offline:
-                wandb.termlog("Run `wandb off` to turn off syncing.")
+                wandb.termlog("Run `wandb offline` to turn off syncing.")
             print("")
 
-    def _redirect(self, stdout_slave_fd, stderr_slave_fd, console=None):
+    def _redirect(
+        self,
+        stdout_slave_fd: Optional[int],
+        stderr_slave_fd: Optional[int],
+        console: SettingsConsole = None,
+    ) -> None:
         if console is None:
             console = self._settings._console
         logger.info("redirect: %s", console)
 
+        out_redir: redirect.RedirectBase
+        err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
-                def wrap_fallback():
-                    self._out_redir.uninstall()
-                    self._err_redir.uninstall()
+                def wrap_fallback() -> None:
+                    if self._out_redir:
+                        self._out_redir.uninstall()
+                    if self._err_redir:
+                        self._err_redir.uninstall()
                     msg = (
                         "Tensorflow detected. Stream redirection is not supported "
                         "on Windows when tensorflow is imported. Falling back to "
@@ -1091,10 +1413,18 @@ class Run(RunBase):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1132,7 +1462,7 @@ class Run(RunBase):
         #     self.stderr_redirector = stderr_redirector
         # logger.info("redirect done")
 
-    def _restore(self):
+    def _restore(self) -> None:
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
         if self._use_redirect:
@@ -1152,10 +1482,10 @@ class Run(RunBase):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code=None):
+    def _atexit_cleanup(self, exit_code: int = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
-            return False
+            return
         if self._atexit_cleanup_called:
             return
         self._atexit_cleanup_called = True
@@ -1170,7 +1500,9 @@ class Run(RunBase):
         self._exit_code = exit_code
         try:
             self._on_finish()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            if wandb.wandb_agent._is_running():
+                raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
             if ipython._get_python_type() == "python":
                 os._exit(-1)
@@ -1183,9 +1515,12 @@ class Run(RunBase):
             if ipython._get_python_type() == "python":
                 os._exit(-1)
         else:
+            # if silent, skip this as it is used to output stuff
+            if self._settings._silent:
+                return
             self._on_final()
 
-    def _console_start(self):
+    def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()
@@ -1196,33 +1531,41 @@ class Run(RunBase):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
-    def _console_stop(self):
+    def _console_stop(self) -> None:
         self._restore()
-        self._output_writer.close()
-        self._output_writer = None
+        if self._output_writer:
+            self._output_writer.close()
+            self._output_writer = None
 
-    def _on_start(self):
+    def _on_init(self) -> None:
+        self._show_version_info()
+
+    def _on_start(self) -> None:
         # TODO: make offline mode in jupyter use HTML
-        if self._settings._offline:
-            wandb.termlog("Offline run mode, not syncing to the cloud.")
-
         if self._settings._offline:
             wandb.termlog(
                 (
-                    "W&B is disabled in this directory.  "
-                    "Run `wandb on` to enable cloud syncing."
+                    "W&B syncing is set to `offline` in this directory.  "
+                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
                 )
             )
-        if self._run_obj:
+        if self._settings.save_code and self._settings.code_dir is not None:
+            self.log_code(self._settings.code_dir)
+        if self._run_obj and not self._settings._silent:
             self._display_run()
         if self._backend and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
-    def _pusher_print_status(self, progress, prefix=True, done=False):
+    def _pusher_print_status(
+        self,
+        progress: FilePusherStats,
+        prefix: bool = True,
+        done: Optional[bool] = False,
+    ) -> None:
         if self._settings._offline:
             return
 
@@ -1233,6 +1576,7 @@ class Run(RunBase):
         )
 
         if self._jupyter_progress:
+            percent_done: float
             if progress.total_bytes == 0:
                 percent_done = 1
             else:
@@ -1262,26 +1606,30 @@ class Run(RunBase):
                 # clear progress line.
                 wandb.termlog(" " * 79, prefix=prefix)
 
-    def _on_finish_progress(self, progress, done=None):
+    def _on_finish_progress(self, progress: FilePusherStats, done: bool = None) -> None:
         self._pusher_print_status(progress, done=done)
 
-    def _wait_for_finish(self):
-        ret = None
+    def _wait_for_finish(self) -> PollExitResponse:
         while True:
-            ret = self._backend.interface.communicate_poll_exit()
-            logger.info("got exit ret: %s", ret)
+            if self._backend:
+                poll_exit_resp = self._backend.interface.communicate_poll_exit()
+            logger.info("got exit ret: %s", poll_exit_resp)
 
-            done = ret.response.poll_exit_response.done
-            pusher_stats = ret.response.poll_exit_response.pusher_stats
-            if pusher_stats:
-                self._on_finish_progress(pusher_stats, done)
-            if done:
-                break
+            if poll_exit_resp:
+                done = poll_exit_resp.done
+                pusher_stats = poll_exit_resp.pusher_stats
+                if pusher_stats:
+                    self._on_finish_progress(pusher_stats, done)
+                if done:
+                    return poll_exit_resp
             time.sleep(2)
-        return ret
 
-    def _on_finish(self):
+    def _on_finish(self) -> None:
         trigger.call("on_finished")
+
+        # populate final import telemetry
+        with telemetry.context(run=self) as tel:
+            self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
@@ -1290,43 +1638,50 @@ class Run(RunBase):
         self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
-        pid = self._backend._internal_pid
+        if not self._settings._silent:
+            if self._backend:
+                pid = self._backend._internal_pid
+                status_str = "Waiting for W&B process to finish, PID {}".format(pid)
+            if not self._exit_code:
+                status_str += "\nProgram ended successfully."
+            else:
+                status_str += "\nProgram failed with code {}. ".format(self._exit_code)
+                if not self._settings._offline:
+                    status_str += " Press ctrl-c to abort syncing."
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
+                ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
+            else:
+                print("")
+                wandb.termlog(status_str)
 
-        status_str = "Waiting for W&B process to finish, PID {}".format(pid)
-        if not self._exit_code:
-            status_str += "\nProgram ended successfully."
-        else:
-            status_str += "\nProgram failed with code {}. ".format(self._exit_code)
-            if not self._settings._offline:
-                status_str += " Press ctrl-c to abort syncing."
-        if self._settings._jupyter:
-            ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
-        else:
-            print("")
-            wandb.termlog(status_str)
+        # telemetry could have changed, publish final data
+        if self._backend:
+            self._backend.interface.publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
-        self._backend.interface.publish_exit(self._exit_code)
+        if self._backend:
+            self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
-        ret = self._wait_for_finish()
+        self._poll_exit_response = self._wait_for_finish()
 
-        self._poll_exit_response = ret.response.poll_exit_response
+        if self._backend:
+            ret = self._backend.interface.communicate_summary()
+            self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-        ret = self._backend.interface.communicate_summary()
-        self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        if self._backend:
+            ret = self._backend.interface.communicate_sampled_history()
+            d = {item.key: item.values_float or item.values_int for item in ret.item}
+            self._sampled_history = d
 
-        ret = self._backend.interface.communicate_sampled_history()
-        d = {item.key: item.values_float or item.values_int for item in ret.item}
-        self._sampled_history = d
-
-        self._backend.cleanup()
+        if self._backend:
+            self._backend.cleanup()
 
         if self._run_status_checker:
             self._run_status_checker.join()
 
-    def _on_final(self):
+    def _on_final(self) -> None:
         # check for warnings and errors, show log file locations
         if self._reporter:
             # TODO: handle warnings and errors nicely in jupyter
@@ -1350,7 +1705,7 @@ class Run(RunBase):
             if self._settings._jupyter:
                 log_user = "<code>{}</code>".format(log_user)
             log_str = "Find user logs for this run at: {}".format(log_user)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
@@ -1359,10 +1714,11 @@ class Run(RunBase):
             if self._settings._jupyter:
                 log_internal = "<code>{}</code>".format(log_internal)
             log_str = "Find internal logs for this run at: {}".format(log_internal)
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(log_str)
             else:
                 wandb.termlog(log_str)
+
         self._show_summary()
         self._show_history()
         self._show_files()
@@ -1370,7 +1726,7 @@ class Run(RunBase):
         if self._run_obj:
             run_url = self._get_run_url()
             run_name = self._get_run_name()
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 ipython.display_html(
                     """
                     <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a><br/>
@@ -1395,7 +1751,22 @@ class Run(RunBase):
                 )
             )
 
-    def _show_summary(self):
+        self._show_version_info(footer=True)
+
+    def _show_version_info(self, footer: bool = None) -> None:
+        package_problem = False
+        if self._deleted_version_message:
+            wandb.termerror(self._deleted_version_message)
+            package_problem = True
+        elif self._yanked_version_message:
+            wandb.termwarn(self._yanked_version_message)
+            package_problem = True
+        # only display upgrade message if packages are bad or in header
+        if not footer or package_problem:
+            if self._upgraded_version_message:
+                wandb.termlog(self._upgraded_version_message)
+
+    def _show_summary(self) -> None:
         if self._final_summary:
             logger.info("rendering summary")
             max_len = max([len(k) for k in self._final_summary.keys()])
@@ -1411,7 +1782,7 @@ class Run(RunBase):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
-            if self._settings._jupyter:
+            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
                     summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1424,7 +1795,7 @@ class Run(RunBase):
                 wandb.termlog("Run summary:")
                 wandb.termlog(summary_lines)
 
-    def _show_history(self):
+    def _show_history(self) -> None:
         if not self._sampled_history:
             return
 
@@ -1444,7 +1815,7 @@ class Run(RunBase):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
                 history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
@@ -1453,29 +1824,34 @@ class Run(RunBase):
         else:
             wandb.termlog("Run history:")
             history_lines = ""
-            format_str = u"  {:>%s} {}\n" % max_len
+            format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
 
-    def _show_files(self):
+    def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
             return
         if self._settings._offline:
             return
+
         logger.info("logging synced files")
+
+        if self._settings._silent:
+            return
+
         file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)".format(  # noqa:E501
             self._poll_exit_response.file_counts.wandb_count,
             self._poll_exit_response.file_counts.media_count,
             self._poll_exit_response.file_counts.artifact_count,
             self._poll_exit_response.file_counts.other_count,
         )
-        if self._settings._jupyter:
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             ipython.display_html(file_str)
         else:
             wandb.termlog(file_str)
 
-    def _save_job_spec(self):
+    def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
@@ -1505,25 +1881,120 @@ class Run(RunBase):
             print(s, file=f)
         self.save(spec_filename)
 
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any
+    ) -> wandb_metric.Metric:
+        """Define metric properties which will later be logged with `wandb.log()`.
+
+        Arguments:
+            name: Name of the metric.
+            step_metric: Independent variable associated with the metric.
+            step_sync: Automatically add `step_metric` to history if needed.
+            hidden: Hide this metric from automatic plots.
+            summary: Specify aggregate metrics added to summary.
+                Supported aggregations: "min,max,mean,best,last,none"
+                Default aggregation is `copy`
+                Aggregation `best` defaults to `goal`==`minimize`
+            goal: Specify direction for optimizing the metric.
+                Supported direections: "minimize,maximize"
+
+        Returns:
+            A metric object is returned that can be further specified.
+
+        """
+        if not name:
+            raise wandb.Error("define_metric() requires non-empty name argument")
+        for k in kwargs:
+            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+        if isinstance(step_metric, wandb_metric.Metric):
+            step_metric = step_metric.name
+        for arg_name, arg_val, exp_type in (
+            ("name", name, string_types),
+            ("step_metric", step_metric, string_types),
+            ("step_sync", step_sync, bool),
+            ("hidden", hidden, bool),
+            ("summary", summary, string_types),
+            ("goal", goal, string_types),
+            ("overwrite", overwrite, bool),
+        ):
+            # NOTE: type checking is broken for isinstance and string_types
+            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+                arg_type = type(arg_val).__name__
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: {} type: {}".format(
+                        arg_name, arg_type
+                    )
+                )
+        stripped = name[:-1] if name.endswith("*") else name
+        if "*" in stripped:
+            raise wandb.Error(
+                "Unhandled define_metric() arg: name (glob suffixes only): {}".format(
+                    name
+                )
+            )
+        summary_ops: Optional[Sequence[str]] = None
+        if summary:
+            summary_items = [s.lower() for s in summary.split(",")]
+            summary_ops = []
+            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            for i in summary_items:
+                if i not in valid:
+                    raise wandb.Error(
+                        "Unhandled define_metric() arg: summary op: {}".format(i)
+                    )
+                summary_ops.append(i)
+        goal_cleaned: Optional[str] = None
+        if goal is not None:
+            goal_cleaned = goal[:3].lower()
+            valid_goal = {"min", "max"}
+            if goal_cleaned not in valid_goal:
+                raise wandb.Error(
+                    "Unhandled define_metric() arg: goal: {}".format(goal)
+                )
+        m = wandb_metric.Metric(
+            name=name,
+            step_metric=step_metric,
+            step_sync=step_sync,
+            summary=summary_ops,
+            hidden=hidden,
+            goal=goal_cleaned,
+            overwrite=overwrite,
+        )
+        m._set_callback(self._metric_callback)
+        m._commit()
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+        return m
+
+    # TODO(jhr): annotate this
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx)
 
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):
-        """ Declare an artifact as an input to a run, call `download` or `file` on \
+    # TODO(jhr): annotate this
+    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
+        """ Declare an artifact as an input to a run, call `download` or `file` on
         the returned object to get the contents locally.
 
-        Args:
-            artifact_or_name (str or Artifact): An artifact name.
-            May be prefixed with entity/project. Valid names
+        Arguments:
+            artifact_or_name: (str or Artifact) An artifact name.
+                May be prefixed with entity/project. Valid names
                 can be in the following forms:
-                    name:version
-                    name:alias
-                    digest
+                    - name:version
+                    - name:alias
+                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
-            type (str, optional): The type of artifact to use.
-            aliases (list, optional): Aliases to apply to this artifact
+            type: (str, optional) The type of artifact to use.
+            aliases: (list, optional) Aliases to apply to this artifact
         Returns:
-            A :obj:`Artifact` object.
+            An `Artifact` object.
         """
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
@@ -1531,9 +2002,7 @@ class Run(RunBase):
 
         if isinstance(artifact_or_name, str):
             name = artifact_or_name
-            public_api = public.Api(
-                {"entity": r.entity, "project": r.project, "run": self.id}
-            )
+            public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
@@ -1550,9 +2019,8 @@ class Run(RunBase):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
-                artifact.finalize()
-                self._backend.interface.publish_artifact(
-                    self, artifact, aliases, is_user_created=True, use_after_commit=True
+                self._log_artifact(
+                    artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -1563,30 +2031,213 @@ class Run(RunBase):
                     'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
                 )
 
-    def log_artifact(self, artifact_or_path, name=None, type=None, aliases=None):
+    def log_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> wandb_artifacts.Artifact:
         """ Declare an artifact as output of a run.
 
-        Args:
-            artifact_or_path (str or Artifact): A path to the contents of this artifact,
+        Arguments:
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
                 can be in the following forms:
-                    /local/directory
-                    /local/directory/file.txt
-                    s3://bucket/path
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name (str, optional): An artifact name. May be prefixed with entity/project.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
-                    name:version
-                    name:alias
-                    digest
+                    - name:version
+                    - name:alias
+                    - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type (str): The type of artifact to log, examples include "dataset", "model"
-            aliases (list, optional): Aliases to apply to this artifact,
-                defaults to ["latest"]
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
+                defaults to `["latest"]`
+
         Returns:
-            A :obj:`Artifact` object.
+            An `Artifact` object.
         """
+        return self._log_artifact(artifact_or_path, name, type, aliases)
+
+    def upsert_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
+        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
+        run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
+        need to all contribute to the same artifact.
+
+        Arguments:
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                    - name:version
+                    - name:alias
+                    - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot upsert artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=False,
+        )
+
+    def finish_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+    ) -> wandb_artifacts.Artifact:
+        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
+        the same distributed ID will result in a new version
+
+        Arguments:
+            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+                You can also pass an Artifact object created by calling
+                `wandb.Artifact`.
+            name: (str, optional) An artifact name. May be prefixed with entity/project.
+                Valid names can be in the following forms:
+                    - name:version
+                    - name:alias
+                    - digest
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            type: (str) The type of artifact to log, examples include `dataset`, `model`
+            aliases: (list, optional) Aliases to apply to this artifact,
+                defaults to `["latest"]`
+            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+                defaults to the run's group name.
+
+        Returns:
+            An `Artifact` object.
+        """
+        if self.group == "" and distributed_id is None:
+            raise TypeError(
+                "Cannot finish artifact unless run is in a group or distributed_id is provided"
+            )
+        if distributed_id is None:
+            distributed_id = self.group
+
+        return self._log_artifact(
+            artifact_or_path,
+            name,
+            type,
+            aliases,
+            distributed_id=distributed_id,
+            finalize=True,
+        )
+
+    def _log_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+        is_user_created: bool = False,
+        use_after_commit: bool = False,
+    ) -> wandb_artifacts.Artifact:
+        if not finalize and distributed_id is None:
+            raise TypeError("Must provide distributed_id if artifact is not finalize")
+        artifact, aliases = self._prepare_artifact(
+            artifact_or_path, name, type, aliases
+        )
+        artifact.distributed_id = distributed_id
+        self._assert_can_log_artifact(artifact)
+        if self._backend:
+            if not self._settings._offline:
+                future = self._backend.interface.communicate_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                self._backend.interface.publish_artifact(
+                    self,
+                    artifact,
+                    aliases,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+        return artifact
+
+    def _public_api(self) -> PublicApi:
+        overrides = {"run": self.id}
+        run_obj = self._run_obj
+        if run_obj is not None:
+            overrides["entity"] = run_obj.entity
+            overrides["project"] = run_obj.project
+        return public.Api(overrides)
+
+    # TODO(jhr): annotate this
+    def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
+        if not self._settings._offline:
+            public_api = self._public_api()
+            expected_type = public.Artifact.expected_type(
+                public_api.client,
+                artifact.name,
+                public_api.settings["entity"],
+                public_api.settings["project"],
+            )
+            if expected_type is not None and artifact.type != expected_type:
+                raise ValueError(
+                    "Expected artifact type {}, got {}".format(
+                        expected_type, artifact.type
+                    )
+                )
+
+    def _prepare_artifact(
+        self,
+        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
@@ -1613,55 +2264,295 @@ class Run(RunBase):
         if isinstance(aliases, str):
             aliases = [aliases]
         artifact.finalize()
-        self._backend.interface.publish_artifact(self, artifact, aliases)
-        return artifact
+        return artifact, aliases
 
-    def _set_console(self, use_redirect, stdout_slave_fd, stderr_slave_fd):
-        self._use_redirect = use_redirect
-        self._stdout_slave_fd = stdout_slave_fd
-        self._stderr_slave_fd = stderr_slave_fd
+    def alert(
+        self,
+        title: str,
+        text: str,
+        level: Union[str, None] = None,
+        wait_duration: Union[int, float, timedelta, None] = None,
+    ) -> None:
+        """Launch an alert with the given title and text.
 
-    def __enter__(self):
+        Arguments:
+            title: (str) The title of the alert, must be less than 64 characters long.
+            text: (str) The text body of the alert.
+            level: (str or wandb.AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+                alert with this title.
+        """
+        level = level or wandb.AlertLevel.INFO
+        if isinstance(level, wandb.AlertLevel):
+            level = level.value
+        if level not in (
+            wandb.AlertLevel.INFO.value,
+            wandb.AlertLevel.WARN.value,
+            wandb.AlertLevel.ERROR.value,
+        ):
+            raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
+
+        wait_duration = wait_duration or timedelta(minutes=1)
+        if isinstance(wait_duration, int) or isinstance(wait_duration, float):
+            wait_duration = timedelta(seconds=wait_duration)
+        elif not callable(getattr(wait_duration, "total_seconds", None)):
+            raise ValueError(
+                "wait_duration must be an int, float, or datetime.timedelta"
+            )
+        wait_duration = int(wait_duration.total_seconds() * 1000)
+
+        if self._backend:
+            self._backend.interface.publish_alert(title, text, level, wait_duration)
+
+    def __enter__(self) -> "Run":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
+    ) -> bool:
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
 
 
-def huggingface_version():
-    if "transformers" in sys.modules:
-        trans = wandb.util.get_module("transformers")
-        if hasattr(trans, "__version__"):
-            return trans.__version__
-    return None
+# We define this outside of the run context to support restoring before init
+def restore(
+    name: str,
+    run_path: Optional[str] = None,
+    replace: bool = False,
+    root: Optional[str] = None,
+) -> Union[None, TextIO]:
+    """ Downloads the specified file from cloud storage into the current directory
+        or run directory.  By default this will only download the file if it doesn't
+        already exist.
 
+        Arguments:
+            name: the name of the file
+            run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
+                if wandb.init has not been called, this is required.
+            replace: whether to download the file even if it already exists locally
+            root: the directory to download the file to.  Defaults to the current
+                directory or the run directory if wandb.init was called.
 
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
+        Returns:
+            None if it can't find the file, otherwise a file object open for reading
+
+        Raises:
+            wandb.CommError: if we can't connect to the wandb backend
+            ValueError: if the file is not found or can't find run_path
     """
 
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
+    is_disabled = wandb.run is not None and wandb.run.disabled
+    run = None if is_disabled else wandb.run
+    if run_path is None:
+        if run is not None:
+            run_path = run.path
+        else:
+            raise ValueError(
+                "run_path required when calling wandb.restore before wandb.init"
+            )
+    if root is None:
+        if run is not None:
+            root = run.dir
+    api = public.Api()
+    api_run = api.run(run_path)
+    if root is None:
+        root = os.getcwd()
+    path = os.path.join(root, name)
+    if os.path.exists(path) and replace is False:
+        return open(path, "r")
+    if is_disabled:
+        return None
+    files = api_run.files([name])
+    if len(files) == 0:
+        return None
+    # if the file does not exist, the file has an md5 of 0
+    if files[0].md5 == "0":
+        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+    return files[0].download(root=root, replace=True)
 
-    def write(self, *args, **kargs):
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
 
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
+# propigate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
 
 
-def finish(exit_code=None):
+def finish(exit_code: int = None) -> None:
+    """
+    Marks a run as finished, and finishes uploading all data.
+
+    This is used when creating multiple runs in the same process.
+    We automatically call this method when your script exits.
+    """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code)
+
+
+# propagate our doc string to the runs restore method
+try:
+    Run.restore.__doc__ = restore.__doc__
+# py2 doesn't let us set a doc string, just pass
+except AttributeError:
+    pass
+
+
+class _LazyArtifact(ArtifactInterface):
+
+    _api: PublicApi
+    _instance: Optional[ArtifactInterface] = None
+    _future: Any
+
+    def __init__(self, api: PublicApi, future: Any):
+        self._api = api
+        self._future = future
+
+    def _assert_instance(self) -> ArtifactInterface:
+        if not self._instance:
+            raise ValueError(
+                "Must call wait() before accessing logged artifact properties"
+            )
+        return self._instance
+
+    def __getattr__(self, item: str) -> Any:
+        self._assert_instance()
+        return getattr(self._instance, item)
+
+    def wait(self) -> ArtifactInterface:
+        if not self._instance:
+            resp = self._future.get().response.log_artifact_response
+            if resp.error_message:
+                raise ValueError(resp.error_message)
+            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
+        assert isinstance(self._instance, ArtifactInterface)
+        return self._instance
+
+    @property
+    def id(self) -> Optional[str]:
+        return self._assert_instance().id
+
+    @property
+    def version(self) -> str:
+        return self._assert_instance().version
+
+    @property
+    def name(self) -> str:
+        return self._assert_instance().name
+
+    @property
+    def type(self) -> str:
+        return self._assert_instance().type
+
+    @property
+    def entity(self) -> str:
+        return self._assert_instance().entity
+
+    @property
+    def project(self) -> str:
+        return self._assert_instance().project
+
+    @property
+    def manifest(self) -> "ArtifactManifest":
+        return self._assert_instance().manifest
+
+    @property
+    def digest(self) -> str:
+        return self._assert_instance().digest
+
+    @property
+    def state(self) -> str:
+        return self._assert_instance().state
+
+    @property
+    def size(self) -> int:
+        return self._assert_instance().size
+
+    @property
+    def commit_hash(self) -> str:
+        return self._assert_instance().commit_hash
+
+    @property
+    def description(self) -> Optional[str]:
+        return self._assert_instance().description
+
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        self._assert_instance().description = desc
+
+    @property
+    def metadata(self) -> dict:
+        return self._assert_instance().metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        self._assert_instance().metadata = metadata
+
+    @property
+    def aliases(self) -> List[str]:
+        return self._assert_instance().aliases
+
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        self._assert_instance().aliases = aliases
+
+    def used_by(self) -> List["wandb.apis.public.Run"]:
+        return self._assert_instance().used_by()
+
+    def logged_by(self) -> "wandb.apis.public.Run":
+        return self._assert_instance().logged_by()
+
+    # Commenting this block out since this code is unreachable since LocalArtifact
+    # overrides them and therefore untestable.
+    # Leaving behind as we may want to support these in the future.
+
+    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().new_file(name, mode)
+
+    # def add_file(
+    #     self,
+    #     local_path: str,
+    #     name: Optional[str] = None,
+    #     is_tmp: Optional[bool] = False,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_file(local_path, name, is_tmp)
+
+    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    #     return self._assert_instance().add_dir(local_path, name)
+
+    # def add_reference(
+    #     self,
+    #     uri: Union["ArtifactEntry", str],
+    #     name: Optional[str] = None,
+    #     checksum: bool = True,
+    #     max_objects: Optional[int] = None,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+
+    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add(obj, name)
+
+    def get_path(self, name: str) -> "ArtifactEntry":
+        return self._assert_instance().get_path(name)
+
+    def get(self, name: str) -> "WBValue":
+        return self._assert_instance().get(name)
+
+    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+        return self._assert_instance().download(root, recursive)
+
+    def checkout(self, root: Optional[str] = None) -> str:
+        return self._assert_instance().checkout(root)
+
+    def verify(self, root: Optional[str] = None) -> Any:
+        return self._assert_instance().verify(root)
+
+    def save(self) -> None:
+        return self._assert_instance().save()
+
+    def delete(self) -> None:
+        return self._assert_instance().delete()

@@ -4,11 +4,11 @@ import six
 from six.moves import queue
 import time
 
-from watchdog.observers.polling import PollingObserver
-from watchdog.events import PatternMatchingEventHandler
 from wandb import util
 import glob
 
+wd_polling = util.vendor_import("watchdog.observers.polling")
+wd_events = util.vendor_import("watchdog.events")
 
 logger = logging.getLogger(__file__)
 
@@ -27,6 +27,10 @@ class FileEventHandler(object):
     def synced(self):
         return self._last_sync == os.path.getmtime(self.file_path)
 
+    @property
+    def policy(self):
+        raise NotImplementedError
+
     def on_modified(self, force=False):
         pass
 
@@ -40,11 +44,14 @@ class FileEventHandler(object):
 
 
 class PolicyIgnore(FileEventHandler):
-    pass
+    @property
+    def policy(self):
+        return "ignore"
 
 
 class PolicyNow(FileEventHandler):
     """This policy only uploads files now"""
+
     def on_modified(self, force=False):
         # only upload if we've never uploaded or when .save is called
         if self._last_sync is None or force:
@@ -53,6 +60,10 @@ class PolicyNow(FileEventHandler):
 
     def finish(self):
         pass
+
+    @property
+    def policy(self):
+        return "now"
 
 
 class PolicyEnd(FileEventHandler):
@@ -65,10 +76,15 @@ class PolicyEnd(FileEventHandler):
         self._last_sync = os.path.getmtime(self.file_path)
         self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
+    @property
+    def policy(self):
+        return "end"
+
 
 class PolicyLive(FileEventHandler):
     """This policy will upload files every RATE_LIMIT_SECONDS as it 
         changes throttling as the size increases"""
+
     TEN_MB = 10000000
     HUNDRED_MB = 100000000
     ONE_GB = 1000000000
@@ -77,8 +93,9 @@ class PolicyLive(FileEventHandler):
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
-        super(PolicyLive, self).__init__(file_path, save_name, api, file_pusher,
-                                         *args, **kwargs)
+        super(PolicyLive, self).__init__(
+            file_path, save_name, api, file_pusher, *args, **kwargs
+        )
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
 
@@ -96,26 +113,28 @@ class PolicyLive(FileEventHandler):
         else:
             return 20 * 60
 
-    def last_uploaded(self):
+    def should_update(self):
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
+            # if more than 15 seconds has passed potentially upload it
             if time_elapsed < self.RATE_LIMIT_SECONDS:
-                return time_elapsed
+                return False
+
             # Check rate limit by size increase
-            size_increase = self.current_size / float(self._last_uploaded_size)
-            if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
-                return time_elapsed
-        return 0
+            if float(self._last_uploaded_size) > 0:
+                size_increase = self.current_size / float(self._last_uploaded_size)
+                if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
+                    return False
+            return time_elapsed > self.min_wait_for_size(self.current_size)
+
+        # if the file has never been uploaded, we'll upload it
+        return True
 
     def on_modified(self, force=False):
         if self.current_size == 0:
             return 0
-
-        time_elapsed = self.last_uploaded()
-        if not self.synced or time_elapsed > self.min_wait_for_size(
-            self.current_size
-        ):
+        if not self.synced and self.should_update():
             self.save_file()
         # if the run is finished, or wandb.save is called explicitly save me
         elif force and not self.synced:
@@ -127,6 +146,10 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
+    @property
+    def policy(self):
+        return "live"
+
 
 class DirWatcher(object):
     def __init__(self, settings, api, file_pusher):
@@ -134,14 +157,10 @@ class DirWatcher(object):
         self._file_count = 0
         self._dir = settings.files_dir
         self._settings = settings
-        self._user_file_policies = {
-            "end": set(),
-            "live": set(),
-            "now": set()
-        }
+        self._user_file_policies = {"end": set(), "live": set(), "now": set()}
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
-        self._file_observer = PollingObserver()
+        self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
         )
@@ -159,12 +178,21 @@ class DirWatcher(object):
         self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
-            self._get_file_event_handler(src_path, save_name).on_modified(force=True)
+            feh = self._get_file_event_handler(src_path, save_name)
+            # handle the case where the policy changed
+            if feh.policy != policy:
+                try:
+                    del self._file_event_handlers[save_name]
+                except KeyError:
+                    # TODO: probably should do locking, but this handles moved files for now
+                    pass
+                feh = self._get_file_event_handler(src_path, save_name)
+            feh.on_modified(force=True)
 
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
         """
-        file_event_handler = PatternMatchingEventHandler()
+        file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified
         file_event_handler.on_moved = self._on_file_moved
@@ -227,7 +255,7 @@ class DirWatcher(object):
         """
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
-            if 'tfevents' in save_name or 'graph.pbtxt' in save_name:
+            if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
                     file_path, save_name, self._api, self._file_pusher
                 )
@@ -246,7 +274,8 @@ class DirWatcher(object):
                             elif policy == "now":
                                 Handler = PolicyNow
                 self._file_event_handlers[save_name] = Handler(
-                    file_path, save_name, self._api, self._file_pusher)
+                    file_path, save_name, self._api, self._file_pusher
+                )
         return self._file_event_handlers[save_name]
 
     def finish(self):
@@ -265,7 +294,8 @@ class DirWatcher(object):
                 while True:
                     try:
                         self._file_observer.dispatch_events(
-                            self._file_observer.event_queue, 0)
+                            self._file_observer.event_queue, 0
+                        )
                     except queue.Empty:
                         break
                 # Calling stop unschedules any inflight events so we handled them above

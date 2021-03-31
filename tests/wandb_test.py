@@ -3,15 +3,25 @@ See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
 import wandb
+from wandb.viz import create_custom_chart
 import pytest
 import tempfile
 import glob
 import os
+import sys
 
 
 def test_log_step(wandb_init_run):
     wandb.log({"acc": 1}, step=5, commit=True)
     assert wandb.run._backend.history[0]["_step"] == 5
+
+
+def test_log_custom_chart(wandb_init_run):
+    custom_chart = create_custom_chart(
+        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+    )
+    wandb.log({"my_custom_chart": custom_chart})
+    assert wandb.run._backend.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
@@ -105,14 +115,16 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skip(
-    reason="Sagemaker support not currently implemented, see wandb.util.parse_sm_config"
+@pytest.mark.skipif(
+    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
 )
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
-    assert wandb.run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it
+    #  so its not added. Similarly add test for group
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+    # assert wandb.run.group == "sage"
 
 
 @pytest.mark.wandb_args(
@@ -187,6 +199,7 @@ def test_login_key(capsys):
     assert wandb.api.api_key == "A" * 40
 
 
+@pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
 def test_login_invalid_key():
     os.environ["WANDB_API_KEY"] = "B" * 40
     wandb.ensure_configured()
@@ -254,8 +267,19 @@ def test_save_invalid_path(wandb_init_run):
     with open(test_path, "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
-        wandb.save(os.path.join(root, "..", "..", "*.txt"),
-                   base_path=root)
+        wandb.save(os.path.join(root, "..", "..", "*.txt"), base_path=root)
+
+
+def test_restore_no_path(mock_server):
+    with pytest.raises(ValueError):
+        wandb.restore("weights.h5")
+
+
+def test_restore_no_init(runner, mock_server):
+    with runner.isolated_filesystem():
+        mock_server.set_context("files", {"weights.h5": 10000})
+        res = wandb.restore("weights.h5", run_path="foo/bar/baz")
+        assert os.path.getsize(res.name) == 10000
 
 
 def test_restore(runner, mock_server, wandb_init_run):
@@ -277,6 +301,126 @@ def test_run_id(wandb_init_run):
 
 
 @pytest.mark.wandb_args(env={"WANDB_NAME": "coolio"})
-@pytest.mark.skip(reason="Not yet supported")
 def test_run_name(wandb_init_run):
     assert wandb.run.name == "coolio"
+
+
+def test_run_setname(wandb_init_run):
+    wandb.run.name = "name1"
+    assert wandb.run.name == "name1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_NOTES": "these are my notes"})
+def test_run_notes(wandb_init_run):
+    assert wandb.run.notes == "these are my notes"
+
+
+def test_run_setnotes(wandb_init_run):
+    wandb.run.notes = "notes1"
+    assert wandb.run.notes == "notes1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_TAGS": "tag1,tag2"})
+def test_run_tags(wandb_init_run):
+    assert wandb.run.tags == ("tag1", "tag2")
+
+
+def test_run_settags(wandb_init_run):
+    wandb.run.tags = ["mytag1", "mytag2"]
+    assert wandb.run.tags == ("mytag1", "mytag2")
+
+
+def test_run_mode(wandb_init_run):
+    assert wandb.run.mode == "dryrun"
+
+
+def test_run_offline(wandb_init_run):
+    assert wandb.run.offline is True
+
+
+@pytest.mark.wandb_args(env={"WANDB_ENTITY": "ent1"})
+def test_run_entity(wandb_init_run):
+    assert wandb.run.entity == "ent1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
+def test_run_project(wandb_init_run):
+    assert wandb.run.project == "proj1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
+def test_run_project(wandb_init_run):
+    assert wandb.run.project_name() == "proj1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_RUN_GROUP": "group1"})
+def test_run_group(wandb_init_run):
+    assert wandb.run.group == "group1"
+
+
+@pytest.mark.wandb_args(env={"WANDB_JOB_TYPE": "job1"})
+def test_run_jobtype(wandb_init_run):
+    assert wandb.run.job_type == "job1"
+
+
+def test_run_resumed(wandb_init_run):
+    assert wandb.run.resumed is False
+
+
+def test_run_sweepid(wandb_init_run):
+    assert wandb.run.sweep_id is None
+
+
+def test_run_configstatic(wandb_init_run):
+    wandb.run.config.update(dict(this=2, that=3))
+    assert dict(wandb.run.config_static) == dict(this=2, that=3)
+
+
+@pytest.mark.wandb_args(
+    env={"WANDB_ENTITY": "ent1", "WANDB_PROJECT": "proj1", "WANDB_RUN_ID": "run1"}
+)
+def test_run_path(wandb_init_run):
+    assert wandb.run.path == "ent1/proj1/run1"
+
+
+def test_run_projecturl(wandb_init_run):
+    url = wandb.run.get_project_url()
+    # URL is not available offline
+    assert url is None
+
+
+def test_run_sweepurl(wandb_init_run):
+    url = wandb.run.get_sweep_url()
+    # URL is not available offline
+    assert url is None
+
+
+def test_run_url(wandb_init_run):
+    url = wandb.run.get_url()
+    # URL is not available offline
+    assert url is None
+    url = wandb.run.url
+    assert url is None
+
+
+# NOTE: not allowed in 0.10.x:
+# run.api
+# run.entity="junk"
+# run.upload_debug()
+# run.host
+# run.auto_project_name()
+# run.set_environment()
+# run.close_files()
+# run.has_history()
+# run.has_summary()
+# run.has_events()
+# run.events
+
+# NOTE: deprecated and removed:
+# run.description
+# run.description_path()
+
+# TODO: test these or make sure they are tested somewhere
+# run.save()  # odd
+# run.use_artifact()
+# run.log_artifact()

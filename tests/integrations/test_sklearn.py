@@ -3,6 +3,10 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import ElasticNet
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.datasets import make_regression, make_hastie_10_2
+import sys
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("tensorflow")
 from tensorflow.keras.layers import Dense, Flatten, Reshape
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
@@ -127,9 +131,7 @@ def test_plot_classifier(dummy_classifier, wandb_init_run):
     )
 
     hist = wandb.run._backend.history
-    logged_keys = [
-        [k for k in r.keys() if not k.startswith("_")][0] for r in hist
-    ]
+    logged_keys = [[k for k in r.keys() if not k.startswith("_")][0] for r in hist]
     assert logged_keys == [
         "feature_importances",
         "learning_curve",

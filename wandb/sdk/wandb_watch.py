@@ -7,10 +7,11 @@ import logging
 import os
 
 import wandb
-from wandb.lib.ipython import _get_python_type
+
+from .lib import telemetry
+from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
-
 
 _global_watch_idx = 0
 
@@ -20,14 +21,20 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
     Hooks into the torch model to collect gradients and the topology.  Should be extended
     to accept arbitrary ML models.
 
-    :param (torch.Module) models: The model to hook, can be a tuple
-    :param (torch.F) criterion: An optional loss value being optimized
-    :param (str) log: One of "gradients", "parameters", "all", or None
-    :param (int) log_freq: log gradients and parameters every N batches
-    :param (int) idx: an index to be used when calling wandb.watch on multiple models
-    :return: (wandb.Graph) The graph object that will populate after the first backward pass
+    Args:
+        models: (torch.Module) The model to hook, can be a tuple
+        criterion: (torch.F) An optional loss value being optimized
+        log: (str) One of "gradients", "parameters", "all", or None
+        log_freq: (int) log gradients and parameters every N batches
+        idx: (int) an index to be used when calling wandb.watch on multiple models
+
+    Returns:
+        `wandb.Graph` The graph object that will populate after the first backward pass
     """
     global _global_watch_idx
+
+    with telemetry.context() as tel:
+        tel.feature.watch = True
 
     logger.info("Watching")
     # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
@@ -51,6 +58,18 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
 
     if not isinstance(models, (tuple, list)):
         models = (models,)
+
+    torch = wandb.util.get_module(
+        "torch", required="wandb.watch only works with pytorch, couldn't import torch."
+    )
+
+    for model in models:
+        if not isinstance(model, torch.nn.Module):
+            raise ValueError(
+                "Expected a pytorch model (torch.nn.Module). Received "
+                + str(type(model))
+            )
+
     graphs = []
     prefix = ""
     if idx is None:
@@ -83,7 +102,7 @@ def unwatch(models=None):
     """Remove pytorch gradient and parameter hooks.
 
     Args:
-        models (list): Optional list of pytorch models that have had watch called on them
+        models: (list) Optional list of pytorch models that have had watch called on them
     """
     if models:
         if not isinstance(models, (tuple, list)):

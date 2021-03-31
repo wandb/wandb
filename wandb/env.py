@@ -16,62 +16,90 @@ import json
 import wandb
 from distutils.util import strtobool
 
-CONFIG_PATHS = 'WANDB_CONFIG_PATHS'
-SHOW_RUN = 'WANDB_SHOW_RUN'
-DEBUG = 'WANDB_DEBUG'
-SILENT = 'WANDB_SILENT'
-INITED = 'WANDB_INITED'
-DIR = 'WANDB_DIR'
+CONFIG_PATHS = "WANDB_CONFIG_PATHS"
+SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
+SHOW_RUN = "WANDB_SHOW_RUN"
+DEBUG = "WANDB_DEBUG"
+SILENT = "WANDB_SILENT"
+INITED = "WANDB_INITED"
+DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
-DESCRIPTION = 'WANDB_DESCRIPTION'
-NAME = 'WANDB_NAME'
-NOTEBOOK_NAME = 'WANDB_NOTEBOOK_NAME'
-NOTES = 'WANDB_NOTES'
-USERNAME = 'WANDB_USERNAME'
-USER_EMAIL = 'WANDB_USER_EMAIL'
-PROJECT = 'WANDB_PROJECT'
-ENTITY = 'WANDB_ENTITY'
-BASE_URL = 'WANDB_BASE_URL'
-PROGRAM = 'WANDB_PROGRAM'
-ARGS = 'WANDB_ARGS'
-MODE = 'WANDB_MODE'
-RESUME = 'WANDB_RESUME'
-RUN_ID = 'WANDB_RUN_ID'
-RUN_STORAGE_ID = 'WANDB_RUN_STORAGE_ID'
-RUN_GROUP = 'WANDB_RUN_GROUP'
-RUN_DIR = 'WANDB_RUN_DIR'
-SWEEP_ID = 'WANDB_SWEEP_ID'
-HTTP_TIMEOUT = 'WANDB_HTTP_TIMEOUT'
-API_KEY = 'WANDB_API_KEY'
-JOB_TYPE = 'WANDB_JOB_TYPE'
-DISABLE_CODE = 'WANDB_DISABLE_CODE'
-SAVE_CODE = 'WANDB_SAVE_CODE'
-TAGS = 'WANDB_TAGS'
-IGNORE = 'WANDB_IGNORE_GLOBS'
-ERROR_REPORTING = 'WANDB_ERROR_REPORTING'
-DOCKER = 'WANDB_DOCKER'
-AGENT_REPORT_INTERVAL = 'WANDB_AGENT_REPORT_INTERVAL'
-AGENT_KILL_DELAY = 'WANDB_AGENT_KILL_DELAY'
-AGENT_DISABLE_FLAPPING = 'WANDB_AGENT_DISABLE_FLAPPING'
-CRASH_NOSYNC_TIME = 'WANDB_CRASH_NOSYNC_TIME'
-MAGIC = 'WANDB_MAGIC'
-HOST = 'WANDB_HOST'
-ANONYMOUS = 'WANDB_ANONYMOUS'
-JUPYTER = 'WANDB_JUPYTER'
-CONFIG_DIR = 'WANDB_CONFIG_DIR'
-CACHE_DIR = 'WANDB_CACHE_DIR'
+DESCRIPTION = "WANDB_DESCRIPTION"
+NAME = "WANDB_NAME"
+NOTEBOOK_NAME = "WANDB_NOTEBOOK_NAME"
+NOTES = "WANDB_NOTES"
+USERNAME = "WANDB_USERNAME"
+USER_EMAIL = "WANDB_USER_EMAIL"
+PROJECT = "WANDB_PROJECT"
+ENTITY = "WANDB_ENTITY"
+BASE_URL = "WANDB_BASE_URL"
+PROGRAM = "WANDB_PROGRAM"
+ARGS = "WANDB_ARGS"
+MODE = "WANDB_MODE"
+START_METHOD = "WANDB_START_METHOD"
+RESUME = "WANDB_RESUME"
+RUN_ID = "WANDB_RUN_ID"
+RUN_STORAGE_ID = "WANDB_RUN_STORAGE_ID"
+RUN_GROUP = "WANDB_RUN_GROUP"
+RUN_DIR = "WANDB_RUN_DIR"
+SWEEP_ID = "WANDB_SWEEP_ID"
+HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
+API_KEY = "WANDB_API_KEY"
+JOB_TYPE = "WANDB_JOB_TYPE"
+DISABLE_CODE = "WANDB_DISABLE_CODE"
+SAVE_CODE = "WANDB_SAVE_CODE"
+TAGS = "WANDB_TAGS"
+IGNORE = "WANDB_IGNORE_GLOBS"
+ERROR_REPORTING = "WANDB_ERROR_REPORTING"
+DOCKER = "WANDB_DOCKER"
+AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
+AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
+AGENT_DISABLE_FLAPPING = "WANDB_AGENT_DISABLE_FLAPPING"
+AGENT_MAX_INITIAL_FAILURES = "WANDB_AGENT_MAX_INITIAL_FAILURES"
+CRASH_NOSYNC_TIME = "WANDB_CRASH_NOSYNC_TIME"
+MAGIC = "WANDB_MAGIC"
+HOST = "WANDB_HOST"
+ANONYMOUS = "WANDB_ANONYMOUS"
+JUPYTER = "WANDB_JUPYTER"
+CONFIG_DIR = "WANDB_CONFIG_DIR"
+CACHE_DIR = "WANDB_CACHE_DIR"
 
 # For testing, to be removed in future version
-USE_V1_ARTIFACTS = '_WANDB_USE_V1_ARTIFACTS'
+USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
 def immutable_keys():
     """These are env keys that shouldn't change within a single process.  We use this to maintain
     certain values between multiple calls to wandb.init within a single process."""
-    return [DIR, ENTITY, PROJECT, API_KEY, IGNORE, DISABLE_CODE, DOCKER, MODE, BASE_URL,
-            ERROR_REPORTING, CRASH_NOSYNC_TIME, MAGIC, USERNAME, USER_EMAIL, DIR, SILENT, CONFIG_PATHS,
-            ANONYMOUS, RUN_GROUP, JOB_TYPE, TAGS, RESUME, AGENT_REPORT_INTERVAL, HTTP_TIMEOUT,
-            HOST, CACHE_DIR, USE_V1_ARTIFACTS]
+    return [
+        DIR,
+        ENTITY,
+        PROJECT,
+        API_KEY,
+        IGNORE,
+        DISABLE_CODE,
+        DOCKER,
+        MODE,
+        BASE_URL,
+        ERROR_REPORTING,
+        CRASH_NOSYNC_TIME,
+        MAGIC,
+        USERNAME,
+        USER_EMAIL,
+        DIR,
+        SILENT,
+        CONFIG_PATHS,
+        ANONYMOUS,
+        RUN_GROUP,
+        JOB_TYPE,
+        TAGS,
+        RESUME,
+        AGENT_REPORT_INTERVAL,
+        HTTP_TIMEOUT,
+        HOST,
+        CACHE_DIR,
+        USE_V1_ARTIFACTS,
+    ]
 
 
 def _env_as_bool(var, default=None, env=None):
@@ -205,8 +233,10 @@ def get_dir(default=None, env=None):
     return env.get(DIR, default)
 
 
-def get_config_paths():
-    pass
+def get_config_paths(default=None, env=None):
+    if env is None:
+        env = os.environ
+    return env.get(CONFIG_PATHS, default)
 
 
 def get_agent_report_interval(default=None, env=None):
@@ -250,7 +280,7 @@ def get_magic(default=None, env=None):
 
 
 def get_cache_dir(env=None):
-    default_dir = os.path.expanduser(os.path.join('~', '.cache', 'wandb'))
+    default_dir = os.path.expanduser(os.path.join("~", ".cache", "wandb"))
     if env is None:
         env = os.environ
     val = env.get(CACHE_DIR, default_dir)
@@ -261,6 +291,17 @@ def get_use_v1_artifacts(env=None):
     if env is None:
         env = os.environ
     val = env.get(USE_V1_ARTIFACTS, False)
+    return val
+
+
+def get_agent_max_initial_failures(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(AGENT_MAX_INITIAL_FAILURES, default)
+    try:
+        val = int(val)
+    except ValueError:
+        val = default
     return val
 
 

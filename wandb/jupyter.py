@@ -1,7 +1,9 @@
 from base64 import b64encode
+import json
 import logging
 import os
 import re
+import shutil
 import sys
 
 import requests
@@ -31,6 +33,7 @@ except ImportError:
     def line_cell_magic(*args, **kwargs):
         return lambda *args, **kwargs: None
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,8 +44,11 @@ class Run(object):
     def _repr_html_(self):
         try:
             url = self.run._get_run_url() + "?jupyter=true"
-            return '''<iframe src="%s" style="border:none;width:100%%;height:420px">
-                </iframe>''' % url
+            return (
+                """<iframe src="%s" style="border:none;width:100%%;height:420px">
+                </iframe>"""
+                % url
+            )
         except wandb.Error as e:
             return "Can't display wandb interface<br/>{}".format(e)
 
@@ -72,46 +78,116 @@ class WandBMagics(Magics):
             get_ipython().run_cell(cell)
 
 
-def notebook_metadata():
-    """Attempts to query jupyter for the path and name of the notebook file"""
+def notebook_metadata(silent):
+    """Attempts to query jupyter for the path and name of the notebook file.
+
+    This can handle many different jupyter environments, specifically:
+
+    1. Colab
+    2. Kaggle
+    3. JupyterLab
+    4. Notebooks
+    5. Other?
+    """
     error_message = (
-        "Failed to query for notebook name, you can set it manually with "
-        "the WANDB_NOTEBOOK_NAME environment variable"
+        "Failed to detect the name of this notebook, you can set it manually with "
+        "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
-        import ipykernel
-        from notebook.notebookapp import list_running_servers
+        # In colab we can request the most recent contents
+        ipynb = attempt_colab_load_ipynb()
+        if ipynb:
+            return {
+                "root": "/content",
+                "path": ipynb["metadata"]["colab"]["name"],
+                "name": ipynb["metadata"]["colab"]["name"],
+            }
 
-        kernel_id = re.search(
-            "kernel-(.*).json", ipykernel.connect.get_connection_file()
-        ).group(1)
-        servers = list(
-            list_running_servers()
-        )  # TODO: sometimes there are invalid JSON files and this blows up
-    except Exception:
-        logger.error(error_message)
-        return {}
-    for s in servers:
-        try:
-            if s["password"]:
+        if wandb.util._is_kaggle():
+            # In kaggle we can request the most recent contents
+            ipynb = attempt_kaggle_load_ipynb()
+            if ipynb:
+                return {
+                    "root": "/kaggle/working",
+                    "path": ipynb["metadata"]["name"],
+                    "name": ipynb["metadata"]["name"],
+                }
+
+        servers, kernel_id = jupyter_servers_and_kernel_id()
+        for s in servers:
+            if s.get("password"):
                 raise ValueError("Can't query password protected kernel")
             res = requests.get(
                 urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
             ).json()
-        except (requests.RequestException, ValueError):
+            for nn in res:
+                # TODO: wandb/client#400 found a case where res returned an array of
+                # strings...
+                if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
+                    if nn["kernel"]["id"] == kernel_id:
+                        return {
+                            "root": s.get(
+                                "root_dir", s.get("notebook_dir", os.getcwd())
+                            ),
+                            "path": nn["notebook"]["path"],
+                            "name": nn["notebook"]["name"],
+                        }
+
+        if not silent:
             logger.error(error_message)
-            return {}
-        for nn in res:
-            # TODO: wandb/client#400 found a case where res returned an array of
-            # strings...
-            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
-                if nn["kernel"]["id"] == kernel_id:
-                    return {
-                        "root": s["notebook_dir"],
-                        "path": nn["notebook"]["path"],
-                        "name": nn["notebook"]["name"],
-                    }
-    return {}
+        return {}
+    except Exception:
+        # TODO: report this exception
+        # TODO: Fix issue this is not the logger initialized in in wandb.init()
+        # since logger is not attached, outputs to notebook
+        if not silent:
+            logger.error(error_message)
+        return {}
+
+
+def jupyter_servers_and_kernel_id():
+    """Returns a list of servers and the current kernel_id so we can query for
+    the name of the notebook"""
+    try:
+        import ipykernel
+
+        kernel_id = re.search(
+            "kernel-(.*).json", ipykernel.connect.get_connection_file()
+        ).group(1)
+        # We're either in jupyterlab or a notebook, lets prefer the newer jupyter_server package
+        serverapp = wandb.util.get_module("jupyter_server.serverapp")
+        notebookapp = wandb.util.get_module("notebook.notebookapp")
+        servers = []
+        if serverapp is not None:
+            servers.extend(list(serverapp.list_running_servers()))
+        if notebookapp is not None:
+            servers.extend(list(notebookapp.list_running_servers()))
+        return servers, kernel_id
+    except (AttributeError, ValueError, ImportError):
+        return [], None
+
+
+def attempt_colab_load_ipynb():
+    colab = wandb.util.get_module("google.colab")
+    if colab:
+        # This isn't thread safe, never call in a thread
+        response = colab._message.blocking_request("get_ipynb", timeout_sec=5)
+        if response:
+            return response["ipynb"]
+
+
+def attempt_kaggle_load_ipynb():
+    kaggle = wandb.util.get_module("kaggle_session")
+    if kaggle:
+        try:
+            client = kaggle.UserSessionClient()
+            parsed = json.loads(client.get_exportable_ipynb()["source"])
+            # TODO: couldn't find a way to get the name of the notebook...
+            parsed["metadata"]["name"] = "kaggle.ipynb"
+            return parsed
+        except Exception:
+            logger.exception("Unable to load kaggle notebook")
+            return None
 
 
 def attempt_colab_login(app_url):
@@ -184,6 +260,50 @@ class Notebook(object):
             {"data": b64_data, "metadata": data_with_metadata["metadata"]}
         )
 
+    def save_ipynb(self):
+        if not self.settings.save_code:
+            logger.info("not saving jupyter notebook")
+            return False
+        relpath = self.settings._jupyter_path
+        logger.info("looking for notebook: %s", relpath)
+        if relpath:
+            if os.path.exists(relpath):
+                shutil.copy(
+                    relpath,
+                    os.path.join(
+                        self.settings._tmp_code_dir, os.path.basename(relpath)
+                    ),
+                )
+                return True
+
+        # TODO: likely only save if the code has changed
+        colab_ipynb = attempt_colab_load_ipynb()
+        if colab_ipynb:
+            with open(
+                os.path.join(
+                    self.settings._tmp_code_dir,
+                    colab_ipynb["metadata"]["colab"]["name"],
+                ),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                f.write(json.dumps(colab_ipynb))
+            return True
+
+        kaggle_ipynb = attempt_kaggle_load_ipynb()
+        if kaggle_ipynb and len(kaggle_ipynb["cells"]) > 0:
+            with open(
+                os.path.join(
+                    self.settings._tmp_code_dir, kaggle_ipynb["metadata"]["name"]
+                ),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                f.write(json.dumps(kaggle_ipynb))
+            return True
+
+        return False
+
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
         try:
@@ -242,6 +362,12 @@ class Notebook(object):
             wandb.run.config["_wandb"]["session_history"] = state_path
             wandb.run.config.persist()
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
+            with open(
+                os.path.join(self.settings._tmp_code_dir, "_session_history.ipynb"),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                write(nb, f, version=4)
             with open(
                 os.path.join(wandb.run.dir, state_path), "w", encoding="utf-8"
             ) as f:

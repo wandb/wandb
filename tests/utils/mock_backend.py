@@ -1,10 +1,19 @@
-import wandb
 import json
-from wandb.interface import interface
+import sys
+
+import wandb
+import multiprocessing
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from pytest_mock import _get_mock_module  # type: ignore
 from wandb.proto import wandb_internal_pb2  # type: ignore
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.interface import interface
+else:
+    from wandb.sdk_py27.interface import interface
 
 
 class ProcessMock(Process):
@@ -35,13 +44,13 @@ class ProcessMock(Process):
 
 
 class BackendMock(object):
-    def __init__(self, mode=None):
+    def __init__(self, mode=None, settings=None, log_level=None):
         self.calls = {}
         self._run = None
         self._done = True
-        self._wl = wandb.setup()
-        self.record_q = self._wl._multiprocessing.Queue()
-        self.result_q = self._wl._multiprocessing.Queue()
+        self._multiprocessing = multiprocessing
+        self.record_q = self._multiprocessing.Queue()
+        self.result_q = self._multiprocessing.Queue()
         self.interface = None
         self.last_queued = None
         self.history = []
@@ -50,6 +59,8 @@ class BackendMock(object):
         self.files = {}
         self.mocker = _get_mock_module(get_config())
         self._internal_pid = None
+        self._settings = settings
+        self._log_level = log_level
 
     def _hack_set_run(self, run):
         self._run = run
@@ -74,6 +85,9 @@ class BackendMock(object):
     def _publish(self, rec):
         if len(rec.history.item) > 0:
             hist = self._proto_to_dict(rec.history.item)
+            # handle case where step is not passed in items
+            if rec.history.HasField("step"):
+                hist["_step"] = rec.history.step.num
             self.history.append(hist)
         if len(rec.summary.update) > 0:
             self.summary.update(self._proto_to_dict(rec.summary.update))
@@ -93,9 +107,7 @@ class BackendMock(object):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
         self.interface = interface.BackendSender(
-            process=wandb_process,
-            record_q=self.record_q,
-            result_q=self.result_q,
+            process=wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
         self.interface._communicate = self._communicate
         self.interface._orig_publish = self.interface._publish
@@ -109,5 +121,6 @@ class BackendMock(object):
 
     def cleanup(self):
         #  self.notify_queue.put(constants.NOTIFY_SHUTDOWN) # TODO: shut it down
+        self.interface.join()
         self.record_q.close()
         self.result_q.close()

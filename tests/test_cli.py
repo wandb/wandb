@@ -9,7 +9,9 @@ import getpass
 import pytest
 import netrc
 import subprocess
+import sys
 import os
+from tests import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 DOCKER_SHA = (
@@ -72,13 +74,21 @@ def config_dir():
         del os.environ["WANDB_CONFIG"]
 
 
+def debug_result(result, prefix=None):
+    prefix = prefix or ""
+    print("DEBUG({}) {} = {}".format(prefix, "out", result.output))
+    print("DEBUG({}) {} = {}".format(prefix, "exc", result.exception))
+    print(
+        "DEBUG({}) {} = {}".format(prefix, "tb", traceback.print_tb(result.exc_info[2]))
+    )
+
+
 def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
     with runner.isolated_filesystem():
-        runner.invoke(cli.login, [DUMMY_API_KEY])
+        result = runner.invoke(cli.login, [DUMMY_API_KEY])
+        debug_result(result, "login")
         result = runner.invoke(cli.init, input="y\n\n\n")
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
+        debug_result(result, "init")
         assert result.exit_code == 0
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
@@ -93,11 +103,10 @@ def test_init_add_login(runner, empty_netrc, mock_server):
         with config_dir():
             with open("netrc", "w") as f:
                 f.write("previous config")
-            runner.invoke(cli.login, [DUMMY_API_KEY])
+            result = runner.invoke(cli.login, [DUMMY_API_KEY])
+            debug_result(result, "login")
             result = runner.invoke(cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
-            print(result.output)
-            print(result.exception)
-            print(traceback.print_tb(result.exc_info[2]))
+            debug_result(result, "init")
             assert result.exit_code == 0
             with open("netrc", "r") as f:
                 generatedNetrc = f.read()
@@ -184,6 +193,51 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         assert DUMMY_API_KEY in generatedNetrc
 
 
+def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        with open("netrc", "w") as f:
+            f.write("machine \n  login user\npassword {}".format(DUMMY_API_KEY))
+        result = runner.invoke(
+            cli.login, ["--host", "https://google.com/", DUMMY_API_KEY]
+        )
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        assert generatedNetrc == (
+            "machine google.com\n"
+            "  login user\n"
+            "  password {}\n".format(DUMMY_API_KEY)
+        )
+
+
+def test_login_bad_host(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--host", "https://app.wandb.ai"])
+        assert "did you mean https://api.wandb.ai" in result.output
+        assert result.exit_code != 0
+
+
+def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
+    onprem_key = "test-" + DUMMY_API_KEY
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, [onprem_key])
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        with open("netrc", "r") as f:
+            generatedNetrc = f.read()
+        assert onprem_key in generatedNetrc
+
+
+def test_login_invalid_key_arg(runner, empty_netrc, local_netrc):
+    invalid_key = "test--" + DUMMY_API_KEY
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, [invalid_key])
+        assert "API key must be 40 characters long, yours was" in str(result)
+        assert result.exit_code == 1
+
+
 @pytest.mark.skip(reason="Just need to make the mocking work correctly")
 def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
@@ -237,7 +291,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "9KB" in result.output
+    assert "10.0KB" in result.output
     assert "mnist:v2" in result.output
 
 
@@ -644,7 +698,12 @@ def test_local_already_running(runner, docker, local_settings):
     assert "A container named wandb-local is already running" in result.output
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="The patch in mock_server.py doesn't work in windows",
+)
 def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
+    # TODO(jhr): does not work with --flake-finder
     with open("patch.txt", "w") as f:
         f.write("test")
     git_repo.repo.index.add(["patch.txt"])
@@ -657,21 +716,45 @@ def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
     assert "Applied patch" in result.output
     assert "Restored config variables to " in result.output
     assert "Launching docker container" in result.output
-    docker.assert_called_with(['docker', 'run', '-e', 'LANG=C.UTF-8', '-e', 'WANDB_DOCKER=wandb/deepo@sha256:abc123', '--ipc=host', '-v',
-                            wandb.docker.entrypoint+':/wandb-entrypoint.sh', '--entrypoint', '/wandb-entrypoint.sh', '-v', os.getcwd()+
-                            ':/app', '-w', '/app', '-e',
-                            'WANDB_API_KEY=test', '-e', 'WANDB_COMMAND=python train.py --test foo', '-it', 'test/docker', '/bin/bash'])
+    docker.assert_called_with(
+        [
+            "docker",
+            "run",
+            "-e",
+            "LANG=C.UTF-8",
+            "-e",
+            "WANDB_DOCKER=wandb/deepo@sha256:abc123",
+            "--ipc=host",
+            "-v",
+            wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
+            "--entrypoint",
+            "/wandb-entrypoint.sh",
+            "-v",
+            os.getcwd() + ":/app",
+            "-w",
+            "/app",
+            "-e",
+            "WANDB_API_KEY=test",
+            "-e",
+            "WANDB_COMMAND=python train.py --test foo",
+            "-it",
+            "test/docker",
+            "/bin/bash",
+        ]
+    )
 
 
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    api = InternalApi({'project': 'test'})
-    monkeypatch.setattr(cli, '_api', api)
+    api = InternalApi({"project": "test"})
+    monkeypatch.setattr(cli, "_api", api)
+
     def bad_commit(cmt):
         raise ValueError()
-    monkeypatch.setattr(api.git.repo, 'commit', bad_commit)
-    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: []) 
+
+    monkeypatch.setattr(api.git.repo, "commit", bad_commit)
+    monkeypatch.setattr(api, "download_urls", lambda *args, **kwargs: [])
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -681,10 +764,10 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
-    git_repo.repo.create_remote('origin', "git@fake.git:foo/bar")
-    monkeypatch.setattr(subprocess, 'check_call', lambda command: True)
+    git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -695,7 +778,7 @@ def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch)
 def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -706,7 +789,7 @@ def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
 def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates it's own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
-    monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
@@ -716,7 +799,7 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
 
 def test_restore_not_git(runner, mock_server, docker, monkeypatch):
     with runner.isolated_filesystem():
-        monkeypatch.setattr(cli, '_api', InternalApi({'project': 'test'}))
+        monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
         result = runner.invoke(cli.restore, ["test/abcdef"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
@@ -735,17 +818,119 @@ def test_gc(runner):
         run1_dir = os.path.join("wandb", run1)
         run2_dir = os.path.join("wandb", run2)
         os.mkdir(run1_dir)
-        with open(os.path.join(run1_dir, "run-abcd.wandb"), 'w') as f:
-            f.write('')
-        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), 'w') as f:
-            f.write('')
+        with open(os.path.join(run1_dir, "run-abcd.wandb"), "w") as f:
+            f.write("")
+        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), "w") as f:
+            f.write("")
         os.mkdir(run2_dir)
-        with open(os.path.join(run2_dir, "run-efgh.wandb"), 'w') as f:
-            f.write('')
-        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), 'w') as f:
-            f.write('')
-        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "2"], input='y\n').exit_code == 0
+        with open(os.path.join(run2_dir, "run-efgh.wandb"), "w") as f:
+            f.write("")
+        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), "w") as f:
+            f.write("")
+        assert (
+            runner.invoke(
+                cli.sync, ["--clean", "--clean-old-hours", "2"], input="y\n"
+            ).exit_code
+            == 0
+        )
         assert os.path.exists(run1_dir)
         assert not os.path.exists(run2_dir)
-        assert runner.invoke(cli.sync, ["--clean", "--clean-old-hours", "0"], input='y\n').exit_code == 0
+        assert (
+            runner.invoke(
+                cli.sync, ["--clean", "--clean-old-hours", "0"], input="y\n"
+            ).exit_code
+            == 0
+        )
         assert not os.path.exists(run1_dir)
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        ctx = live_mock_server.get_ctx()
+        print(ctx)
+        assert (
+            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
+        )
+
+        # Check the no sync tensorboard flag
+        result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
+        assert result.output == "Skipping directory: {}\n".format(os.path.abspath("."))
+        assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_tensorboard_big(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1611911647.big-histos")
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        assert "exceeds max data limit" in result.output
+        ctx = live_mock_server.get_ctx()
+        print(ctx)
+        assert (
+            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 27
+        )
+
+
+def test_sync_wandb_run(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("wandb")
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        assert result.exit_code == 0
+        assert "wandb: ERROR Nothing to sync." in result.output
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
+        utils.fixture_copy("wandb")
+        utils.fixture_copy(
+            "events.out.tfevents.1585769947.cvp",
+            os.path.join(run_dir, "events.out.tfevents.1585769947.cvp"),
+        )
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, [run_dir])
+        assert result.exit_code == 0
+        assert (
+            "WARNING Found .wandb file, not streaming tensorboard metrics"
+            in result.output
+        )

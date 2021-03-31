@@ -5,7 +5,11 @@ api.
 
 from wandb import util
 
-util.vendor_setup()
+reset_path = util.vendor_setup()
 
-from .internal import Api as InternalApi
-from .public import Api as PublicApi
+from .internal import Api as InternalApi  # noqa
+from .public import Api as PublicApi  # noqa
+
+reset_path()
+
+__all__ = ["InternalApi", "PublicApi"]

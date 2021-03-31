@@ -16,17 +16,10 @@ from six import BytesIO
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors.error import CommError, UsageError
-from wandb.lib.filenames import DIFF_FNAME
+from wandb.errors import CommError, UsageError
 from wandb.old import retry
 from wandb.old.settings import Settings
 import yaml
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
-
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +33,8 @@ class Api(object):
         directory.  If none can be found, we look in the current users home
         directory.
 
-    Args:
-        default_settings(:obj:`dict`, optional): If you aren't using a settings
+    Arguments:
+        default_settings(`dict`, optional): If you aren't using a settings
         file or you wish to override the section to use in the settings file
         Override the settings here.
     """
@@ -67,7 +60,9 @@ class Api(object):
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
         self.retry_uploads = 10
-        self._settings = Settings(load_settings=load_settings)
+        self._settings = Settings(
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+        )
         # self.git = GitRepo(remote=self.settings("git_remote"))
         self.git = None
         # Mutable settings set by the _file_stream_api
@@ -136,92 +131,6 @@ class Api(object):
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
 
-    def sync_spell(self, run, env=None):
-        """Syncs this run with spell"""
-        try:
-            env = env or os.environ
-            run.config["_wandb"]["spell_url"] = env.get("SPELL_RUN_URL")
-            run.config.persist()
-            try:
-                url = run.get_url()
-            except CommError as e:
-                wandb.termerror("Unable to register run with spell.run: %s" % str(e))
-                return False
-            return requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            return False
-
-    def save_patches(self, out_dir):
-        """Save the current state of this repository to one or more patches.
-
-        Makes one patch against HEAD and another one against the most recent
-        commit that occurs in an upstream branch. This way we can be robust
-        to history editing as long as the user never does "push -f" to break
-        history on an upstream branch.
-
-        Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
-        <out_dir>/upstream_diff_<commit_id>.patch.
-
-        Args:
-            out_dir (str): Directory to write the patch files.
-        """
-        if not self.git.enabled:
-            return False
-
-        try:
-            root = self.git.root
-            if self.git.dirty:
-                patch_path = os.path.join(out_dir, DIFF_FNAME)
-                if self.git.has_submodule_diff:
-                    with open(patch_path, "wb") as patch:
-                        # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", "HEAD"],
-                            stdout=patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(patch_path, "wb") as patch:
-                        subprocess.check_call(
-                            ["git", "diff", "HEAD"], stdout=patch, cwd=root, timeout=5
-                        )
-
-            upstream_commit = self.git.get_upstream_fork_point()
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
-                sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(
-                    out_dir, "upstream_diff_{}.patch".format(sha)
-                )
-                if self.git.has_submodule_diff:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
-        # so we now catch ValueError.  Catching this error feels too generic.
-        except (
-            ValueError,
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            logger.error("Error generating diff: %s" % e)
-
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
 
@@ -255,7 +164,7 @@ class Api(object):
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
 
-        Args:
+        Arguments:
             key (str, optional): If provided only this setting is returned
             section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
@@ -366,7 +275,7 @@ class Api(object):
     def list_projects(self, entity=None):
         """Lists projects in W&B scoped by entity.
 
-        Args:
+        Arguments:
             entity (str, optional): The entity to scope this project to.
 
         Returns:
@@ -397,7 +306,7 @@ class Api(object):
     def project(self, project, entity=None):
         """Retrive project
 
-        Args:
+        Arguments:
             project (str): The project to get details for
             entity (str, optional): The entity to scope this project to.
 
@@ -425,7 +334,7 @@ class Api(object):
     def sweep(self, sweep, specs, project=None, entity=None):
         """Retrieve sweep.
 
-        Args:
+        Arguments:
             sweep (str): The sweep to get details for
             specs (str): history specs
             project (str, optional): The project to scope this sweep to.
@@ -496,7 +405,7 @@ class Api(object):
     def list_runs(self, project, entity=None):
         """Lists runs in W&B scoped by project.
 
-        Args:
+        Arguments:
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
@@ -535,7 +444,7 @@ class Api(object):
     def launch_run(self, command, project=None, entity=None, run_id=None):
         """Launch a run in the cloud.
 
-        Args:
+        Arguments:
             command (str): The command to run
             program (str): The file to run
             project (str): The project to scope the runs to
@@ -591,7 +500,7 @@ class Api(object):
     def run_config(self, project, run=None, entity=None):
         """Get the relevant configs for a run
 
-        Args:
+        Arguments:
             project (str): The project to download, (can include bucket)
             run (str): The run to download
             entity (str, optional): The entity to scope this project to.
@@ -640,7 +549,7 @@ class Api(object):
     def run_resume_status(self, entity, project_name, name):
         """Check if a run exists and get resume information.
 
-        Args:
+        Arguments:
             entity (str, optional): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
@@ -728,7 +637,7 @@ class Api(object):
     def upsert_project(self, project, id=None, description=None, entity=None):
         """Create a new project
 
-        Args:
+        Arguments:
             project (str): The project to create
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
@@ -799,7 +708,7 @@ class Api(object):
     ):
         """Update a run
 
-        Args:
+        Arguments:
             id (str, optional): The existing run to update
             name (str, optional): The name of the run to create
             group (str, optional): Name of the group this run is a part of
@@ -923,7 +832,7 @@ class Api(object):
     def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumeable upload urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             files (list or dict): The filenames to upload
             run (str): The run to upload to
@@ -986,7 +895,7 @@ class Api(object):
     def download_urls(self, project, run=None, entity=None):
         """Generate download urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
@@ -1036,7 +945,7 @@ class Api(object):
     def download_url(self, project, file_name, run=None, entity=None):
         """Generate download urls
 
-        Args:
+        Arguments:
             project (str): The project to download
             file_name (str): The name of the file to download
             run (str): The run to upload to
@@ -1089,7 +998,7 @@ class Api(object):
     def download_file(self, url):
         """Initiate a streaming download
 
-        Args:
+        Arguments:
             url (str): The url to download
 
         Returns:
@@ -1103,7 +1012,7 @@ class Api(object):
     def download_write_file(self, metadata, out_dir=None):
         """Download a file from a run and write it to wandb/
 
-        Args:
+        Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
 
         Returns:
@@ -1116,7 +1025,7 @@ class Api(object):
 
         size, response = self.download_file(metadata["url"])
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 
@@ -1126,7 +1035,7 @@ class Api(object):
     def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
         """Register a new agent
 
-        Args:
+        Arguments:
             host (str): hostname
             persistent (bool): long running or oneoff
             sweep (str): sweep id
@@ -1182,7 +1091,7 @@ class Api(object):
     def agent_heartbeat(self, agent_id, metrics, run_states):
         """Notify server about agent state, receive commands.
 
-        Args:
+        Arguments:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
@@ -1238,7 +1147,7 @@ class Api(object):
     ):
         """Upsert a sweep object.
 
-        Args:
+        Arguments:
             config (str): sweep config (will be converted to yaml)
         """
         project_query = """
@@ -1347,15 +1256,14 @@ class Api(object):
         return response["createAnonymousEntity"]["apiKey"]["name"]
 
     def file_current(self, fname, md5):
-        """Checksum a file and compare the md5 with the known md5
-        """
+        """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions
     def pull(self, project, run=None, entity=None):
         """Download files from W&B
 
-        Args:
+        Arguments:
             project (str): The project to download
             run (str): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models

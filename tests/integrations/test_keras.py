@@ -1,4 +1,8 @@
 import pytest
+import sys
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("tensorflow")
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
@@ -63,7 +67,7 @@ def graph_json(run):
 
 
 def test_no_init():
-    with pytest.raises(wandb.errors.error.Error):
+    with pytest.raises(wandb.errors.Error):
         WandbCallback()
 
 
@@ -76,8 +80,27 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
-def test_keras_resume_best_metric(dummy_model, dummy_data, live_mock_server,
-                                  test_settings):
+@pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
+)
+def test_keras_telemetry(
+    dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
+):
+    wandb.init(settings=test_settings)
+    dummy_model.fit(*dummy_data, epochs=2, batch_size=36, callbacks=[WandbCallback()])
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    config_wandb = ctx_util.config_wandb
+    assert telemetry and 8 in telemetry.get("3", [])
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
+)
+def test_keras_resume_best_metric(
+    dummy_model, dummy_data, live_mock_server, test_settings
+):
     res = live_mock_server.set_ctx({"resume": True})
     print("CTX AFTER UPDATE", res)
     print("GET RIGHT AWAY", live_mock_server.get_ctx())
@@ -277,6 +300,7 @@ def test_keras_convert_sequential():
     }
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="Cannot convert a symbolic Tensor")
 def test_keras_convert_model_non_sequential():
     # necessary to keep the names of the layers consistent
     K.clear_session()
@@ -317,4 +341,3 @@ def test_keras_convert_model_non_sequential():
         ["dense_2", "main_output"],
         ["lstm", "aux_output"],
     ]
-

@@ -4,6 +4,7 @@ settings test.
 
 import pytest  # type: ignore
 
+import wandb
 from wandb import Settings
 import os
 import copy
@@ -74,8 +75,10 @@ def test_ignore_globs_env():
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
 def test_ignore_globs_settings(local_settings):
     with open(os.path.join(os.getcwd(), ".config", "wandb", "settings"), "w") as f:
-        f.write("""[default]
-ignore_globs=foo,bar""")
+        f.write(
+            """[default]
+ignore_globs=foo,bar"""
+        )
     s = Settings(_files=True)
     s.setdefaults()
     assert s.ignore_globs == ("foo", "bar",)
@@ -184,7 +187,7 @@ def test_prio_context_ok():
     s.update(project="pizza", _source=s.Source.ENTITY)
     assert s.project == "pizza"
     with s._as_source(s.Source.PROJECT) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -193,7 +196,7 @@ def test_prio_context_ignore():
     s.update(project="pizza", _source=s.Source.PROJECT)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza"
 
 
@@ -202,7 +205,7 @@ def test_prio_context_over_ok():
     s.update(project="pizza", _source=s.Source.PROJECT)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -211,7 +214,7 @@ def test_prio_context_over_both_ok():
     s.update(project="pizza", _source=s.Source.PROJECT, _override=True)
     assert s.project == "pizza"
     with s._as_source(s.Source.ENTITY, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
@@ -220,5 +223,45 @@ def test_prio_context_over_ignore():
     s.update(project="pizza", _source=s.Source.ENTITY, _override=True)
     assert s.project == "pizza"
     with s._as_source(s.Source.PROJECT, override=True) as s2:
-        s2.project="pizza2"
+        s2.project = "pizza2"
     assert s.project == "pizza"
+
+
+def test_validate_base_url():
+    s = Settings()
+    with pytest.raises(TypeError):
+        s.update(base_url="https://wandb.ai")
+    with pytest.raises(TypeError):
+        s.update(base_url="https://app.wandb.ai")
+    with pytest.raises(TypeError):
+        s.update(base_url="http://api.wandb.ai")
+    s.update(base_url="https://api.wandb.ai")
+    assert s.base_url == "https://api.wandb.ai"
+    s.update(base_url="https://wandb.ai.other.crazy.domain.com")
+    assert s.base_url == "https://wandb.ai.other.crazy.domain.com"
+
+
+def test_preprocess_base_url():
+    s = Settings()
+    s.update(base_url="http://host.com")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com/")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com///")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="//http://host.com//")
+    assert s.base_url == "//http://host.com"
+
+
+def test_code_saving_save_code_env_false(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_SAVE_CODE"] = "false"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False
+
+
+def test_code_saving_disable_code(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_DISABLE_CODE"] = "true"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False

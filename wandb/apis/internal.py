@@ -1,4 +1,12 @@
-from wandb.internal.internal_api import Api as InternalApi
+import sys
+
+
+# TODO: consolidate dynamic imports
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.internal.internal_api import Api as InternalApi
+else:
+    from wandb.sdk_py27.internal.internal_api import Api as InternalApi
 
 
 class Api(object):
@@ -62,6 +70,9 @@ class Api(object):
     def parse_slug(self, *args, **kwargs):
         return self.api.parse_slug(*args, **kwargs)
 
+    def download_url(self, *args, **kwargs):
+        return self.api.download_url(*args, **kwargs)
+
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
 
@@ -91,6 +102,9 @@ class Api(object):
 
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
+
+    def upload_file_retry(self, *args, **kwargs):
+        return self.api.upload_file_retry(*args, **kwargs)
 
 
 __all__ = ["Api"]
