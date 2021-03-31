@@ -530,6 +530,47 @@ def test_add_obj_wbimage(runner):
         }
 
 
+def test_add_obj_using_brackets(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact["my-image"] = wb_image
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
+            },
+        }
+
+    with pytest.raises(ValueError):
+        image = artifact["my-image"]
+
+
+def test_artifact_interface_get_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        image = art["my-image"]
+
+
+def test_artifact_interface_set_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        art["my-image"] = 1
+
+
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
@@ -847,6 +888,22 @@ def test_interface_commit_hash(runner):
         artifact.commit_hash()
 
 
+def test_local_references(runner, live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+
+    def make_table():
+        return wandb.Table(columns=[], data=[])
+
+    t1 = make_table()
+    artifact1 = wandb.Artifact("test_local_references", "dataset")
+    artifact1.add(t1, "t1")
+    assert artifact1.manifest.entries["t1.table.json"].ref is None
+    run.log_artifact(artifact1)
+    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
+    artifact2.add(t1, "t2")
+    assert artifact2.manifest.entries["t2.table.json"].ref is not None
+
+
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
@@ -887,7 +944,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     assert art.checkout() is not None
     with pytest.raises(ValueError):  # mock issue
         assert art.verify() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+    with pytest.raises(wandb.errors.CommError):  # mock issue
         assert art.save() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
+    with pytest.raises(wandb.errors.CommError):  # mock issue
         assert art.delete() is not None

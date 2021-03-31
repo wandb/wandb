@@ -9,7 +9,7 @@ from __future__ import print_function
 
 import click
 import wandb
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 
 from .internal.internal_api import Api
 from .lib import apikey
