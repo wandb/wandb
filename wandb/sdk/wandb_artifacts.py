@@ -137,7 +137,12 @@ class Artifact(ArtifactInterface):
         self._metadata = metadata or {}
         self._distributed_id = None
         self._logged_artifact = None
-        self._incremental = incremental if incremental is not None else False
+        self._incremental = False
+
+        if incremental is not None:
+            self._incremental = incremental
+            wandb.termwarn("Using experimental arg `incremental`")
+
 
     @property
     def id(self) -> Optional[str]:
