@@ -694,7 +694,8 @@ def create_app(user_ctx=None):
         if request.method == "PUT":
             curr = ctx["file_bytes"].get(file)
             if curr is None:
-                ctx["file_bytes"][file] = request.content_length
+                ctx["file_bytes"].setdefault(file, 0)
+                ctx["file_bytes"][file] += request.content_length
             else:
                 ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
