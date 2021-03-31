@@ -62,6 +62,7 @@ class ArtifactSaver(object):
         aliases=None,
         labels=None,
         use_after_commit=False,
+        incremental=False,
     ):
         aliases = aliases or []
         alias_specs = []
@@ -115,15 +116,21 @@ class ArtifactSaver(object):
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
+        manifest_type = "FULL"
+        manifest_filename = "wandb_manifest.json"
+        if incremental:
+            manifest_type = "INCREMENTAL"
+            manifest_filename = "wandb_manifest.incremental.json"
+        elif distributed_id:
+            manifest_type = "PATCH"
+            manifest_filename = "wandb_manifest.patch.json"
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
-            "wandb_manifest.json"
-            if not distributed_id
-            else "wandb_manifest.patch.json",
+            manifest_filename,
             "",
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
-            type="FULL" if not distributed_id else "PATCH",
+            type=manifest_type,
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(
@@ -151,7 +158,7 @@ class ArtifactSaver(object):
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
-            if distributed_id:
+            if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
                 _, resp = self._api.update_artifact_manifest(
@@ -164,7 +171,7 @@ class ArtifactSaver(object):
                 # NOTE: We do this for backwards compatibility with older backends
                 # that don't support the 'updateArtifactManifest' API.
                 _, resp = self._api.create_artifact_manifest(
-                    "wandb_manifest.json",
+                    manifest_filename,
                     digest,
                     artifact_id,
                     base_artifact_id=latest_artifact_id,

@@ -19,6 +19,7 @@ from wandb.data_types import WBValue
 from wandb.errors.error import CommError
 from wandb.errors.term import termlog, termwarn
 
+from . import lib as wandb_lib
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -142,7 +143,6 @@ class Artifact(ArtifactInterface):
         if incremental:
             self._incremental = incremental
             wandb.termwarn("Using experimental arg `incremental`")
-
 
     @property
     def id(self) -> Optional[str]:
@@ -506,8 +506,8 @@ class Artifact(ArtifactInterface):
             None
         """
 
-        if wandb.run is not None:
-            with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+        if wandb.run is not None and self._incremental:
+            with wandb_lib.telemetry.context(run=wandb.run) as tel:
                 tel.feature.incremental = True
 
         if self._logged_artifact:
@@ -521,8 +521,9 @@ class Artifact(ArtifactInterface):
                 ) as run:
                     # redoing this here because in this branch we know we didn't
                     # have the run at the beginning of the method
-                    with wandb.wandb_lib.telemetry.context(run=run) as tel:
-                        tel.feature.incremental = True
+                    if self._incremental:
+                        with wandb_lib.telemetry.context(run=run) as tel:
+                            tel.feature.incremental = True
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait

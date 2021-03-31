@@ -821,3 +821,9 @@ def test_interface_commit_hash(runner):
     artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
+
+
+def test_artifact_incremental(runner):
+    artifact = wandb.Artifact(type="dataset", name="incremental-arty", incremental=True)
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["type"] == "INCREMENTAL"
