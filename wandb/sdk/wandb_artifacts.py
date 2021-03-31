@@ -1005,19 +1005,21 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if not checksum:
-            return [
-                ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
-            ]
+
+        def md5(path):
+            if checksum:
+                return md5_file_b64(path)
+            return path
 
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i files in "%s"...\n'
-                % (max_objects, local_path),
-                newline=False,
-            )
+            if checksum:
+                termlog(
+                    'Generating checksum for up to %i files in "%s"...\n'
+                    % (max_objects, local_path),
+                    newline=False,
+                )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
@@ -1034,17 +1036,15 @@ class LocalFileHandler(StorageHandler):
                         logical_path,
                         os.path.join(path, logical_path),
                         size=os.path.getsize(physical_path),
-                        digest=md5_file_b64(physical_path),
+                        digest=md5(physical_path),
                     )
                     entries.append(entry)
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            if checksum:
+                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                name,
-                path,
-                size=os.path.getsize(local_path),
-                digest=md5_file_b64(local_path),
+                name, path, size=os.path.getsize(local_path), digest=md5(local_path),
             )
             entries.append(entry)
         else:

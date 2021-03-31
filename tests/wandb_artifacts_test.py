@@ -238,6 +238,35 @@ def test_add_reference_local_dir(runner):
         }
 
 
+def test_add_reference_local_dir_no_checksum(runner):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        os.mkdir("nest")
+        open("nest/file2.txt", "w").write("my")
+        os.mkdir("nest/nest")
+        open("nest/nest/file3.txt", "w").write("dude")
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_reference("file://" + os.getcwd(), checksum=False)
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["file1.txt"] == {
+            "digest": os.path.join(os.getcwd(), "file1.txt"),
+            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+            "size": 5,
+        }
+        assert manifest["contents"]["nest/file2.txt"] == {
+            "digest": os.path.join(os.getcwd(), "nest", "file2.txt"),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
+            "size": 2,
+        }
+        assert manifest["contents"]["nest/nest/file3.txt"] == {
+            "digest": os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "size": 4,
+        }
+
+
 def test_add_reference_local_dir_with_name(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
