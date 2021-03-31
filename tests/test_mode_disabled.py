@@ -94,7 +94,9 @@ def test_disabled_can_pickle():
 
 def test_disabled_globals(test_settings):
     # Test wandb.* attributes
-    run = wandb.init(config={"foo": {"bar": {"x": "y"}}}, mode="disabled", settings=test_settings)
+    run = wandb.init(
+        config={"foo": {"bar": {"x": "y"}}}, mode="disabled", settings=test_settings
+    )
     wandb.log({"x": {"y": "z"}})
     wandb.log({"foo": {"bar": {"x": "y"}}})
     assert wandb.run == run
