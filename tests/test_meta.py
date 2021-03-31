@@ -50,6 +50,7 @@ def sm(
     mocked_run,
     interface,
 ):
+    test_settings.save_code = True
     sm = SendManager(
         settings=test_settings,
         record_q=record_q,
