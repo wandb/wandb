@@ -1044,10 +1044,7 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                name,
-                path,
-                size=os.path.getsize(local_path),
-                digest=md5(local_path),
+                name, path, size=os.path.getsize(local_path), digest=md5(local_path),
             )
             entries.append(entry)
         else:
