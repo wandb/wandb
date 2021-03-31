@@ -358,6 +358,7 @@ def test_version_retired(
 
 
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+    live_mock_server.get_ctx()["file_bytes"] = 0
     test_settings.update({"start_method": "thread"})
 
     def mock_min_size(self, size):
