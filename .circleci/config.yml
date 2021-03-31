@@ -161,7 +161,6 @@ jobs:
             - save-tox-cache
             - save-test-results
     win:
-        resource_class: large
         parameters:
             toxenv:
               type: string
@@ -187,7 +186,7 @@ jobs:
             - save-tox-cache
             - save-test-results
     mac:
-        resource_class: large
+        # TODO: how to set resource class?
         parameters:
             toxenv:
               type: string
