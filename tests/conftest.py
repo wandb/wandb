@@ -174,7 +174,7 @@ def test_dir(test_name):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)
     os.chdir(test_dir)
-    yield runner
+    yield test_dir
     os.chdir(orig_dir)
 
 
@@ -220,14 +220,14 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb._IS_INTERNAL_PROCESS = False
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
-    wandb_dir = os.path.join(os.getcwd(), "wandb")
+    wandb_dir = os.path.join(test_dir, "wandb")
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
         _start_time=time.time(),
         base_url=live_mock_server.base_url,
-        root_dir=os.getcwd(),
-        save_code=True,
+        root_dir=test_dir,
+        save_code=False,
         project="test",
         console="off",
         host="test",

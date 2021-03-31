@@ -21,8 +21,8 @@ def train(add_val):
     time.sleep(1)
 
 
-def test_multiproc_default(live_mock_server, parse_ctx):
-    run = wandb.init()
+def test_multiproc_default(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
     train(0)
     run.finish()
 
@@ -34,8 +34,8 @@ def test_multiproc_default(live_mock_server, parse_ctx):
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
-def test_multiproc_ignore(live_mock_server, parse_ctx):
-    run = wandb.init()
+def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
 
     train(0)
 
@@ -63,8 +63,9 @@ def test_multiproc_ignore(live_mock_server, parse_ctx):
 @pytest.mark.flaky
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.xfail(platform.system() == "Darwin", reason="console parse_ctx issues")
-def test_multiproc_strict(live_mock_server, parse_ctx):
-    run = wandb.init(settings=wandb.Settings(strict="true"))
+def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
+    test_settings.strict = "true"
+    run = wandb.init(settings=test_settings)
 
     train(0)
 
@@ -90,6 +91,7 @@ def test_multiproc_strict(live_mock_server, parse_ctx):
     assert dict(val=3, val2=1, mystep=3) == s
 
 
-def test_multiproc_strict_bad(live_mock_server, parse_ctx):
+def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
     with pytest.raises(TypeError):
-        run = wandb.init(settings=wandb.Settings(strict="bad"))
+        test_settings.strict = "bad"
+        run = wandb.init(settings=test_settings)
