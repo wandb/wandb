@@ -4,6 +4,7 @@ import json
 import logging
 import numbers
 import os
+import re
 import shutil
 import sys
 
@@ -2121,7 +2122,12 @@ def val_to_json(
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
                 _, artifact_class = _safe_sdk_import()
-                art = artifact_class("run-{}-{}".format(run.id, key), "run_table")
+                # we sanitize the key to meet the constraints defined in wandb_artifacts.py
+                # in this case, leaving only alpha numerics or underscores.
+                sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
+                art = artifact_class(
+                    "run-{}-{}".format(run.id, sanitized_key), "run_table"
+                )
                 art.add(val, key)
                 run.log_artifact(art)
             val.bind_to_run(run, key, namespace)

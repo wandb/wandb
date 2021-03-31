@@ -15,6 +15,13 @@ import shutil
 from .utils import fixture_open
 import sys
 import six
+import time
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -348,3 +355,49 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+
+
+def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+    test_settings.update({"start_method": "thread"})
+
+    def mock_min_size(self, size):
+        return 2
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
+    wandb.init(settings=test_settings)
+    fpath = "/tmp/saveFile"
+    sent = 0
+    # file created, should be uploaded
+    with open(fpath, "w") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    wandb.save(fpath, policy="live")
+    # on save file is sent
+    sent += os.path.getsize(fpath)
+    time.sleep(2.1)
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    # 2.1 seconds is longer than set rate limit
+    sent += os.path.getsize(fpath)
+    # give watchdog time to register the change
+    time.sleep(1.0)
+    # file updated within modified time, should not be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    time.sleep(2.0)
+    # file updated outside of rate limit should be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    sent += os.path.getsize(fpath)
+    time.sleep(2)
+
+    server_ctx = live_mock_server.get_ctx()
+    print(server_ctx["file_bytes"], sent)
+    assert abs(server_ctx["file_bytes"] - sent) < 15000
