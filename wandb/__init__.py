@@ -145,8 +145,8 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
-_define_metric = _preinit.PreInitCallable(
-    "wandb._define_metric", wandb_sdk.wandb_run.Run._define_metric
+define_metric = _preinit.PreInitCallable(
+    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table

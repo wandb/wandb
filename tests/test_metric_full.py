@@ -28,7 +28,7 @@ def test_metric_default(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_copy(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("*", summary="copy")
+    run.define_metric("*", summary="copy")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=2, val=8))
     run.log(dict(mystep=3, val=3))
@@ -44,8 +44,8 @@ def test_metric_copy(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_glob_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("*", summary="copy")
-    run._define_metric("val", summary="none")
+    run.define_metric("*", summary="copy")
+    run.define_metric("val", summary="none")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=2, val=8))
     run.log(dict(mystep=3, val=3))
@@ -62,7 +62,7 @@ def test_metric_glob_none(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_glob(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("*", step_metric="mystep")
+    run.define_metric("*", step_metric="mystep")
     run.log(dict(mystep=1, val=2))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -73,7 +73,7 @@ def test_metric_glob(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nosummary(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val")
+    run.define_metric("val")
     run.log(dict(val2=4))
     run.log(dict(val2=1))
     run.finish()
@@ -84,7 +84,7 @@ def test_metric_nosummary(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val2", summary="none")
+    run.define_metric("val2", summary="none")
     run.log(dict(val2=4))
     run.log(dict(val2=1))
     run.finish()
@@ -95,7 +95,7 @@ def test_metric_none(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_sum_none(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val")
+    run.define_metric("val")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
@@ -110,7 +110,7 @@ def test_metric_sum_none(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_max(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="max")
+    run.define_metric("val", summary="max")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
@@ -123,7 +123,7 @@ def test_metric_max(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_min(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="min")
+    run.define_metric("val", summary="min")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
@@ -136,7 +136,7 @@ def test_metric_min(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_last(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="last")
+    run.define_metric("val", summary="last")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=8))
     run.log(dict(mystep=1, val=3))
@@ -158,7 +158,7 @@ def _gen_metric_sync_step(run):
 
 def test_metric_no_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="min", step_metric="mystep")
+    run.define_metric("val", summary="min", step_metric="mystep")
     _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
@@ -173,7 +173,7 @@ def test_metric_no_sync_step(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="min", step_metric="mystep", step_sync=True)
+    run.define_metric("val", summary="min", step_metric="mystep", step_sync=True)
     _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
@@ -192,8 +192,8 @@ def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_mult(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("mystep", hide=True)
-    run._define_metric("*", step_metric="mystep")
+    run.define_metric("mystep", hide=True)
+    run.define_metric("*", step_metric="mystep")
     _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     metrics = ctx_util.metrics
@@ -202,8 +202,8 @@ def test_metric_mult(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_goal(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("mystep", hide=True)
-    run._define_metric("*", step_metric="mystep", goal="maximize")
+    run.define_metric("mystep", hide=True)
+    run.define_metric("*", step_metric="mystep", goal="maximize")
     _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     metrics = ctx_util.metrics
@@ -212,7 +212,7 @@ def test_metric_goal(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nan_mean(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="mean")
+    run.define_metric("val", summary="mean")
     run.log(dict(mystep=1, val=2))
     run.log(dict(mystep=1, val=float("nan")))
     run.log(dict(mystep=1, val=4))
@@ -224,7 +224,7 @@ def test_metric_nan_mean(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nan_min_norm(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="min")
+    run.define_metric("val", summary="min")
     run.log(dict(mystep=1, val=float("nan")))
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -234,7 +234,7 @@ def test_metric_nan_min_norm(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nan_min_more(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("val", summary="min")
+    run.define_metric("val", summary="min")
     run.log(dict(mystep=1, val=float("nan")))
     run.log(dict(mystep=1, val=4))
     run.finish()
@@ -256,7 +256,7 @@ def test_metric_nested_default(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nested_copy(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("this.that", summary="copy")
+    run.define_metric("this.that", summary="copy")
     run.log(dict(this=dict(that=3)))
     run.log(dict(this=dict(that=2)))
     run.log(dict(this=dict(that=4)))
@@ -268,7 +268,7 @@ def test_metric_nested_copy(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nested_min(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("this.that", summary="min")
+    run.define_metric("this.that", summary="min")
     run.log(dict(this=dict(that=3)))
     run.log(dict(this=dict(that=2)))
     run.log(dict(this=dict(that=4)))
@@ -280,7 +280,7 @@ def test_metric_nested_min(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nested_mult(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("this.that", summary="min,max")
+    run.define_metric("this.that", summary="min,max")
     run.log(dict(this=dict(that=3)))
     run.log(dict(this=dict(that=2)))
     run.log(dict(this=dict(that=4)))
@@ -297,7 +297,7 @@ def test_metric_nested_mult(live_mock_server, test_settings, parse_ctx):
 def test_metric_dotted(live_mock_server, test_settings, parse_ctx):
     """escaped dotted define metric matches dotted metrics."""
     run = wandb.init(settings=test_settings)
-    run._define_metric("this\\.that", summary="min")
+    run.define_metric("this\\.that", summary="min")
     run.log({"this.that": 3})
     run.log({"this.that": 2})
     run.log({"this.that": 4})
@@ -312,7 +312,7 @@ def test_metric_dotted(live_mock_server, test_settings, parse_ctx):
 
 def test_metric_nested_glob(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
-    run._define_metric("*", summary="min,max")
+    run.define_metric("*", summary="min,max")
     run.log(dict(this=dict(that=3)))
     run.log(dict(this=dict(that=2)))
     run.log(dict(this=dict(that=4)))
