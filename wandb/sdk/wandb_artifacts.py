@@ -508,7 +508,7 @@ class Artifact(ArtifactInterface):
 
         if wandb.run is not None and self._incremental:
             with wandb_lib.telemetry.context(run=wandb.run) as tel:
-                tel.feature.incremental = True
+                tel.feature.artifact_incremental = True
 
         if self._logged_artifact:
             return self._logged_artifact.save()
@@ -523,7 +523,7 @@ class Artifact(ArtifactInterface):
                     # have the run at the beginning of the method
                     if self._incremental:
                         with wandb_lib.telemetry.context(run=run) as tel:
-                            tel.feature.incremental = True
+                            tel.feature.artifact_incremental = True
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait

@@ -39,7 +39,7 @@ message Feature {
   bool grpc = 6;     // grpc-server (java integration)
   bool metric = 7;   // define_metric() called
   bool keras = 8;    // Keras WandbCallback used
-  bool incremental = 9; // Artifact(incremental=True) used
+  bool artifact_incremental = 9; // Artifact(incremental=True) used
 }
 
 message Env {
