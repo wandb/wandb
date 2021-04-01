@@ -123,7 +123,7 @@ def test_live_log(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     run.log({"test": 1})
     ctx = live_mock_server.get_ctx()
-    first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
+    first_stream_hist = utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]
     assert json.loads(first_stream_hist["content"][0])["test"] == 1
 ```
 

@@ -859,7 +859,7 @@ def test_sync_tensorboard(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"]) == 17
         )
 
         # Check the no sync tensorboard flag
@@ -885,7 +885,7 @@ def test_sync_tensorboard_big(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 27
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"]) == 27
         )
 
 
@@ -899,7 +899,7 @@ def test_sync_wandb_run(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"]) == 1
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -925,7 +925,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"]) == 1
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])

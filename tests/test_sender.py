@@ -27,6 +27,8 @@ else:
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 
+from .utils import first_filestream
+
 
 def test_send_status_request(mock_server, internal_sender, start_backend):
     mock_server.ctx["stopped"] = True
@@ -348,7 +350,7 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     internal_sender.publish_output("stdout", "\rFinal line baby\n")
     stop_backend()
     print("DUDE!", mock_server.ctx)
-    stream = next(m for m in mock_server.ctx["file_stream"] if m.get("files"))
+    stream = first_filstream(mock_server.ctx)
     assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 
