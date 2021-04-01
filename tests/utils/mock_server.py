@@ -648,6 +648,8 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             if "logged_table" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 3, "name": "run_table"}
+            if "run-" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 4, "name": "run_table"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
