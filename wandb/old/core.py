@@ -31,8 +31,8 @@ IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 def wandb_dir(root_dir=None):
     if root_dir is None or root_dir == "":
-        cwd = os.getcwd()
         try:
+            cwd = os.getcwd()
             root_dir = env.get_dir(cwd)
         except OSError:
             termwarn("Path %s no longer exists, using system temp directory" % cwd)
