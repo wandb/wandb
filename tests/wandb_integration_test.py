@@ -357,6 +357,8 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     test_settings.update({"start_method": "thread"})
 
