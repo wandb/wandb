@@ -1,5 +1,6 @@
 import pytest
 import wandb
+import numpy as np
 
 
 @pytest.fixture
@@ -19,3 +20,13 @@ def test_summary_setitem(api, mock_server):
     run.summary["acc2"] = run.summary["acc"]
     run.summary["nested"] = {"a": 1, "b": {"c": 2, "d": 3}}
     run.summary.update()
+
+
+def test_summary_media_setitem(api, mock_server):
+    run = api.runs("test/test")[0]
+    try:
+        run.summary["img"] = wandb.Image(np.random.random((100, 100)))
+        run.summary.update()
+        raise Exception()
+    except Exception:
+        pass
