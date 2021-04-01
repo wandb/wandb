@@ -35,7 +35,7 @@ def wandb_dir(root_dir=None):
             cwd = os.getcwd()
             root_dir = env.get_dir(cwd)
         except OSError:
-            termwarn("Path %s no longer exists, using system temp directory" % cwd)
+            termwarn("os.getcwd() no longer exists, using system temp directory")
             root_dir = tempfile.gettempdir()
     path = os.path.join(root_dir, __stage_dir__ or ("wandb" + os.sep))
     if not os.access(root_dir, os.W_OK):
