@@ -1,3 +1,17 @@
+## 0.10.24 (March 30, 2021)
+
+#### :bug: Bug Fix
+
+- Significant fixes to stdout/stderr console logging
+- Prevent excessive network when saving files with policy=`live`
+- Fix errors when trying to send large updates (most common with `wandb sync`)
+
+#### :nail_care: Enhancement
+
+- Automatically generate `run_table` artifact for logged tables
+- Add bracket notation to artifacts
+- Improve URL validation when specifying server url to `wandb login`
+
 ## 0.10.23 (March 22, 2021)
 
 #### :bug: Bug Fix
