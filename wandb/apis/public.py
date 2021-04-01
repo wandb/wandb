@@ -2758,8 +2758,6 @@ class Artifact(artifacts.Artifact):
             },
         )
 
-        print(response)
-
         project = response.get("project")
         if project is not None:
             artifact = project.get("artifact")

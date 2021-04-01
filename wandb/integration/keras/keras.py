@@ -273,27 +273,21 @@ class WandbCallback(keras.callbacks.Callback):
         log_best_prefix (string): if None, no extra summary metrics will be saved.
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
-        val_keys ([wandb.data_types._TableLinkMixin]): an ordered list of keys to associate 
+        validation_indexes ([wandb.data_types._TableLinkMixin]): an ordered list of index keys to associate 
             with each validation example.  If log_evaluation is True and val_keys is provided,
             then a Table of validation data will not be created and instead each prediction will
             be associated with the row represented by the TableLinkMixin. The most common way to obtain
             such keys are is use Table.get_index() which will return a list of row keys.
-        val_input_processor (Callable | [Callable], optional): a function or list of functions to apply to the 
-            validation input (x) data, commonly used to visualize the data. The input data will be passed 
-            to this function and the output saved in a new column in the validation table. If a list of
-            functions are provided, then the data will be passed to each function in serial. For example, 
-            if your input data is an ndarray, but you wish to visualize the data as an Image, then you 
-            can provide wandb.Image as the processor. If log_evaluation is True and val_input_processor is
-            None, we will try to guess the appropriate processor based on input_type. Ignored if 
-            log_evaluation is False or val_keys 
-            are present.
-        val_target_processor (Callable | [Callable], optional): same as val_input_processor, but applied to 
-            the validation target (y).
-        val_output_processor (Callable | [Callable], optional): same as val_input_processor, but applied to the
-            model output. This is applied even when val_keys are present. If log_evaluation is True and 
-            val_output_processor is None, we will try to guess the appropriate processor based on output_type. 
-            Eg. if your model uses a softmax activation layer, you probably want to provide np.argmax to 
-            this parameter.
+        validation_row_processor (Callable): a function to apply to the validation data, commonly used to visualize the data. 
+            The function will receive an ndx (int) and a row (dict). If your model has a single input,
+            then row["input"] will be the input data for the row. Else, it will be keyed based on the name of the
+            input slot. If your fit function takes a single target, then row["target"] will be the target data for the row. Else,
+            it will be keyed based on the name of the output slots. For example, 
+            if your input data is a single ndarray, but you wish to visualize the data as an Image, then you 
+            can provide `lambda ndx, row: {"img": wandb.Image(row["input"])} as the processor. 
+            If log_evaluation is True and val_input_processor is None, we will try to guess the appropriate processor based on input_type. 
+            Ignored if log_evaluation is False or val_keys are present.
+        output_row_processor (Callable): same as validation_row_processor, but applied to the model's output.
     """
 
     def __init__(
@@ -319,10 +313,9 @@ class WandbCallback(keras.callbacks.Callback):
         log_batch_frequency=None,
         log_best_prefix="best_",
         save_graph=True,
-        val_keys=None,
-        val_input_processor=None,
-        val_target_processor=None,
-        val_output_processor=None,
+        validation_indexes=None,
+        validation_row_processor=None,
+        prediction_row_processor=None,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -408,33 +401,10 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
-        assert val_keys is None or all(
-            [isinstance(vid, wandb.data_types._TableLinkMixin) for vid in val_keys]
-        )
-
-        # def make_pipe(transformer):
-        #     if isinstance(transformer, list):
-
-        #         def pipe(val):
-        #             for item in transformer:
-        #                 val = item(val)
-        #             return val
-
-        #         return pipe
-        #     else:
-        #         return transformer
-
-        # def make_dict(processor):
-        #     if processor is None or isinstance(processor, dict):
-        #         return processor
-        #     else:
-        #         return {"processed": processor}
-
-        # self.val_keys = val_keys
-        # self.val_input_processor = make_dict(val_input_processor)
-        # self.val_target_processor = make_dict(val_target_processor)
-        # self.val_output_processor = make_dict(val_output_processor)
         self.validation_data_logger = None
+        self.validation_indexes = validation_indexes
+        self.validation_row_processor = validation_row_processor
+        self.prediction_row_processor = prediction_row_processor
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -495,25 +465,12 @@ class WandbCallback(keras.callbacks.Callback):
                     commit=False,
                 )
 
-        if self.val_output_processor is None and self.output_type == "label":
-            if self.labels is None:
-                self.val_output_processor = {"lbl": np.argmax}
-            else:
-                self.val_output_processor = {"lbl": lambda x: self.labels[np.argmax(x)]}
-
-        if self.log_evaluation:
-            val_x = self.validation_data[0]
-            y_pred = self.model.predict(val_x)
-            table = wandb.Table(columns=[], data=[])
-            table.add_column("val_data", self.val_keys)
-            table.add_column("pred", y_pred)
-            if self.val_output_processor is not None:
-                for key in self.val_output_processor:
-                    table.add_column(
-                        "pred_" + key,
-                        [self.val_output_processor[key](item) for item in y_pred],
-                    )
-            wandb.log({"validation_predictions": table}, commit=False)
+        if self.log_evaluation and self.validation_data_logger:
+            self.validation_data_logger.log_predictions(
+                predictions=self.validation_data_logger.make_predictions(
+                    self.model.predict
+                )
+            )
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
@@ -573,46 +530,14 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        if self.val_input_processor is None and self.input_type == "image":
-            self.val_input_processor = {"img": wandb.Image}
-
-        if self.val_target_processor is None and self.output_type == "label":
-            if self.labels is None:
-                self.val_target_processor = {"lbl": lambda x: np.squeeze(x)}
-            else:
-                self.val_target_processor = {
-                    "lbl": lambda x: self.labels[np.squeeze(x)]
-                }
-
         if self.log_evaluation:
-            self.validation_data_logger = (
-                wandb.wandb_sdk.integration_utils.ValidationDataLogger()
+            self.validation_data_logger = wandb.wandb_sdk.integration_utils.data_logging.ValidationDataLogger(
+                inputs=self.validation_data[0],
+                targets=self.validation_data[1],
+                indexes=self.validation_indexes,
+                validation_row_processor=self.validation_row_processor,
+                prediction_row_processor=self.prediction_row_processor,
             )
-
-        if self.log_evaluation and self.val_keys is None:
-            val_x = self.validation_data[0]
-            val_y = self.validation_data[1]
-            table = wandb.Table(columns=[], data=[])
-            table.add_column("x", val_x)
-            table.add_column("y", val_y)
-            if self.val_input_processor is not None:
-                for key in self.val_input_processor:
-                    table.add_column(
-                        "x_" + key,
-                        [self.val_input_processor[key](item) for item in val_x],
-                    )
-            if self.val_target_processor is not None:
-                for key in self.val_target_processor:
-                    table.add_column(
-                        "y_" + key,
-                        [self.val_target_processor[key](item) for item in val_y],
-                    )
-            artifact = wandb.Artifact(
-                "validation_data_wbkc".format(wandb.run.id), "auto_table"
-            )
-            artifact.add(table, "validation_data")
-            wandb.run.use_artifact(artifact)
-            self.val_keys = table.get_index()
 
     def on_train_end(self, logs=None):
         pass

@@ -776,7 +776,7 @@ class Table(Media):
         for ndx, row in self.iterrows():
             row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
             new_row_dict = fn(ndx, row_dict)
-            assert isinstance(new_row_dict)
+            assert isinstance(new_row_dict, dict)
             for key in new_row_dict:
                 new_columns[key] = new_columns.get(key, [])
                 new_columns[key].append(new_row_dict[key])
