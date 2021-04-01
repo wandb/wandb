@@ -51,7 +51,7 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
 
     if class_names is not None:
         n_classes = len(class_names)
-        class_inds = set(preds).union(set(y_true))
+        class_inds = [i for i in range(n_classes)]
         assert max(preds) <= len(
             class_names
         ), "Higher predicted index than number of classes"
@@ -67,7 +67,6 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
     class_mapping = {}
     for i, val in enumerate(sorted(list(class_inds))):
         class_mapping[val] = i
-
     counts = np.zeros((n_classes, n_classes))
     for i in range(len(preds)):
         counts[class_mapping[y_true[i]], class_mapping[preds[i]]] += 1

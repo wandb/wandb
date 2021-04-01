@@ -210,6 +210,13 @@ def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc)
         )
 
 
+def test_login_bad_host(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--host", "https://app.wandb.ai"])
+        assert "did you mean https://api.wandb.ai" in result.output
+        assert result.exit_code != 0
+
+
 def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
     onprem_key = "test-" + DUMMY_API_KEY
     with runner.isolated_filesystem():
@@ -861,6 +868,8 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )

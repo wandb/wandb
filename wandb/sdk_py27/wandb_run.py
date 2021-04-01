@@ -23,6 +23,7 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -45,6 +46,7 @@ from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -52,6 +54,7 @@ from .lib import (
     sparkline,
     telemetry,
 )
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -61,7 +64,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -86,6 +88,14 @@ if wandb.TYPE_CHECKING:  # type: ignore
 
     if TYPE_CHECKING:
         from typing import NoReturn
+
+        from .data_types import WBValue
+
+        from .interface.artifacts import (
+            ArtifactEntry,
+            ArtifactManifest,
+        )
+
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
@@ -211,7 +221,7 @@ class Run(object):
     # _out_redir: Optional[redirect.RedirectBase]
     # _err_redir: Optional[redirect.RedirectBase]
     # _redirect_cb: Optional[Callable[[str, str], None]]
-    # _output_writer: Optional["WriteSerializingFile"]
+    # _output_writer: Optional["filesystem.CRDedupedFile"]
 
     # _atexit_cleanup_called: bool
     # _hooks: Optional[ExitHooks]
@@ -225,6 +235,8 @@ class Run(object):
     # _use_redirect: bool
     # _stdout_slave_fd: Optional[int]
     # _stderr_slave_fd: Optional[int]
+
+    # _pid: int
 
     def __init__(
         self,
@@ -326,6 +338,8 @@ class Run(object):
         self._use_redirect = True
         self._progress_step = 0
 
+        self._pid = os.getpid()
+
     def _telemetry_callback(self, telem_obj):
         self._telemetry_obj.MergeFrom(telem_obj)
 
@@ -360,7 +374,7 @@ class Run(object):
         if mods.get("ignite"):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
-            imp.transformers = True
+            imp.transformers_huggingface = True
 
     def _init_from_settings(self, settings):
         if settings.entity is not None:
@@ -492,6 +506,8 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            assert self._run_id is not None
         return self._run_id
 
     @property
@@ -991,7 +1007,19 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        # TODO(cling): sync is a noop for now
+        current_pid = os.getpid()
+        if current_pid != self._pid:
+            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                current_pid, self._pid
+            )
+            if self._settings._strict:
+                wandb.termerror(message, repeat=False)
+                raise errors.LogMultiprocessError(
+                    "log() does not support multiprocessing"
+                )
+            wandb.termwarn(message, repeat=False)
+            return
+
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
@@ -1346,17 +1374,25 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
@@ -1377,10 +1413,18 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1487,7 +1531,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self):
@@ -1856,8 +1900,9 @@ class Run(object):
             step_sync: Automatically add `step_metric` to history if needed.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best"
-                (best defaults to goal==minimize)
+                Supported aggregations: "min,max,mean,best,last,none"
+                Default aggregation is `copy`
+                Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
                 Supported direections: "minimize,maximize"
 
@@ -1899,7 +1944,7 @@ class Run(object):
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best"}
+            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(
@@ -2338,31 +2383,6 @@ except AttributeError:
     pass
 
 
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs):  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
-
-
 def finish(exit_code = None):
     """
     Marks a run as finished, and finishes uploading all data.
@@ -2382,7 +2402,7 @@ except AttributeError:
     pass
 
 
-class _LazyArtifact(wandb_artifacts.Artifact):
+class _LazyArtifact(ArtifactInterface):
 
     # _api: PublicApi
     _instance = None
@@ -2392,11 +2412,15 @@ class _LazyArtifact(wandb_artifacts.Artifact):
         self._api = api
         self._future = future
 
-    def __getattr__(self, item):
+    def _assert_instance(self):
         if not self._instance:
             raise ValueError(
                 "Must call wait() before accessing logged artifact properties"
             )
+        return self._instance
+
+    def __getattr__(self, item):
+        self._assert_instance()
         return getattr(self._instance, item)
 
     def wait(self):
@@ -2407,3 +2431,128 @@ class _LazyArtifact(wandb_artifacts.Artifact):
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
         assert isinstance(self._instance, ArtifactInterface)
         return self._instance
+
+    @property
+    def id(self):
+        return self._assert_instance().id
+
+    @property
+    def version(self):
+        return self._assert_instance().version
+
+    @property
+    def name(self):
+        return self._assert_instance().name
+
+    @property
+    def type(self):
+        return self._assert_instance().type
+
+    @property
+    def entity(self):
+        return self._assert_instance().entity
+
+    @property
+    def project(self):
+        return self._assert_instance().project
+
+    @property
+    def manifest(self):
+        return self._assert_instance().manifest
+
+    @property
+    def digest(self):
+        return self._assert_instance().digest
+
+    @property
+    def state(self):
+        return self._assert_instance().state
+
+    @property
+    def size(self):
+        return self._assert_instance().size
+
+    @property
+    def commit_hash(self):
+        return self._assert_instance().commit_hash
+
+    @property
+    def description(self):
+        return self._assert_instance().description
+
+    @description.setter
+    def description(self, desc):
+        self._assert_instance().description = desc
+
+    @property
+    def metadata(self):
+        return self._assert_instance().metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self._assert_instance().metadata = metadata
+
+    @property
+    def aliases(self):
+        return self._assert_instance().aliases
+
+    @aliases.setter
+    def aliases(self, aliases):
+        self._assert_instance().aliases = aliases
+
+    def used_by(self):
+        return self._assert_instance().used_by()
+
+    def logged_by(self):
+        return self._assert_instance().logged_by()
+
+    # Commenting this block out since this code is unreachable since LocalArtifact
+    # overrides them and therefore untestable.
+    # Leaving behind as we may want to support these in the future.
+
+    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().new_file(name, mode)
+
+    # def add_file(
+    #     self,
+    #     local_path: str,
+    #     name: Optional[str] = None,
+    #     is_tmp: Optional[bool] = False,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_file(local_path, name, is_tmp)
+
+    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    #     return self._assert_instance().add_dir(local_path, name)
+
+    # def add_reference(
+    #     self,
+    #     uri: Union["ArtifactEntry", str],
+    #     name: Optional[str] = None,
+    #     checksum: bool = True,
+    #     max_objects: Optional[int] = None,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+
+    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add(obj, name)
+
+    def get_path(self, name):
+        return self._assert_instance().get_path(name)
+
+    def get(self, name):
+        return self._assert_instance().get(name)
+
+    def download(self, root = None, recursive = False):
+        return self._assert_instance().download(root, recursive)
+
+    def checkout(self, root = None):
+        return self._assert_instance().checkout(root)
+
+    def verify(self, root = None):
+        return self._assert_instance().verify(root)
+
+    def save(self):
+        return self._assert_instance().save()
+
+    def delete(self):
+        return self._assert_instance().delete()

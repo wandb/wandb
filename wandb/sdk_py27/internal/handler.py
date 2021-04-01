@@ -21,11 +21,16 @@ from ..lib import proto_util
 
 if wandb.TYPE_CHECKING:
     from typing import (
+        TYPE_CHECKING,
         Any,
         Callable,
         Dict,
+        List,
+        Tuple,
+        Sequence,
         Iterable,
         Optional,
+        cast,
     )
     from .settings_static import SettingsStatic
     from six.moves.queue import Queue
@@ -37,6 +42,18 @@ if wandb.TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _dict_nested_set(target, key_list, v):
+    # recurse down the dictionary structure:
+    for k in key_list[:-1]:
+        target.setdefault(k, {})
+        new_target = target.get(k)
+        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            new_target = cast(Dict[str, Any], new_target)
+        target = new_target
+    # use the last element of the key to write the leaf:
+    target[key_list[-1]] = v
 
 
 class HandleManager(object):
@@ -54,7 +71,8 @@ class HandleManager(object):
     # _tb_watcher: Optional[tb_watcher.TBWatcher]
     # _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
     # _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
-    # _metric_track: Dict[str, float]
+    # _metric_track: Dict[Tuple[str, ...], float]
+    # _metric_copy: Dict[Tuple[str, ...], Any]
 
     def __init__(
         self,
@@ -84,6 +102,7 @@ class HandleManager(object):
         self._metric_defines = dict()
         self._metric_globs = dict()
         self._metric_track = dict()
+        self._metric_copy = dict()
 
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
@@ -178,81 +197,126 @@ class HandleManager(object):
     def _update_summary_metrics(
         self,
         s,
-        k,
+        kl,
         v,
         float_v,
         goal_max,
     ):
         updated = False
         best_key = None
+        if s.none:
+            return False
+        if s.copy:
+            # non key list copy already done in _update_summary
+            if len(kl) > 1:
+                _dict_nested_set(self._consolidated_summary, kl, v)
+                return True
+        if s.last:
+            last_key = tuple(kl + ["last"])
+            old_last = self._metric_track.get(last_key)
+            if old_last is None or float_v != old_last:
+                self._metric_track[last_key] = float_v
+                _dict_nested_set(self._consolidated_summary, last_key, v)
+                updated = True
         if s.best:
-            best_key = k + ".best"
+            best_key = tuple(kl + ["best"])
         if s.max or best_key and goal_max:
-            max_key = k + ".max"
+            max_key = tuple(kl + ["max"])
             old_max = self._metric_track.get(max_key)
             if old_max is None or float_v > old_max:
                 self._metric_track[max_key] = float_v
                 if s.max:
-                    self._consolidated_summary[max_key] = v
+                    _dict_nested_set(self._consolidated_summary, max_key, v)
                     updated = True
                 if best_key:
-                    self._consolidated_summary[best_key] = v
+                    _dict_nested_set(self._consolidated_summary, best_key, v)
                     updated = True
         # defaulting to minimize if goal is not supecified
         if s.min or best_key and not goal_max:
-            min_key = k + ".min"
+            min_key = tuple(kl + ["min"])
             old_min = self._metric_track.get(min_key)
             if old_min is None or float_v < old_min:
                 self._metric_track[min_key] = float_v
                 if s.min:
-                    self._consolidated_summary[min_key] = v
+                    _dict_nested_set(self._consolidated_summary, min_key, v)
                     updated = True
                 if best_key:
-                    self._consolidated_summary[best_key] = v
+                    _dict_nested_set(self._consolidated_summary, best_key, v)
                     updated = True
         if s.mean:
-            tot_key = k + ".tot"
-            num_key = k + ".num"
-            avg_key = k + ".mean"
+            tot_key = tuple(kl + ["tot"])
+            num_key = tuple(kl + ["num"])
+            avg_key = tuple(kl + ["mean"])
             tot = self._metric_track.get(tot_key, 0.0)
             num = self._metric_track.get(num_key, 0)
             tot += float_v
             num += 1
             self._metric_track[tot_key] = tot
             self._metric_track[num_key] = num
-            self._consolidated_summary[avg_key] = tot / num
+            _dict_nested_set(self._consolidated_summary, avg_key, tot / num)
+            updated = True
+        return updated
+
+    def _update_summary_leaf(
+        self,
+        kl,
+        v,
+        d = None,
+    ):
+        has_summary = d and d.HasField("summary")
+        if len(kl) == 1:
+            copy_key = tuple(kl)
+            old_copy = self._metric_copy.get(copy_key)
+            if old_copy is None or v != old_copy:
+                self._metric_copy[copy_key] = v
+                # Store copy metric if not specified, or copy behavior
+                if not has_summary or (d and d.summary.copy):
+                    self._consolidated_summary[kl[0]] = v
+                    return True
+        if not d:
+            return False
+        if not has_summary:
+            return False
+        if not isinstance(v, numbers.Real):
+            return False
+        if math.isnan(v):
+            return False
+        float_v = float(v)
+        goal_max = None
+        if d.goal:
+            goal_max = d.goal == d.GOAL_MAXIMIZE
+        if self._update_summary_metrics(
+            d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
+        ):
+            return True
+        return False
+
+    def _update_summary_list(
+        self,
+        kl,
+        v,
+        d = None,
+    ):
+        metric_key = ".".join([k.replace(".", "\\.") for k in kl])
+        d = self._metric_defines.get(metric_key, d)
+        if isinstance(v, dict):
+            updated = False
+            for nk, nv in six.iteritems(v):
+                if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
+                    updated = True
+            return updated
+        updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
 
     def _update_summary(self, history_dict):
+        # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
             self._consolidated_summary.update(history_dict)
             return True
         updated = False
         for k, v in six.iteritems(history_dict):
-            # TODO(jhr): handle nested metrics
-            d = self._metric_defines.get(k, None)
-
-            # Always store last metric (for now)
-            old_last = self._metric_track.get(k)
-            if old_last is None or v != old_last:
-                self._metric_track[k] = v
-                self._consolidated_summary[k] = v
+            if self._update_summary_list(kl=[k], v=v):
                 updated = True
-            if not d:
-                continue
-            if not isinstance(v, numbers.Real):
-                continue
-            if math.isnan(v):
-                continue
-            float_v = float(v)
-            if d.summary:
-                goal_max = None
-                if d.goal:
-                    goal_max = d.goal == d.GOAL_MAXIMIZE
-                if self._update_summary_metrics(
-                    d.summary, k=k, v=v, float_v=float_v, goal_max=goal_max
-                ):
-                    updated = True
         return updated
 
     def _history_assign_step(self, record, history_dict):
@@ -282,9 +346,47 @@ class HandleManager(object):
                     m = wandb_internal_pb2.MetricRecord()
                     m.CopyFrom(mglob)
                     m.ClearField("glob_name")
+                    m.options.defined = False
                     m.name = hkey
                     return m
         return None
+
+    def _history_update_leaf(
+        self, kl, v, history_dict, update_history
+    ):
+        hkey = ".".join([k.replace(".", "\\.") for k in kl])
+        m = self._metric_defines.get(hkey)
+        if not m:
+            m = self._history_define_metric(hkey)
+            if not m:
+                return
+            mr = wandb_internal_pb2.Record()
+            mr.metric.CopyFrom(m)
+            mr.control.local = True  # Dont store this, just send it
+            self._handle_defined_metric(mr)
+
+        if m.options.step_sync and m.step_metric:
+            if m.step_metric not in history_dict:
+                copy_key = tuple([m.step_metric])
+                step = self._metric_copy.get(copy_key)
+                if step is not None:
+                    update_history[m.step_metric] = step
+
+    def _history_update_list(
+        self, kl, v, history_dict, update_history
+    ):
+        if isinstance(v, dict):
+            for nk, nv in six.iteritems(v):
+                self._history_update_list(
+                    kl=kl[:] + [nk],
+                    v=nv,
+                    history_dict=history_dict,
+                    update_history=update_history,
+                )
+            return
+        self._history_update_leaf(
+            kl=kl, v=v, history_dict=history_dict, update_history=update_history
+        )
 
     def _history_update(self, record, history_dict):
         # if syncing an old run, we can skip this logic
@@ -293,22 +395,9 @@ class HandleManager(object):
 
         update_history = {}
         # Look for metric matches
-        for hkey in history_dict:
-            m = self._metric_defines.get(hkey)
-            if not m:
-                m = self._history_define_metric(hkey)
-                if not m:
-                    continue
-                mr = wandb_internal_pb2.Record()
-                mr.metric.CopyFrom(m)
-                mr.control.local = True  # Dont store this, just send it
-                self._handle_defined_metric(mr)
-
-            if m.options.step_sync and m.step_metric:
-                if m.step_metric not in history_dict:
-                    step = self._metric_track.get(m.step_metric)
-                    if step is not None:
-                        update_history[m.step_metric] = step
+        if self._metric_defines or self._metric_globs:
+            for hkey, hval in six.iteritems(history_dict):
+                self._history_update_list([hkey], hval, history_dict, update_history)
 
         if update_history:
             history_dict.update(update_history)

@@ -13,6 +13,7 @@ import os
 import time
 
 from pkg_resources import parse_version
+import requests
 from six.moves import queue
 import wandb
 from wandb import util
@@ -45,7 +46,7 @@ def _framework_priority(
     yield imp.lightgbm, "lightgbm"
     yield imp.catboost, "catboost"
     yield imp.xgboost, "xgboost"
-    yield imp.transformers, "huggingface"
+    yield imp.transformers_huggingface, "huggingface"
     yield imp.pytorch_ignite, "ignite"
     yield imp.pytorch_lightning, "lightning"
     yield imp.fastai, "fastai"
@@ -82,8 +83,6 @@ class SendManager(object):
         # keep track of config from key/val updates
         self._consolidated_config = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
-        # TODO: remove default_xaxis
-        self._config_default_xaxis = None
         self._config_metric_pbdict_list = []
         self._config_metric_index_dict = {}
         self._config_metric_dict = {}
@@ -456,9 +455,6 @@ class SendManager(object):
             return
         wandb_key = "_wandb"
         config_dict.setdefault(wandb_key, dict())
-        # TODO(jhr): remove this
-        if self._config_default_xaxis:
-            config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
         config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
     def _config_format(self, config_data):
@@ -472,6 +468,24 @@ class SendManager(object):
     def _config_save(self, config_value_dict):
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
+
+    def _sync_spell(self, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            self._interface.publish_config(
+                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
+            )
+            url = "{}/{}/{}/runs/{}".format(
+                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
+            )
+            return requests.put(
+                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
+                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
+                timeout=2,
+            )
+        except requests.RequestException:
+            return False
 
     def send_run(self, data):
         run = data.run
@@ -601,6 +615,8 @@ class SendManager(object):
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
+        if os.getenv("SPELL_RUN_URL"):
+            self._sync_spell()
 
     def _start_run_threads(self):
         self._fs = file_stream.FileStreamApi(
@@ -688,6 +704,8 @@ class SendManager(object):
         line = out.line
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
+            if line.startswith("\r"):
+                self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
             # we might need this for other stuff like telemetry
@@ -731,12 +749,6 @@ class SendManager(object):
             old_metric.MergeFrom(metric)
         self._config_metric_dict[metric.name] = old_metric
         metric = old_metric
-
-        # TODO(jhr): remove this code before shipping (only for prototype UI)
-        if metric.step_metric:
-            if metric.step_metric != self._config_default_xaxis:
-                self._config_default_xaxis = metric.step_metric
-                self._update_config()
 
         # convert step_metric to index
         if metric.step_metric:
