@@ -350,7 +350,7 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     internal_sender.publish_output("stdout", "\rFinal line baby\n")
     stop_backend()
     print("DUDE!", mock_server.ctx)
-    stream = first_filstream(mock_server.ctx)
+    stream = first_filestream(mock_server.ctx)
     assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 
