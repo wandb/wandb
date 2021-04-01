@@ -650,7 +650,7 @@ def create_app(user_ctx=None):
             if "logged_table" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 3, "name": "run_table"}
             if "validation_data_wbkc" in body["variables"]["name"]:
-                    art["artifactType"] = {"id": 4, "name": "auto_table"}
+                art["artifactType"] = {"id": 4, "name": "auto_table"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)

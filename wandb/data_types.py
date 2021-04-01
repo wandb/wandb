@@ -761,6 +761,28 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    def add_computed_columns(self, fn):
+        """Adds one or more computed columns based on existing data
+
+        Args:
+            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+                which is expected to return a dict representing new columns for that row, keyed
+                by the new column names.
+                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                        is set to true
+                    - `row` is a dictionary keyed by existing columns
+        """
+        new_columns = {}
+        for ndx, row in self.iterrows():
+            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            new_row_dict = fn(ndx, row_dict)
+            assert isinstance(new_row_dict)
+            for key in new_row_dict:
+                new_columns[key] = new_columns.get(key, [])
+                new_columns[key].append(new_row_dict[key])
+        for new_col_name in new_columns:
+            self.add_column(new_col_name, new_columns[new_col_name])
+
 
 class _PartitionTablePartEntry:
     """Helper class for PartitionTable to track its parts

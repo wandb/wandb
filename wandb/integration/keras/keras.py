@@ -424,16 +424,17 @@ class WandbCallback(keras.callbacks.Callback):
         #     else:
         #         return transformer
 
-        def make_dict(processor):
-            if processor is None or isinstance(processor, dict):
-                return processor
-            else:
-                return {"processed": processor}
+        # def make_dict(processor):
+        #     if processor is None or isinstance(processor, dict):
+        #         return processor
+        #     else:
+        #         return {"processed": processor}
 
-        self.val_keys = val_keys
-        self.val_input_processor = make_dict(val_input_processor)
-        self.val_target_processor = make_dict(val_target_processor)
-        self.val_output_processor = make_dict(val_output_processor)
+        # self.val_keys = val_keys
+        # self.val_input_processor = make_dict(val_input_processor)
+        # self.val_target_processor = make_dict(val_target_processor)
+        # self.val_output_processor = make_dict(val_output_processor)
+        self.validation_data_logger = None
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -582,6 +583,11 @@ class WandbCallback(keras.callbacks.Callback):
                 self.val_target_processor = {
                     "lbl": lambda x: self.labels[np.squeeze(x)]
                 }
+
+        if self.log_evaluation:
+            self.validation_data_logger = (
+                wandb.wandb_sdk.integration_utils.ValidationDataLogger()
+            )
 
         if self.log_evaluation and self.val_keys is None:
             val_x = self.validation_data[0]
