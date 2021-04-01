@@ -33,10 +33,10 @@ def wandb_dir(root_dir=None):
     if root_dir is None or root_dir == "":
         try:
             cwd = os.getcwd()
-            root_dir = env.get_dir(cwd)
         except OSError:
             termwarn("os.getcwd() no longer exists, using system temp directory")
-            root_dir = tempfile.gettempdir()
+            cwd = tempfile.gettempdir()
+        root_dir = env.get_dir(cwd)
     path = os.path.join(root_dir, __stage_dir__ or ("wandb" + os.sep))
     if not os.access(root_dir, os.W_OK):
         termwarn("Path %s wasn't writable, using system temp directory" % path)
