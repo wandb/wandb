@@ -94,4 +94,3 @@ def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
 def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
     with pytest.raises(TypeError):
         test_settings.strict = "bad"
-        run = wandb.init(settings=test_settings)

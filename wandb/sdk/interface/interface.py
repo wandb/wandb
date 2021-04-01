@@ -137,12 +137,7 @@ class MessageRouter(object):
         with self._lock:
             future = self._pending_reqs.pop(msg.uuid, None)
         if future is None:
-            # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
-            # could point to other issues.
-            if msg.uuid != "":
-                logger.warning(
-                    "No listener found for msg with uuid %s (%s)", msg.uuid, msg
-                )
+            logger.warning("No listener found for msg with uuid %s (%s)", msg.uuid, msg)
             return
         future._set_object(msg)
 
