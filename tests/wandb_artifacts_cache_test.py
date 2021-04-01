@@ -22,12 +22,13 @@ def test_check_md5_obj_path(runner):
 
         md5 = base64.b64encode("abcdef".encode("ascii"))
         path, exists, opener = cache.check_md5_obj_path(md5, 10)
+        expected_path = os.path.join("cache", "obj", "md5", "61", "6263646566")
         with opener() as f:
             f.write("hi")
         with open(path) as f:
             contents = f.read()
 
-        assert path == "cache/obj/md5/61/6263646566"
+        assert path == expected_path
         assert exists is False
         assert contents == "hi"
 
@@ -39,12 +40,13 @@ def test_check_etag_obj_path(runner):
 
         etag = "abcdef"
         path, exists, opener = cache.check_etag_obj_path(etag, 10)
+        expected_path = os.path.join("cache", "obj", "etag", "ab", "cdef")
         with opener() as f:
             f.write("hi")
         with open(path) as f:
             contents = f.read()
 
-        assert path == "cache/obj/etag/ab/cdef"
+        assert path == expected_path
         assert exists is False
         assert contents == "hi"
 
@@ -62,7 +64,8 @@ def test_check_write_parallel(runner):
 
         # Regardless of the ordering, we should be left with one
         # file at the end.
-        assert os.listdir("cache/obj/etag/ab") == ["cdef"]
+        path = os.path.join("cache", "obj", "etag", "ab")
+        assert os.listdir(path) == ["cdef"]
 
 
 def test_artifacts_cache_cleanup_empty(runner):
@@ -75,18 +78,23 @@ def test_artifacts_cache_cleanup_empty(runner):
 
 def test_artifacts_cache_cleanup(runner):
     with runner.isolated_filesystem():
-        os.makedirs("cache/obj/md5/aa/")
-        with open("cache/obj/md5/aa/aardvark", "w") as f:
+        cache_root = os.path.join("cache", "obj", "md5")
+
+        path_1 = os.path.join(cache_root, "aa")
+        os.makedirs(path_1)
+        with open(os.path.join(path_1, "aardvark"), "w") as f:
             f.truncate(5000)
         time.sleep(0.1)
 
-        os.makedirs("cache/obj/md5/ab/")
-        with open("cache/obj/md5/ab/absolute", "w") as f:
+        path_2 = os.path.join(cache_root, "ab")
+        os.makedirs(path_2)
+        with open(os.path.join(path_2, "absolute"), "w") as f:
             f.truncate(2000)
         time.sleep(0.1)
 
-        os.makedirs("cache/obj/md5/ac/")
-        with open("cache/obj/md5/ac/accelerate", "w") as f:
+        path_3 = os.path.join(cache_root, "ac")
+        os.makedirs(path_3)
+        with open(os.path.join(path_3, "accelerate"), "w") as f:
             f.truncate(1000)
 
         cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
@@ -98,8 +106,9 @@ def test_artifacts_cache_cleanup(runner):
 
 def test_artifacts_cache_cleanup_tmp_files(runner):
     with runner.isolated_filesystem():
-        os.makedirs("cache/obj/md5/aa/")
-        with open("cache/obj/md5/aa/tmp_abc", "w") as f:
+        path = os.path.join("cache", "obj", "md5", "aa")
+        os.makedirs(path)
+        with open(os.path.join(path, "tmp_abc"), "w") as f:
             f.truncate(1000)
 
         cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
