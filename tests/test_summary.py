@@ -28,5 +28,5 @@ def test_summary_media_setitem(api, mock_server):
         run.summary["img"] = wandb.Image(np.random.random((100, 100)))
         run.summary.update()
         raise Exception()
-    except Exception:
-        pass
+    except Exception as e:
+        assert "Cannot bind Media object" in str(e)
