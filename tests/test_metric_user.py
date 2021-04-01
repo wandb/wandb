@@ -33,6 +33,7 @@ def test_metric_run_metric_obj(user_test):
     glob_metric.options.defined = True
     step_metric = pb.MetricRecord(name="val", step_metric="glob")
     step_metric.options.defined = True
+    step_metric.options.step_sync = True
     assert mr1 == glob_metric
     assert mr2 == step_metric
 
@@ -138,11 +139,14 @@ def test_metric_prop_stepsync(user_test):
     m = run.define_metric("metric", step_metric="globalstep", step_sync=True)
     assert m.step_sync is True
     m2 = run.define_metric("metric2", step_metric="globalstep")
-    assert not m2.step_sync
+    # default is true when step_metric is set
+    assert m2.step_sync
+    m3 = run.define_metric("metric3", step_metric="globalstep", step_sync=False)
+    assert not m3.step_sync
 
     r = user_test.get_records()
-    assert len(r.records) == 2
-    assert len(r.metric) == 2
+    assert len(r.records) == 3
+    assert len(r.metric) == 3
 
 
 def test_metric_prop_summary(user_test):

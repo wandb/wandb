@@ -158,7 +158,7 @@ def _gen_metric_sync_step(run):
 
 def test_metric_no_sync_step(live_mock_server, parse_ctx):
     run = wandb.init()
-    run.define_metric("val", summary="min", step_metric="mystep")
+    run.define_metric("val", summary="min", step_metric="mystep", step_sync=False)
     _gen_metric_sync_step(run)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
