@@ -692,12 +692,8 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if request.method == "PUT":
-            curr = ctx["file_bytes"].get(file)
-            if curr is None:
-                ctx["file_bytes"].setdefault(file, 0)
-                ctx["file_bytes"][file] += request.content_length
-            else:
-                ctx["file_bytes"][file] += request.content_length
+            ctx["file_bytes"].setdefault(file, 0)
+            ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
             if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
