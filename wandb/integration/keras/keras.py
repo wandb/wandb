@@ -477,8 +477,9 @@ class WandbCallback(keras.callbacks.Callback):
                         self.model.predict
                     )
                 )
-            except:
-                pass
+            except Exception as e:
+                # TODO: Perhaps we should not raise here, but rather log?
+                raise e
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
@@ -548,8 +549,9 @@ class WandbCallback(keras.callbacks.Callback):
                     prediction_row_processor=self.prediction_row_processor,
                     class_labels=self.labels,
                 )
-            except:
-                pass
+            except Exception as e:
+                # TODO: Perhaps we should not raise here, but rather log?
+                raise e
 
     def on_train_end(self, logs=None):
         pass

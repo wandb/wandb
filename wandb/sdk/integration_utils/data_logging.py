@@ -218,6 +218,9 @@ def _infer_single_example_keyed_processor(
         else:
             processors["class"] = lambda n, d, p: d[0]
     elif len(shape) == 1 and shape[0] <= 10:
+        np = wandb.util.get_module(
+            "numpy", required="Infering processors require numpy",
+        )
         # This could be anything
         if shape[0] <= 10:
             # if less than 10, fan out the results
