@@ -471,11 +471,14 @@ class WandbCallback(keras.callbacks.Callback):
                 )
 
         if self.log_evaluation and self.validation_data_logger:
-            self.validation_data_logger.log_predictions(
-                predictions=self.validation_data_logger.make_predictions(
-                    self.model.predict
+            try:
+                self.validation_data_logger.log_predictions(
+                    predictions=self.validation_data_logger.make_predictions(
+                        self.model.predict
+                    )
                 )
-            )
+            except:
+                pass
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
@@ -536,14 +539,17 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_begin(self, logs=None):
         if self.log_evaluation:
-            self.validation_data_logger = ValidationDataLogger(
-                inputs=self.validation_data[0],
-                targets=self.validation_data[1],
-                indexes=self.validation_indexes,
-                validation_row_processor=self.validation_row_processor,
-                prediction_row_processor=self.prediction_row_processor,
-                class_labels=self.labels,
-            )
+            try:
+                self.validation_data_logger = ValidationDataLogger(
+                    inputs=self.validation_data[0],
+                    targets=self.validation_data[1],
+                    indexes=self.validation_indexes,
+                    validation_row_processor=self.validation_row_processor,
+                    prediction_row_processor=self.prediction_row_processor,
+                    class_labels=self.labels,
+                )
+            except:
+                pass
 
     def on_train_end(self, logs=None):
         pass
