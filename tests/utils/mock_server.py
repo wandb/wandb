@@ -31,6 +31,7 @@ def default_ctx():
         "k8s": False,
         "resume": False,
         "file_bytes": 0,
+        "manifests_created": [],
     }
 
 
@@ -548,6 +549,11 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+
+            state = "COMMITTED"
+            if body.get("variables", {}).get("artifactCollectionNames", [""])[0] == "incremental-arty":
+                state = "PENDING"
+
             return {
                 "data": {
                     "createArtifact": {
@@ -555,6 +561,7 @@ def create_app(user_ctx=None):
                             ctx,
                             collection_name,
                             id_override=body.get("variables", {}).get("digest", ""),
+                            state=state
                         )
                     }
                 }
@@ -669,6 +676,21 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation CreateArtifactManifest(" in body["query"]:
+            manifest_type = body.get("variables", {}).get("type") or "FULL"
+            manifest = {
+                "artifactManifest": {
+                    "id": "manifestID",
+                    "type": manifest_type,
+                    "createdAt": "",
+                    "digest": "",
+                    "artifact": {},
+                    "file": ""
+                }
+            }
+
+            ctx["manifests_created"].append(manifest)
+            return json.dumps(manifest)
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
@@ -1000,6 +1022,10 @@ class ParseCTX(object):
     @property
     def metrics(self):
         return self.config.get("_wandb", {}).get("value", {}).get("m")
+
+    @property
+    def manifests_created(self):
+        return self._ctx.get("manifests_created") or []
 
 
 if __name__ == "__main__":
