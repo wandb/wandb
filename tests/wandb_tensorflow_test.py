@@ -222,20 +222,14 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
     server_ctx = live_mock_server.get_ctx()
     print("CONTEXT!", server_ctx)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
-    file_updates = ctx_util.get_filestream_file_updates()
-    first_stream_hist = file_updates["wandb-history.jsonl"][-1]
-    second_stream_hist = file_updates["wandb-history.jsonl"][-3]
-    print("FIRST", first_stream_hist)
-    print("SECOND", second_stream_hist)
+    history = ctx_util.history
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
         " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
     ) in term.PRINTED_MESSAGES
-    assert json.loads(first_stream_hist["content"][-1])["_step"] == 20
-    assert (
-        json.loads(second_stream_hist["content"][-1])["wandb_logged_val_with_step"] == 9
-    )
-    assert json.loads(second_stream_hist["content"][-2])["wandb_logged_val"] == 81
+    assert history[9]["wandb_logged_val"] == 81
+    assert history[10]["wandb_logged_val_with_step"] == 9
+    assert history[-1]["_step"] == 20
     wandb.tensorboard.unpatch()
 
 
