@@ -13,19 +13,8 @@ if wandb.TYPE_CHECKING:
         from wandb.data_types import _TableIndex
 
 
-# TODO: Add automated inference types
-#  - model output len(shape) == 1
-#    - argmin, argmax
-#    - if shape[0] == class length, also do a lookup for both and logits
-#  - model input:
-#     - 1d audio?
-#     - 2d: image
-#     - 3d image
-#     - 4d video (mp4)
-#  - support for named inoputs and outpouts
-# targets - classification (class labels defined)
-#          - binary
-#         - regression
+# TODO: Generalize the datalogger to build a dataset
+# TODO: factor out ability to pass a tables to a labels list (this is an odd overload)
 
 
 class ValidationDataLogger(object):
