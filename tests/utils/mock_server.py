@@ -551,7 +551,10 @@ def create_app(user_ctx=None):
             ctx["artifacts"][collection_name].append(body["variables"])
 
             state = "COMMITTED"
-            if body.get("variables", {}).get("artifactCollectionNames", [""])[0] == "incremental-arty":
+            if (
+                body.get("variables", {}).get("artifactCollectionNames", [""])[0]
+                == "incremental-arty"
+            ):
                 state = "PENDING"
 
             return {
@@ -561,7 +564,7 @@ def create_app(user_ctx=None):
                             ctx,
                             collection_name,
                             id_override=body.get("variables", {}).get("digest", ""),
-                            state=state
+                            state=state,
                         )
                     }
                 }
@@ -685,7 +688,7 @@ def create_app(user_ctx=None):
                     "createdAt": "",
                     "digest": "",
                     "artifact": {},
-                    "file": ""
+                    "file": "",
                 }
             }
 
