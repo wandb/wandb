@@ -5,7 +5,6 @@ module sdk
 """
 
 from . import wandb_helper as helper  # noqa: F401
-from .integration_utils import data_logging  # noqa: F401
 from .wandb_alerts import AlertLevel  # noqa: F401
 from .wandb_artifacts import Artifact  # noqa: F401
 from .wandb_config import Config  # noqa: F401

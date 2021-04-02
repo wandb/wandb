@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib sdk/verify"
+CODEMOD_DIRS="sdk sdk/internal sdk/interface sdk/backend sdk/lib sdk/verify sdk/integration_utils"
 
 CODEMOD_SRC_BASE="wandb"
 CODEMOD_DEST_SUFFIX="_py27"

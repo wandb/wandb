@@ -18,6 +18,11 @@ from wandb.util import add_import_hook
 from importlib import import_module
 from itertools import chain
 
+if wandb.TYPE_CHECKING:
+    from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+else:
+    from wandb.sdk_py27.integration_utils.data_logging import ValidationDataLogger
+
 
 def is_dataset(data):
     dataset_ops = wandb.util.get_module("tensorflow.python.data.ops.dataset_ops")
@@ -531,7 +536,7 @@ class WandbCallback(keras.callbacks.Callback):
 
     def on_train_begin(self, logs=None):
         if self.log_evaluation:
-            self.validation_data_logger = wandb.wandb_sdk.integration_utils.data_logging.ValidationDataLogger(
+            self.validation_data_logger = ValidationDataLogger(
                 inputs=self.validation_data[0],
                 targets=self.validation_data[1],
                 indexes=self.validation_indexes,
