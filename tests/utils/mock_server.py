@@ -644,13 +644,10 @@ def create_app(user_ctx=None):
                 return {"data": {"artifact": art}}
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
-            app.logger.info(body["variables"]["name"])
             if "source" not in body["variables"]["name"]:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             if "logged_table" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 3, "name": "run_table"}
-            if "validation_data_wbkc" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "auto_table"}
             if "run-" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 4, "name": "run_table"}
             return {"data": {"project": {"artifact": art}}}
@@ -720,33 +717,6 @@ def create_app(user_ctx=None):
                     },
                 }
             elif _id == "f006aa8f99aa79d7b68e079c0a200d21":
-                return {
-                    "version": 1,
-                    "storagePolicy": "wandb-storage-policy-v1",
-                    "storagePolicyConfig": {},
-                    "contents": {
-                        "logged_table.table.json": {
-                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
-                            "size": 81299,
-                        }
-                    },
-                }
-            elif _id == "b9a598178557aed1d89bd93ec0db989b":
-                return {
-                    "version": 1,
-                    "storagePolicy": "wandb-storage-policy-v1",
-                    "storagePolicyConfig": {},
-                    "contents": {
-                        "logged_table_2.table.json": {
-                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
-                            "size": 81299,
-                        }
-                    },
-                }
-            elif (
-                _id == "f006aa8f99aa79d7b68e079c0a200d21"
-                or _id == "855833ebb44e00d75396efaa44c14f0a"
-            ):
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",

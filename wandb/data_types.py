@@ -1738,7 +1738,9 @@ class _TableForeignKeyType(_dtypes.Type):
         res = super(_TableForeignKeyType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
-            entry = artifact.add(self.params["table"], table_name)
+            entry = artifact.add(
+                self.params["table"], table_name, _rename_deterministically=True
+            )
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(

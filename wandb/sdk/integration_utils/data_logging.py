@@ -195,10 +195,10 @@ def _infer_single_example_keyed_processor(
         )
         # Assume these are logits
         class_names = class_labels_table.get_column("label")
-        processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(
+        processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
             np.argmax(d)
         )
-        processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(
+        processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
             np.argmin(d)
         )
         processors["scores"] = lambda n, d, p: {
@@ -209,12 +209,12 @@ def _infer_single_example_keyed_processor(
         and shape[0] == 1
         and (
             isinstance(example[0], int)
-            or (hasattr(example, "tolist") and isinstance(example.tolist()[0], int))
+            or (hasattr(example, "tolist") and isinstance(example.tolist()[0], int))  # type: ignore
         )
     ):
         # assume this is a class
         if class_labels_table is not None:
-            processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0])
+            processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0])  # type: ignore
         else:
             processors["class"] = lambda n, d, p: d[0]
     elif len(shape) == 1 and shape[0] <= 10:
@@ -235,7 +235,7 @@ def _infer_single_example_keyed_processor(
                 masks={
                     "masks": {
                         "mask_data": d,
-                        "class_labels": class_labels_table.get_column("label"),
+                        "class_labels": class_labels_table.get_column("label"),  # type: ignore
                     }
                 },
             )
