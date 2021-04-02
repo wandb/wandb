@@ -119,7 +119,14 @@ class _TableKey(str, _TableLinkMixin):
 
 
 class _TableIndex(int, _TableLinkMixin):
-    pass
+    def get_row(self):
+        row = {}
+        if self._table:
+            row = {
+                c: self._table.data[self][i] for i, c in enumerate(self._table.columns)
+            }
+
+        return row
 
 
 def _json_helper(val, artifact):

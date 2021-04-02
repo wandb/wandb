@@ -7,7 +7,7 @@ import wandb
 if wandb.TYPE_CHECKING:
 
     from typing import TYPE_CHECKING, Callable, Dict, Union, Optional, List, Any
-    from collections.abc import Iterator
+    from collections.abc import Sequence
 
     if TYPE_CHECKING:
         from wandb.data_types import _TableIndex
@@ -29,8 +29,8 @@ if wandb.TYPE_CHECKING:
 
 
 class ValidationDataLogger(object):
-    validation_inputs: Union[Iterator, Dict[str, Iterator]]
-    validation_targets: Optional[Union[Iterator, Dict[str, Iterator]]]
+    validation_inputs: Union[Sequence, Dict[str, Sequence]]
+    validation_targets: Optional[Union[Sequence, Dict[str, Sequence]]]
     validation_indexes: List["_TableIndex"]
     prediction_row_processor: Optional[Callable]
     class_labels_table: Optional["wandb.Table"]
@@ -38,8 +38,8 @@ class ValidationDataLogger(object):
 
     def __init__(
         self,
-        inputs: Union[Iterator, Dict[str, Iterator]],
-        targets: Optional[Union[Iterator, Dict[str, Iterator]]] = None,
+        inputs: Union[Sequence, Dict[str, Sequence]],
+        targets: Optional[Union[Sequence, Dict[str, Sequence]]] = None,
         indexes: Optional[List["_TableIndex"]] = None,
         validation_row_processor: Optional[Callable] = None,
         prediction_row_processor: Optional[Callable] = None,
@@ -51,7 +51,7 @@ class ValidationDataLogger(object):
         infer_missing_processors: bool = True,
     ):
         class_labels_table: Optional["wandb.Table"]
-        if isinstance(class_labels, list):
+        if isinstance(class_labels, list) and len(class_labels) > 0:
             class_labels_table = wandb.Table(
                 columns=["label"], data=[[label] for label in class_labels]
             )
@@ -80,7 +80,11 @@ class ValidationDataLogger(object):
                 example_target = _make_example(targets)
                 if example_input is not None and example_target is not None:
                     validation_row_processor = _infer_validation_row_processor(
-                        example_input, example_target, class_labels_table
+                        example_input,
+                        example_target,
+                        class_labels_table,
+                        input_col_name,
+                        target_col_name,
                     )
 
             if validation_row_processor is not None:
@@ -101,13 +105,14 @@ class ValidationDataLogger(object):
         self.prediction_row_processor = prediction_row_processor
         self.infer_missing_processors = infer_missing_processors
         self.local_validation_artifact = local_validation_artifact
+        self.input_col_name = input_col_name
 
     def make_predictions(self, predict_fn):
         return predict_fn(self.validation_inputs)
 
     def log_predictions(
         self,
-        predictions: Union[Iterator, Dict[str, Iterator]],
+        predictions: Union[Sequence, Dict[str, Sequence]],
         prediction_col_name: str = "output",
         val_ndx_col_name: str = "val_ndx",
         table_name: str = "validation_predictions",
@@ -127,17 +132,19 @@ class ValidationDataLogger(object):
         if self.prediction_row_processor is None and self.infer_missing_processors:
             example_prediction = _make_example(predictions)
             example_input = _make_example(self.validation_inputs)
-            example_target = _make_example(self.validation_targets)
+            # example_target = _make_example(self.validation_targets)
             if (
                 example_prediction is not None
-                and example_target is not None
+                # and example_target is not None
                 and example_input is not None
             ):
                 self.prediction_row_processor = _infer_prediction_row_processor(
                     example_prediction,
                     example_input,
-                    example_target,
+                    # example_target,
                     self.class_labels_table,
+                    self.input_col_name,
+                    prediction_col_name,
                 )
 
         if self.prediction_row_processor is not None:
@@ -146,8 +153,8 @@ class ValidationDataLogger(object):
         wandb.log({table_name: pred_table})
 
 
-def _make_example(data: Any) -> Optional[Union[Dict, Iterator, Any]]:
-    example: Optional[Union[Dict, Iterator, Any]]
+def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
+    example: Optional[Union[Dict, Sequence, Any]]
 
     if isinstance(data, dict):
         example = {}
@@ -161,67 +168,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Iterator, Any]]:
     return example
 
 
-'''
-Processor Inference Overview
-----------------------------
-
-In this section, I will describe the logic flow to infer processor function
-from data. Basically, we are dealing with the following dataflow:
-
-Input -----> Model ------> Output----->Activation------\/
-                                                    Evaluator---->Score
-Target--------------------------------------------------^
-
-In our function, we have access to the input, target, and output as well as an optional class table provided
-for classification tasks
-
-There are two important layers to understand:
-1. Multi- vs Single- style Inputs/Targets/Outputs
-2. Shape/Type based Inference
-
-First, Inputs/Targets/Outputs can either be multi or single version. In the multi-version
-they are keyed dictionaries. In the single version, they are most likely ndarrays, except for edge
-cases when the target is just a single value.
-
-So, to start with we have the following possibilities:
-
-    Input   Target  Output      Inference Strategies:   Input   Target  Output
-    --------------------------------------------------------------------------
-    Single  Single  Single  |                           i       it      ito   
-    Single  Single  Multi   |            n              i       it      o
-    Single  Multi   Single  |            n              i       it(b)   o 
-    Single  Multi   Multi   |                           i       it(b)   ito(m)
-    Multi   Single  Single  |                           i       t       to
-    Multi   Single  Multi   |            n              i       t       to(b)
-    Multi   Multi   Single  |            n              i       it(m)   to(b)
-    Multi   Multi   Multi   |                           i       it(m)   ito(m)
-
-Ok, then after you select the correct inference strategy, we do something like the following:
-
-    strat   has class   shape
-    --------------------------  
-    i       y           (x)
-                        (x,y)
-                        (x,y,z)
-                        (x,y,z,t)
-            n
-    t       y
-            n
-    it      y
-            n
-    o       y
-            n
-    to      y
-            n
-    io?     y
-            n
-    ito     y
-            n
-    
-
-'''
-
-def _get_example_shape(example: Union[Iterator, Any]):
+def _get_example_shape(example: Union[Sequence, Any]):
     shape = []
     if hasattr(example, "__len__"):
         length = len(example)
@@ -230,63 +177,149 @@ def _get_example_shape(example: Union[Iterator, Any]):
             shape += _get_example_shape(example[0])
     return shape
 
-def _infer_single_example_processor(example: Union[Iterator, Any], class_labels_table: Optional["wandb.Table"] = None, possible_base_example:Optional[Union[Iterator, Any]]=None):
+
+def _infer_single_example_keyed_processor(
+    example: Union[Sequence, Any],
+    class_labels_table: Optional["wandb.Table"] = None,
+    possible_base_example: Optional[Union[Sequence, Any]] = None,
+) -> Dict[str, Callable]:
     shape = _get_example_shape(example)
-    if class_labels_table is not None and len(shape) == 1 and shape[0] == len(class_labels_table.data):
+    processors: Dict[str, Callable] = {}
+    if (
+        class_labels_table is not None
+        and len(shape) == 1
+        and shape[0] == len(class_labels_table.data)
+    ):
+        np = wandb.util.get_module(
+            "numpy", required="Infering processors require numpy",
+        )
         # Assume these are logits
-        # do argmax, argmin, and logit scores
-        pass
-    elif class_labels_table is not None and len(shape) == 1 and shape[0] == 1 and isinstance(example[0], int):
+        class_names = class_labels_table.get_column("label")
+        processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(
+            np.argmax(d)
+        )
+        processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(
+            np.argmin(d)
+        )
+        processors["scores"] = lambda n, d, p: {
+            class_names[i]: d[i] for i in range(shape[0])
+        }
+    elif (
+        len(shape) == 1
+        and shape[0] == 1
+        and (
+            isinstance(example[0], int)
+            or (hasattr(example, "tolist") and isinstance(example.tolist()[0], int))
+        )
+    ):
         # assume this is a class
-        # just map to the class table
-        pass
+        if class_labels_table is not None:
+            processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0])
+        else:
+            processors["class"] = lambda n, d, p: d[0]
     elif len(shape) == 1 and shape[0] <= 10:
         # fan out the results (we don't quite know what this is)
-        pass
-    elif len(shape) == 1 and shape[0] > 10:
-        # consider this Audio
-        pass
+        processors["n"] = lambda n, d, p: {i: d[i] for i in range(shape[0])}
+    # elif len(shape) == 1 and shape[0] > 10:
+    #     # consider this Audio? - probably just pass for now
+    #     pass
     elif len(shape) == 2:
-        if class_labels_table is not None and possible_base_example is not None and shape == _get_example_shape(possible_base_example):
+        if (
+            class_labels_table is not None
+            and possible_base_example is not None
+            and shape == _get_example_shape(possible_base_example)
+        ):
             # consider this a segmentation mask
-            pass
+            processors["image"] = lambda n, d, p: wandb.Image(
+                p,
+                masks={
+                    "masks": {
+                        "mask_data": d,
+                        "class_labels": class_labels_table.get_column("label"),
+                    }
+                },
+            )
         else:
             # consider this a 2d image
-            pass
+            processors["image"] = lambda n, d, p: wandb.Image(d)
     elif len(shape) == 3:
         # consider this an image
+        processors["image"] = lambda n, d, p: wandb.Image(d)
     elif len(shape) == 4:
-        # consider this a video
+        if shape[-1] in (1, 3, 4):
+            # consider this an image
+            processors["image"] = lambda n, d, p: wandb.Image(d)
+        else:
+            # consider this a video
+            processors["image"] = lambda n, d, p: wandb.Video(d)
     else:
         # no idea
         pass
 
-    def processor(data):
-        return {}
+    # def processor(ndx, data, possible_base_data):
+    #     return {processors[key](ndx, data, possible_base_data) for key in processors}
 
-    return processor
+    return processors
+
+
+def _make_closure(key_processors, p_key, key, use_base=False, base_data_resolver=None):
+    return lambda ndx, row: key_processors[p_key](
+        ndx,
+        row[key],
+        base_data_resolver(ndx, row) if use_base and base_data_resolver else None,
+    )
 
 
 def _infer_validation_row_processor(
-    example_input: Union[Dict, Iterator],
-    example_target: Union[Dict, Iterator, Any],
+    example_input: Union[Dict, Sequence],
+    example_target: Union[Dict, Sequence, Any],
     class_labels_table: Optional["wandb.Table"] = None,
-):
-    return None
-    # single_processors = {}
-    # if isinstance(example_input, dict):
-    #     for key in example_input:
-    #         key_processor = _infer_single_input_processor(example_input[key])
-    #         for p_key in key_processor:
-    #             single_processors["{}_{}".format(key, p_key)] = lambda ndx, row: key_processor[p_key](row[key])
-    # else:
-    #     key = "input"
-    #     key_processor = _infer_single_input_processor(example_input)
-    #     for p_key in key_processor:
-    #         single_processors["{}_{}".format(key, p_key)] = lambda ndx, row: key_processor[p_key](row[key])
+    input_col_name: str = "input",
+    target_col_name: str = "target",
+) -> Callable:
+    single_processors = {}
+    if isinstance(example_input, dict):
+        for key in example_input:
+            key_processors = _infer_single_example_keyed_processor(example_input[key])
+            for p_key in key_processors:
+                single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                    key_processors, p_key, key
+                )
+    else:
+        key = input_col_name
+        key_processors = _infer_single_example_keyed_processor(example_input)
+        for p_key in key_processors:
+            single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                key_processors, p_key, key
+            )
 
-    # def processor(ndx, row):
-    #     return {key:single_processors[key](ndx, row) for key in single_processors}
+    if isinstance(example_target, dict):
+        for key in example_target:
+            key_processors = _infer_single_example_keyed_processor(
+                example_target[key], class_labels_table
+            )
+            for p_key in key_processors:
+                single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                    key_processors, p_key, key
+                )
+    else:
+        key = target_col_name
+        key_processors = _infer_single_example_keyed_processor(
+            example_target,
+            class_labels_table,
+            example_input if not isinstance(example_input, dict) else None,
+        )
+        for p_key in key_processors:
+            single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                key_processors,
+                p_key,
+                key,
+                not isinstance(example_input, dict),
+                lambda ndx, row: row[input_col_name],
+            )
+
+    def processor(ndx, row):
+        return {key: single_processors[key](ndx, row) for key in single_processors}
 
     # new_col_fns = {}
     # if isinstance(example_input, dict):
@@ -298,19 +331,54 @@ def _infer_validation_row_processor(
     #         col:new_col_fns[col](ndx, row) for col in new_col_fns
     #     }
 
-    # return processor
+    return processor
 
 
 def _infer_prediction_row_processor(
-    example_prediction: Union[Dict, Iterator],
-    example_input: Union[Dict, Iterator],
-    example_target: Union[Dict, Iterator, Any],
+    example_prediction: Union[Dict, Sequence],
+    example_input: Union[Dict, Sequence],
+    # example_target: Union[Dict, Sequence, Any],
     class_labels_table: Optional["wandb.Table"] = None,
-):
-    return None
+    input_col_name: str = "input",
+    output_col_name: str = "output",
+) -> Callable:
+    single_processors = {}
+
+    if isinstance(example_prediction, dict):
+        for key in example_prediction:
+            key_processors = _infer_single_example_keyed_processor(
+                example_prediction[key], class_labels_table
+            )
+            for p_key in key_processors:
+                single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                    key_processors, p_key, key
+                )
+    else:
+        key = output_col_name
+        key_processors = _infer_single_example_keyed_processor(
+            example_prediction,
+            class_labels_table,
+            example_input if not isinstance(example_input, dict) else None,
+        )
+        for p_key in key_processors:
+            single_processors["{}_{}".format(key, p_key)] = _make_closure(
+                key_processors,
+                p_key,
+                key,
+                not isinstance(example_input, dict),
+                lambda ndx, row: ndx.get_row()
+                .get("val_ndx")
+                .get_row()
+                .get(input_col_name),
+            )
+
+    def processor(ndx, row):
+        return {key: single_processors[key](ndx, row) for key in single_processors}
+
+    # return None
     # def processor(ndx, row):
     #     return {
     #         col:new_col_fns[col](ndx, row) for col in new_col_fns
     #     }
 
-    # return processor
+    return processor
