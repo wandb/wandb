@@ -29,7 +29,7 @@ def pad(lst, num, val=None, left=False):
 
 def is_nan_or_nan_string(val):
     if isinstance(val, str):
-        return val.lower() == "nan"
+        return val.lower() in ("nan", "inf")
     elif isinstance(val, float):
-        return math.isnan(val)
+        return math.isnan(val) or math.isinf(val)
     return False
