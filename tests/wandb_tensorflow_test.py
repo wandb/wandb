@@ -197,7 +197,7 @@ def test_compat_tensorboard(live_mock_server, test_settings):
     platform.system() == "Windows" or sys.version_info < (3, 5),
     reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
 )
-def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
+def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_ctx):
     wandb.init(sync_tensorboard=True, settings=test_settings)
 
     with tf.compat.v1.Session() as sess:
@@ -221,8 +221,12 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CONTEXT!", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
-    second_stream_hist = server_ctx["file_stream"][-4]["files"]["wandb-history.jsonl"]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    file_updates = ctx_util.get_filestream_file_updates()
+    first_stream_hist = file_updates["wandb-history.jsonl"][-1]
+    second_stream_hist = file_updates["wandb-history.jsonl"][-3]
+    print("FIRST", first_stream_hist)
+    print("SECOND", second_stream_hist)
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
         " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
