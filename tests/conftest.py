@@ -288,7 +288,14 @@ def local_netrc(monkeypatch):
         open(".netrc", "wb").close()
 
         def expand(path):
-            return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+            if "netrc" in path:
+                try:
+                    ret = os.path.realpath("netrc")
+                except OSError:
+                    ret = origexpand(path)
+            else:
+                ret = origexpand(path)
+            return ret
 
         monkeypatch.setattr(os.path, "expanduser", expand)
         yield
