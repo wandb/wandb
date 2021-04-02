@@ -2498,7 +2498,6 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
     def parent_artifact(self):
         return self._parent_artifact
 
-    @staticmethod
     def copy(self, cache_path, target_path):
         # can't have colons in Windows
         if platform.system() == "Windows":
