@@ -16,6 +16,12 @@ def fixture_path(path):
     )
 
 
+def first_filestream(ctx):
+    """In xdist tests sometimes rougue file_streams make it to the server,
+    we grab the first request with `files`"""
+    return next(m for m in ctx["file_stream"] if m.get("files"))
+
+
 def fixture_open(path, mode="r"):
     """Returns an opened fixture file"""
     return open(fixture_path(path), mode)

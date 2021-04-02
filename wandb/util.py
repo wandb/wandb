@@ -1241,6 +1241,10 @@ def _has_internet():
         return False
 
 
+def rand_alphanumeric(length=8):
+    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+
+
 @contextlib.contextmanager
 def fsync_open(path, mode="w"):
     """
