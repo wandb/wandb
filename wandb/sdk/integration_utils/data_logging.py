@@ -13,7 +13,6 @@ if wandb.TYPE_CHECKING:
         from wandb.data_types import _TableIndex
 
 
-# TODO: Add support for class labels + tables
 # TODO: Add automated inference types
 #  - model output len(shape) == 1
 #    - argmin, argmax
@@ -127,10 +126,18 @@ class ValidationDataLogger(object):
 
         if self.prediction_row_processor is None and self.infer_missing_processors:
             example_prediction = _make_example(predictions)
+            example_input = _make_example(self.validation_inputs)
             example_target = _make_example(self.validation_targets)
-            if example_prediction is not None and example_target is not None:
+            if (
+                example_prediction is not None
+                and example_target is not None
+                and example_input is not None
+            ):
                 self.prediction_row_processor = _infer_prediction_row_processor(
-                    example_prediction, example_target, self.class_labels_table
+                    example_prediction,
+                    example_input,
+                    example_target,
+                    self.class_labels_table,
                 )
 
         if self.prediction_row_processor is not None:
@@ -154,17 +161,117 @@ def _make_example(data: Any) -> Optional[Union[Dict, Iterator, Any]]:
     return example
 
 
+'''
+Processor Inference Overview
+----------------------------
+
+In this section, I will describe the logic flow to infer processor function
+from data. Basically, we are dealing with the following dataflow:
+
+Input -----> Model ------> Output----->Activation------\/
+                                                    Evaluator---->Score
+Target--------------------------------------------------^
+
+In our function, we have access to the input, target, and output as well as an optional class table provided
+for classification tasks
+
+There are two important layers to understand:
+1. Multi- vs Single- style Inputs/Targets/Outputs
+2. Shape/Type based Inference
+
+First, Inputs/Targets/Outputs can either be multi or single version. In the multi-version
+they are keyed dictionaries. In the single version, they are most likely ndarrays, except for edge
+cases when the target is just a single value.
+
+So, to start with we have the following possibilities:
+
+    Input   Target  Output      Inference Strategies:   Input   Target  Output
+    --------------------------------------------------------------------------
+    Single  Single  Single  |                           i       it      ito   
+    Single  Single  Multi   |            n              i       it      o
+    Single  Multi   Single  |            n              i       it(b)   o 
+    Single  Multi   Multi   |                           i       it(b)   ito(m)
+    Multi   Single  Single  |                           i       t       to
+    Multi   Single  Multi   |            n              i       t       to(b)
+    Multi   Multi   Single  |            n              i       it(m)   to(b)
+    Multi   Multi   Multi   |                           i       it(m)   ito(m)
+
+Ok, then after you select the correct inference strategy, we do something like the following:
+
+    strat   has class   shape
+    --------------------------  
+    i       y           (x)
+                        (x,y)
+                        (x,y,z)
+                        (x,y,z,t)
+            n
+    t       y
+            n
+    it      y
+            n
+    o       y
+            n
+    to      y
+            n
+    io?     y
+            n
+    ito     y
+            n
+    
+
+'''
+
+
+# def _infer_single_input_processor(example: Union[Iterator, Any], class_labels_table: Optional["wandb.Table"] = None):
+#     def processor(data):
+#         return {}
+#     return processor
+
+
 def _infer_validation_row_processor(
     example_input: Union[Dict, Iterator],
     example_target: Union[Dict, Iterator, Any],
     class_labels_table: Optional["wandb.Table"] = None,
 ):
     return None
+    # single_processors = {}
+    # if isinstance(example_input, dict):
+    #     for key in example_input:
+    #         key_processor = _infer_single_input_processor(example_input[key])
+    #         for p_key in key_processor:
+    #             single_processors["{}_{}".format(key, p_key)] = lambda ndx, row: key_processor[p_key](row[key])
+    # else:
+    #     key = "input"
+    #     key_processor = _infer_single_input_processor(example_input)
+    #     for p_key in key_processor:
+    #         single_processors["{}_{}".format(key, p_key)] = lambda ndx, row: key_processor[p_key](row[key])
+
+    # def processor(ndx, row):
+    #     return {key:single_processors[key](ndx, row) for key in single_processors}
+
+    # new_col_fns = {}
+    # if isinstance(example_input, dict):
+    #     for key in example_input:
+    #         processor_dict = _infer_validation_input_processor_dict(example_input[key])
+
+    # def processor(ndx, row):
+    #     return {
+    #         col:new_col_fns[col](ndx, row) for col in new_col_fns
+    #     }
+
+    # return processor
 
 
 def _infer_prediction_row_processor(
     example_prediction: Union[Dict, Iterator],
+    example_input: Union[Dict, Iterator],
     example_target: Union[Dict, Iterator, Any],
     class_labels_table: Optional["wandb.Table"] = None,
 ):
     return None
+    # def processor(ndx, row):
+    #     return {
+    #         col:new_col_fns[col](ndx, row) for col in new_col_fns
+    #     }
+
+    # return processor
