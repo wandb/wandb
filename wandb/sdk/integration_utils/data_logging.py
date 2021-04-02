@@ -114,7 +114,7 @@ class ValidationDataLogger(object):
         self,
         predictions: Union[Sequence, Dict[str, Sequence]],
         prediction_col_name: str = "output",
-        val_ndx_col_name: str = "val_ndx",
+        val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
         commit: bool = False,
     ):
@@ -178,6 +178,16 @@ def _get_example_shape(example: Union[Sequence, Any]):
     return shape
 
 
+def _bind(lambda_fn: Callable, **closure_kwargs: Any) -> Callable:
+    def closure(*args: Any, **kwargs: Any) -> Any:
+        _k = {}
+        _k.update(kwargs)
+        _k.update(closure_kwargs)
+        return lambda_fn(*args, **_k)
+
+    return closure
+
+
 def _infer_single_example_keyed_processor(
     example: Union[Sequence, Any],
     class_labels_table: Optional["wandb.Table"] = None,
@@ -198,10 +208,10 @@ def _infer_single_example_keyed_processor(
         processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
             np.argmax(d)
         )
-        processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
-            np.argmin(d)
-        )
-        processors["scores"] = lambda n, d, p: {
+        # processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
+        #     np.argmin(d)
+        # )
+        processors["score"] = lambda n, d, p: {
             class_names[i]: d[i] for i in range(shape[0])
         }
     elif (
@@ -215,8 +225,8 @@ def _infer_single_example_keyed_processor(
         # assume this is a class
         if class_labels_table is not None:
             processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0])  # type: ignore
-        else:
-            processors["class"] = lambda n, d, p: d[0]
+        # else:
+        #     processors["val"] = lambda n, d, p: d[0]
     elif len(shape) == 1 and shape[0] <= 10:
         np = wandb.util.get_module(
             "numpy", required="Infering processors require numpy",
@@ -224,13 +234,10 @@ def _infer_single_example_keyed_processor(
         # This could be anything
         if shape[0] <= 10:
             # if less than 10, fan out the results
-            processors["n"] = lambda n, d, p: {i: d[i] for i in range(shape[0])}
+            processors["node"] = lambda n, d, p: {i: d[i] for i in range(shape[0])}
         # just report the argmax and argmin
         processors["argmax"] = lambda n, d, p: np.argmax(d)
         processors["argmin"] = lambda n, d, p: np.argmin(d)
-    # elif len(shape) == 1 and shape[0] > 10:
-    #     # consider this Audio? - probably just pass for now
-    #     pass
     elif len(shape) == 2:
         if (
             class_labels_table is not None
@@ -264,18 +271,7 @@ def _infer_single_example_keyed_processor(
         # no idea
         pass
 
-    # def processor(ndx, data, possible_base_data):
-    #     return {processors[key](ndx, data, possible_base_data) for key in processors}
-
     return processors
-
-
-def _make_closure(key_processors, p_key, key, use_base=False, base_data_resolver=None):
-    return lambda ndx, row: key_processors[p_key](
-        ndx,
-        row[key],
-        base_data_resolver(ndx, row) if use_base and base_data_resolver else None,
-    )
 
 
 def _infer_validation_row_processor(
@@ -290,15 +286,23 @@ def _infer_validation_row_processor(
         for key in example_input:
             key_processors = _infer_single_example_keyed_processor(example_input[key])
             for p_key in key_processors:
-                single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                    key_processors, p_key, key
+                single_processors["{}:{}".format(key, p_key)] = _bind(
+                    lambda ndx, row, key_processor, key: key_processor(
+                        ndx, row[key], None,
+                    ),
+                    key_processor=key_processors[p_key],
+                    key=key,
                 )
     else:
         key = input_col_name
         key_processors = _infer_single_example_keyed_processor(example_input)
         for p_key in key_processors:
-            single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                key_processors, p_key, key
+            single_processors["{}:{}".format(key, p_key)] = _bind(
+                lambda ndx, row, key_processor, key: key_processor(
+                    ndx, row[key], None,
+                ),
+                key_processor=key_processors[p_key],
+                key=key,
             )
 
     if isinstance(example_target, dict):
@@ -307,8 +311,12 @@ def _infer_validation_row_processor(
                 example_target[key], class_labels_table
             )
             for p_key in key_processors:
-                single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                    key_processors, p_key, key
+                single_processors["{}:{}".format(key, p_key)] = _bind(
+                    lambda ndx, row, key_processor, key: key_processor(
+                        ndx, row[key], None,
+                    ),
+                    key_processor=key_processors[p_key],
+                    key=key,
                 )
     else:
         key = target_col_name
@@ -318,26 +326,20 @@ def _infer_validation_row_processor(
             example_input if not isinstance(example_input, dict) else None,
         )
         for p_key in key_processors:
-            single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                key_processors,
-                p_key,
-                key,
-                not isinstance(example_input, dict),
-                lambda ndx, row: row[input_col_name],
+            single_processors["{}:{}".format(key, p_key)] = _bind(
+                lambda ndx, row, key_processor, key: key_processor(
+                    ndx,
+                    row[key],
+                    row[input_col_name]
+                    if not isinstance(example_input, dict)
+                    else None,
+                ),
+                key_processor=key_processors[p_key],
+                key=key,
             )
 
     def processor(ndx, row):
         return {key: single_processors[key](ndx, row) for key in single_processors}
-
-    # new_col_fns = {}
-    # if isinstance(example_input, dict):
-    #     for key in example_input:
-    #         processor_dict = _infer_validation_input_processor_dict(example_input[key])
-
-    # def processor(ndx, row):
-    #     return {
-    #         col:new_col_fns[col](ndx, row) for col in new_col_fns
-    #     }
 
     return processor
 
@@ -358,8 +360,12 @@ def _infer_prediction_row_processor(
                 example_prediction[key], class_labels_table
             )
             for p_key in key_processors:
-                single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                    key_processors, p_key, key
+                single_processors["{}:{}".format(key, p_key)] = _bind(
+                    lambda ndx, row, key_processor, key: key_processor(
+                        ndx, row[key], None,
+                    ),
+                    key_processor=key_processors[p_key],
+                    key=key,
                 )
     else:
         key = output_col_name
@@ -369,24 +375,19 @@ def _infer_prediction_row_processor(
             example_input if not isinstance(example_input, dict) else None,
         )
         for p_key in key_processors:
-            single_processors["{}_{}".format(key, p_key)] = _make_closure(
-                key_processors,
-                p_key,
-                key,
-                not isinstance(example_input, dict),
-                lambda ndx, row: ndx.get_row()
-                .get("val_ndx")
-                .get_row()
-                .get(input_col_name),
+            single_processors["{}:{}".format(key, p_key)] = _bind(
+                lambda ndx, row, key_processor, key: key_processor(
+                    ndx,
+                    row[key],
+                    ndx.get_row().get("val_row").get_row().get(input_col_name)
+                    if not isinstance(example_input, dict)
+                    else None,
+                ),
+                key_processor=key_processors[p_key],
+                key=key,
             )
 
     def processor(ndx, row):
         return {key: single_processors[key](ndx, row) for key in single_processors}
-
-    # return None
-    # def processor(ndx, row):
-    #     return {
-    #         col:new_col_fns[col](ndx, row) for col in new_col_fns
-    #     }
 
     return processor
