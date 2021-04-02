@@ -1622,7 +1622,7 @@ class Run(object):
                     self._on_finish_progress(pusher_stats, done)
                 if done:
                     return poll_exit_resp
-            time.sleep(2)
+            time.sleep(0.1)
 
     def _on_finish(self):
         trigger.call("on_finished")

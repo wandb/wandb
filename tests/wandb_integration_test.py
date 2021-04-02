@@ -12,7 +12,7 @@ import subprocess
 import os
 import sys
 import shutil
-from .utils import fixture_open
+from .utils import fixture_open, first_filestream
 import sys
 import six
 import time
@@ -53,7 +53,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
+    first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
     assert first_stream_hist["offset"] == 15
     assert json.loads(first_stream_hist["content"][0])["_step"] == 16
