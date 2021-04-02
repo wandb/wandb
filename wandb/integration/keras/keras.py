@@ -537,6 +537,7 @@ class WandbCallback(keras.callbacks.Callback):
                 indexes=self.validation_indexes,
                 validation_row_processor=self.validation_row_processor,
                 prediction_row_processor=self.prediction_row_processor,
+                class_labels=self.labels,
             )
 
     def on_train_end(self, logs=None):
