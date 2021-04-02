@@ -221,11 +221,50 @@ Ok, then after you select the correct inference strategy, we do something like t
 
 '''
 
+def _get_example_shape(example: Union[Iterator, Any]):
+    shape = []
+    if hasattr(example, "__len__"):
+        length = len(example)
+        shape = [length]
+        if length > 0:
+            shape += _get_example_shape(example[0])
+    return shape
 
-# def _infer_single_input_processor(example: Union[Iterator, Any], class_labels_table: Optional["wandb.Table"] = None):
-#     def processor(data):
-#         return {}
-#     return processor
+def _infer_single_example_processor(example: Union[Iterator, Any], class_labels_table: Optional["wandb.Table"] = None, possible_base_example:Optional[Union[Iterator, Any]]=None):
+    shape = _get_example_shape(example)
+    if class_labels_table is not None and len(shape) == 1 and shape[0] == len(class_labels_table.data):
+        # Assume these are logits
+        # do argmax, argmin, and logit scores
+        pass
+    elif class_labels_table is not None and len(shape) == 1 and shape[0] == 1 and isinstance(example[0], int):
+        # assume this is a class
+        # just map to the class table
+        pass
+    elif len(shape) == 1 and shape[0] <= 10:
+        # fan out the results (we don't quite know what this is)
+        pass
+    elif len(shape) == 1 and shape[0] > 10:
+        # consider this Audio
+        pass
+    elif len(shape) == 2:
+        if class_labels_table is not None and possible_base_example is not None and shape == _get_example_shape(possible_base_example):
+            # consider this a segmentation mask
+            pass
+        else:
+            # consider this a 2d image
+            pass
+    elif len(shape) == 3:
+        # consider this an image
+    elif len(shape) == 4:
+        # consider this a video
+    else:
+        # no idea
+        pass
+
+    def processor(data):
+        return {}
+
+    return processor
 
 
 def _infer_validation_row_processor(
