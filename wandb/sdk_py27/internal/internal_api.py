@@ -1228,7 +1228,11 @@ class Api(object):
             )
         except Exception as e:
             # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
+            message = e.args[0]
+            try:
+                message = ast.literal_eval(message)["message"]
+            except SyntaxError:
+                pass
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
