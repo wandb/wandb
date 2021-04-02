@@ -466,9 +466,7 @@ class Artifact(object):
         raise NotImplementedError
 
     def add(self, obj: WBValue, name: str):
-        """
-        Adds `obj` to the artifact, where the object is a W&B histogram or
-        media type.
+        """Adds wandb.WBValue `obj` to the artifact.
 
         ```
         obj = artifact.get(name)
