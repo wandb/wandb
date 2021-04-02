@@ -137,7 +137,12 @@ class MessageRouter(object):
         with self._lock:
             future = self._pending_reqs.pop(msg.uuid, None)
         if future is None:
-            logger.warning("No listener found for msg with uuid %s (%s)", msg.uuid, msg)
+            # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
+            # could point to other issues.
+            if msg.uuid != "":
+                logger.warning(
+                    "No listener found for msg with uuid %s (%s)", msg.uuid, msg
+                )
             return
         future._set_object(msg)
 
@@ -267,7 +272,8 @@ class BackendSender(object):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
-            proto_entry.size = entry.size  # type: ignore
+            if entry.size:
+                proto_entry.size = entry.size
             if entry.birth_artifact_id:
                 proto_entry.birth_artifact_id = entry.birth_artifact_id
             if entry.ref:

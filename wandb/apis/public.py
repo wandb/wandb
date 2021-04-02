@@ -2499,7 +2499,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         return self._parent_artifact
 
     @staticmethod
-    def copy(cache_path, target_path):
+    def copy(self, cache_path, target_path):
         # can't have colons in Windows
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(target_path)
@@ -2532,9 +2532,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
                 self._parent_artifact, self.name, manifest.entries[self.name]
             )
 
-        return _DownloadedArtifactEntry(
-            self.name, self.entry, self._parent_artifact
-        ).copy(cache_path, os.path.join(root, self.name))
+        return self.copy(cache_path, os.path.join(root, self.name))
 
     def ref_target(self):
         manifest = self._parent_artifact._load_manifest()
