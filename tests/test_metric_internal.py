@@ -316,10 +316,6 @@ def test_metric_nan_max(publish_util):
     assert summary.get("v2") == {"max": 8}
 
 
-# TODO(jhr): enable before releasing run._define_metric() as
-#            run.define_metric()
-
-
 def test_metric_dot_flat_escaped(publish_util):
     """match works if metric is escaped."""
     history = []
