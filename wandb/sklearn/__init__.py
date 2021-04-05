@@ -415,6 +415,9 @@ def plot_roc(
      Example:
          wandb.sklearn.plot_roc(y_true, y_probas, labels)
      """
+    wandb.termwarn(
+        "wandb.sklearn.plot_roc is deprecated. Use `wandb.log({'roc': wandb.plot.roc_curve(...)})` instead."
+    )
     wandb.log(
         {"roc": roc(y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot)}
     )
@@ -532,6 +535,11 @@ def plot_confusion_matrix(
     Example:
         wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
     """
+    wandb.termwarn(
+        (
+            "wandb.sklearn.plot_confusion_matrix is deprecated. Use `wandb.log({'confusion_matrix': wandb.plot.confusion_matrix(...)})` instead."
+        )
+    )
     wandb.log(
         {
             "confusion_matrix": confusion_matrix(
@@ -570,6 +578,9 @@ def plot_precision_recall(
     Example:
         wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
     """
+    wandb.termwarn(
+        "wandb.sklearn.plot_precision_recall is deprecated. Use `wandb.log({'pr': wandb.plot.pr_curve(...)})` instead."
+    )
     wandb.log(
         {
             "precision_recall": precision_recall(
