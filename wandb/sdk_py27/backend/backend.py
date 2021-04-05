@@ -135,7 +135,7 @@ class Backend(object):
             main_module.__file__ = save_mod_path
 
         self.interface = interface.BackendSender(
-            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=self.wandb_process, process_id=self._internal_pid, record_q=self.record_q, result_q=self.result_q,
         )
 
     def server_connect(self):

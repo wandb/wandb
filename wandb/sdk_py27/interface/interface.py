@@ -8,7 +8,9 @@ Manage backend sender.
 
 import json
 import logging
+import os
 import threading
+import time
 import uuid
 
 import six
@@ -146,6 +148,15 @@ class MessageRouter(object):
             return
         future._set_object(msg)
 
+def check_pid(pid):        
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
+
 
 class BackendSender(object):
     class ExceptionTimeout(Exception):
@@ -154,6 +165,7 @@ class BackendSender(object):
     # record_q: Optional["Queue[pb.Record]"]
     # result_q: Optional["Queue[pb.Result]"]
     # process: Optional[Process]
+    # prcoess_id: Optional[str]
     # _run: Optional["Run"]
     # _router: Optional[MessageRouter]
 
@@ -162,10 +174,12 @@ class BackendSender(object):
         record_q = None,
         result_q = None,
         process = None,
+        process_id = None
     ):
         self.record_q = record_q
         self.result_q = result_q
         self._process = process
+        self._process_id = process_id
         self._run = None
         self._router = None
 
@@ -520,7 +534,13 @@ class BackendSender(object):
         return record
 
     def _publish(self, record, local = None):
-        if self._process and not self._process.is_alive():
+        #s_t = time.time()
+        #self._process and self._process.is_alive()
+        #print("TIME", time.time() - s_t)
+        s_t = time.time()
+        self._process_id and check_pid(self._process_id)
+        print("TIME 2", time.time() - s_t)
+        if self._process_id and check_pid(self._process_id): #self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
             record.control.local = local
