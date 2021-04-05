@@ -1,7 +1,9 @@
+import os
 import numpy as np
 import wandb
 
-wandb.init(project="lidar-scene-test")
+os.environ.setdefault("WANDB_PROJECT", "lidar-scene-test")
+wandb.init()
 
 
 N_POINT = 1000

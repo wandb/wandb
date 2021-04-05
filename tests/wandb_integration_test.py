@@ -12,8 +12,16 @@ import subprocess
 import os
 import sys
 import shutil
-from .utils import fixture_open
+from .utils import fixture_open, first_filestream
 import sys
+import six
+import time
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -45,7 +53,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
+    first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
     assert first_stream_hist["offset"] == 15
     assert json.loads(first_stream_hist["content"][0])["_step"] == 16
@@ -60,7 +68,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
 )
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
-def test_parallel_runs(live_mock_server, test_settings):
+def test_parallel_runs(request, live_mock_server, test_settings, test_name):
     with open("train.py", "w") as f:
         f.write(fixture_open("train.py").read())
     p1 = subprocess.Popen(["python", "train.py"], env=os.environ)
@@ -70,12 +78,13 @@ def test_parallel_runs(live_mock_server, test_settings):
     num_runs = 0
     # Assert we've stored 2 runs worth of files
     # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
+    # TODO: code saving sometimes doesnt work?
     files_sorted = sorted(
         [
-            "wandb-metadata.json",
-            "code/tests/logs/test_parallel_runs/train.py",
-            "requirements.txt",
             "config.yaml",
+            "code/tests/logs/{}/train.py".format(test_name),
+            "requirements.txt",
+            "wandb-metadata.json",
             "wandb-summary.json",
         ]
     )
@@ -151,7 +160,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
     assert "baz" not in run.config
     run.join()
 
-    with pytest.raises(wandb.errors.error.UsageError):
+    with pytest.raises(wandb.errors.UsageError):
         run = wandb.init(
             reinit=True,
             resume=True,
@@ -182,6 +191,8 @@ def test_network_fault_files(live_mock_server, test_settings):
     )
 
 
+# TODO(jhr): look into why this timeout needed to be extend for windows
+@pytest.mark.timeout(120)
 def test_network_fault_graphql(live_mock_server, test_settings):
     # TODO: Initial login fails within 5 seconds so we fail after boot.
     run = wandb.init(settings=test_settings)
@@ -344,3 +355,53 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
+def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+    test_settings.update({"start_method": "thread"})
+
+    def mock_min_size(self, size):
+        return 2
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
+    wandb.init(settings=test_settings)
+    fpath = "/tmp/saveFile"
+    sent = 0
+    # file created, should be uploaded
+    with open(fpath, "w") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    wandb.save(fpath, policy="live")
+    # on save file is sent
+    sent += os.path.getsize(fpath)
+    time.sleep(2.1)
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    # 2.1 seconds is longer than set rate limit
+    sent += os.path.getsize(fpath)
+    # give watchdog time to register the change
+    time.sleep(1.0)
+    # file updated within modified time, should not be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    time.sleep(2.0)
+    # file updated outside of rate limit should be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    sent += os.path.getsize(fpath)
+    time.sleep(2)
+
+    server_ctx = live_mock_server.get_ctx()
+    print(server_ctx["file_bytes"], sent)
+    assert "saveFile" in server_ctx["file_bytes"].keys()
+    # TODO: bug sometimes it seems that on windows the first file is sent twice
+    assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
