@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os
 import sys
 import pytest
@@ -106,6 +108,12 @@ def mock_http(artifact, path=False, headers={}):
     return mock
 
 
+def md5_string(string):
+    hash_md5 = hashlib.md5()
+    hash_md5.update(string.encode())
+    return base64.b64encode(hash_md5.digest()).decode("ascii")
+
+
 def test_add_one_file(runner):
     with runner.isolated_filesystem():
         with open("file1.txt", "w") as f:
@@ -197,14 +205,16 @@ def test_add_reference_local_file(runner):
 def test_add_reference_local_file_no_checksum(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
+        size = os.path.getsize("file1.txt")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://file1.txt", checksum=False)
 
-        assert artifact.digest == "2f66dd01e5aea4af52445f7602fe88a0"
+        assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["file1.txt"] == {
-            "digest": "file://file1.txt",
+            "digest": md5_string(str(size)),
             "ref": "file://file1.txt",
+            "size": size,
         }
 
 
@@ -235,6 +245,44 @@ def test_add_reference_local_dir(runner):
             "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
             "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
             "size": 4,
+        }
+
+
+def test_add_reference_local_dir_no_checksum(runner):
+    with runner.isolated_filesystem():
+        path_1 = os.path.join("file1.txt")
+        open(path_1, "w").write("hello")
+        size_1 = os.path.getsize(path_1)
+
+        path_2 = os.path.join("nest", "file2.txt")
+        os.mkdir("nest")
+        open(path_2, "w").write("my")
+        size_2 = os.path.getsize(path_2)
+
+        path_3 = os.path.join("nest", "nest", "file3.txt")
+        os.mkdir("nest/nest")
+        open(path_3, "w").write("dude")
+        size_3 = os.path.getsize(path_3)
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_reference("file://" + os.getcwd(), checksum=False)
+
+        assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["file1.txt"] == {
+            "digest": md5_string(str(size_1)),
+            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+            "size": size_1,
+        }
+        assert manifest["contents"]["nest/file2.txt"] == {
+            "digest": md5_string(str(size_2)),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
+            "size": size_2,
+        }
+        assert manifest["contents"]["nest/nest/file3.txt"] == {
+            "digest": md5_string(str(size_3)),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "size": size_3,
         }
 
 
