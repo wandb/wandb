@@ -269,7 +269,8 @@ class WandbCallback(keras.callbacks.Callback):
         output_type (string): type of the model output to help visualziation. can be one of:
             ("image", "images", "segmentation_mask").  
         log_evaluation (boolean): if True, save a Table containing validation data and the 
-            model's preditions.
+            model's preditions. See `validation_indexes`, `validation_row_processor`, and `output_row_processor`
+            for additional details.
         class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency (integer): if None, callback will log every epoch.
@@ -279,7 +280,7 @@ class WandbCallback(keras.callbacks.Callback):
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
         validation_indexes ([wandb.data_types._TableLinkMixin]): an ordered list of index keys to associate 
-            with each validation example.  If log_evaluation is True and val_keys is provided,
+            with each validation example.  If log_evaluation is True and `validation_indexes` is provided,
             then a Table of validation data will not be created and instead each prediction will
             be associated with the row represented by the TableLinkMixin. The most common way to obtain
             such keys are is use Table.get_index() which will return a list of row keys.
@@ -291,8 +292,9 @@ class WandbCallback(keras.callbacks.Callback):
             if your input data is a single ndarray, but you wish to visualize the data as an Image, then you 
             can provide `lambda ndx, row: {"img": wandb.Image(row["input"])} as the processor. 
             If log_evaluation is True and val_input_processor is None, we will try to guess the appropriate processor based on input_type. 
-            Ignored if log_evaluation is False or val_keys are present.
-        output_row_processor (Callable): same as validation_row_processor, but applied to the model's output.
+            Ignored if log_evaluation is False or `validation_indexes` are present.
+        output_row_processor (Callable): same as validation_row_processor, but applied to the model's output. `row["output"]` will contain
+            the results of the model output.
     """
 
     def __init__(
