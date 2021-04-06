@@ -2,6 +2,7 @@
 #
 # Contains common utility functions that enable
 # logging datasets and predictions to wandb.
+import sys
 
 import wandb
 
@@ -12,6 +13,8 @@ if wandb.TYPE_CHECKING:
 
     if TYPE_CHECKING:
         from wandb.data_types import _TableIndex
+
+CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
 
 class ValidationDataLogger(object):
@@ -298,7 +301,7 @@ def _infer_single_example_keyed_processor(
         # just report the argmax and argmin
         processors["argmax"] = lambda n, d, p: np.argmax(d)
         processors["argmin"] = lambda n, d, p: np.argmin(d)
-    elif len(shape) == 2:
+    elif len(shape) == 2 and CAN_INFER_IMAGE_AND_VIDEO:
         if (
             class_labels_table is not None
             and possible_base_example is not None
@@ -317,10 +320,10 @@ def _infer_single_example_keyed_processor(
         else:
             # consider this a 2d image
             processors["image"] = lambda n, d, p: wandb.Image(d)
-    elif len(shape) == 3:
+    elif len(shape) == 3 and CAN_INFER_IMAGE_AND_VIDEO:
         # consider this an image
         processors["image"] = lambda n, d, p: wandb.Image(d)
-    elif len(shape) == 4:
+    elif len(shape) == 4 and CAN_INFER_IMAGE_AND_VIDEO:
         # consider this a video
         processors["video"] = lambda n, d, p: wandb.Video(d)
 

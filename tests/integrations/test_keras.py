@@ -21,9 +21,15 @@ import os
 from wandb.keras import WandbCallback
 
 if wandb.TYPE_CHECKING:
-    from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+    from wandb.sdk.integration_utils.data_logging import (
+        ValidationDataLogger,
+        CAN_INFER_IMAGE_AND_VIDEO,
+    )
 else:
-    from wandb.sdk_py27.integration_utils.data_logging import ValidationDataLogger
+    from wandb.sdk_py27.integration_utils.data_logging import (
+        ValidationDataLogger,
+        CAN_INFER_IMAGE_AND_VIDEO,
+    )
 import glob
 import numpy as np
 
@@ -531,36 +537,47 @@ def test_data_logger(test_settings, live_mock_server):
             "nodes:node",
             "nodes:argmax",
             "nodes:argmin",
-            "2dimages:image",
-            "3dimages:image",
-            "video:video",
         ]
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            cols.append("2dimages:image")
+            cols.append("3dimages:image")
+            cols.append("video:video")
+
+        tcols = vd.validation_indexes[0]._table.columns
         row = vd.validation_indexes[0]._table.data[0]
 
-        assert vd.validation_indexes[0]._table.columns == cols
-        assert np.all(row[cols.index("input")] == [0, 0, 0])
-        assert isinstance(row[cols.index("simple")].tolist(), int)
-        assert len(row[cols.index("wrapped")]) == 1
-        assert len(row[cols.index("logits")]) == 5
-        assert len(row[cols.index("nodes")]) == 10
-        assert row[cols.index("2dimages")].shape == (5, 5)
-        assert row[cols.index("3dimages")].shape == (5, 5, 3)
-        assert row[cols.index("video")].shape == (5, 5, 3, 10)
-        assert isinstance(row[cols.index("input:node")], dict)
-        assert isinstance(row[cols.index("input:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("input:argmin")].tolist(), int)
+        assert set(tcols) == set(cols)
+        assert np.all(row[tcols.index("input")] == [0, 0, 0])
+        assert isinstance(row[tcols.index("simple")].tolist(), int)
+        assert len(row[tcols.index("wrapped")]) == 1
+        assert len(row[tcols.index("logits")]) == 5
+        assert len(row[tcols.index("nodes")]) == 10
+        assert row[tcols.index("2dimages")].shape == (5, 5)
+        assert row[tcols.index("3dimages")].shape == (5, 5, 3)
+        assert row[tcols.index("video")].shape == (5, 5, 3, 10)
+        assert isinstance(row[tcols.index("input:node")], dict)
+        assert isinstance(row[tcols.index("input:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("input:argmin")].tolist(), int)
         assert isinstance(
-            row[cols.index("wrapped:class")], wandb.data_types._TableIndex
+            row[tcols.index("wrapped:class")], wandb.data_types._TableIndex
         )
         assert isinstance(
-            row[cols.index("logits:max_class")], wandb.data_types._TableIndex
+            row[tcols.index("logits:max_class")], wandb.data_types._TableIndex
         )
-        assert isinstance(row[cols.index("logits:score")], dict)
-        assert isinstance(row[cols.index("nodes:node")], dict)
-        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("logits:score")], dict)
+        assert isinstance(row[tcols.index("nodes:node")], dict)
+        assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            assert isinstance(
+                row[tcols.index("2dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(
+                row[tcols.index("3dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
 
         # provided inferred (w/0 class id)
         vd = ValidationDataLogger(
@@ -600,32 +617,44 @@ def test_data_logger(test_settings, live_mock_server):
             "nodes:node",
             "nodes:argmax",
             "nodes:argmin",
-            "2dimages:image",
-            "3dimages:image",
-            "video:video",
         ]
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            cols.append("2dimages:image")
+            cols.append("3dimages:image")
+            cols.append("video:video")
+
+        tcols = vd.validation_indexes[0]._table.columns
+
         row = vd.validation_indexes[0]._table.data[0]
-        assert vd.validation_indexes[0]._table.columns == cols
-        assert np.all(row[cols.index("input")] == [0, 0, 0])
-        assert isinstance(row[cols.index("simple")].tolist(), int)
-        assert len(row[cols.index("wrapped")]) == 1
-        assert len(row[cols.index("logits")]) == 5
-        assert len(row[cols.index("nodes")]) == 10
-        assert row[cols.index("2dimages")].shape == (5, 5)
-        assert row[cols.index("3dimages")].shape == (5, 5, 3)
-        assert row[cols.index("video")].shape == (5, 5, 3, 10)
-        assert isinstance(row[cols.index("input:node")], dict)
-        assert isinstance(row[cols.index("input:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("input:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("wrapped:val")].tolist(), int)
-        assert isinstance(row[cols.index("logits:node")], dict)
-        assert isinstance(row[cols.index("logits:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("logits:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:node")], dict)
-        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+        assert set(tcols) == set(cols)
+        assert np.all(row[tcols.index("input")] == [0, 0, 0])
+        assert isinstance(row[tcols.index("simple")].tolist(), int)
+        assert len(row[tcols.index("wrapped")]) == 1
+        assert len(row[tcols.index("logits")]) == 5
+        assert len(row[tcols.index("nodes")]) == 10
+        assert row[tcols.index("2dimages")].shape == (5, 5)
+        assert row[tcols.index("3dimages")].shape == (5, 5, 3)
+        assert row[tcols.index("video")].shape == (5, 5, 3, 10)
+        assert isinstance(row[tcols.index("input:node")], dict)
+        assert isinstance(row[tcols.index("input:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("input:argmin")].tolist(), int)
+        assert isinstance(row[tcols.index("wrapped:val")].tolist(), int)
+        assert isinstance(row[tcols.index("logits:node")], dict)
+        assert isinstance(row[tcols.index("logits:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("logits:argmin")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:node")], dict)
+        assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            assert isinstance(
+                row[tcols.index("2dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(
+                row[tcols.index("3dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
 
         # no prediction row processor
         vd = ValidationDataLogger(
@@ -638,8 +667,11 @@ def test_data_logger(test_settings, live_mock_server):
             infer_missing_processors=False,
         )
         t = vd.log_predictions(vd.make_predictions(lambda inputs: inputs[:, 0]))
-        assert t.columns == ["val_row", "output"]
-        assert np.all(t.data[i] == [i, i] for i in range(10))
+        cols = ["val_row", "output"]
+        tcols = t.columns
+
+        assert set(tcols) == set(cols)
+        assert np.all([t.data[i] == [i, i] for i in range(10)])
         assert t._get_artifact_reference_entry() is not None
 
         # provided prediction row processor
@@ -653,8 +685,11 @@ def test_data_logger(test_settings, live_mock_server):
             infer_missing_processors=False,
         )
         t = vd.log_predictions(vd.make_predictions(lambda inputs: inputs[:, 0]))
-        assert t.columns == ["val_row", "output", "oa"]
-        assert np.all(t.data[i] == [i, i, i + 1] for i in range(10))
+        cols = ["val_row", "output", "oa"]
+        tcols = t.columns
+
+        assert set(tcols) == set(cols)
+        assert np.all([t.data[i] == [i, i, i + 1] for i in range(10)])
         assert t._get_artifact_reference_entry() is not None
 
         # inferred prediction row processor
@@ -696,33 +731,45 @@ def test_data_logger(test_settings, live_mock_server):
             "nodes:node",
             "nodes:argmax",
             "nodes:argmin",
-            "2dimages:image",
-            "3dimages:image",
-            "video:video",
         ]
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            cols.append("2dimages:image")
+            cols.append("3dimages:image")
+            cols.append("video:video")
+
+        tcols = t.columns
+
         row = t.data[0]
 
-        assert t.columns == cols
-        assert isinstance(row[cols.index("val_row")], wandb.data_types._TableIndex)
-        assert isinstance(row[cols.index("simple")].tolist(), int)
-        assert len(row[cols.index("wrapped")]) == 1
-        assert len(row[cols.index("logits")]) == 5
-        assert len(row[cols.index("nodes")]) == 10
-        assert row[cols.index("2dimages")].shape == (5, 5)
-        assert row[cols.index("3dimages")].shape == (5, 5, 3)
-        assert row[cols.index("video")].shape == (5, 5, 3, 10)
+        assert set(tcols) == set(cols)
+        assert isinstance(row[tcols.index("val_row")], wandb.data_types._TableIndex)
+        assert isinstance(row[tcols.index("simple")].tolist(), int)
+        assert len(row[tcols.index("wrapped")]) == 1
+        assert len(row[tcols.index("logits")]) == 5
+        assert len(row[tcols.index("nodes")]) == 10
+        assert row[tcols.index("2dimages")].shape == (5, 5)
+        assert row[tcols.index("3dimages")].shape == (5, 5, 3)
+        assert row[tcols.index("video")].shape == (5, 5, 3, 10)
         assert isinstance(
-            row[cols.index("wrapped:class")], wandb.data_types._TableIndex
+            row[tcols.index("wrapped:class")], wandb.data_types._TableIndex
         )
         assert isinstance(
-            row[cols.index("logits:max_class")], wandb.data_types._TableIndex
+            row[tcols.index("logits:max_class")], wandb.data_types._TableIndex
         )
-        assert isinstance(row[cols.index("logits:score")], dict)
-        assert isinstance(row[cols.index("nodes:node")], dict)
-        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("logits:score")], dict)
+        assert isinstance(row[tcols.index("nodes:node")], dict)
+        assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            assert isinstance(
+                row[tcols.index("2dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(
+                row[tcols.index("3dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
 
         # inferred prediction row processor w/o classes
         vd = ValidationDataLogger(
@@ -765,30 +812,41 @@ def test_data_logger(test_settings, live_mock_server):
             "nodes:node",
             "nodes:argmax",
             "nodes:argmin",
-            "2dimages:image",
-            "3dimages:image",
-            "video:video",
         ]
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            cols.append("2dimages:image")
+            cols.append("3dimages:image")
+            cols.append("video:video")
+
+        tcols = t.columns
 
         row = t.data[0]
-        assert t.columns == cols
-        assert isinstance(row[cols.index("val_row")], wandb.data_types._TableIndex)
-        assert isinstance(row[cols.index("simple")].tolist(), int)
-        assert len(row[cols.index("wrapped")]) == 1
-        assert len(row[cols.index("logits")]) == 5
-        assert len(row[cols.index("nodes")]) == 10
-        assert row[cols.index("2dimages")].shape == (5, 5)
-        assert row[cols.index("3dimages")].shape == (5, 5, 3)
-        assert row[cols.index("video")].shape == (5, 5, 3, 10)
-        assert isinstance(row[cols.index("wrapped:val")].tolist(), int)
-        assert isinstance(row[cols.index("logits:node")], dict)
-        assert isinstance(row[cols.index("logits:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("logits:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:node")], dict)
-        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
-        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
-        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+
+        assert set(tcols) == set(cols)
+        assert isinstance(row[tcols.index("val_row")], wandb.data_types._TableIndex)
+        assert isinstance(row[tcols.index("simple")].tolist(), int)
+        assert len(row[tcols.index("wrapped")]) == 1
+        assert len(row[tcols.index("logits")]) == 5
+        assert len(row[tcols.index("nodes")]) == 10
+        assert row[tcols.index("2dimages")].shape == (5, 5)
+        assert row[tcols.index("3dimages")].shape == (5, 5, 3)
+        assert row[tcols.index("video")].shape == (5, 5, 3, 10)
+        assert isinstance(row[tcols.index("wrapped:val")].tolist(), int)
+        assert isinstance(row[tcols.index("logits:node")], dict)
+        assert isinstance(row[tcols.index("logits:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("logits:argmin")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:node")], dict)
+        assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
+
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            assert isinstance(
+                row[tcols.index("2dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(
+                row[tcols.index("3dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
 
 
 def test_keras_dsviz(dummy_model, dummy_data, runner, live_mock_server, test_settings):
