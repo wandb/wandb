@@ -1,3 +1,15 @@
+## 0.10.25 (April 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix possible artifact cache race when using parallel artifact reads
+- Fix artifact reference when `checksum=False`
+
+#### :nail_care: Enhancement
+
+- Release `run.define_metric()` to simplify custom x-axis and more
+- Add column operators `add_column`, `get_column`, `get_index` to `wandb.Table()`
+
 ## 0.10.24 (March 30, 2021)
 
 #### :bug: Bug Fix
