@@ -362,12 +362,19 @@ def test_data_logger(test_settings, live_mock_server):
             class_labels=None,
             infer_missing_processors=False,
         )
-
-        assert vd.validation_indexes[0]._table.columns == ["input", "target"]
+        cols = ["input", "target"]
+        tcols = vd.validation_indexes[0]._table.columns
+        assert set(tcols) == set(cols)
         assert np.all(
-            vd.validation_indexes[0]._table.data[i][0] == [i, i, i]
-            and vd.validation_indexes[0]._table.data[i][1] == [i]
-            for i in range(10)
+            [
+                vd.validation_indexes[0]._table.data[i][tcols.index("input")].tolist()
+                == [i, i, i]
+                and vd.validation_indexes[0]
+                ._table.data[i][tcols.index("target")]
+                .tolist()
+                == [i]
+                for i in range(10)
+            ]
         )
         assert (
             vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
@@ -390,13 +397,23 @@ def test_data_logger(test_settings, live_mock_server):
             infer_missing_processors=False,
         )
 
-        assert vd.validation_indexes[0]._table.columns == ["ia", "ib", "ta", "tb"]
+        cols = ["ia", "ib", "ta", "tb"]
+        tcols = vd.validation_indexes[0]._table.columns
+        assert set(tcols) == set(cols)
         assert np.all(
-            vd.validation_indexes[0]._table.data[i][0]
-            == {"ia": [i, i, i], "ib": [i, i, i]}
-            and vd.validation_indexes[0]._table.data[i][1] == {"ta": [i], "tb": [i]}
-            for i in range(10)
+            [
+                vd.validation_indexes[0]._table.data[i][tcols.index("ia")].tolist()
+                == [i, i, i]
+                and vd.validation_indexes[0]._table.data[i][tcols.index("ib")].tolist()
+                == [i, i, i]
+                and vd.validation_indexes[0]._table.data[i][tcols.index("ta")].tolist()
+                == [i]
+                and vd.validation_indexes[0]._table.data[i][tcols.index("tb")].tolist()
+                == [i]
+                for i in range(10)
+            ]
         )
+
         assert (
             vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
         )
@@ -445,18 +462,32 @@ def test_data_logger(test_settings, live_mock_server):
             infer_missing_processors=False,
         )
 
-        assert vd.validation_indexes[0]._table.columns == [
+        cols = [
             "input",
             "target",
             "ip_1",
             "tp_1",
         ]
+        tcols = vd.validation_indexes[0]._table.columns
+        assert set(tcols) == set(cols)
         assert np.all(
-            vd.validation_indexes[0]._table.data[i][0] == [i, i, i]
-            and vd.validation_indexes[0]._table.data[i][1] == [i]
-            and vd.validation_indexes[0]._table.data[i][2] == [i + 1, i + 1, i + 1]
-            and vd.validation_indexes[0]._table.data[i][3] == [i + 1]
-            for i in range(10)
+            [
+                vd.validation_indexes[0]._table.data[i][tcols.index("input")].tolist()
+                == [i, i, i]
+                and vd.validation_indexes[0]
+                ._table.data[i][tcols.index("target")]
+                .tolist()
+                == [i]
+                and vd.validation_indexes[0]
+                ._table.data[i][tcols.index("ip_1")]
+                .tolist()
+                == [i + 1, i + 1, i + 1]
+                and vd.validation_indexes[0]
+                ._table.data[i][tcols.index("tp_1")]
+                .tolist()
+                == [i + 1]
+                for i in range(10)
+            ]
         )
         assert (
             vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
