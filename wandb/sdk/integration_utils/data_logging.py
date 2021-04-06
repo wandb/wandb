@@ -162,7 +162,7 @@ class ValidationDataLogger(object):
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
         commit: bool = False,
-    ) -> None:
+    ) -> wandb.data_types.Table:
         """Logs a set of predictions. Intended usage:
 
         vl.log_predictions(vl.make_predictions(self.model.predict))
@@ -190,16 +190,10 @@ class ValidationDataLogger(object):
         if self.prediction_row_processor is None and self.infer_missing_processors:
             example_prediction = _make_example(predictions)
             example_input = _make_example(self.validation_inputs)
-            # example_target = _make_example(self.validation_targets)
-            if (
-                example_prediction is not None
-                # and example_target is not None
-                and example_input is not None
-            ):
+            if example_prediction is not None and example_input is not None:
                 self.prediction_row_processor = _infer_prediction_row_processor(
                     example_prediction,
                     example_input,
-                    # example_target,
                     self.class_labels_table,
                     self.input_col_name,
                     prediction_col_name,
@@ -209,6 +203,7 @@ class ValidationDataLogger(object):
             pred_table.add_computed_columns(self.prediction_row_processor)
 
         wandb.log({table_name: pred_table})
+        return pred_table
 
 
 def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
@@ -289,9 +284,9 @@ def _infer_single_example_keyed_processor(
     ):
         # assume this is a class
         if class_labels_table is not None:
-            processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0])  # type: ignore
-        # else:
-        #     processors["val"] = lambda n, d, p: d[0]
+            processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0]) if d[0] < len(class_labels_table.data) else d[0]  # type: ignore
+        else:
+            processors["val"] = lambda n, d, p: d[0]
     elif len(shape) == 1 and shape[0] <= 10:
         np = wandb.util.get_module(
             "numpy", required="Infering processors require numpy",
