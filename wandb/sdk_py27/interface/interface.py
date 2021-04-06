@@ -540,7 +540,9 @@ class BackendSender(object):
         s_t = time.time()
         self._process_id and check_pid(self._process_id)
         print("TIME 2", time.time() - s_t)
-        if self._process_id and check_pid(self._process_id): #self._process and not self._process.is_alive():
+        if self._process_id and not check_pid(self._process_id): #self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
+        elif self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
             record.control.local = local

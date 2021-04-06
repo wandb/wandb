@@ -152,7 +152,7 @@ class Backend:
         self.wandb_process = wandb_process
 
         self._interface = wandb_sdk.interface.interface.BackendSender(
-            record_q=record_q, result_q=result_q, process=wandb_process,
+            record_q=record_q, result_q=result_q, process=wandb_process, process_id=wandb_process.pid
         )
 
     def cleanup(self):
