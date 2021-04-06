@@ -320,7 +320,7 @@ class Histogram(WBValue):
             np = util.get_module(
                 "numpy", required="Auto creation of histograms requires numpy"
             )
-
+            print(type(sequence), sequence.dtype)
             self.histogram, self.bins = np.histogram(sequence, bins=num_bins)
             self.histogram = self.histogram.tolist()
             self.bins = self.bins.tolist()

@@ -14,7 +14,7 @@ import os
 import numpy as np
 import wandb
 import sys
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, is_numeric_array
 from importlib import import_module
 from itertools import chain
 
@@ -698,16 +698,38 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
-                )
+                if is_numeric_array(weights[0]):
+                    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                        weights[0]
+                    )
+                else:
+                    wandb.termwarn(
+                        "Non-numeric values found in layer: parameters/{}.weights, not logging this layer".format(
+                            layer.name
+                        )
+                    )
             elif len(weights) == 2:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
-                )
-                metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
-                    weights[1]
-                )
+                if is_numeric_array(weights[0]):
+
+                    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                        weights[0]
+                    )
+                else:
+                    wandb.termwarn(
+                        "Non-numeric values found in layer: parameters/{}.weights, not logging this layer".format(
+                            layer.name
+                        )
+                    )
+                if is_numeric_array(weights[1]):
+                    metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
+                        weights[1]
+                    )
+                else:
+                    wandb.termwarn(
+                        "Non-numeric values found in layer: parameters/{}.bias, not logging this layer".format(
+                            layer.name
+                        )
+                    )
         return metrics
 
     def _log_gradients(self):
