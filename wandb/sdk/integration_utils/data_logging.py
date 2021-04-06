@@ -326,12 +326,8 @@ def _infer_single_example_keyed_processor(
         # consider this an image
         processors["image"] = lambda n, d, p: wandb.Image(d)
     elif len(shape) == 4:
-        if shape[-1] in (1, 3, 4):
-            # consider this an image
-            processors["image"] = lambda n, d, p: wandb.Image(d)
-        else:
-            # consider this a video
-            processors["image"] = lambda n, d, p: wandb.Video(d)
+        # consider this a video
+        processors["video"] = lambda n, d, p: wandb.Video(d)
 
     return processors
 

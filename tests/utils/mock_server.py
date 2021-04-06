@@ -650,6 +650,8 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 3, "name": "run_table"}
             if "run-" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 4, "name": "run_table"}
+            if "wb_validation_data" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -735,6 +737,23 @@ def create_app(user_ctx=None):
                     "storagePolicyConfig": {},
                     "contents": {
                         "logged_table_2.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id in [
+                "2d9a7e0aa8407f0730e19e5bc55c3a45",
+                "c541de19b18331a4a33b282fc9d42510",
+                "6f3d6ed5417d2955afbc73bff0ed1609",
+                "7d797e62834a7d72538529e91ed958e2",
+            ]:
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "validation_data.table.json": {
                             "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         }

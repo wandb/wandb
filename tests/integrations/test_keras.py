@@ -19,7 +19,13 @@ import wandb
 import json
 import os
 from wandb.keras import WandbCallback
+
+if wandb.TYPE_CHECKING:
+    from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+else:
+    from wandb.sdk_py27.integration_utils.data_logging import ValidationDataLogger
 import glob
+import numpy as np
 
 
 @pytest.fixture
@@ -341,6 +347,257 @@ def test_keras_convert_model_non_sequential():
         ["dense_2", "main_output"],
         ["lstm", "aux_output"],
     ]
+
+
+def test_data_logger(test_settings):
+    with wandb.init(settings=test_settings) as run:
+        # Validation Logger list of vector x list of vector
+
+        vd = ValidationDataLogger(
+            inputs=np.array([[i, i, i] for i in range(10)]),
+            targets=np.array([[i] for i in range(10)]),
+            indexes=None,
+            validation_row_processor=None,
+            prediction_row_processor=None,
+            class_labels=None,
+            infer_missing_processors=False,
+        )
+
+        assert vd.validation_indexes[0]._table.columns == ["input", "target"]
+        assert np.all(
+            vd.validation_indexes[0]._table.data[i][0] == [i, i, i]
+            and vd.validation_indexes[0]._table.data[i][1] == [i]
+            for i in range(10)
+        )
+        assert (
+            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
+        )
+
+        # Validation Logger dict of vector x dict of vector
+        vd = ValidationDataLogger(
+            inputs={
+                "ia": np.array([[i, i, i] for i in range(10)]),
+                "ib": np.array([[i, i, i] for i in range(10)]),
+            },
+            targets={
+                "ta": np.array([[i] for i in range(10)]),
+                "tb": np.array([[i] for i in range(10)]),
+            },
+            indexes=None,
+            validation_row_processor=None,
+            prediction_row_processor=None,
+            class_labels=None,
+            infer_missing_processors=False,
+        )
+
+        assert vd.validation_indexes[0]._table.columns == ["ia", "ib", "ta", "tb"]
+        assert np.all(
+            vd.validation_indexes[0]._table.data[i][0]
+            == {"ia": [i, i, i], "ib": [i, i, i]}
+            and vd.validation_indexes[0]._table.data[i][1] == {"ta": [i], "tb": [i]}
+            for i in range(10)
+        )
+        assert (
+            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
+        )
+
+        # Validation Logger inputs x indexes
+        table = wandb.Table(columns=["label"], data=[["cat"]])
+        vd = ValidationDataLogger(
+            inputs={
+                "ia": np.array([[i, i, i] for i in range(10)]),
+                "ib": np.array([[i, i, i] for i in range(10)]),
+            },
+            targets=None,
+            indexes=[table.index_ref(0) for i in range(10)],
+            validation_row_processor=None,
+            prediction_row_processor=None,
+            class_labels=None,
+            infer_missing_processors=False,
+        )
+
+        # Validation Logger no targets / indexes (error)
+        with pytest.raises(AssertionError):
+            vd = ValidationDataLogger(
+                inputs={
+                    "ia": np.array([[i, i, i] for i in range(10)]),
+                    "ib": np.array([[i, i, i] for i in range(10)]),
+                },
+                targets=None,
+                indexes=None,
+                validation_row_processor=None,
+                prediction_row_processor=None,
+                class_labels=None,
+                infer_missing_processors=False,
+            )
+
+        # provided validation processor
+        vd = ValidationDataLogger(
+            inputs=np.array([[i, i, i] for i in range(10)]),
+            targets=np.array([[i] for i in range(10)]),
+            indexes=None,
+            validation_row_processor=lambda ndx, row: {
+                "ip_1": row["input"] + 1,
+                "tp_1": row["target"] + 1,
+            },
+            prediction_row_processor=None,
+            class_labels=None,
+            infer_missing_processors=False,
+        )
+
+        assert vd.validation_indexes[0]._table.columns == [
+            "input",
+            "target",
+            "ip_1",
+            "tp_1",
+        ]
+        assert np.all(
+            vd.validation_indexes[0]._table.data[i][0] == [i, i, i]
+            and vd.validation_indexes[0]._table.data[i][1] == [i]
+            and vd.validation_indexes[0]._table.data[i][2] == [i + 1, i + 1, i + 1]
+            and vd.validation_indexes[0]._table.data[i][3] == [i + 1]
+            for i in range(10)
+        )
+        assert (
+            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
+        )
+
+        # provided inferred (w/ class id)
+        np.random.seed(42)
+        vd = ValidationDataLogger(
+            inputs=np.array([[i, i, i] for i in range(10)]),
+            targets={
+                "simple": np.random.randint(5, size=(10)),
+                "wrapped": np.random.randint(5, size=(10, 1)),
+                "logits": np.random.randint(5, size=(10, 5)),
+                "nodes": np.random.randint(5, size=(10, 10)),
+                "2dimages": np.random.randint(255, size=(10, 5, 5)),
+                "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
+                "video": np.random.randint(255, size=(10, 5, 5, 3, 10)),
+            },
+            indexes=None,
+            validation_row_processor=None,
+            prediction_row_processor=None,
+            class_labels=["a", "b", "c", "d", "e"],
+            infer_missing_processors=True,
+        )
+
+        cols = [
+            "input",
+            "simple",
+            "wrapped",
+            "logits",
+            "nodes",
+            "2dimages",
+            "3dimages",
+            "video",
+            "input:node",
+            "input:argmax",
+            "input:argmin",
+            "wrapped:class",
+            "logits:max_class",
+            "logits:score",
+            "nodes:node",
+            "nodes:argmax",
+            "nodes:argmin",
+            "2dimages:image",
+            "3dimages:image",
+            "video:video",
+        ]
+        row = vd.validation_indexes[0]._table.data[0]
+
+        assert vd.validation_indexes[0]._table.columns == cols
+        assert np.all(row[cols.index("input")] == [0, 0, 0])
+        assert isinstance(row[cols.index("simple")].tolist(), int)
+        assert len(row[cols.index("wrapped")]) == 1
+        assert len(row[cols.index("logits")]) == 5
+        assert len(row[cols.index("nodes")]) == 10
+        assert row[cols.index("2dimages")].shape == (5, 5)
+        assert row[cols.index("3dimages")].shape == (5, 5, 3)
+        assert row[cols.index("video")].shape == (5, 5, 3, 10)
+        assert isinstance(row[cols.index("input:node")], dict)
+        assert isinstance(row[cols.index("input:argmax")].tolist(), int)
+        assert isinstance(row[cols.index("input:argmin")].tolist(), int)
+        assert isinstance(
+            row[cols.index("wrapped:class")], wandb.data_types._TableIndex
+        )
+        assert isinstance(
+            row[cols.index("logits:max_class")], wandb.data_types._TableIndex
+        )
+        assert isinstance(row[cols.index("logits:score")], dict)
+        assert isinstance(row[cols.index("nodes:node")], dict)
+        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
+        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
+        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+
+        # provided inferred (w/0 class id)
+        vd = ValidationDataLogger(
+            inputs=np.array([[i, i, i] for i in range(10)]),
+            targets={
+                "simple": np.random.randint(5, size=(10)),
+                "wrapped": np.random.randint(5, size=(10, 1)),
+                "logits": np.random.randint(5, size=(10, 5)),
+                "nodes": np.random.randint(5, size=(10, 10)),
+                "2dimages": np.random.randint(255, size=(10, 5, 5)),
+                "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
+                "video": np.random.randint(255, size=(10, 5, 5, 3, 10)),
+            },
+            indexes=None,
+            validation_row_processor=None,
+            prediction_row_processor=None,
+            class_labels=0,
+            infer_missing_processors=True,
+        )
+
+        cols = [
+            "input",
+            "simple",
+            "wrapped",
+            "logits",
+            "nodes",
+            "2dimages",
+            "3dimages",
+            "video",
+            "input:node",
+            "input:argmax",
+            "input:argmin",
+            "logits:node",
+            "logits:argmax",
+            "logits:argmin",
+            "nodes:node",
+            "nodes:argmax",
+            "nodes:argmin",
+            "2dimages:image",
+            "3dimages:image",
+            "video:video",
+        ]
+        row = vd.validation_indexes[0]._table.data[0]
+
+        assert vd.validation_indexes[0]._table.columns == cols
+        assert np.all(row[cols.index("input")] == [0, 0, 0])
+        assert isinstance(row[cols.index("simple")].tolist(), int)
+        assert len(row[cols.index("wrapped")]) == 1
+        assert len(row[cols.index("logits")]) == 5
+        assert len(row[cols.index("nodes")]) == 10
+        assert row[cols.index("2dimages")].shape == (5, 5)
+        assert row[cols.index("3dimages")].shape == (5, 5, 3)
+        assert row[cols.index("video")].shape == (5, 5, 3, 10)
+        assert isinstance(row[cols.index("input:node")], dict)
+        assert isinstance(row[cols.index("input:argmax")].tolist(), int)
+        assert isinstance(row[cols.index("input:argmin")].tolist(), int)
+        assert isinstance(row[cols.index("logits:node")], dict)
+        assert isinstance(row[cols.index("logits:argmax")].tolist(), int)
+        assert isinstance(row[cols.index("logits:argmin")].tolist(), int)
+        assert isinstance(row[cols.index("nodes:node")], dict)
+        assert isinstance(row[cols.index("nodes:argmax")].tolist(), int)
+        assert isinstance(row[cols.index("nodes:argmin")].tolist(), int)
+        assert isinstance(row[cols.index("2dimages:image")], wandb.data_types.Image)
+        assert isinstance(row[cols.index("video:video")], wandb.data_types.Video)
+
+    # infer w/o classes (all permutations)
+
+    # infer w/ classes (all permutations)
 
 
 # def test_keras_dsviz(dummy_model, dummy_data, runner, live_mock_server, test_settings):
