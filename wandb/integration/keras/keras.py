@@ -269,8 +269,8 @@ class WandbCallback(keras.callbacks.Callback):
         output_type (string): type of the model output to help visualziation. can be one of:
             ("image", "images", "segmentation_mask").  
         log_evaluation (boolean): if True, save a Table containing validation data and the 
-            model's preditions. See `validation_indexes`, `validation_row_processor`, and `output_row_processor`
-            for additional details.
+            model's preditions at each epoch. See `validation_indexes`, 
+            `validation_row_processor`, and `output_row_processor` for additional details.
         class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency (integer): if None, callback will log every epoch.
@@ -288,13 +288,14 @@ class WandbCallback(keras.callbacks.Callback):
             The function will receive an ndx (int) and a row (dict). If your model has a single input,
             then row["input"] will be the input data for the row. Else, it will be keyed based on the name of the
             input slot. If your fit function takes a single target, then row["target"] will be the target data for the row. Else,
-            it will be keyed based on the name of the output slots. For example, 
-            if your input data is a single ndarray, but you wish to visualize the data as an Image, then you 
-            can provide `lambda ndx, row: {"img": wandb.Image(row["input"])} as the processor. 
-            If log_evaluation is True and val_input_processor is None, we will try to guess the appropriate processor based on input_type. 
-            Ignored if log_evaluation is False or `validation_indexes` are present.
+            it will be keyed based on the name of the output slots. For example, if your input data is a single ndarray,
+            but you wish to visualize the data as an Image, then you can provide `lambda ndx, row: {"img": wandb.Image(row["input"])}`
+            as the processor. Ignored if log_evaluation is False or `validation_indexes` are present.
         output_row_processor (Callable): same as validation_row_processor, but applied to the model's output. `row["output"]` will contain
             the results of the model output.
+        infer_missing_processors (bool): Determines if validation_row_processor and output_row_processor 
+            should be inferred if missing. Defaults to True. If `labels` are provided, we will attempt to infer classification-type
+            processors where appropriate.
     """
 
     def __init__(
@@ -323,6 +324,7 @@ class WandbCallback(keras.callbacks.Callback):
         validation_indexes=None,
         validation_row_processor=None,
         prediction_row_processor=None,
+        infer_missing_processors=True,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -412,6 +414,7 @@ class WandbCallback(keras.callbacks.Callback):
         self.validation_indexes = validation_indexes
         self.validation_row_processor = validation_row_processor
         self.prediction_row_processor = prediction_row_processor
+        self.infer_missing_processors = infer_missing_processors
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -550,6 +553,7 @@ class WandbCallback(keras.callbacks.Callback):
                     validation_row_processor=self.validation_row_processor,
                     prediction_row_processor=self.prediction_row_processor,
                     class_labels=self.labels,
+                    infer_missing_processors=self.infer_missing_processors,
                 )
             except Exception as e:
                 # TODO: Perhaps we should not raise here, but rather log?
