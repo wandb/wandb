@@ -16,15 +16,16 @@ class Api(object):
     def __init__(self, *args, **kwargs):
         self._api_args = args
         self._api_kwargs = kwargs
+        self._api = None
 
     @property
     def api(self):
         # This is a property in order ot delay construction of Internal API
         # for as long as possible. If constructed in constructor, then the
         # whole InternalAPI is started when simply importing wandb.
-        if self.api is None:
-            self.api = InternalApi(*self._api_args, **self._api_kwargs)
-        return self.api
+        if self._api is None:
+            self._api = InternalApi(*self._api_args, **self._api_kwargs)
+        return self._api
 
     @property
     def api_key(self):

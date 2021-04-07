@@ -50,8 +50,8 @@ def test_path_and_filesystem_unchanged():
             assert "wandb/vendor" not in item
 
         # restore the starting environment settings
-        for wandb_dir in wandb_dirs:
-            if wandb_dir in environ_cache:
-                os.environ[wandb_dir] = environ_cache[wandb_dir]
-            elif wandb_dir in os.environ:
-                del os.environ[wandb_dir]
+        # for wandb_dir in wandb_dirs:
+        #     if wandb_dir in environ_cache:
+        #         os.environ[wandb_dir] = environ_cache[wandb_dir]
+        #     elif wandb_dir in os.environ:
+        #         del os.environ[wandb_dir]
