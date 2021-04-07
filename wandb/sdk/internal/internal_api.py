@@ -59,6 +59,7 @@ class Api(object):
         load_settings=True,
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
+        retry_callback=None,
     ):
         self._environ = environ
         self.default_settings = {
@@ -95,11 +96,13 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
+        self.retry_callback = retry_callback
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
+            retry_callback=retry_callback,
         )
         self._current_run_id = None
         self._file_stream_api = None

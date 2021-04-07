@@ -43,7 +43,7 @@ class Retry(object):
     MAX_SLEEP_SECONDS = 5 * 60
 
     def __init__(self, call_fn, retry_timedelta=None, num_retries=None, check_retry_fn=lambda e: True,
-                 retryable_exceptions=None, error_prefix="Network error"):
+                 retryable_exceptions=None, error_prefix="Network error", retry_callback=None):
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
         self._error_prefix = error_prefix
@@ -54,6 +54,7 @@ class Retry(object):
         if self._retryable_exceptions is None:
             self._retryable_exceptions = (TransientException,)
         self._index = 0
+        self.retry_callback = retry_callback
 
     @property
     def num_iters(self):
@@ -109,6 +110,7 @@ class Retry(object):
                     raise
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
+                    self.retry_callback(e)
                     wandb.termlog(
                         '{} ({}), entering retry loop. See {} for full traceback.'.format(
                             self._error_prefix, e.__class__.__name__, util.get_log_file_path()))

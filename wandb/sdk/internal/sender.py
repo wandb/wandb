@@ -105,7 +105,7 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings)
+        self._api = internal_api.Api(default_settings=settings, retry_callback=self.retry_callback)
         self._api_settings = dict()
 
         # TODO(jhr): do something better, why do we need to send full lines?
@@ -149,6 +149,9 @@ class SendManager(object):
             result_q=result_q,
             interface=publish_interface,
         )
+
+    def retry_callback(self, err):
+        wandb.termlog(f'@@@ retrycallback {str(err)}')
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
