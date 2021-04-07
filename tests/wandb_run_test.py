@@ -62,6 +62,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
+    test_settings.save_code = True
     test_settings.code_dir = "."
     run = wandb.init(settings=test_settings)
     run.finish()

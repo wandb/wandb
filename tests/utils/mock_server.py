@@ -30,6 +30,7 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
+        "file_bytes": {},
     }
 
 
@@ -647,6 +648,8 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 1, "name": "dataset"}
             if "logged_table" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 3, "name": "run_table"}
+            if "run-" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 4, "name": "run_table"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -654,7 +657,10 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
                 },
             }
             return {"data": {"project": {"artifact": art}}}
@@ -690,6 +696,13 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
+        if request.method == "PUT":
+            curr = ctx["file_bytes"].get(file)
+            if curr is None:
+                ctx["file_bytes"].setdefault(file, 0)
+                ctx["file_bytes"][file] += request.content_length
+            else:
+                ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
             if _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
@@ -730,7 +743,7 @@ def create_app(user_ctx=None):
             elif (
                 len(ctx.get("graphql", [])) >= 3
                 and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
-            ):
+            ) or request.args.get("name") == "dummy:v0":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",

@@ -1622,7 +1622,7 @@ class Run(object):
                     self._on_finish_progress(pusher_stats, done)
                 if done:
                     return poll_exit_resp
-            time.sleep(2)
+            time.sleep(0.1)
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1881,7 +1881,7 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def _define_metric(
+    def define_metric(
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
@@ -1898,6 +1898,7 @@ class Run(object):
             name: Name of the metric.
             step_metric: Independent variable associated with the metric.
             step_sync: Automatically add `step_metric` to history if needed.
+                Defaults to True if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations: "min,max,mean,best,last,none"
