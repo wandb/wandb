@@ -15,7 +15,7 @@ from wandb import util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
-from wandb.data_types import WBValue
+import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
@@ -430,12 +430,33 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(self, obj: WBValue, name: str) -> ArtifactEntry:
+    def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
         self._ensure_can_add()
 
-        # Validate that the object is wandb.Media type
-        if not isinstance(obj, WBValue):
-            raise ValueError("Can only add `obj` which subclass wandb.WBValue")
+        # Validate that the object is one of the correct wandb.Media types
+        # TODO: move this to checking subclass of wandb.Media once all are
+        # generally supported
+        allowed_types = [
+            data_types.Bokeh,
+            data_types.JoinedTable,
+            data_types.PartitionedTable,
+            data_types.Table,
+            data_types.Classes,
+            data_types.ImageMask,
+            data_types.BoundingBoxes2D,
+            data_types.Audio,
+            data_types.Image,
+            data_types.Video,
+            data_types.Html,
+            data_types.Object3D,
+        ]
+
+        if not any(isinstance(obj, t) for t in allowed_types):
+            raise ValueError(
+                "Found object of type {}, expected one of {}.".format(
+                    obj.__class__, allowed_types
+                )
+            )
 
         obj_id = id(obj)
         if obj_id in self._added_objs:
@@ -630,10 +651,11 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
-    def __setitem__(self, name: str, item: WBValue) -> ArtifactEntry:
+
+    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:
         return self.add(item, name)
 
-    def __getitem__(self, name: str) -> Optional[WBValue]:
+    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
         return self.get(name)
 
 

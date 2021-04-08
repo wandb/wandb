@@ -487,16 +487,16 @@ class Artifact(object):
         raise NotImplementedError
 
     def add(self, obj, name):
-        """
-        Adds `obj` to the artifact, where the object is a W&B histogram or
-        media type.
+        """Adds wandb.WBValue `obj` to the artifact.
 
         ```
         obj = artifact.get(name)
         ```
 
         Arguments:
-            obj: (wandb.WBValue) The object to add.
+            obj: (wandb.WBValue) The object to add. Currently support one of
+                Bokeh, JoinedTable, PartitionedTable, Table, Classes, ImageMask,
+                BoundingBoxes2D, Audio, Image, Video, Html, Object3D
             name: (str) The path within the artifact to add the object.
 
         Returns:
