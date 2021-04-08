@@ -15,7 +15,7 @@ from wandb import util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.compat import tempfile as compat_tempfile
-from wandb.data_types import WBValue
+import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
@@ -27,6 +27,7 @@ from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
+    md5_string,
     StorageHandler,
     StorageLayout,
     StoragePolicy,
@@ -398,12 +399,33 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(self, obj: WBValue, name: str):
+    def add(self, obj: data_types.WBValue, name: str):
         self._ensure_can_add()
 
-        # Validate that the object is wandb.Media type
-        if not isinstance(obj, WBValue):
-            raise ValueError("Can only add `obj` which subclass wandb.WBValue")
+        # Validate that the object is one of the correct wandb.Media types
+        # TODO: move this to checking subclass of wandb.Media once all are
+        # generally supported
+        allowed_types = [
+            data_types.Bokeh,
+            data_types.JoinedTable,
+            data_types.PartitionedTable,
+            data_types.Table,
+            data_types.Classes,
+            data_types.ImageMask,
+            data_types.BoundingBoxes2D,
+            data_types.Audio,
+            data_types.Image,
+            data_types.Video,
+            data_types.Html,
+            data_types.Object3D,
+        ]
+
+        if not any(isinstance(obj, t) for t in allowed_types):
+            raise ValueError(
+                "Found object of type {}, expected one of {}.".format(
+                    obj.__class__, allowed_types
+                )
+            )
 
         obj_id = id(obj)
         if obj_id in self._added_objs:
@@ -583,9 +605,10 @@ class Artifact(ArtifactInterface):
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
 
-        cache_path, hit = self._cache.check_md5_obj_path(digest, size)
+        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
         if not hit:
-            shutil.copyfile(path, cache_path)
+            with cache_open() as f:
+                shutil.copyfile(path, f.name)
 
         entry = ArtifactManifestEntry(
             name, None, digest=digest, size=size, local_path=cache_path,
@@ -594,6 +617,12 @@ class Artifact(ArtifactInterface):
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
+
+    def __setitem__(self, name: str, item: data_types.WBValue):
+        return self.add(item, name)
+
+    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
+        return self.get(name)
 
 
 class ArtifactManifestV1(ArtifactManifest):
@@ -745,11 +774,12 @@ class WandbStoragePolicy(StoragePolicy):
         return self._config
 
     def load_file(self, artifact, name, manifest_entry):
-        path, hit = self._cache.check_md5_obj_path(
+        path, hit, cache_open = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
         if hit:
             return path
+
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
             auth=("api", self._api.api_key),
@@ -757,7 +787,7 @@ class WandbStoragePolicy(StoragePolicy):
         )
         response.raise_for_status()
 
-        with util.fsync_open(path, "wb") as file:
+        with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path
@@ -796,9 +826,12 @@ class WandbStoragePolicy(StoragePolicy):
         self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
     ):
         # write-through cache
-        cache_path, hit = self._cache.check_md5_obj_path(entry.digest, entry.size)
+        cache_path, hit, cache_open = self._cache.check_md5_obj_path(
+            entry.digest, entry.size
+        )
         if not hit:
-            shutil.copyfile(entry.local_path, cache_path)
+            with cache_open() as f:
+                shutil.copyfile(entry.local_path, f.name)
 
         resp = preparer.prepare(
             lambda: {
@@ -975,7 +1008,7 @@ class LocalFileHandler(StorageHandler):
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
-        path, hit = self._cache.check_md5_obj_path(
+        path, hit, cache_open = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
         if hit:
@@ -989,7 +1022,9 @@ class LocalFileHandler(StorageHandler):
             )
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        shutil.copy(local_path, path)
+
+        with cache_open() as f:
+            shutil.copy(local_path, f.name)
         return path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
@@ -999,19 +1034,23 @@ class LocalFileHandler(StorageHandler):
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
-        if not checksum:
-            return [
-                ArtifactManifestEntry(name or os.path.basename(path), path, digest=path)
-            ]
+
+        def md5(path):
+            return (
+                md5_file_b64(path)
+                if checksum
+                else md5_string(str(os.stat(path).st_size))
+            )
 
         if os.path.isdir(local_path):
             i = 0
             start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i files in "%s"...\n'
-                % (max_objects, local_path),
-                newline=False,
-            )
+            if checksum:
+                termlog(
+                    'Generating checksum for up to %i files in "%s"...\n'
+                    % (max_objects, local_path),
+                    newline=False,
+                )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
                     i += 1
@@ -1024,21 +1063,20 @@ class LocalFileHandler(StorageHandler):
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
+
                     entry = ArtifactManifestEntry(
                         logical_path,
                         os.path.join(path, logical_path),
                         size=os.path.getsize(physical_path),
-                        digest=md5_file_b64(physical_path),
+                        digest=md5(physical_path),
                     )
                     entries.append(entry)
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            if checksum:
+                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                name,
-                path,
-                size=os.path.getsize(local_path),
-                digest=md5_file_b64(local_path),
+                name, path, size=os.path.getsize(local_path), digest=md5(local_path),
             )
             entries.append(entry)
         else:
@@ -1091,7 +1129,7 @@ class S3Handler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit = self._cache.check_etag_obj_path(
+        path, hit, cache_open = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
         if hit:
@@ -1136,7 +1174,8 @@ class S3Handler(StorageHandler):
             obj = self._s3.ObjectVersion(bucket, key, version).Object()
             extra_args["VersionId"] = version
 
-        obj.download_file(path, ExtraArgs=extra_args)
+        with cache_open(mode="wb") as f:
+            obj.download_fileobj(f, ExtraArgs=extra_args)
         return path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
@@ -1279,7 +1318,7 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit = self._cache.check_md5_obj_path(
+        path, hit, cache_open = self._cache.check_md5_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
         if hit:
@@ -1310,7 +1349,8 @@ class GCSHandler(StorageHandler):
                     % (manifest_entry.ref, manifest_entry.digest, md5)
                 )
 
-        obj.download_to_filename(path)
+        with cache_open(mode="wb") as f:
+            obj.download_to_file(f)
         return path
 
     def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
@@ -1394,7 +1434,7 @@ class HTTPHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit = self._cache.check_etag_obj_path(
+        path, hit, cache_open = self._cache.check_etag_obj_path(
             manifest_entry.digest, manifest_entry.size
         )
         if hit:
@@ -1411,7 +1451,7 @@ class HTTPHandler(StorageHandler):
                 % (manifest_entry.ref, manifest_entry.digest, digest)
             )
 
-        with util.fsync_open(path, "wb") as file:
+        with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
         return path

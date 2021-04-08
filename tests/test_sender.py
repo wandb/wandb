@@ -27,6 +27,8 @@ else:
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 
+from .utils import first_filestream
+
 
 def test_send_status_request(mock_server, internal_sender, start_backend):
     mock_server.ctx["stopped"] = True
@@ -147,8 +149,16 @@ def test_save_live_multi_write(
 
 
 def test_save_live_glob_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend, mocker
 ):
+    def mock_min_size(self, size):
+        return 1
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 1)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
     start_backend()
     internal_sender.publish_files({"files": [("checkpoints/*", "live")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
@@ -176,6 +186,7 @@ def test_save_live_glob_multi_write(
     print(
         "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
+
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
@@ -339,7 +350,7 @@ def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_ba
     internal_sender.publish_output("stdout", "\rFinal line baby\n")
     stop_backend()
     print("DUDE!", mock_server.ctx)
-    stream = next(m for m in mock_server.ctx["file_stream"] if m.get("files"))
+    stream = first_filestream(mock_server.ctx)
     assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 

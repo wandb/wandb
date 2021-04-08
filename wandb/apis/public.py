@@ -2863,8 +2863,7 @@ class Artifact(artifacts.Artifact):
             def parent_artifact(self):
                 return self._parent_artifact
 
-            @staticmethod
-            def copy(cache_path, target_path):
+            def copy(self, cache_path, target_path):
                 # can't have colons in Windows
                 if platform.system() == "Windows":
                     head, tail = os.path.splitdrive(target_path)
@@ -2893,7 +2892,7 @@ class Artifact(artifacts.Artifact):
                         parent_self, name, manifest.entries[name]
                     )
 
-                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
+                return self.copy(cache_path, os.path.join(root, name))
 
             def ref(self):
                 if entry.ref is not None:
@@ -3312,6 +3311,12 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def __setitem__(self, name, item):
+        return self.add(item, name)
+
+    def __getitem__(self, name):
+        return self.get(name)
 
 
 class ArtifactVersions(Paginator):

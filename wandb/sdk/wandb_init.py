@@ -358,7 +358,7 @@ class _WandbInit(object):
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
-            define_metric=drun._define_metric,
+            define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
         )
@@ -533,7 +533,7 @@ class _WandbInit(object):
             save=run.save,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
-            define_metric=run._define_metric,
+            define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
         )
@@ -649,9 +649,6 @@ def init(
             be stored. When you call download() on an artifact, this is the
             directory where downloaded files will be saved. By default this is
             the ./wandb directory.
-        sync_tensorboard: (bool, optional) Whether to copy all TensorBoard logs
-            to W&B (default: False).
-            [Tensorboard](https://docs.wandb.com/integrations/tensorboard)
         resume (bool, str, optional): Sets the resuming behavior. Options:
             "allow", "must", "never", "auto" or None. Defaults to None.
             Cases:
@@ -701,7 +698,7 @@ def init(
             logged in to W&B. If False, this will let the script run in offline
             mode if a user isn't logged in to W&B. (default: False)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
-            tensorboardX and saves the relevant events file. Defaults to false.
+            tensorboardX and saves the relevant events file. (default: False)
         monitor_gym: (bool, optional) automatically logs videos of environment when
             using OpenAI Gym. (default: False)
             See https://docs.wandb.com/library/integrations/openai-gym
