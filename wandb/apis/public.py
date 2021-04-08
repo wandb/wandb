@@ -2481,6 +2481,8 @@ class ArtifactCollection(object):
 
 class Artifact(artifacts.Artifact):
     """
+    A wandb Artifact.
+
     An artifact that has been logged, including all its attributes, links to the runs
     that use it, and a link to the run that logged it.
 
