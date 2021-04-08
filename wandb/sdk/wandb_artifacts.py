@@ -68,7 +68,7 @@ _REQUEST_POOL_MAXSIZE = 64
 
 
 class _AddedObj(object):
-    def __init__(self, entry: ArtifactEntry, obj: WBValue):
+    def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
         self.entry = entry
         self.obj = obj
 
@@ -496,7 +496,7 @@ class Artifact(ArtifactInterface):
             "Cannot load paths from an artifact before it has been logged or in offline mode"
         )
 
-    def get(self, name: str) -> WBValue:
+    def get(self, name: str) -> data_types.WBValue:
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
@@ -650,7 +650,6 @@ class Artifact(ArtifactInterface):
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
-
 
     def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:
         return self.add(item, name)
