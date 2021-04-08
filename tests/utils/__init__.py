@@ -10,6 +10,7 @@ from tests.utils.notebook_client import WandbNotebookClient
 from tests.utils.utils import (
     subdict,
     free_port,
+    first_filestream,
     fixture_open,
     fixture_copy,
     notebook_path,
@@ -29,6 +30,7 @@ __all__ = [
     "fixture_copy",
     "create_app",
     "free_port",
+    "first_filestream",
     "notebook_path",
     "mock_sagemaker",
     "mock_k8s",
