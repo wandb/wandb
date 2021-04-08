@@ -572,6 +572,10 @@ def test_table_specials():
     )
 
 
+def test_nan_non_float():
+    wandb.Table(dataframe=pd.DataFrame(data=[["A"], [np.nan]], columns=["a"]))
+
+
 def test_table_typing_numpy():
     # Pulled from https://numpy.org/devdocs/user/basics.types.html
 
