@@ -378,6 +378,20 @@ class _WandbInit(object):
         )
         if s._noop:
             return self._make_run_disabled()
+        pid = os.getpid()
+
+        inited_pid = os.environ.get("WANDB_INITED_PID")
+        if inited_pid:
+            # FIXME: check type
+            if pid != int(inited_pid):
+                wandb.termwarn(
+                    "Returning dummy wandb object for multiprocess wandb.init() violation"
+                )
+                return self._make_run_disabled()
+        os.environ["WANDB_INITED_PID"] = str(pid)
+        # FIXME: cleanup env on join?
+        # FIXME: have override setting?
+
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
@@ -734,6 +748,9 @@ def init(
     kwargs = dict(locals())
     error_seen = None
     except_exit = None
+    print("MP_DEBUG: vvvvvvvvvvvvvvvvvvvvvvvvvvv", os.getpid(), file=sys.stderr)
+    traceback.print_stack()
+    print("MP_DEBUG: ^^^^^^^^^^^^^^^^^^^^^^^^^^^", os.getpid(), file=sys.stderr)
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
