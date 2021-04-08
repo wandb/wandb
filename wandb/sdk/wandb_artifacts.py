@@ -77,10 +77,11 @@ class _AddedObj(object):
 
 class Artifact(ArtifactInterface):
     """
+    Dataset versioning, model versioning, pipeline tracking with flexible and lightweight building block.
+
     Constructs an empty artifact whose contents can be populated using its
     `add` family of functions. Once the artifact has all the desired files,
     you can call `wandb.log_artifact()` to log it.
-
 
     Arguments:
         name: (str) A human-readable name for this artifact, which is how you

@@ -81,8 +81,7 @@ class SummaryDict(object):
 
 class Summary(SummaryDict):
     """
-    Summary tracks single values for each run. By default, summary is set to the
-    last value of History.
+    Summary tracks single values for each run. By default, summary is set to the last value of History.
 
     For example, `wandb.log({'accuracy': 0.9})` will add a new step to History and
     update Summary to the latest value. In some cases, it's more useful to have
