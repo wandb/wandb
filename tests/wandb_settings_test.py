@@ -348,8 +348,17 @@ def test_noop(live_mock_server, test_settings):
     assert run._settings._noop is True
 
 
-def test_jupyter():
-    pass
+def test_jupyter(notebook):
+    with notebook("one_cell.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output(0)
+        print(output)
+        assert "is_jupyter: True\n" in output[-1]["text"]
+
+
+def test_not_jupyter(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings._jupyter is False
 
 
 def test_kaggle():
@@ -370,12 +379,23 @@ def test_console(live_mock_server, test_settings):
 
 def test_resume_fname(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    print(os.environ.get("WANDB_DIR"))
-    assert run._settings.resume_fname == os.path.join(os.environ.get("WANDB_DIR", "wandb-resume.json"))
+    print(run._settings.root_dir)
+    assert run._settings.resume_fname == os.path.join(run._settings.root_dir, "wandb-resume.json")
 
 
-def test_root_dir(live_mock_server, test_settings):
-    pass
+def test_wandb_dir(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.wandb_dir == os.environ.get("WANDB_DIR")
+
+
+def test_log_user(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.log_user == os.path.join(os.environ.get("WANDB_DIR", "debug.log"))
+
+
+def test_log_internal(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.log_user == os.path.join(os.environ.get("WANDB_DIR", "debug-internal.log"))
 
 
 def test_path_convert(test_settings):
