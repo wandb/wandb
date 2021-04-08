@@ -174,7 +174,22 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
-        self._log_setup(settings)
+        # Fixes WB-5291
+        pid = os.getpid()
+        inited_pid = os.environ.get("WANDB_INITED_PID")
+        if inited_pid:
+            # FIXME: check type
+            if pid != int(inited_pid):
+                wandb.termwarn(
+                    "Returning dummy wandb object for multiprocess wandb.init() violation"
+                )
+                settings.update({"mode": "disabled"})
+        os.environ["WANDB_INITED_PID"] = str(pid)
+        # FIXME: cleanup env on join?
+        # FIXME: have override setting?
+
+        if not settings._noop:
+            self._log_setup(settings)
 
         if settings._jupyter:
             self._jupyter_setup(settings)
@@ -378,19 +393,6 @@ class _WandbInit(object):
         )
         if s._noop:
             return self._make_run_disabled()
-        pid = os.getpid()
-
-        inited_pid = os.environ.get("WANDB_INITED_PID")
-        if inited_pid:
-            # FIXME: check type
-            if pid != int(inited_pid):
-                wandb.termwarn(
-                    "Returning dummy wandb object for multiprocess wandb.init() violation"
-                )
-                return self._make_run_disabled()
-        os.environ["WANDB_INITED_PID"] = str(pid)
-        # FIXME: cleanup env on join?
-        # FIXME: have override setting?
 
         if s.reinit or (s._jupyter and s.reinit is not False):
             if len(self._wl._global_run_stack) > 0:
