@@ -197,9 +197,6 @@ message MetricRecord {
   string          name = 1;
   string          glob_name = 2;
 
-  // nested metrics not supported yet
-  // repeated string nested_name = 3;
-
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string          step_metric = 4;
@@ -220,6 +217,7 @@ message MetricRecord {
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
@@ -231,6 +229,9 @@ message MetricSummary {
   bool max = 2;
   bool mean = 3;
   bool best = 4;
+  bool last = 5;
+  bool none = 6;
+  bool copy = 7;
 }
 
 /*
