@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import time
+import multiprocessing
+import queue
 
 from pkg_resources import parse_version
 import requests
@@ -35,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+    from six.moves.queue import Queue
+    from wandb.proto.wandb_internal_pb2 import Result
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -108,6 +112,9 @@ class SendManager(object):
         self._api = internal_api.Api(default_settings=settings, retry_callback=self.retry_callback)
         self._api_settings = dict()
 
+        # queue filled by retry_callback
+        self._retry_q: "Queue[Result]" = multiprocessing.Queue()    # @@@ change queue type?
+
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
@@ -151,7 +158,13 @@ class SendManager(object):
         )
 
     def retry_callback(self, err):
-        wandb.termlog(f'@@@ retrycallback {str(err)}')
+        # @@@ todo need to check for error type httperror, wandberror etc
+        response = wandb_internal_pb2.HttpResponse()
+        response.http_status_code = err.response.status_code
+        response.http_response_text = err.response.text
+        self._retry_q.put(response)
+
+        wandb.termlog(f'@@@ {os.getpid()} retrycallback code {err.response.status_code}, text {err.response.text}, full {err.response}')
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
@@ -215,6 +228,19 @@ class SendManager(object):
                     )
                 except Exception as e:
                     logger.warning("Failed to check stop requested status: %s", e)
+        self._result_q.put(result)
+
+    def send_retry_status(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        status_response = result.status_response
+        if record.request.status.check_retries:
+            while True:
+                try:
+                    status_response.retry_responses.append(self._retry_q.get_nowait())
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logger.warning(f'Error emptying retry queue: {e}')
         self._result_q.put(result)
 
     def send_request_login(self, record):

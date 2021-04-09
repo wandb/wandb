@@ -469,10 +469,17 @@ message GetSummaryResponse {
  */
 message StatusRequest {
   bool check_stop_req = 1;
+  bool check_retries = 2;
 }
 
 message StatusResponse {
   bool run_should_stop = 1;
+  repeated HttpResponse retry_responses = 2;
+}
+
+message HttpResponse {
+  int32 http_status_code = 1;
+  string http_response_text = 2;
 }
 
 /*
