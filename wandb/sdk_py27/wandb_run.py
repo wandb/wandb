@@ -148,6 +148,7 @@ class ExitHooks(object):
         if self._orig_excepthook:
             self._orig_excepthook(exc_type, exc, tb)
 
+
 class RunStatusChecker(object):
     """Periodically polls the background process for relevant updates.
 
