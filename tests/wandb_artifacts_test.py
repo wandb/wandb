@@ -916,15 +916,37 @@ def test_interface_commit_hash(runner):
         artifact.commit_hash()
 
 
-def test_artifact_incremental(runner, live_mock_server, parse_ctx, test_settings):
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(type="dataset", name="incremental-arty", incremental=True)
-    table = wandb.Table(columns=[], rows=[])
-    artifact.add(table, "table")
-    run.log_artifact(artifact)
-    run.finish()
+def test_artifact_incremental(
+    mocked_run,
+    mock_server,
+    internal_sender,
+    internal_sm,
+    start_backend,
+    stop_backend,
+    parse_ctx,
+):
+    artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
+    start_backend()
 
-    manifests_created = parse_ctx(live_mock_server.get_ctx()).manifests_created
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(artifact)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()
+
+    manifests_created = parse_ctx(mock_server.get_ctx()).manifests_created
     assert manifests_created[0]["artifactManifest"]["type"] == "INCREMENTAL"
 
 
