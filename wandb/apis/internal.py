@@ -70,6 +70,9 @@ class Api(object):
     def parse_slug(self, *args, **kwargs):
         return self.api.parse_slug(*args, **kwargs)
 
+    def download_url(self, *args, **kwargs):
+        return self.api.download_url(*args, **kwargs)
+
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
 

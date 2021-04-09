@@ -29,13 +29,21 @@ from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
 from wandb import wandb_sdk
+
 from wandb.apis import InternalApi, PublicApi
+from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
 from wandb.old.settings import Settings
-from wandb.sync import get_run_from_path, get_runs, SyncManager
+from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    import wandb.sdk.verify.verify as wandb_verify
+else:
+    import wandb.sdk_py27.verify.verify as wandb_verify
 
 # whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
 # DANGER this changes the sys.path so we should never do this in a user script
@@ -225,36 +233,42 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         # force relogin if host is specified
         _api.set_setting("base_url", host, globally=True, persist=True)
     key = key[0] if len(key) > 0 else None
-    if host or cloud or key:
+    if key:
         relogin = True
 
-    wandb.setup(
-        settings=wandb.Settings(
-            _cli_only_mode=True,
-            _disable_viewer=relogin,
-            anonymous=anon_mode,
-            base_url=host,
+    try:
+        wandb.setup(
+            settings=wandb.Settings(
+                _cli_only_mode=True,
+                _disable_viewer=relogin,
+                anonymous=anon_mode,
+                base_url=host,
+            )
         )
-    )
+    except TypeError as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
+
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
+@click.option("--port", default=None, help="The host port to bind grpc service.")
 @display_error
-def grpc_server(project=None, entity=None):
+def grpc_server(project=None, entity=None, port=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server()
+    grpc_server(port=port)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
+@click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.argument("agent_spec", nargs=-1)
 @display_error
@@ -411,6 +425,12 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=None,
+    help="Stream tfevent files to wandb.",
+)
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -462,6 +482,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
     include_online=None,
@@ -475,6 +496,8 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
 ):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -530,7 +553,7 @@ def sync(
                 )
             )
 
-    def _sync_path(path):
+    def _sync_path(path, sync_tensorboard):
         if run_id and len(path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
@@ -542,6 +565,7 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
+            sync_tensorboard=sync_tensorboard,
         )
         for p in path:
             sm.add(p)
@@ -562,7 +586,9 @@ def sync(
         if not sync_items:
             wandb.termerror("Nothing to sync.")
         else:
-            _sync_path(sync_items)
+            # When syncing run directories, default to not syncing tensorboard
+            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
+            _sync_path(sync_items, sync_tb)
 
     def _clean():
         if path:
@@ -621,7 +647,9 @@ def sync(
     elif clean:
         _clean()
     elif path:
-        _sync_path(path)
+        # When syncing a specific path, default to syncing tensorboard
+        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path, sync_tb)
     else:
         _summary()
 
@@ -1287,14 +1315,6 @@ def ls(path, type):
     else:
         types = public_api.artifact_types(path)
 
-    def human_size(bytes, units=None):
-        units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-        return (
-            str(bytes) + units[0]
-            if bytes < 1024
-            else human_size(bytes >> 10, units[1:])
-        )
-
     for kind in types:
         for collection in kind.collections():
             versions = public_api.artifact_versions(
@@ -1305,9 +1325,30 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, human_size(latest.size), latest.name
+                    kind.type,
+                    latest.updated_at,
+                    util.to_human_size(latest.size),
+                    latest.name,
                 )
             )
+
+
+@artifact.group(help="Commands for interacting with the artifact cache")
+def cache():
+    pass
+
+
+@cache.command(
+    context_settings=CONTEXT,
+    help="Clean up less frequently used files from the artifacts cache",
+)
+@click.argument("target_size")
+@display_error
+def cleanup(target_size):
+    target_size = util.from_human_size(target_size)
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    reclaimed_bytes = cache.cleanup(target_size)
+    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -1552,6 +1593,7 @@ def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
@@ -1565,6 +1607,7 @@ def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline, running your script from this directory will only write metadata locally."
         )
@@ -1624,3 +1667,61 @@ def enabled():
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
         )
+
+
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )
+
+
+@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
+def verify(host):
+    # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
+    os.environ["WANDB_SILENT"] = "true"
+    os.environ["WANDB_PROJECT"] = "verify"
+    api = _get_cling_api()
+    reinit = False
+    if host is None:
+        host = api.settings("base_url")
+        print("Default host selected: {}".format(host))
+    # if the given host does not match the default host, re run init
+    elif host != api.settings("base_url"):
+        reinit = True
+
+    tmp_dir = tempfile.TemporaryDirectory()
+    os.chdir(tmp_dir.name)
+    os.environ["WANDB_BASE_URL"] = host
+    wandb.login(host=host)
+    if reinit:
+        api = _get_cling_api(reset=True)
+    if not wandb_verify.check_host(host):
+        sys.exit(1)
+    if not wandb_verify.check_logged_in(api, host):
+        sys.exit(1)
+    url_success, url = wandb_verify.check_graphql_put(api, host)
+    large_post_success = wandb_verify.check_large_post()
+    wandb_verify.check_secure_requests(
+        api.settings("base_url"),
+        "Checking requests to base url",
+        "Connections are not made over https. SSL required for secure communications.",
+    )
+    if url:
+        wandb_verify.check_secure_requests(
+            url,
+            "Checking requests made over signed URLs",
+            "Signed URL requests not made over https. SSL is required for secure communications.",
+        )
+    wandb_verify.check_wandb_version(api)
+    check_run_success = wandb_verify.check_run(api)
+    check_artifacts_success = wandb_verify.check_artifacts()
+    if not (
+        check_artifacts_success
+        and check_run_success
+        and large_post_success
+        and url_success
+    ):
+        sys.exit(1)

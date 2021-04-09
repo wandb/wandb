@@ -3,15 +3,25 @@ See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
 import wandb
+from wandb.viz import create_custom_chart
 import pytest
 import tempfile
 import glob
 import os
+import sys
 
 
 def test_log_step(wandb_init_run):
     wandb.log({"acc": 1}, step=5, commit=True)
     assert wandb.run._backend.history[0]["_step"] == 5
+
+
+def test_log_custom_chart(wandb_init_run):
+    custom_chart = create_custom_chart(
+        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+    )
+    wandb.log({"my_custom_chart": custom_chart})
+    assert wandb.run._backend.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
@@ -105,14 +115,16 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skip(
-    reason="Sagemaker support not currently implemented, see wandb.util.parse_sm_config"
+@pytest.mark.skipif(
+    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
 )
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
-    assert wandb.run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it
+    #  so its not added. Similarly add test for group
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+    # assert wandb.run.group == "sage"
 
 
 @pytest.mark.wandb_args(

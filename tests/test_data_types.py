@@ -11,12 +11,65 @@ import platform
 import pandas as pd
 from click.testing import CliRunner
 from . import utils
+from .utils import dummy_data
 import matplotlib
+from wandb import Api
+import time
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
+
+
+@pytest.fixture
+def api(runner):
+    return Api()
+
+
+def test_wb_value(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    local_art = wandb.Artifact("N", "T")
+    public_art = run.use_artifact("N:latest")
+
+    wbvalue = data_types.WBValue()
+    with pytest.raises(NotImplementedError):
+        wbvalue.to_json(local_art)
+
+    with pytest.raises(NotImplementedError):
+        data_types.WBValue.from_json({}, public_art)
+
+    assert data_types.WBValue.with_suffix("item") == "item.json"
+
+    table = data_types.WBValue.init_from_json(
+        {
+            "_type": "table",
+            "data": [[]],
+            "columns": [],
+            "column_types": wandb.data_types._dtypes.DictType({}).to_json(),
+        },
+        public_art,
+    )
+    assert isinstance(table, data_types.WBValue) and isinstance(
+        table, wandb.data_types.Table
+    )
+
+    type_mapping = data_types.WBValue.type_mapping()
+    assert all(
+        [issubclass(type_mapping[key], data_types.WBValue) for key in type_mapping]
+    )
+
+    assert wbvalue == wbvalue
+    assert wbvalue != data_types.WBValue()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="fastparqet not for py2")
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="numpy not in py3.9 yet")
+def test_wb_summary_df(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
+    with pytest.raises(ValueError):
+        run.summary.update({"data-frame-summary": data_frame})
 
 
 def test_raw_data():
@@ -154,7 +207,7 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        data_types.prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
     )
     expected = {
         "_type": "images/separated",
@@ -223,10 +276,23 @@ def test_audio_to_json(mocked_run):
     audio_expected = {
         "_type": "audio-file",
         "caption": None,
-        "sample_rate": 44100,
         "size": 88244,
     }
     assert utils.subdict(meta["audio"][0], audio_expected) == audio_expected
+
+
+def test_audio_refs():
+    audioObj = wandb.Audio(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+    )
+    art = wandb.Artifact("audio_ref_test", "dataset")
+    art.add(audioObj, "audio_ref")
+
+    audio_expected = {
+        "_type": "audio-file",
+        "caption": None,
+    }
+    assert utils.subdict(audioObj.to_json(art), audio_expected) == audio_expected
 
 
 def test_guess_mode():
@@ -334,12 +400,28 @@ def test_make_plot_media_from_matplotlib_with_image():
     plt.close()
 
 
+def test_create_bokeh_plot(mocked_run):
+    """Ensures that wandb.Bokeh constructor accepts a bokeh plot 
+    """
+    bp = dummy_data.bokeh_plot()
+    bp = wandb.data_types.Bokeh(bp)
+    bp.bind_to_run(mocked_run, "bokeh", 0)
+
+
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
-def test_video_numpy(mocked_run):
+def test_video_numpy_gif(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
-    vid = wandb.Video(video)
+    vid = wandb.Video(video, format="gif")
     vid.bind_to_run(mocked_run, "videos", 0)
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
+def test_video_numpy_mp4(mocked_run):
+    video = np.random.randint(255, size=(10, 3, 28, 28))
+    vid = wandb.Video(video, format="mp4")
+    vid.bind_to_run(mocked_run, "videos", 0)
+    assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
@@ -378,6 +460,17 @@ def test_molecule(runner, mocked_run):
         with open("test.pdb", "w") as f:
             f.write("00000")
         mol = wandb.Molecule("test.pdb")
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_file(runner, mocked_run):
+    with runner.isolated_filesystem():
+        with open("test.pdb", "w") as f:
+            f.write("00000")
+        mol = wandb.Molecule(open("test.pdb", "r"))
         mol.bind_to_run(mocked_run, "rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
@@ -423,6 +516,16 @@ def test_html_file(mocked_run):
     assert os.path.exists(html._path)
 
 
+def test_html_file_path(mocked_run):
+    with open("test.html", "w") as f:
+        f.write("<html><body><h1>Hello</h1></body></html>")
+    html = wandb.Html("test.html")
+    html.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Html.seq_to_json([html, html], mocked_run, "rad", "summary")
+
+    assert os.path.exists(html._path)
+
+
 def test_table_default():
     table = wandb.Table()
     table.add_data("Some awesome text", "Positive", "Negative")
@@ -430,6 +533,48 @@ def test_table_default():
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"],
     }
+
+
+def test_table_eq_debug():
+    # Invalid Type
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = {}
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Rows
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Columns
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]], columns=["a", "b", "c"])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Types
+    a = wandb.Table(data=[[1, 2, 3]])
+    b = wandb.Table(data=[["1", "2", "3"]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    # Mismatch Data
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 100]])
+    with pytest.raises(AssertionError):
+        a._eq_debug(b, True)
+    assert a != b
+
+    a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    b = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
+    a._eq_debug(b, True)
+    assert a == b
 
 
 def test_table_custom():
@@ -469,6 +614,22 @@ def test_object3d_numpy(mocked_run):
     assert obj1.to_json(mocked_run)["_type"] == "object3D-file"
     assert obj2.to_json(mocked_run)["_type"] == "object3D-file"
     assert obj3.to_json(mocked_run)["_type"] == "object3D-file"
+
+
+def test_object3d_dict(mocked_run):
+    obj = wandb.Object3D({"type": "lidar/beta",})
+    obj.bind_to_run(mocked_run, "object3D", 0)
+    assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+
+
+def test_object3d_dict_invalid(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D({"type": "INVALID",})
+
+
+def test_object3d_dict_invalid_string(mocked_run):
+    with pytest.raises(ValueError):
+        obj = wandb.Object3D("INVALID")
 
 
 def test_object3d_obj(mocked_run):
@@ -549,6 +710,67 @@ def test_table_init():
     }
 
 
+table_data = [
+    ["a", 1, True],
+    ["b", 2, False],
+    ["c", 3, True],
+]
+
+
+def test_table_from_list():
+    table = wandb.Table(data=table_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(table_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=table_data)
+
+    # legacy
+    table = wandb.Table(rows=table_data)
+    assert table.data == table_data
+
+
+def test_table_iterator():
+    table = wandb.Table(data=table_data)
+    for ndx, row in table.iterrows():
+        assert row == table_data[ndx]
+
+    table = wandb.Table(data=[])
+    assert len([(ndx, row) for ndx, row in table.iterrows()]) == 0
+
+
+def test_table_from_numpy():
+    np_data = np.array(table_data)
+    table = wandb.Table(data=np_data)
+    assert table.data == np_data.tolist()
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(np_data)
+
+    with pytest.raises(AssertionError):
+        # raises when user uses list in "dataframe"
+        table = wandb.Table(dataframe=np_data)
+
+
+def test_table_from_pandas():
+    pd_data = pd.DataFrame(table_data)
+    table = wandb.Table(data=pd_data)
+    assert table.data == table_data
+
+    with pytest.raises(AssertionError):
+        # raises when user accidentally overrides columns
+        table = wandb.Table(pd_data)
+
+    # legacy
+    table = wandb.Table(dataframe=pd_data)
+    assert table.data == table_data
+
+
 def test_graph():
     graph = wandb.Graph()
     node_a = data_types.Node("a", "Node A", size=(4,))
@@ -567,7 +789,155 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types.numpy_arrays_to_lists
+    conv = data_types._numpy_arrays_to_lists
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
+
+
+def test_partitioned_table_from_json(runner, mock_server, api):
+    # This is mocked to return some data
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    ptable = art.get("dataset")
+    data = [[0, 0, 1]]
+    for ndx, row in ptable.iterrows():
+        assert row == data[ndx]
+
+
+def test_partitioned_table():
+    partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
+    assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
+    assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+def test_table_column_style():
+    # Test Base Cases
+    table1 = wandb.Table(columns=[], data=[])
+    table1.add_column("number", [1, 2, 3])
+    table1.add_data(4)
+    with pytest.raises(AssertionError):
+        table1.add_column("strings", ["a"])
+    table1.add_column("strings", ["a", "b", "c", "d"])
+    table1.set_pk("strings")
+    table1.add_data(5, "e")
+    table1.add_column("np_numbers", np.array([101, 102, 103, 104, 105]))
+
+    assert table1.data == [
+        [1, "a", 101],
+        [2, "b", 102],
+        [3, "c", 103],
+        [4, "d", 104],
+        [5, "e", 105],
+    ]
+
+    assert table1.get_column("number") == [1, 2, 3, 4, 5]
+    assert table1.get_column("strings") == ["a", "b", "c", "d", "e"]
+    assert table1.get_column("np_numbers") == [101, 102, 103, 104, 105]
+
+    assert np.all(
+        table1.get_column("number", convert_to="numpy") == np.array([1, 2, 3, 4, 5])
+    )
+    assert np.all(
+        table1.get_column("strings", convert_to="numpy")
+        == np.array(["a", "b", "c", "d", "e"])
+    )
+    assert np.all(
+        table1.get_column("np_numbers", convert_to="numpy")
+        == np.array([101, 102, 103, 104, 105])
+    )
+
+    ndxs = table1.get_index()
+    assert ndxs == [0, 1, 2, 3, 4]
+    assert [ndx._table == table1 for ndx in ndxs]
+
+    # Test More Images and ndarrays
+    rand_1 = np.random.randint(255, size=(32, 32))
+    rand_2 = np.random.randint(255, size=(32, 32))
+    rand_3 = np.random.randint(255, size=(32, 32))
+    img_1 = wandb.Image(rand_1)
+    img_2 = wandb.Image(rand_2)
+    img_3 = wandb.Image(rand_3)
+
+    table2 = wandb.Table(columns=[], data=[])
+    table2.add_column("np_data", [rand_1, rand_2])
+    table2.add_column("image", [img_1, img_2])
+    table2.add_data(rand_3, img_3)
+
+    assert table2.data == [[rand_1, img_1], [rand_2, img_2], [rand_3, img_3]]
+    assert np.all(
+        table2.get_column("np_data", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+    assert table2.get_column("image") == [img_1, img_2, img_3]
+    a = table2.get_column("image", convert_to="numpy")
+    b = np.array([rand_1, rand_2, rand_3])
+    assert np.all(
+        table2.get_column("image", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+
+    table3 = wandb.Table(columns=[], data=[])
+    table3.add_column("table1_fk", table1.get_column("strings"))
+    assert table3.get_column("table1_fk")[0]._table == table1
+
+
+def test_ndarrays_in_tables():
+    rows = 10
+    d = 128
+    c = 3
+    nda_table = wandb.Table(
+        columns=["ndarray"], data=np.random.randint(255, size=(rows, 1, d, d, c))
+    )
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)))
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)).tolist())
+
+    assert any(
+        [
+            isinstance(t, wandb.data_types._dtypes.NDArrayType)
+            for t in nda_table._column_types.params["type_map"]["ndarray"].params[
+                "allowed_types"
+            ]
+        ]
+    )
+
+    nda_table = wandb.Table(columns=[], data=[])
+    nda_table.add_column(
+        "odd_col",
+        [[[i], [i]] for i in range(rows)] + [np.random.randint(255, size=(2, 1))],
+    )
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.ListType,
+    )
+
+    nda_table.cast("odd_col", wandb.data_types._dtypes.NDArrayType(shape=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)).tolist())
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.NDArrayType,
+    )
+
+
+def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log(
+        {
+            "logged_table": wandb.Table(
+                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+            )
+        }
+    )
+    run.finish()
+    assert True

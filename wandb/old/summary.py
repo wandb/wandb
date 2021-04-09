@@ -26,7 +26,6 @@ else:
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
-
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
 
@@ -38,13 +37,17 @@ class SummarySubDict(object):
     """
 
     def __init__(self, root=None, path=()):
+        self._path = tuple(path)
         if root is None:
             self._root = self
+            self._json_dict = {}
         else:
             self._root = root
-        self._path = tuple(path)
+            json_dict = root._json_dict
+            for k in path:
+                json_dict = json_dict[k]
+            self._json_dict = json_dict
         self._dict = {}
-        self._json_dict = {}
 
         # We use this to track which keys the user has set explicitly
         # so that we don't automatically overwrite them when we update
@@ -117,7 +120,13 @@ class SummarySubDict(object):
             k = k.strip()
 
         self.get(k)  # load the value into _dict if it should be there
-        return self._dict[k]
+        res = self._dict[k]
+
+        # Special condition to automatically load and deserialize table entries
+        if isinstance(res, wandb.old.summary.SummarySubDict) and res.get("_type") == "table-file" and "artifact_path" in res:
+            api = wandb.Api()
+            return api.artifact(res["artifact_path"]["artifact"]).get(res["artifact_path"]["path"])
+        return res
 
     def __contains__(self, k):
         if isinstance(k, string_types):

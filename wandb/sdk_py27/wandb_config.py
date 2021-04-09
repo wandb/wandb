@@ -6,14 +6,9 @@ config.
 
 import logging
 
-try:
-    from collections.abc import Sequence
-except ImportError:
-    from collections import Sequence
-
 import six
 import wandb
-from wandb.util import json_friendly
+from wandb.util import json_friendly_val
 
 from . import wandb_helper
 from .lib import config_util
@@ -26,24 +21,25 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config(object):
-    """Config object
+    """
+    Config object
 
     Config objects are intended to hold all of the hyperparameters associated with
-    a wandb run and are saved with the run object when wandb.init is called.
+    a wandb run and are saved with the run object when `wandb.init` is called.
 
-    We recommend setting wandb.config once at the top of your training experiment or
-    setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
+    We recommend setting `wandb.config` once at the top of your training experiment or
+    setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
-    You can create a file called config-defaults.yaml, and it will automatically be
-    loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
+    You can create a file called `config-defaults.yaml`, and it will automatically be
+    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
-    into wandb.init(config="special_config.yaml").
+    into `wandb.init(config="special_config.yaml")`.
     See https://docs.wandb.com/library/config#file-based-configs.
 
     Examples:
         Basic usage
-        ```
+        ```python
         wandb.config.epochs = 4
         wandb.init()
         for x in range(wandb.config.epochs):
@@ -51,14 +47,14 @@ class Config(object):
         ```
 
         Using wandb.init to set config
-        ```
+        ```python
         wandb.init(config={"epochs": 4, "batch_size": 32})
         for x in range(wandb.config.epochs):
             # train
         ```
 
         Nested configs
-        ```
+        ```python
         wandb.config['train']['epochs] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
@@ -66,14 +62,13 @@ class Config(object):
         ```
 
         Using absl flags
-
-        ```
+        ```python
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
         Argparse flags
-        ```
+        ```python
         wandb.init()
         wandb.config.epochs = 4
 
@@ -85,7 +80,7 @@ class Config(object):
         ```
 
         Using TensorFlow flags (deprecated in tensorflow v2)
-        ```
+        ```python
         flags = tf.app.flags
         flags.DEFINE_string('data_dir', '/tmp/data')
         flags.DEFINE_integer('batch_size', 128, 'Batch size.')
@@ -126,15 +121,26 @@ class Config(object):
     def __getitem__(self, key):
         return self._items[key]
 
+    def _check_locked(self, key, ignore_locked=False):
+        locked = self._locked.get(key)
+        if locked is not None:
+            locked_user = self._users_inv[locked]
+            if not ignore_locked:
+                wandb.termwarn(
+                    "Config item '%s' was locked by '%s' (ignored update)."
+                    % (key, locked_user)
+                )
+            return True
+        return False
+
     def __setitem__(self, key, val):
-        key, val = self._sanitize(key, val)
-        if key in self._locked:
-            wandb.termwarn("Config item '%s' was locked." % key)
+        if self._check_locked(key):
             return
+        key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
-            self._callback(key=key, val=val, data=self._as_dict())
+            self._callback(key=key, val=val)
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -147,15 +153,22 @@ class Config(object):
     def __contains__(self, key):
         return key in self._items
 
-    def _update(self, d, allow_val_change=None):
+    def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
-        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
+        locked_keys = set()
+        for key in list(parsed_dict):
+            if self._check_locked(key, ignore_locked=ignore_locked):
+                locked_keys.add(key)
+        sanitized = self._sanitize_dict(
+            parsed_dict, allow_val_change, ignore_keys=locked_keys
+        )
         self._items.update(sanitized)
+        return sanitized
 
     def update(self, d, allow_val_change=None):
-        self._update(d, allow_val_change)
+        sanitized = self._update(d, allow_val_change)
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=sanitized)
 
     def get(self, *args):
         return self._items.get(*args)
@@ -167,37 +180,43 @@ class Config(object):
 
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
+        # strip out keys already configured
+        d = {k: v for k, v in six.iteritems(d) if k not in self._items}
         d = self._sanitize_dict(d)
-        for k, v in six.iteritems(d):
-            self._items.setdefault(k, v)
+        self._items.update(d)
         if self._callback:
-            self._callback(data=self._as_dict())
+            self._callback(data=d)
 
-    def update_locked(self, d, user=None):
+    def update_locked(self, d, user=None, _allow_val_change=None):
         if user not in self._users:
-            # TODO(jhr): use __setattr__ madness
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
-            self._users_cnt += 1
+            object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
 
         num = self._users[user]
 
         for k, v in six.iteritems(d):
-            k, v = self._sanitize(k, v)
+            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
+
+        if self._callback:
+            self._callback(data=d)
 
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None):
+    def _sanitize_dict(
+        self, config_dict, allow_val_change=None, ignore_keys = None
+    ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
+            if ignore_keys and k in ignore_keys:
+                continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
-
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
@@ -206,7 +225,7 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        val = self._sanitize_val(val)
+        val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
@@ -218,29 +237,6 @@ class Config(object):
                     ).format(key, self._items[key], val)
                 )
         return key, val
-
-    def _sanitize_val(self, val):
-        """Turn all non-builtin values into something safe for YAML"""
-        if isinstance(val, dict):
-            converted = {}
-            for key, value in six.iteritems(val):
-                converted[key] = self._sanitize_val(value)
-            return converted
-        if isinstance(val, slice):
-            converted = dict(
-                slice_start=val.start, slice_step=val.step, slice_stop=val.stop
-            )
-            return converted
-        val, _ = json_friendly(val)
-        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
-            converted = []
-            for value in val:
-                converted.append(self._sanitize_val(value))
-            return converted
-        else:
-            if val.__class__.__module__ not in ("builtins", "__builtin__"):
-                val = str(val)
-            return val
 
 
 class ConfigStatic(object):

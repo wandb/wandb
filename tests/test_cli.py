@@ -9,7 +9,9 @@ import getpass
 import pytest
 import netrc
 import subprocess
+import sys
 import os
+from tests import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 DOCKER_SHA = (
@@ -208,6 +210,13 @@ def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc)
         )
 
 
+def test_login_bad_host(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--host", "https://app.wandb.ai"])
+        assert "did you mean https://api.wandb.ai" in result.output
+        assert result.exit_code != 0
+
+
 def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
     onprem_key = "test-" + DUMMY_API_KEY
     with runner.isolated_filesystem():
@@ -282,7 +291,7 @@ def test_artifact_ls(runner, git_repo, mock_server):
     print(result.exception)
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
-    assert "9KB" in result.output
+    assert "10.0KB" in result.output
     assert "mnist:v2" in result.output
 
 
@@ -694,6 +703,7 @@ def test_local_already_running(runner, docker, local_settings):
     reason="The patch in mock_server.py doesn't work in windows",
 )
 def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
+    # TODO(jhr): does not work with --flake-finder
     with open("patch.txt", "w") as f:
         f.write("test")
     git_repo.repo.index.add(["patch.txt"])
@@ -847,3 +857,103 @@ def test_sweep_pause(runner, live_mock_server, test_settings, stop_mode):
     runner.invoke(cli.sweep, "--pause", sweep_id)
     runner.invoke(cli.sweep, "--resume", sweep_id)
     runner.invoke(cli.sweep, stop_mode, sweep_id)
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        ctx = live_mock_server.get_ctx()
+        print(ctx)
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 17
+        )
+
+        # Check the no sync tensorboard flag
+        result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
+        assert result.output == "Skipping directory: {}\n".format(os.path.abspath("."))
+        assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_tensorboard_big(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1611911647.big-histos")
+        result = runner.invoke(cli.sync, ["."])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        assert "Found 1 tfevent files" in result.output
+        assert "exceeds max data limit" in result.output
+        ctx = live_mock_server.get_ctx()
+        print(ctx)
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 27
+        )
+
+
+def test_sync_wandb_run(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("wandb")
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        assert result.exit_code == 0
+        assert "wandb: ERROR Nothing to sync." in result.output
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
+        utils.fixture_copy("wandb")
+        utils.fixture_copy(
+            "events.out.tfevents.1585769947.cvp",
+            os.path.join(run_dir, "events.out.tfevents.1585769947.cvp"),
+        )
+
+        result = runner.invoke(cli.sync, ["--sync-all"])
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
+
+        # Check we marked the run as synced
+        result = runner.invoke(cli.sync, [run_dir])
+        assert result.exit_code == 0
+        assert (
+            "WARNING Found .wandb file, not streaming tensorboard metrics"
+            in result.output
+        )

@@ -13,7 +13,6 @@ run_id can be resolved.
 
 import copy
 import logging
-import multiprocessing
 import os
 import sys
 import threading
@@ -76,9 +75,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
     def __init__(self, settings=None, environ=None):
-        self._multiprocessing = None
         self._settings = None
         self._environ = environ or dict(os.environ)
+        self._sweep_config = None
         self._config = None
         self._server = None
 
@@ -200,19 +199,11 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
-        # TODO: use fork context if unix and frozen?
-        # if py34+, else fall back
-        if hasattr(multiprocessing, "get_context"):
-            all_methods = multiprocessing.get_all_start_methods()
-            logger.info(
-                "multiprocessing start_methods={}".format(",".join(all_methods))
+        sweep_path = self._settings.sweep_param_path
+        if sweep_path:
+            self._sweep_config = config_util.dict_from_config_file(
+                sweep_path, must_exist=True
             )
-            ctx = multiprocessing.get_context("spawn")
-        else:
-            logger.info("multiprocessing fallback, likely fork on unix")
-            ctx = multiprocessing
-        self._multiprocessing = ctx
-        # print("t3b", self._multiprocessing.get_start_method())
 
         # if config_paths was set, read in config dict
         if self._settings.config_paths:

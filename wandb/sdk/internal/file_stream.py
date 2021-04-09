@@ -1,19 +1,22 @@
 import base64
 import binascii
 import collections
-import logging
-import threading
-import requests
-import time
-import wandb
 import itertools
-from six.moves import queue
+import logging
+import os
+import sys
+import requests
+import threading
+import time
+
+import wandb
 from wandb import util
 from wandb import env
-import os
 
+from six.moves import queue
 
-MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
+from ..lib import file_stream_utils
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +36,14 @@ class DefaultFilePolicy(object):
 class JsonlFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         chunk_id = self._chunk_id
+        # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) > MAX_LINE_SIZE:
-                msg = "Metric data exceeds maximum size of {} bytes. Dropping it.".format(
-                    MAX_LINE_SIZE
+            if len(chunk.data) > util.MAX_LINE_SIZE:
+                msg = "Metric data exceeds maximum size of {} ({})".format(
+                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
                 util.sentry_message(msg)
@@ -54,9 +59,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
 class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        if len(data) > MAX_LINE_SIZE:
-            msg = "Summary data exceeds maximum size of {} bytes. Dropping it.".format(
-                MAX_LINE_SIZE
+        if len(data) > util.MAX_LINE_SIZE:
+            msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
+                util.to_human_size(util.MAX_LINE_SIZE)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
@@ -73,35 +78,58 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     while preserving the output's appearance in the web app.
     """
 
+    def __init__(self, start_chunk_id=0):
+        super(CRDedupeFilePolicy, self).__init__(start_chunk_id=start_chunk_id)
+        self._prev_chunk = None
+
     def process_chunks(self, chunks):
         ret = []
-        flag = False  # whether the cursor can be moved up
+        flag = bool(self._prev_chunk)
+        chunk_id = self._chunk_id
         for c in chunks:
             # Line has two possible formats:
             # 1) "2020-08-25T20:38:36.895321 this is my line of text"
             # 2) "ERROR 2020-08-25T20:38:36.895321 this is my line of text"
             prefix = ""
             token, rest = c.data.split(" ", 1)
+            is_err = False
             if token == "ERROR":
+                is_err = True
                 prefix += token + " "
                 token, rest = rest.split(" ", 1)
             prefix += token + " "
 
             lines = rest.split(os.linesep)
             for line in lines:
-                line = line.split("\r")[-1]
-                if line:
-                    # check for cursor up control character
-                    if line.endswith("\x1b\x5b\x41"):
+                if line.startswith("\r"):
+                    found = False
+                    for i in range(len(ret) - 1, -1, -1):
+                        if ret[i].startswith("ERROR ") == is_err:
+                            ret[i] = prefix + line[1:] + "\n"
+                            found = True
+                            break
+                    if not found:
                         if flag:
-                            ret.pop()
                             flag = False
-                    else:
-                        ret.append(prefix + line + os.linesep)
-                        flag = True
-        chunk_id = self._chunk_id
-        self._chunk_id += len(ret)
-        return {"offset": chunk_id, "content": ret}
+                            prev_ret = self._prev_chunk["content"]
+                            for i in range(len(prev_ret) - 1, -1, -1):
+                                if prev_ret[i].startswith("ERROR ") == is_err:
+                                    prev_ret[i] = prefix + line[1:] + "\n"
+                                    found = True
+                                    break
+                            if found:
+                                chunk_id = self._prev_chunk["offset"]
+                                ret = prev_ret + ret
+                            else:
+                                ret.append(prefix + line[1:] + "\n")
+                        else:
+                            ret.append(prefix + line[1:] + "\n")
+                elif line:
+                    ret.append(prefix + line + "\n")
+        self._chunk_id = chunk_id + len(ret)
+        ret = {"offset": chunk_id, "content": ret}
+        self._prev_chunk = ret
+        return ret
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
@@ -267,11 +295,12 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        self._handle_response(
-            util.request_with_retry(
-                self._client.post, self._endpoint, json={"files": files}
+        for fs in file_stream_utils.split_files(files, max_mb=10):
+            self._handle_response(
+                util.request_with_retry(
+                    self._client.post, self._endpoint, json={"files": fs}
+                )
             )
-        )
 
     def stream_file(self, path):
         name = path.split("/")[-1]

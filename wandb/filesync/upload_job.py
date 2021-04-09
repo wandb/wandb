@@ -15,6 +15,7 @@ class UploadJob(threading.Thread):
         done_queue,
         stats,
         api,
+        silent,
         save_name,
         path,
         artifact_id,
@@ -37,6 +38,7 @@ class UploadJob(threading.Thread):
         self._done_queue = done_queue
         self._stats = stats
         self._api = api
+        self.silent = silent
         self.save_name = save_name
         self.save_path = self.path = path
         self.artifact_id = artifact_id
@@ -133,11 +135,12 @@ class UploadJob(threading.Thread):
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
                 wandb.util.sentry_exc(e)
-                wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_name, type(e).__name__, e
+                if not self.silent:
+                    wandb.termerror(
+                        'Error uploading "{}": {}, {}'.format(
+                            self.save_name, type(e).__name__, e
+                        )
                     )
-                )
                 return False
         return True
 

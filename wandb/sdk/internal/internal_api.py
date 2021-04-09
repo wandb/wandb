@@ -1,8 +1,8 @@
+#
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
-import os
 import ast
 import os
 import json
@@ -11,11 +11,7 @@ import re
 import click
 import logging
 import requests
-import socket
-import time
 import sys
-import random
-import traceback
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -23,21 +19,18 @@ else:
     import subprocess  # type: ignore[no-redef]
 
 import six
-from six import b
 from six import BytesIO
 import wandb
 from wandb import __version__
-from wandb.old.core import wandb_dir, Error
 from wandb import env
 from wandb.old.settings import Settings
 from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors.error import CommError, UsageError
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
+from wandb.errors import CommError, UsageError
+from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
-from .file_stream import FileStreamApi
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -154,92 +147,6 @@ class Api(object):
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
-
-    def sync_spell(self, run, env=None):
-        """Syncs this run with spell"""
-        try:
-            env = env or os.environ
-            run.config["_wandb"]["spell_url"] = env.get("SPELL_RUN_URL")
-            run.config.persist()
-            try:
-                url = run.get_url()
-            except CommError as e:
-                wandb.termerror("Unable to register run with spell.run: %s" % e.message)
-                return False
-            return requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            return False
-
-    def save_patches(self, out_dir):
-        """Save the current state of this repository to one or more patches.
-
-        Makes one patch against HEAD and another one against the most recent
-        commit that occurs in an upstream branch. This way we can be robust
-        to history editing as long as the user never does "push -f" to break
-        history on an upstream branch.
-
-        Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
-        <out_dir>/upstream_diff_<commit_id>.patch.
-
-        Arguments:
-            out_dir (str): Directory to write the patch files.
-        """
-        if not self.git.enabled:
-            return False
-
-        try:
-            root = self.git.root
-            if self.git.dirty:
-                patch_path = os.path.join(out_dir, DIFF_FNAME)
-                if self.git.has_submodule_diff:
-                    with open(patch_path, "wb") as patch:
-                        # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", "HEAD"],
-                            stdout=patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(patch_path, "wb") as patch:
-                        subprocess.check_call(
-                            ["git", "diff", "HEAD"], stdout=patch, cwd=root, timeout=5
-                        )
-
-            upstream_commit = self.git.get_upstream_fork_point()
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
-                sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(
-                    out_dir, "upstream_diff_{}.patch".format(sha)
-                )
-                if self.git.has_submodule_diff:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
-        # so we now catch ValueError.  Catching this error feels too generic.
-        except (
-            ValueError,
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            logger.error("Error generating diff: %s" % e)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -1087,14 +994,12 @@ class Api(object):
         )
         run = run or self.current_run_id
         assert run, "run must be specified"
+        entity = entity or self.settings("entity")
         query_result = self.gql(
-            query,
-            variable_values={
-                "name": project,
-                "run": run,
-                "entity": entity or self.settings("entity"),
-            },
+            query, variable_values={"name": project, "run": run, "entity": entity,},
         )
+        if query_result["model"] is None:
+            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
         files = self._flatten_edges(query_result["model"]["bucket"]["files"])
         return {file["name"]: file for file in files if file}
 
@@ -1182,7 +1087,7 @@ class Api(object):
 
         size, response = self.download_file(metadata["url"])
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 
@@ -1203,8 +1108,6 @@ class Api(object):
         extra_headers = extra_headers.copy()
         response = None
         progress = Progress(file, callback=callback)
-        if progress.len == 0:
-            raise CommError("%s is an empty file" % file.name)
         try:
             response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()
@@ -1679,6 +1582,7 @@ class Api(object):
         labels=None,
         metadata=None,
         aliases=None,
+        distributed_id=None,
         is_user_created=False,
     ):
         mutation = gql(
@@ -1689,11 +1593,12 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String,
-            $description: String
+            $description: String,
             $digest: String!,
-            $labels: JSONString
-            $aliases: [ArtifactAliasInput!]
-            $metadata: JSONString
+            $labels: JSONString,
+            $aliases: [ArtifactAliasInput!],
+            $metadata: JSONString,
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1704,9 +1609,10 @@ class Api(object):
                 description: $description,
                 digest: $digest,
                 digestAlgorithm: MANIFEST_MD5,
-                labels: $labels
-                aliases: $aliases
-                metadata: $metadata
+                labels: $labels,
+                aliases: $aliases,
+                metadata: $metadata,
+                %s
             }) {
                 artifact {
                     id
@@ -1727,6 +1633,13 @@ class Api(object):
             }
         }
         """
+            %
+            # For backwards compatibility with older backends that don't support
+            # distributed writers.
+            (
+                "$distributedID: String" if distributed_id else "",
+                "distributedID: $distributedID" if distributed_id else "",
+            )
         )
 
         entity_name = entity_name or self.settings("entity")
@@ -1753,6 +1666,7 @@ class Api(object):
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
+                "distributedID": distributed_id,
             },
         )
         av = response["createArtifact"]["artifact"]
@@ -1798,6 +1712,7 @@ class Api(object):
         project=None,
         run=None,
         include_upload=True,
+        type="FULL",
     ):
         mutation = gql(
             """
@@ -1809,7 +1724,8 @@ class Api(object):
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $includeUpload: Boolean!
+            $includeUpload: Boolean!,
+            %s
         ) {
             createArtifactManifest(input: {
                 name: $name,
@@ -1818,7 +1734,8 @@ class Api(object):
                 baseArtifactID: $baseArtifactID,
                 entityName: $entityName,
                 projectName: $projectName,
-                runName: $runName
+                runName: $runName,
+                %s
             }) {
                 artifactManifest {
                     id
@@ -1833,6 +1750,13 @@ class Api(object):
             }
         }
         """
+            %
+            # For backwards compatibility with older backends that don't support
+            # patch manifests.
+            (
+                "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
+                "type: $type" if type != "FULL" else "",
+            )
         )
 
         entity_name = entity or self.settings("entity")
@@ -1850,10 +1774,64 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "includeUpload": include_upload,
+                "type": type,
             },
         )
 
-        return response["createArtifactManifest"]["artifactManifest"]["file"]
+        return (
+            response["createArtifactManifest"]["artifactManifest"]["id"],
+            response["createArtifactManifest"]["artifactManifest"]["file"],
+        )
+
+    def update_artifact_manifest(
+        self,
+        artifact_manifest_id,
+        base_artifact_id=None,
+        digest=None,
+        include_upload=True,
+    ):
+        mutation = gql(
+            """
+        mutation UpdateArtifactManifest(
+            $artifactManifestID: ID!,
+            $digest: String,
+            $baseArtifactID: ID,
+            $includeUpload: Boolean!,
+        ) {
+            updateArtifactManifest(input: {
+                artifactManifestID: $artifactManifestID,
+                digest: $digest,
+                baseArtifactID: $baseArtifactID,
+            }) {
+                artifactManifest {
+                    id
+                    file {
+                        id
+                        name
+                        displayName
+                        uploadUrl @include(if: $includeUpload)
+                        uploadHeaders @include(if: $includeUpload)
+                    }
+                }
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactManifestID": artifact_manifest_id,
+                "digest": digest,
+                "baseArtifactID": base_artifact_id,
+                "includeUpload": include_upload,
+            },
+        )
+
+        return (
+            response["updateArtifactManifest"]["artifactManifest"]["id"],
+            response["updateArtifactManifest"]["artifactManifest"]["file"],
+        )
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):

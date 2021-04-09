@@ -15,18 +15,11 @@ import six
 from six import BytesIO
 import wandb
 from wandb import __version__, env, util
-from wandb import wandb_lib
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors.error import CommError, UsageError
+from wandb.errors import CommError, UsageError
 from wandb.old import retry
 from wandb.old.settings import Settings
 import yaml
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
-
 
 logger = logging.getLogger(__name__)
 
@@ -137,92 +130,6 @@ class Api(object):
 
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
-
-    def sync_spell(self, run, env=None):
-        """Syncs this run with spell"""
-        try:
-            env = env or os.environ
-            run.config["_wandb"]["spell_url"] = env.get("SPELL_RUN_URL")
-            run.config.persist()
-            try:
-                url = run.get_url()
-            except CommError as e:
-                wandb.termerror("Unable to register run with spell.run: %s" % str(e))
-                return False
-            return requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            return False
-
-    def save_patches(self, out_dir):
-        """Save the current state of this repository to one or more patches.
-
-        Makes one patch against HEAD and another one against the most recent
-        commit that occurs in an upstream branch. This way we can be robust
-        to history editing as long as the user never does "push -f" to break
-        history on an upstream branch.
-
-        Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
-        <out_dir>/upstream_diff_<commit_id>.patch.
-
-        Arguments:
-            out_dir (str): Directory to write the patch files.
-        """
-        if not self.git.enabled:
-            return False
-
-        try:
-            root = self.git.root
-            if self.git.dirty:
-                patch_path = os.path.join(out_dir, wandb_lib.filenames.DIFF_FNAME)
-                if self.git.has_submodule_diff:
-                    with open(patch_path, "wb") as patch:
-                        # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", "HEAD"],
-                            stdout=patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(patch_path, "wb") as patch:
-                        subprocess.check_call(
-                            ["git", "diff", "HEAD"], stdout=patch, cwd=root, timeout=5
-                        )
-
-            upstream_commit = self.git.get_upstream_fork_point()
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
-                sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(
-                    out_dir, "upstream_diff_{}.patch".format(sha)
-                )
-                if self.git.has_submodule_diff:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
-        # so we now catch ValueError.  Catching this error feels too generic.
-        except (
-            ValueError,
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            logger.error("Error generating diff: %s" % e)
 
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
@@ -1118,7 +1025,7 @@ class Api(object):
 
         size, response = self.download_file(metadata["url"])
 
-        with open(path, "wb") as file:
+        with util.fsync_open(path, "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)
 

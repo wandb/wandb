@@ -1,4 +1,5 @@
 import os
+import shutil
 import six
 import socket
 
@@ -9,17 +10,34 @@ def subdict(d, expected_dict):
     return {k: v for k, v in d.items() if k in expected_dict}
 
 
-def fixture_open(path):
-    """Returns an opened fixture file"""
-    return open(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path)
+def fixture_path(path):
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path
     )
+
+
+def first_filestream(ctx):
+    """In xdist tests sometimes rougue file_streams make it to the server,
+    we grab the first request with `files`"""
+    return next(m for m in ctx["file_stream"] if m.get("files"))
+
+
+def fixture_open(path, mode="r"):
+    """Returns an opened fixture file"""
+    return open(fixture_path(path), mode)
+
+
+def fixture_copy(path, dst=None):
+    if os.path.isfile(fixture_path(path)):
+        return shutil.copy(fixture_path(path), dst or path)
+    else:
+        return shutil.copytree(fixture_path(path), dst or path)
 
 
 def notebook_path(path):
     """Returns the path to a notebook"""
-    return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "notebooks", path
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "notebooks", path)
     )
 
 
@@ -69,7 +87,7 @@ def mock_sagemaker(mocker):
         if path in (config_path, secrets_path, resource_path):
             return True
         else:
-            orig_exist(path)
+            return orig_exist(path)
 
     mocker.patch("wandb.util.os.path.exists", exists)
 
@@ -83,8 +101,7 @@ def mock_sagemaker(mocker):
         else:
             return six.StringIO()
 
-    mocker.patch("wandb.open", magic, create=True)
-    mocker.patch("wandb.util.open", magic, create=True)
+    mocker.patch("builtins.open", magic, create=True)
     return env
 
 

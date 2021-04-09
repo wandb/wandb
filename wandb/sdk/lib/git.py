@@ -1,9 +1,12 @@
+#
 from __future__ import absolute_import
 
 import logging
 import os
 
 from six.moves import configparser
+from six.moves.urllib.parse import urlparse, urlunparse
+
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +70,16 @@ class GitRepo(object):
             return None
         if not self.repo.head or not self.repo.head.is_valid():
             return None
-        if len(self.repo.refs) > 0:
-            return self.repo.head.commit.hexsha
-        else:
-            return self.repo.git.show_ref("--head").split(" ")[0]
+        # TODO: Saw a user getting a Unicode decode error when parsing refs,
+        # more details on implementing a real fix in [WB-4064]
+        try:
+            if len(self.repo.refs) > 0:
+                return self.repo.head.commit.hexsha
+            else:
+                return self.repo.git.show_ref("--head").split(" ")[0]
+        except Exception:
+            logger.exception("Unable to find most recent commit in git")
+            return None
 
     @property
     def branch(self):
@@ -99,7 +108,14 @@ class GitRepo(object):
     def remote_url(self):
         if not self.remote:
             return None
-        return self.remote.url
+        parsed = urlparse(self.remote.url)
+        if parsed.password is not None:
+            return urlunparse(
+                parsed._replace(
+                    netloc="{}:@{}".format(parsed.username, parsed.hostname)
+                )
+            )
+        return urlunparse(parsed._replace(netloc=parsed.hostname))
 
     @property
     def root_dir(self):
