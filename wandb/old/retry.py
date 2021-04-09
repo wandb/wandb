@@ -94,6 +94,11 @@ class Retry(object):
         while True:
             try:
                 result = self._call_fn(*args, **kwargs)
+                try:
+                    if (result.status_code == 500):
+                        print(result)
+                except Exception:
+                    pass
                 # Only print resolved attempts once every minute
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(minutes=1):
                     self._last_print = datetime.datetime.now()

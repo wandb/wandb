@@ -1,7 +1,7 @@
 """
 settings test.
 """
-
+from datetime import datetime
 import pytest  # type: ignore
 
 import wandb
@@ -9,6 +9,12 @@ from wandb import Settings
 from wandb.sdk.wandb_settings import SettingsConsole
 import os
 import copy
+
+
+def get_formatted_datetime(run_datetime):
+    return datetime.strftime(
+                run_datetime, "%Y%m%d_%H%M%S"
+            )
 
 
 def test_attrib_get():
@@ -299,7 +305,7 @@ def test_silent_env(live_mock_server, test_settings, capsys):
 
 
 @pytest.mark.skip(reason="Setting strict false via settings doesn't work")
-def test_strict(live_mock_server, test_settings):
+def test_strict(test_settings):
     test_settings.update({"strict": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._strict is True
@@ -310,7 +316,7 @@ def test_strict(live_mock_server, test_settings):
 
 
 @pytest.mark.skip(reason="Setting show_info false via settings doesn't work")
-def test_show_info(live_mock_server, test_settings):
+def test_show_info(test_settings):
     test_settings.update({"show_info": True})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_info is True
@@ -321,7 +327,7 @@ def test_show_info(live_mock_server, test_settings):
 
 
 @pytest.mark.skip(reason="Setting show_warnings false via settings doesn't work")
-def test_show_warnings(live_mock_server, test_settings):
+def test_show_warnings(test_settings):
     test_settings.update({"show_warnings": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_warnings is True
@@ -332,7 +338,7 @@ def test_show_warnings(live_mock_server, test_settings):
 
 
 @pytest.mark.skip(reason="Setting show_errors false via settings doesn't work")
-def test_show_errors(live_mock_server, test_settings):
+def test_show_errors(test_settings):
     test_settings.update({"show_errors": True})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_errors is True
@@ -342,7 +348,7 @@ def test_show_errors(live_mock_server, test_settings):
     assert run._settings._show_errors is False
 
 
-def test_noop(live_mock_server, test_settings):
+def test_noop(test_settings):
     test_settings.update({"disabled": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._noop is True
@@ -356,7 +362,7 @@ def test_jupyter(notebook):
         assert "is_jupyter: True\n" in output[-1]["text"]
 
 
-def test_not_jupyter(live_mock_server, test_settings):
+def test_not_jupyter(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._jupyter is False
 
@@ -365,7 +371,7 @@ def test_kaggle():
     pass
 
 
-def test_console(live_mock_server, test_settings):
+def test_console(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._console == SettingsConsole.OFF
     # commented out because you can't set console using settings
@@ -377,26 +383,70 @@ def test_console(live_mock_server, test_settings):
     # assert run._settings._console == SettingsConsole.WRAP
 
 
-def test_resume_fname(live_mock_server, test_settings):
+def test_resume_fname(test_settings):
     run = wandb.init(settings=test_settings)
     print(run._settings.root_dir)
-    assert run._settings.resume_fname == os.path.join(run._settings.root_dir, "wandb-resume.json")
+    assert run._settings.resume_fname == os.path.join(run._settings.root_dir, "wandb", "wandb-resume.json")
 
 
-def test_wandb_dir(live_mock_server, test_settings):
+def test_wandb_dir(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings.wandb_dir == os.environ.get("WANDB_DIR")
+    assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(os.path.join(run._settings.root_dir, "wandb/"))
 
 
-def test_log_user(live_mock_server, test_settings):
+def test_log_user(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings.log_user == os.path.join(os.environ.get("WANDB_DIR", "debug.log"))
+    assert os.path.abspath(run._settings.log_user) == os.path.realpath("./wandb/latest-run/logs/debug.log")
 
 
-def test_log_internal(live_mock_server, test_settings):
+def test_log_internal(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings.log_user == os.path.join(os.environ.get("WANDB_DIR", "debug-internal.log"))
+    assert os.path.abspath(run._settings.log_internal) == os.path.realpath("./wandb/latest-run/logs/debug-internal.log")
 
+
+def test_sync_dir(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings._sync_dir == os.path.realpath("./wandb/latest-run")
+
+
+def test_sync_file(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.sync_file == os.path.realpath("./wandb/latest-run/run-{}.wandb".format(run.id))
+
+
+def test_files_dir(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.files_dir == os.path.realpath("./wandb/latest-run/files")
+
+
+def test_tmp_dir(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp")
+
+
+def test_tmp_code_dir(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp/code")
+
+
+def test_log_symlink_user(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(run._settings.log_user)
+
+
+def test_log_symlink_internal(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(run._settings.log_internal)
+
+
+def test_sync_symlink_latest(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath("./wandb/run-{}-{}".format(get_formatted_datetime(run._settings._start_datetime), run.id))
+
+
+# def test_settings_system(test_settings):
+    # assert test_settings.
+    
 
 def test_path_convert(test_settings):
     pass
