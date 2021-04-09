@@ -832,3 +832,16 @@ def test_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
+
+
+def test_sweep_pause(runner, live_mock_server, test_settings):
+    live_mock_server.set_ctx({"resume": True})
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    runner.invoke(cli.sweep, "--pause", sweep_id)
+    runner.invoke(cli.sweep, "--resume", sweep_id)
