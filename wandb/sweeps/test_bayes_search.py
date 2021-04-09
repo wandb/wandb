@@ -223,7 +223,7 @@ def test_runs_bayes_runs2_missingmetric_acc():
 
 
 @pytest.mark.skipif(platform.system() == "Darwin", reason="problem with test on mac, TODO: look into this")
-def test_runs_bayes_nan():
+def test_runs_bayes_nan_inf():
     np.random.seed(73)
     bs = bayes.BayesianSearch()
     r1 = Run('b', 'finished', {
@@ -266,11 +266,27 @@ def test_runs_bayes_nan():
             'value': 5
         }
     }, {'loss': 'NaN'}, [])
+    r5 = Run('b', 'finished', {
+        'v1': {
+            'value': 9
+        },
+        'v2': {
+            'value': 10
+        }
+    }, {'loss': 'inf'}, [])
+    r6 = Run('b', 'finished', {
+        'v1': {
+            'value': 9
+        },
+        'v2': {
+            'value': 10
+        }
+    }, {'loss': float('inf')}, [])
     # need two (non running) runs before we get a new set of parameters
-    runs = [r1, r2, r3, r4]
+    runs = [r1, r2, r3, r4, r5, r6]
     sweep = {'config': sweep_config_2params, 'runs': runs}
     params, info = bs.next_run(sweep)
-    assert params['v1']['value'] == 10 and params['v2']['value'] == 2
+    assert params['v1']['value'] == 6 and params['v2']['value'] == 6
 
 
 sweep_config_2params_categorical = {
