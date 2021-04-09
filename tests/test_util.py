@@ -1,13 +1,15 @@
-import random
+import itertools
 import sys
 import os
 import pytest
 import numpy
 import platform
+import random
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow
+
 import plotly
 import matplotlib.pyplot as plt
 

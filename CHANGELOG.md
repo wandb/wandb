@@ -1,3 +1,46 @@
+## 0.10.25 (April 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix possible artifact cache race when using parallel artifact reads
+- Fix artifact reference when `checksum=False`
+
+#### :nail_care: Enhancement
+
+- Release `run.define_metric()` to simplify custom x-axis and more
+- Add column operators `add_column`, `get_column`, `get_index` to `wandb.Table()`
+
+## 0.10.24 (March 30, 2021)
+
+#### :bug: Bug Fix
+
+- Significant fixes to stdout/stderr console logging
+- Prevent excessive network when saving files with policy=`live`
+- Fix errors when trying to send large updates (most common with `wandb sync`)
+
+#### :nail_care: Enhancement
+
+- Automatically generate `run_table` artifact for logged tables
+- Add bracket notation to artifacts
+- Improve URL validation when specifying server url to `wandb login`
+
+## 0.10.23 (March 22, 2021)
+
+#### :bug: Bug Fix
+
+- Fix logged artifacts to be accessible after wait()
+- Fix spell.run integration
+- Performance fix syncing console logs with carriage returns
+- Fix confusion matrix with class names and unlabeled data
+
+#### :nail_care: Enhancement
+
+- Add the ability to save artifacts without creating a run
+- Add Foreign Table References to wandb.Table
+- Allow the same runtime object to be logged to multiple artifacts
+- Add experimental `run._define_metric()` support
+- Warn and ignore unsupported multiprocess `wandb.log()` calls
+
 ## 0.10.22 (March 9, 2021)
 
 #### :bug: Bug Fix

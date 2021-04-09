@@ -23,6 +23,7 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -45,6 +46,7 @@ from .lib import (
     apikey,
     config_util,
     filenames,
+    filesystem,
     ipython,
     module,
     proto_util,
@@ -52,6 +54,7 @@ from .lib import (
     sparkline,
     telemetry,
 )
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import (
@@ -61,7 +64,6 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Optional,
         Sequence,
         TextIO,
-        BinaryIO,
         Tuple,
         Union,
         Type,
@@ -219,7 +221,7 @@ class Run(object):
     # _out_redir: Optional[redirect.RedirectBase]
     # _err_redir: Optional[redirect.RedirectBase]
     # _redirect_cb: Optional[Callable[[str, str], None]]
-    # _output_writer: Optional["WriteSerializingFile"]
+    # _output_writer: Optional["filesystem.CRDedupedFile"]
 
     # _atexit_cleanup_called: bool
     # _hooks: Optional[ExitHooks]
@@ -233,6 +235,8 @@ class Run(object):
     # _use_redirect: bool
     # _stdout_slave_fd: Optional[int]
     # _stderr_slave_fd: Optional[int]
+
+    # _pid: int
 
     def __init__(
         self,
@@ -333,6 +337,8 @@ class Run(object):
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
+
+        self._pid = os.getpid()
 
     def _telemetry_callback(self, telem_obj):
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -1001,7 +1007,19 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        # TODO(cling): sync is a noop for now
+        current_pid = os.getpid()
+        if current_pid != self._pid:
+            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                current_pid, self._pid
+            )
+            if self._settings._strict:
+                wandb.termerror(message, repeat=False)
+                raise errors.LogMultiprocessError(
+                    "log() does not support multiprocessing"
+                )
+            wandb.termwarn(message, repeat=False)
+            return
+
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
@@ -1356,17 +1374,25 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            out_cap = redirect.Capture(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            )
-            err_cap = redirect.Capture(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            )
+            # out_cap = redirect.Capture(
+            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
+            # err_cap = redirect.Capture(
+            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+            # )
             out_redir = redirect.Redirect(
-                src="stdout", dest=out_cap, unbuffered=True, tee=True
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.Redirect(
-                src="stderr", dest=err_cap, unbuffered=True, tee=True
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             if os.name == "nt":
 
@@ -1387,10 +1413,18 @@ class Run(object):
         elif console == self._settings.Console.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
-                name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
             err_redir = redirect.StreamWrapper(
-                name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
             )
         elif console == self._settings.Console.OFF:
             return
@@ -1497,7 +1531,7 @@ class Run(object):
             self._redirect_cb = self._console_callback
 
         output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
-        self._output_writer = WriteSerializingFile(open(output_log_path, "wb"))
+        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self):
@@ -1588,7 +1622,7 @@ class Run(object):
                     self._on_finish_progress(pusher_stats, done)
                 if done:
                     return poll_exit_resp
-            time.sleep(2)
+            time.sleep(0.1)
 
     def _on_finish(self):
         trigger.call("on_finished")
@@ -1847,7 +1881,7 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def _define_metric(
+    def define_metric(
         self,
         name,
         step_metric = None,
@@ -1864,10 +1898,12 @@ class Run(object):
             name: Name of the metric.
             step_metric: Independent variable associated with the metric.
             step_sync: Automatically add `step_metric` to history if needed.
+                Defaults to True if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best"
-                (best defaults to goal==minimize)
+                Supported aggregations: "min,max,mean,best,last,none"
+                Default aggregation is `copy`
+                Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
                 Supported direections: "minimize,maximize"
 
@@ -1909,7 +1945,7 @@ class Run(object):
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best"}
+            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(
@@ -2346,31 +2382,6 @@ try:
 # py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
-
-
-class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
-
-    def __init__(self, f):
-        self.lock = threading.Lock()
-        self.f = f
-
-    # TODO(jhr): annotate this
-    def write(self, *args, **kargs):  # type: ignore
-        self.lock.acquire()
-        try:
-            self.f.write(*args, **kargs)
-            self.f.flush()
-        finally:
-            self.lock.release()
-
-    def close(self):
-        self.lock.acquire()  # wait for pending writes
-        try:
-            self.f.close()
-        finally:
-            self.lock.release()
 
 
 def finish(exit_code = None):
