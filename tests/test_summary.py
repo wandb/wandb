@@ -24,9 +24,14 @@ def test_summary_setitem(api, mock_server):
 
 def test_summary_media_setitem(api, mock_server):
     run = api.runs("test/test")[0]
-    try:
+    with pytest.raises(Exception) as excinfo:
         run.summary["img"] = wandb.Image(np.random.random((100, 100)))
         run.summary.update()
-        raise Exception()
-    except Exception as e:
-        assert "Cannot bind Media object" in str(e)
+    assert "Cannot bind Media object" in str(excinfo.value)
+
+
+@pytest.mark.wandb_args(wandb_init={"id": "test"})
+def test_summary_media_setitem_current_run(api, live_mock_server, test_settings, wandb_init_run):
+    run = api.runs("test/test")[0]
+    run.summary["img"] = wandb.Image(np.random.random((100, 100)))
+    run.summary.update()
