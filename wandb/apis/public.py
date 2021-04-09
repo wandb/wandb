@@ -1206,6 +1206,13 @@ class Run(Attrs):
             If pandas=True returns a `pandas.DataFrame` of history metrics.
             If pandas=False returns a list of dicts of history metrics.
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
             return []
@@ -1243,6 +1250,13 @@ class Run(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         last_step = self.lastHistoryStep
         # set defaults for min/max step
         if min_step is None:

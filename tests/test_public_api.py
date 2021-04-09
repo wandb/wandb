@@ -127,6 +127,25 @@ def test_run_history_keys(mock_server, api):
     ]
 
 
+def test_run_history_keys_bad_arg(mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.history(keys="acc", pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.history(keys=[["acc"]], pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+    run.scan_history(keys="acc")
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.scan_history(keys=[["acc"]])
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
     assert run.config == {"epochs": 10}
