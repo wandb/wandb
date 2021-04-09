@@ -555,7 +555,38 @@ def create_app(user_ctx=None):
                             ctx,
                             collection_name,
                             id_override=body.get("variables", {}).get("digest", ""),
+                            state="COMMITTED"
+                            if "PENDING" not in collection_name
+                            else "PENDING",
                         )
+                    }
+                }
+            }
+        if "mutation CreateArtifactManifest(" in body["query"]:
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": {
+                            "id": 1,
+                            "file": {
+                                "id": 1,
+                                "directUrl": request.url_root
+                                + "/storage?file=wandb_manifest.json&name={}".format(
+                                    body.get("variables", {}).get("name", "")
+                                ),
+                                "uploadUrl": request.url_root
+                                + "/storage?file=wandb_manifest.json",
+                                "uploadHeaders": "",
+                            },
+                        }
+                    }
+                }
+            }
+        if "mutation CommitArtifact(" in body["query"]:
+            return {
+                "data": {
+                    "commitArtifact": {
+                        "artifact": {"id": 1, "digest": "0000===================="}
                     }
                 }
             }
@@ -704,7 +735,24 @@ def create_app(user_ctx=None):
             else:
                 ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
-            if _id == "bb8043da7d78ff168a695cff097897d2":
+            if request.args.get("name") == "my-test_reference_download:latest":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "StarWars3.wav": {
+                            "digest": "a90eb05f7aef652b3bdd957c67b7213a",
+                            "size": 81299,
+                            "ref": "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+                        },
+                        "file1.txt": {
+                            "digest": "0000====================",
+                            "size": 81299,
+                        },
+                    },
+                }
+            elif _id == "bb8043da7d78ff168a695cff097897d2":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
