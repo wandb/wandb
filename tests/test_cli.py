@@ -844,7 +844,7 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
-@pytest.mark.parametrize("stop_mode", ["--stop", "--cancel"])
+@pytest.mark.parametrize("stop_mode", ["stop", "cancel"])
 def test_sweep_pause(runner, live_mock_server, test_settings, stop_mode):
     live_mock_server.set_ctx({"resume": True})
     sweep_config = {
@@ -854,9 +854,9 @@ def test_sweep_pause(runner, live_mock_server, test_settings, stop_mode):
     }
     sweep_id = wandb.sweep(sweep_config)
     assert sweep_id == "test"
-    runner.invoke(cli.sweep, "--pause", sweep_id)
-    runner.invoke(cli.sweep, "--resume", sweep_id)
-    runner.invoke(cli.sweep, stop_mode, sweep_id)
+    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--" + stop_mode, sweep_id]).exit_code == 0
 
 
 @pytest.mark.skipif(
