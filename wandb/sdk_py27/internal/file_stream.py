@@ -306,7 +306,10 @@ class FileStreamApi(object):
             response = util.request_with_retry(
                 self._client.post, self._endpoint, json={"files": fs}
             )
-            logger.info("Handling response to sent files with status code %s " % response.status_code)
+            logger.info(
+                "Handling response to sent files with status code %s "
+                % response.status_code
+            )
             self._handle_response(response)
 
     def stream_file(self, path):
