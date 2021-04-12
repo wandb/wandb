@@ -157,11 +157,10 @@ class SendManager(object):
             interface=publish_interface,
         )
 
-    def retry_callback(self, err):
-        # @@@ todo need to check for error type httperror, wandberror etc
+    def retry_callback(self, status, response_text):
         response = wandb_internal_pb2.HttpResponse()
-        response.http_status_code = err.response.status_code
-        response.http_response_text = err.response.text
+        response.http_status_code = status
+        response.http_response_text = response_text
         self._retry_q.put(response)
 
         wandb.termlog(f'@@@ {os.getpid()}') # @@@ todo remove, convenient rn for getting pid

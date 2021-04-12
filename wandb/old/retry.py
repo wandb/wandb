@@ -98,8 +98,7 @@ class Retry(object):
                 # Only print resolved attempts once every minute
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(minutes=1):
                     self._last_print = datetime.datetime.now()
-                    wandb.termlog('{} resolved after {}, resuming normal operation.'.format(
-                        self._error_prefix, datetime.datetime.now() - start_time))  # @@@ remove
+                    self.retry_callback(200, f'{self._error_prefix} resolved after {datetime.datetime.now() - start_time}, resuming normal operation.')
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
@@ -110,7 +109,8 @@ class Retry(object):
                     raise
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
-                    self.retry_callback(e)
+                    # @@@ todo need to check for error type httperror, wandberror etc before pulling .response
+                    self.retry_callback(e.response.status_code, e.response.text)
                     logger.info(
                         '{} ({}), entering retry loop.'.format(self._error_prefix, e.__class__.__name__))
                 # if wandb.env.is_debug():
