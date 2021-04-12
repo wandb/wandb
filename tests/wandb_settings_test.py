@@ -12,9 +12,7 @@ import copy
 
 
 def get_formatted_datetime(run_datetime):
-    return datetime.strftime(
-                run_datetime, "%Y%m%d_%H%M%S"
-            )
+    return datetime.strftime(run_datetime, "%Y%m%d_%H%M%S")
 
 
 def test_attrib_get():
@@ -452,7 +450,9 @@ def test_resume_fname(test_settings):
 
 def test_resume_fname_run(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings.resume_fname == os.path.join(run._settings.root_dir, "wandb", "wandb-resume.json")
+    assert run._settings.resume_fname == os.path.join(
+        run._settings.root_dir, "wandb", "wandb-resume.json"
+    )
 
 
 def test_wandb_dir(test_settings):
@@ -461,25 +461,35 @@ def test_wandb_dir(test_settings):
 
 def test_wandb_dir_run(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(os.path.join(run._settings.root_dir, "wandb/"))
+    assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(
+        os.path.join(run._settings.root_dir, "wandb/")
+    )
 
 
 def test_log_user(test_settings):
-    assert os.path.abspath(test_settings.log_user) == os.path.realpath("./wandb/latest-run/logs/debug.log")
+    assert os.path.abspath(test_settings.log_user) == os.path.realpath(
+        "./wandb/latest-run/logs/debug.log"
+    )
 
 
 def test_log_user_run(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.abspath(run._settings.log_user) == os.path.realpath("./wandb/latest-run/logs/debug.log")
+    assert os.path.abspath(run._settings.log_user) == os.path.realpath(
+        "./wandb/latest-run/logs/debug.log"
+    )
 
 
 def test_log_internal(test_settings):
-    assert os.path.abspath(test_settings.log_internal) == os.path.realpath("./wandb/latest-run/logs/debug-internal.log")
+    assert os.path.abspath(test_settings.log_internal) == os.path.realpath(
+        "./wandb/latest-run/logs/debug-internal.log"
+    )
 
 
 def test_log_internal_run(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.abspath(run._settings.log_internal) == os.path.realpath("./wandb/latest-run/logs/debug-internal.log")
+    assert os.path.abspath(run._settings.log_internal) == os.path.realpath(
+        "./wandb/latest-run/logs/debug-internal.log"
+    )
 
 
 def test_sync_dir_run(test_settings):
@@ -489,7 +499,9 @@ def test_sync_dir_run(test_settings):
 
 def test_sync_file_run(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings.sync_file == os.path.realpath("./wandb/latest-run/run-{}.wandb".format(run.id))
+    assert run._settings.sync_file == os.path.realpath(
+        "./wandb/latest-run/run-{}.wandb".format(run.id)
+    )
 
 
 def test_files_dir(test_settings):
@@ -509,17 +521,25 @@ def test_tmp_code_dir(test_settings):
 
 def test_log_symlink_user(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(run._settings.log_user)
+    assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
+        run._settings.log_user
+    )
 
 
 def test_log_symlink_internal(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(run._settings.log_internal)
+    assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
+        run._settings.log_internal
+    )
 
 
 def test_sync_symlink_latest(test_settings):
     run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath("./wandb/run-{}-{}".format(get_formatted_datetime(run._settings._start_datetime), run.id))
+    assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
+        "./wandb/run-{}-{}".format(
+            get_formatted_datetime(run._settings._start_datetime), run.id
+        )
+    )
 
 
 def test_settings_system(test_settings):
