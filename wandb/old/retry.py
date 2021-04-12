@@ -99,7 +99,7 @@ class Retry(object):
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(minutes=1):
                     self._last_print = datetime.datetime.now()
                     wandb.termlog('{} resolved after {}, resuming normal operation.'.format(
-                        self._error_prefix, datetime.datetime.now() - start_time))
+                        self._error_prefix, datetime.datetime.now() - start_time))  # @@@ remove
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
@@ -111,9 +111,8 @@ class Retry(object):
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
                     self.retry_callback(e)
-                    wandb.termlog(
-                        '{} ({}), entering retry loop. See {} for full traceback.'.format(
-                            self._error_prefix, e.__class__.__name__, util.get_log_file_path()))
+                    logger.info(
+                        '{} ({}), entering retry loop.'.format(self._error_prefix, e.__class__.__name__))
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
             time.sleep(sleep + random.random() * 0.25 * sleep)

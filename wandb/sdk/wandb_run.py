@@ -147,14 +147,28 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface: BackendSender, polling_interval: int = 15) -> None:
+    def __init__(self, interface: BackendSender, stop_polling_interval: int = 15, retry_polling_interval: int = 1) -> None:
         self._interface = interface
-        self._polling_interval = polling_interval
+        self._stop_polling_interval = stop_polling_interval
+        self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
-        self._thread.start()
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.daemon = True
+        self._stop_thread.start()
+
+        self._retry_thread = threading.Thread(target=self.check_retries)
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
+
+    def check_retries(self) -> None:
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_status(check_stop_req=False, check_retries=True)
+            if status_response and status_response.retry_responses:
+                deduped_responses = {hr.http_status_code: hr.http_response_text for hr in status_response.retry_responses}  # assumes 1:1 code:response
+                wandb.termlog(f'Network error(s) encountered, retrying request: {deduped_responses}')
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self) -> None:
         join_requested = False
@@ -166,14 +180,15 @@ class RunStatusChecker(object):
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._polling_interval)
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self) -> None:
         self._join_event.set()
 
     def join(self) -> None:
         self.stop()
-        self._thread.join()
+        self._stop_thread.join()
+        self._retry_thread.join()
 
 
 class Run(object):

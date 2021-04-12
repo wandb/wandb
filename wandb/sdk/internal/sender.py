@@ -113,7 +113,7 @@ class SendManager(object):
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[Result]" = multiprocessing.Queue()    # @@@ change queue type?
+        self._retry_q: "Queue[Result]" = multiprocessing.Queue()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -164,7 +164,7 @@ class SendManager(object):
         response.http_response_text = err.response.text
         self._retry_q.put(response)
 
-        wandb.termlog(f'@@@ {os.getpid()} retrycallback code {err.response.status_code}, text {err.response.text}, full {err.response}')
+        wandb.termlog(f'@@@ {os.getpid()}') # @@@ todo remove, convenient rn for getting pid
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
@@ -228,15 +228,10 @@ class SendManager(object):
                     )
                 except Exception as e:
                     logger.warning("Failed to check stop requested status: %s", e)
-        self._result_q.put(result)
-
-    def send_retry_status(self, record):
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        status_response = result.status_response
         if record.request.status.check_retries:
             while True:
                 try:
-                    status_response.retry_responses.append(self._retry_q.get_nowait())
+                    status_resp.retry_responses.append(self._retry_q.get_nowait())
                 except queue.Empty:
                     break
                 except Exception as e:
