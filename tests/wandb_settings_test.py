@@ -274,10 +274,6 @@ def test_code_saving_disable_code(live_mock_server, test_settings):
     assert run._settings.save_code is False
 
 
-def test_code_saving_conflict_always_false(live_mock_server, test_settings):
-    pass
-
-
 def test_offline(test_settings):
     assert test_settings._offline is False
     test_settings.update({"disabled": True})
@@ -289,14 +285,34 @@ def test_offline(test_settings):
     assert test_settings._offline is True
 
 
-@pytest.mark.skip(reason="Setting silent via settings doesn't work")
+def test_offline_run(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings._offline is False
+    test_settings.update({"disabled": True})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._offline is True
+    test_settings.update({"disabled": None})
+    test_settings.update({"mode": "dryrun"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._offline is True
+    test_settings.update({"mode": "offline"})
+    run = wandb.init(settings=test_settings)
+    assert run._settings._offline is True
+
+
 def test_silent(live_mock_server, test_settings):
+    test_settings.update({"silent": "true"})
+    assert test_settings._silent is True
+
+
+@pytest.mark.skip(reason="Setting silent via settings doesn't work")
+def test_silent_run(live_mock_server, test_settings):
     test_settings.update({"silent": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._silent is True
 
 
-def test_silent_env(live_mock_server, test_settings, capsys):
+def test_silent_env_run(live_mock_server, test_settings, capsys):
     os.environ["WANDB_SILENT"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings._silent is True
@@ -304,19 +320,37 @@ def test_silent_env(live_mock_server, test_settings, capsys):
     assert len(captured.out) == 0
 
 
-@pytest.mark.skip(reason="Setting strict false via settings doesn't work")
 def test_strict(test_settings):
     test_settings.update({"strict": "true"})
+    assert test_settings._strict is True
+
+    test_settings.update({"strict": "false"})
+    assert test_settings._strict is False
+
+
+@pytest.mark.skip(reason="Setting strict false via settings doesn't work")
+def test_strict_run(live_mock_server, test_settings):
+    test_settings.update({"strict": "true"})
+    assert test_settings._strict is True
     run = wandb.init(settings=test_settings)
     assert run._settings._strict is True
 
     test_settings.update({"strict": "false"})
+    assert test_settings._strict is False
     run = wandb.init(settings=test_settings)
     assert run._settings._strict is False
 
 
-@pytest.mark.skip(reason="Setting show_info false via settings doesn't work")
 def test_show_info(test_settings):
+    test_settings.update({"show_info": True})
+    assert test_settings._show_info is True
+
+    test_settings.update({"show_info": False})
+    assert test_settings._show_info is False
+
+
+@pytest.mark.skip(reason="Setting show_info false via settings doesn't work")
+def test_show_info_run(live_mock_server, test_settings):
     test_settings.update({"show_info": True})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_info is True
@@ -326,8 +360,16 @@ def test_show_info(test_settings):
     assert run._settings._show_info is False
 
 
-@pytest.mark.skip(reason="Setting show_warnings false via settings doesn't work")
 def test_show_warnings(test_settings):
+    test_settings.update({"show_warnings": "true"})
+    assert test_settings._show_warnings is True
+
+    test_settings.update({"show_warnings": "false"})
+    assert test_settings._show_warnings is False
+
+
+@pytest.mark.skip(reason="Setting show_warnings false via settings doesn't work")
+def test_show_warnings_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_warnings is True
@@ -337,8 +379,16 @@ def test_show_warnings(test_settings):
     assert run._settings._show_warnings is False
 
 
-@pytest.mark.skip(reason="Setting show_errors false via settings doesn't work")
 def test_show_errors(test_settings):
+    test_settings.update({"show_errors": True})
+    assert test_settings._show_errors is True
+
+    test_settings.update({"show_errors": False})
+    assert test_settings._show_errors is False
+
+
+@pytest.mark.skip(reason="Setting show_errors false via settings doesn't work")
+def test_show_errors_run(test_settings):
     test_settings.update({"show_errors": True})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_errors is True
@@ -350,6 +400,11 @@ def test_show_errors(test_settings):
 
 def test_noop(test_settings):
     test_settings.update({"disabled": "true"})
+    assert test_settings._noop is True
+
+
+def test_noop_run(live_mock_server, test_settings):
+    test_settings.update({"disabled": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._noop is True
 
@@ -358,7 +413,6 @@ def test_jupyter(notebook):
     with notebook("one_cell.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output(0)
-        print(output)
         assert "is_jupyter: True\n" in output[-1]["text"]
 
 
@@ -374,6 +428,15 @@ def test_kaggle():
 def test_console(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._console == SettingsConsole.OFF
+    test_settings.update({"console": "auto"})
+    assert test_settings._console == SettingsConsole.REDIRECT
+    test_settings.update({"console": "wrap"})
+    assert test_settings._console == SettingsConsole.WRAP
+
+
+def test_console_run(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings._console == SettingsConsole.OFF
     # commented out because you can't set console using settings
     # test_settings.update({"console": "auto"})
     # run = wandb.init(settings=test_settings)
@@ -384,32 +447,47 @@ def test_console(test_settings):
 
 
 def test_resume_fname(test_settings):
+    assert test_settings.resume_fname == os.path.join("./wandb", "wandb-resume.json")
+
+
+def test_resume_fname_run(test_settings):
     run = wandb.init(settings=test_settings)
-    print(run._settings.root_dir)
     assert run._settings.resume_fname == os.path.join(run._settings.root_dir, "wandb", "wandb-resume.json")
 
 
 def test_wandb_dir(test_settings):
+    assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb/")
+
+
+def test_wandb_dir_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(os.path.join(run._settings.root_dir, "wandb/"))
 
 
 def test_log_user(test_settings):
+    assert os.path.abspath(test_settings.log_user) == os.path.realpath("./wandb/latest-run/logs/debug.log")
+
+
+def test_log_user_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert os.path.abspath(run._settings.log_user) == os.path.realpath("./wandb/latest-run/logs/debug.log")
 
 
 def test_log_internal(test_settings):
+    assert os.path.abspath(test_settings.log_internal) == os.path.realpath("./wandb/latest-run/logs/debug-internal.log")
+
+
+def test_log_internal_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert os.path.abspath(run._settings.log_internal) == os.path.realpath("./wandb/latest-run/logs/debug-internal.log")
 
 
-def test_sync_dir(test_settings):
+def test_sync_dir_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._sync_dir == os.path.realpath("./wandb/latest-run")
 
 
-def test_sync_file(test_settings):
+def test_sync_file_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings.sync_file == os.path.realpath("./wandb/latest-run/run-{}.wandb".format(run.id))
 
@@ -444,9 +522,14 @@ def test_sync_symlink_latest(test_settings):
     assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath("./wandb/run-{}-{}".format(get_formatted_datetime(run._settings._start_datetime), run.id))
 
 
-# def test_settings_system(test_settings):
-    # assert test_settings.
-    
+def test_settings_system(test_settings):
+    assert test_settings.settings_system == os.path.abspath("~/.config/wandb/settings")
+
+
+def test_settings_system_run(test_settings):
+    run = wandb.init(settings=test_settings)
+    assert run._settings.settings_system == os.path.abspath("~/.config/wandb/settings")
+
 
 def test_path_convert(test_settings):
     pass
