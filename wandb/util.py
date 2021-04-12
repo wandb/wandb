@@ -444,7 +444,7 @@ def json_friendly(obj):
             pass  # happens for Tensors before 0.4
 
         if obj.size():
-            obj = obj.numpy()
+            obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
 
