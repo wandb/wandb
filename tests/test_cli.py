@@ -855,8 +855,8 @@ def test_sweep_pause(runner, live_mock_server, test_settings):
     assert sweep_id == "test"
     assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
     assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
     assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
-
 
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
