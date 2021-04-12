@@ -178,6 +178,7 @@ class FileStreamApi(object):
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
         self._thread.daemon = True
+        self._thread.name = "FileStreamThread"
         self._init_endpoint()
 
     def _init_endpoint(self):
@@ -257,13 +258,18 @@ class FileStreamApi(object):
 
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(
-                    util.request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={"complete": False, "failed": False},
-                    )
+                logger.info("Sending heartbeat request")
+                response = util.request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={"complete": False, "failed": False},
                 )
+                logger.info(
+                    "Handling heartbeat response with status code %s"
+                    % response.status_code
+                )
+                self._handle_response(response)
+
         # post the final close message. (item is self.Finish instance now)
         util.request_with_retry(
             self._client.post,
@@ -274,9 +280,9 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
-            raise response
             wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
             logging.error("dropped chunk %s" % response)
+            raise response
         elif response.json().get("limits"):
             parsed = response.json()
             self._api.dynamic_settings.update(parsed["limits"])
@@ -296,11 +302,15 @@ class FileStreamApi(object):
                 del files[filename]
 
         for fs in file_stream_utils.split_files(files, max_mb=10):
-            self._handle_response(
-                util.request_with_retry(
-                    self._client.post, self._endpoint, json={"files": fs}
-                )
+            logger.info("Sending files via filestream")
+            response = util.request_with_retry(
+                self._client.post, self._endpoint, json={"files": fs}
             )
+            logger.info(
+                "Handling response to sent files with status code %s "
+                % response.status_code
+            )
+            self._handle_response(response)
 
     def stream_file(self, path):
         name = path.split("/")[-1]
