@@ -559,8 +559,8 @@ class Artifact(ArtifactInterface):
             None
         """
 
-        if wandb.run is not None and self._incremental:
-            with wandb_lib.telemetry.context(run=wandb.run) as tel:
+        if self._incremental:
+            with wandb_lib.telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
 
         if self._logged_artifact:
