@@ -80,7 +80,7 @@ class ArtifactSaver(object):
         aliases = None,
         labels = None,
         use_after_commit = False,
-        incremental=False,
+        incremental = False,
     ):
         aliases = aliases or []
         alias_specs = []
