@@ -11,6 +11,9 @@ import sys
 import wandb
 from wandb import env
 from wandb import util
+from wandb.errors import Error
+
+from requests import HTTPError
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +112,13 @@ class Retry(object):
                     raise
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
-                    # @@@ todo need to check for error type httperror, wandberror etc before pulling .response
-                    self.retry_callback(e.response.status_code, e.response.text)
-                    logger.info(
-                        '{} ({}), entering retry loop.'.format(self._error_prefix, e.__class__.__name__))
+                    if isinstance(e, HTTPError):
+                        self.retry_callback(e.response.status_code, e.response.text)
+                    else:
+                        # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
+                        # but some of these can be raised before the retry handler thread (RunStatusChecker) is
+                        # spawned in wandb_init
+                        wandb.termlog('{} ({}), entering retry loop.'.format(self._error_prefix, e.__class__.__name__))
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
             time.sleep(sleep + random.random() * 0.25 * sleep)

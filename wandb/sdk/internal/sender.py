@@ -163,8 +163,6 @@ class SendManager(object):
         response.http_response_text = response_text
         self._retry_q.put(response)
 
-        wandb.termlog(f'@@@ {os.getpid()}') # @@@ todo remove, convenient rn for getting pid
-
     def send(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type

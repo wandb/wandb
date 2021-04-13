@@ -167,10 +167,10 @@ class RunStatusChecker(object):
             status_response = self._interface.communicate_status(check_stop_req=False, check_retries=True)
             if status_response and status_response.retry_responses:
                 for hr in status_response.retry_responses:
-                    if hr.http_status_code == 200:
+                    if hr.http_status_code == 200 or hr.http_status_code == 0:  # we use 0 for non-http errors (eg wandb errors)
                         wandb.termlog(f'{hr.http_response_text}')
                     else:
-                        wandb.termlog(f'HTTP {hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request')
+                        wandb.termlog(f'{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request')
                 # deduped_responses = {hr.http_status_code: hr.http_response_text for hr in status_response.retry_responses}  # assumes 1:1 code:response
                 # wandb.termlog(f'Error(s) encountered, retrying request: {deduped_responses}')
             join_requested = self._join_event.wait(self._retry_polling_interval)
