@@ -12,7 +12,6 @@ import logging
 import os
 import time
 import multiprocessing
-import queue
 
 from pkg_resources import parse_version
 import requests
@@ -38,7 +37,7 @@ logger = logging.getLogger(__name__)
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
     from six.moves.queue import Queue
-    from wandb.proto.wandb_internal_pb2 import Result
+    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -113,7 +112,7 @@ class SendManager(object):
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[Result]" = multiprocessing.Queue()
+        self._retry_q: "Queue[HttpResponse]" = multiprocessing.Queue()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()

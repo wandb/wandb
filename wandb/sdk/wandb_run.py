@@ -171,8 +171,6 @@ class RunStatusChecker(object):
                         wandb.termlog(f'{hr.http_response_text}')
                     else:
                         wandb.termlog(f'{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request')
-                # deduped_responses = {hr.http_status_code: hr.http_response_text for hr in status_response.retry_responses}  # assumes 1:1 code:response
-                # wandb.termlog(f'Error(s) encountered, retrying request: {deduped_responses}')
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self) -> None:
