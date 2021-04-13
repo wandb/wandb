@@ -722,6 +722,22 @@ def create_app(user_ctx=None):
 
             ctx["manifests_created"].append(manifest)
             return json.dumps(manifest)
+        if "mutation UpdateeArtifactManifest(" in body["query"]:
+            manifest_type = body.get("variables", {}).get("type") or "FULL"
+            manifest = {
+                "artifactManifest": {
+                    "id": "manifestID",
+                    "type": manifest_type,
+                    "createdAt": "",
+                    "digest": "",
+                    "artifact": {},
+                    "file": "",
+                }
+            }
+
+            ctx["manifests_created"].append(manifest)
+            return json.dumps(manifest)
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
