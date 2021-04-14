@@ -298,6 +298,11 @@ def _infer_single_example_keyed_processor(
         if shape[0] <= 10:
             # if less than 10, fan out the results
             processors["node"] = lambda n, d, p: {i: d[i] for i in range(shape[0])}
+            # Do this once arrays are supported better in UI
+            # processors["node"] = lambda n, d, p: [
+            #     d[i].tolist() if hasattr(d[i], "tolist") else d[i]
+            #     for i in range(shape[0])
+            # ]
         # just report the argmax and argmin
         processors["argmax"] = lambda n, d, p: np.argmax(d)
         processors["argmin"] = lambda n, d, p: np.argmin(d)

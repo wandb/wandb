@@ -545,7 +545,7 @@ class Table(Media):
                 mapped_row = []
                 for ndx, v in enumerate(row):
                     if ndx in ndarray_col_ndxs:
-                        mapped_row.append("ndarray({})".format(v.shape))
+                        mapped_row.append(None)
                     else:
                         mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
