@@ -144,7 +144,9 @@ class _WandbLogin(object):
             no_create=self._settings.force,
         )
         if key is False:
-            raise UsageError("api_key not configured (no-tty). call wandb.login(key=...)")
+            raise UsageError(
+                "api_key not configured (no-tty). call wandb.login(key=...)"
+            )
         self.update_session(key)
         self._key = key
 

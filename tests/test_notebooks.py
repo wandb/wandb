@@ -5,6 +5,8 @@ import json
 import sys
 import wandb
 
+from wandb.errors import UsageError
+
 pytestmark = pytest.mark.skipif(
     sys.version_info < (3, 5) or platform.system() == "Windows",
     reason="Our notebook fixture only works in py3, windows was flaking",
@@ -103,3 +105,19 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
         "path": "kaggle.ipynb",
         "name": "kaggle.ipynb",
     }
+
+
+def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
+    # test for WB-5264
+
+    # make the test think we are running in a databricks notebook
+    dbutils = mocked_module("dbutils")
+    dbutils.shell.sc.appName = "Databricks Shell"
+
+    # when we try to call wandb.login(), should fail with no-tty
+    try:
+        wandb.login()
+    except UsageError as e:
+        assert "tty" in e.args[0]
+    else:
+        assert False

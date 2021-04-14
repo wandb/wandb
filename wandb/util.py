@@ -1269,11 +1269,11 @@ def _is_databricks():
     # inspecting sys.modules, searching for dbutils and verifying that
     # it has the appropriate structure
 
-    if 'dbutils' in sys.modules:
-        dbutils = sys.modules['dbutils']
-        if hasattr(dbutils, 'shell'):
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
             shell = dbutils.shell
-            if hasattr(shell, 'sc'):
+            if hasattr(shell, "sc"):
                 sc = shell.sc
-                return sc.appName == 'Databricks Shell'
+                return sc.appName == "Databricks Shell"
     return False
