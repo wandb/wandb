@@ -1,0 +1,1 @@
+{"pr_table": {"_type": "table-file", "path": "media/table/pr_table_0_29c5270e.table.json", "sha256": "29c5270eb486b044f672030438a865121f2f2cc3c59c1382e1a88e21c7d64281", "size": 1015, "artifact_path": "wandb-artifact://41727469666163743a32343538323834/pr_table.table.json", "ncols": 3, "nrows": 40}, "_runtime": 1, "_timestamp": 1618340527, "_step": 0}

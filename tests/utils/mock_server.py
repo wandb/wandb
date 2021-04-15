@@ -722,7 +722,7 @@ def create_app(user_ctx=None):
 
             ctx["manifests_created"].append(manifest)
             return json.dumps(manifest)
-        if "mutation UpdateeArtifactManifest(" in body["query"]:
+        if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest_type = body.get("variables", {}).get("type") or "FULL"
             manifest = {
                 "artifactManifest": {
