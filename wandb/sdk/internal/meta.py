@@ -12,10 +12,16 @@ import os
 from shutil import copyfile
 import sys
 
+from dockerpycreds.utils import find_executable
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME, CONDA_ENVIRONMENTS_FNAME
+from ..lib.filenames import (
+    CONDA_ENVIRONMENTS_FNAME,
+    DIFF_FNAME,
+    METADATA_FNAME,
+    REQUIREMENTS_FNAME,
+)
 from ..lib.git import GitRepo
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -66,8 +72,10 @@ class Meta(object):
         logger.debug("save pip done")
 
     def _save_conda(self):
-        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, 'conda-meta'))
+        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
         if not current_shell_is_conda:
+            return False
+        if not find_executable("conda"):
             return False
 
         logger.debug("save conda")
