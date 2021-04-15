@@ -947,8 +947,7 @@ def test_artifact_incremental(
     stop_backend()
 
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
-    print("DEBUG manifest_created", manifests_created)
-    assert manifests_created[0]["artifactManifest"]["type"] == "INCREMENTAL"
+    assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
 def test_local_references(runner, live_mock_server, test_settings):
