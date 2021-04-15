@@ -115,9 +115,5 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
     dbutils.shell.sc.appName = "Databricks Shell"
 
     # when we try to call wandb.login(), should fail with no-tty
-    try:
+    with pytest.raises(UsageError, match='tty'):
         wandb.login()
-    except UsageError as e:
-        assert "tty" in e.args[0]
-    else:
-        assert False
