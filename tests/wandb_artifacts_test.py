@@ -918,7 +918,7 @@ def test_interface_commit_hash(runner):
 
 def test_artifact_incremental(
     mocked_run,
-    live_mock_server,
+    mock_server,
     internal_sender,
     internal_sm,
     start_backend,
@@ -946,7 +946,8 @@ def test_artifact_incremental(
     art = internal_sm.send_artifact(log_artifact)
     stop_backend()
 
-    manifests_created = parse_ctx(live_mock_server.get_ctx()).manifests_created
+    manifests_created = parse_ctx(mock_server.ctx).manifests_created
+    print("DEBUG manifest_created", manifests_created)
     assert manifests_created[0]["artifactManifest"]["type"] == "INCREMENTAL"
 
 
