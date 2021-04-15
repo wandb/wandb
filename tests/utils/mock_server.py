@@ -565,22 +565,45 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation CreateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "file": {
+                    "id": 1,
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            ctx["manifests_created"].append(manifest)
             return {
                 "data": {
                     "createArtifactManifest": {
-                        "artifactManifest": {
-                            "id": 1,
-                            "file": {
-                                "id": 1,
-                                "directUrl": request.url_root
-                                + "/storage?file=wandb_manifest.json&name={}".format(
-                                    body.get("variables", {}).get("name", "")
-                                ),
-                                "uploadUrl": request.url_root
-                                + "/storage?file=wandb_manifest.json",
-                                "uploadHeaders": "",
-                            },
-                        }
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
+        if "mutation UpdateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "file": {
+                    "id": 1,
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
                     }
                 }
             }
@@ -707,36 +730,6 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "mutation CreateArtifactManifest(" in body["query"]:
-            manifest_type = body.get("variables", {}).get("type") or "FULL"
-            manifest = {
-                "artifactManifest": {
-                    "id": "manifestID",
-                    "type": manifest_type,
-                    "createdAt": "",
-                    "digest": "",
-                    "artifact": {},
-                    "file": "",
-                }
-            }
-
-            ctx["manifests_created"].append(manifest)
-            return json.dumps(manifest)
-        if "mutation UpdateArtifactManifest(" in body["query"]:
-            manifest_type = body.get("variables", {}).get("type") or "FULL"
-            manifest = {
-                "artifactManifest": {
-                    "id": "manifestID",
-                    "type": manifest_type,
-                    "createdAt": "",
-                    "digest": "",
-                    "artifact": {},
-                    "file": "",
-                }
-            }
-
-            ctx["manifests_created"].append(manifest)
-            return json.dumps(manifest)
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
