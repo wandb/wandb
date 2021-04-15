@@ -150,7 +150,7 @@ class ValidationDataLogger(object):
         """Produces predictions by passing `validation_inputs` to `predict_fn`.
 
         Args:
-            predict_fn (Callable): Any function which can accept `validation_inputs` and product
+            predict_fn (Callable): Any function which can accept `validation_inputs` and produce
                 a list of vectors or dictionary of lists of vectors
 
         Returns:

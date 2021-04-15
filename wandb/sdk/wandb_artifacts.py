@@ -432,13 +432,13 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(
-        self,
-        obj: data_types.WBValue,
-        name: str,
-        _rename_deterministically: bool = False,
-    ) -> ArtifactEntry:
+    def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
         self._ensure_can_add()
+
+        # This is a "hack" to automatically rename tables added to
+        # the wandb /media/tables directory to their sha-based name.
+        # TODO: figure out a more appropriate convention.
+        is_tmp_name = name.startswith("media/tables")
 
         # Validate that the object is one of the correct wandb.Media types
         # TODO: move this to checking subclass of wandb.Media once all are
@@ -479,23 +479,36 @@ class Artifact(ArtifactInterface):
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
             return entry
-        file_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name)
-        folder_path, _ = os.path.split(file_path)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        with open(file_path, "w") as f:
+
+        def do_write(f: IO) -> None:
             import json
 
             # TODO: Do we need to open with utf-8 codec?
             f.write(json.dumps(val, sort_keys=True))
 
+        if is_tmp_name:
+            file_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name)
+            folder_path, _ = os.path.split(file_path)
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+            with open(file_path, "w") as tmp_f:
+                do_write(tmp_f)
+        else:
+            with self.new_file(name) as f:
+                file_path = f.name
+                do_write(f)
+
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
         # the checksum should match
-        entry = self.add_file(file_path, name, _rename_deterministically)
+        entry = self.add_file(file_path, name, is_tmp_name)
         self._added_objs[obj_id] = _AddedObj(entry, obj)
         if obj._artifact_target is None:
             obj._set_artifact_target(self, entry.path)
+
+        if is_tmp_name:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
         return entry
 

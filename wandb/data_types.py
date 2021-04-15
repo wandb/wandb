@@ -1738,9 +1738,7 @@ class _TableForeignKeyType(_dtypes.Type):
         res = super(_TableForeignKeyType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
-            entry = artifact.add(
-                self.params["table"], table_name, _rename_deterministically=True
-            )
+            entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(
@@ -1797,9 +1795,7 @@ class _TableForeignIndexType(_dtypes.Type):
         res = super(_TableForeignIndexType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
-            entry = artifact.add(
-                self.params["table"], table_name, _rename_deterministically=True
-            )
+            entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(
