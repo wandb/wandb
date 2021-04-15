@@ -764,10 +764,9 @@ def request_with_retry(func, *args, **kwargs):
             else:
                 pass
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
                     e,
                     func,
-                    e.response.content,
                     args,
                     kwargs,
                 )
