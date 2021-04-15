@@ -550,9 +550,14 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_evaluation:
             try:
                 if not self.validation_data or len(self.validation_data) < 2:
-                    wandb.termwarn(
-                        "WandbCallback was unable to read validation_data from trainer"
-                    )
+                    gen_warn = " Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                    if self.generator:
+                        gen_warn = " Generators are not currently supported as validation data. To log validation results, set validation_data to an (x, y) tuple of list-like data."
+                    else:
+                        wandb.termwarn(
+                            "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data."
+                            + gen_warn
+                        )
                 else:
                     self.validation_data_logger = ValidationDataLogger(
                         inputs=self.validation_data[0],
