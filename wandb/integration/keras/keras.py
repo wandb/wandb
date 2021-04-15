@@ -477,11 +477,14 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.log_evaluation and self.validation_data_logger:
             try:
-                self.validation_data_logger.log_predictions(
-                    predictions=self.validation_data_logger.make_predictions(
-                        self.model.predict
+                if not self.model:
+                    wandb.termwarn("WandbCallback unable to read model from trainer")
+                else:
+                    self.validation_data_logger.log_predictions(
+                        predictions=self.validation_data_logger.make_predictions(
+                            self.model.predict
+                        )
                     )
-                )
             except Exception as e:
                 # TODO: Perhaps we should not raise here, but rather log?
                 raise e
@@ -546,15 +549,20 @@ class WandbCallback(keras.callbacks.Callback):
     def on_train_begin(self, logs=None):
         if self.log_evaluation:
             try:
-                self.validation_data_logger = ValidationDataLogger(
-                    inputs=self.validation_data[0],
-                    targets=self.validation_data[1],
-                    indexes=self.validation_indexes,
-                    validation_row_processor=self.validation_row_processor,
-                    prediction_row_processor=self.prediction_row_processor,
-                    class_labels=self.labels,
-                    infer_missing_processors=self.infer_missing_processors,
-                )
+                if not self.validation_data or len(self.validation_data) < 2:
+                    wandb.termwarn(
+                        "WandbCallback was unable to read validation_data from trainer"
+                    )
+                else:
+                    self.validation_data_logger = ValidationDataLogger(
+                        inputs=self.validation_data[0],
+                        targets=self.validation_data[1],
+                        indexes=self.validation_indexes,
+                        validation_row_processor=self.validation_row_processor,
+                        prediction_row_processor=self.prediction_row_processor,
+                        class_labels=self.labels,
+                        infer_missing_processors=self.infer_missing_processors,
+                    )
             except Exception as e:
                 # TODO: Perhaps we should not raise here, but rather log?
                 raise e
