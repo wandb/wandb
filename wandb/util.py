@@ -467,6 +467,8 @@ def json_friendly(obj):
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:

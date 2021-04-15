@@ -138,7 +138,7 @@ def _json_helper(val, artifact):
             res[key] = _json_helper(val[key], artifact)
         return res
     elif hasattr(val, "tolist"):
-        return val.tolist()
+        return util.json_friendly(val.tolist())[0]
     else:
         return util.json_friendly(val)[0]
 
