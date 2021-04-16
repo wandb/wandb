@@ -549,19 +549,33 @@ class WandbCallback(keras.callbacks.Callback):
     def on_train_begin(self, logs=None):
         if self.log_evaluation:
             try:
-                if not self.validation_data or len(self.validation_data) < 2:
-                    gen_warn = " Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
-                    if self.generator:
-                        gen_warn = " Generators are not currently supported as validation data. To log validation results, set validation_data to an (x, y) tuple of list-like data."
-                    else:
+                validation_data = None
+                if self.validation_data:
+                    validation_data = self.validation_data
+                elif self.generator:
+                    if not self.validation_steps:
                         wandb.termwarn(
-                            "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data."
-                            + gen_warn
+                            "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
                         )
+                    else:
+                        for i in range(self.validation_steps):
+                            bx, by_true = next(self.generator)
+                            if x is None:
+                                x, y_true = bx, by_true
+                            else:
+                                x, y_true = (
+                                    np.append(x, bx, axis=0),
+                                    np.append(y_true, by_true, axis=0),
+                                )
+                        validation_data = (x, y_true)
                 else:
+                    wandb.termwarn(
+                        "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                    )
+                if validation_data:
                     self.validation_data_logger = ValidationDataLogger(
-                        inputs=self.validation_data[0],
-                        targets=self.validation_data[1],
+                        inputs=validation_data[0],
+                        targets=validation_data[1],
                         indexes=self.validation_indexes,
                         validation_row_processor=self.validation_row_processor,
                         prediction_row_processor=self.prediction_row_processor,
