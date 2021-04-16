@@ -12,10 +12,16 @@ import os
 from shutil import copyfile
 import sys
 
+from dockerpycreds.utils import find_executable
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
+from ..lib.filenames import (
+    CONDA_ENVIRONMENTS_FNAME,
+    DIFF_FNAME,
+    METADATA_FNAME,
+    REQUIREMENTS_FNAME,
+)
 from ..lib.git import GitRepo
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -64,6 +70,23 @@ class Meta(object):
         except Exception:
             logger.error("Error saving pip packages")
         logger.debug("save pip done")
+
+    def _save_conda(self):
+        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
+        if not current_shell_is_conda:
+            return False
+        if not find_executable("conda"):
+            return False
+
+        logger.debug("save conda")
+        try:
+            with open(
+                os.path.join(self._settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
+            ) as f:
+                subprocess.call(["conda", "env", "export"], stdout=f)
+        except Exception:
+            logger.error("Error saving conda packages")
+        logger.debug("save conda done")
 
     def _save_code(self):
         logger.debug("save code")
@@ -228,6 +251,7 @@ class Meta(object):
 
         if self._settings._save_requirements:
             self._save_pip()
+            self._save_conda()
         logger.debug("probe done")
 
     def write(self):
