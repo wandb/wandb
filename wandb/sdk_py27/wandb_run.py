@@ -771,6 +771,20 @@ class Run(object):
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
+    def rewind(self, step = None):
+        if step is None:
+            wandb.termwarn("run.rewind() requires step argument")
+            return
+        if not self.resumed:
+            wandb.termwarn("run.rewind() is only applicable to resumed runs")
+            return
+        # self._run_obj is set when resumed
+        assert self._run_obj
+        self._run_obj.starting_step = step
+        self.history._update_step()
+        # TODO(jhr): need to let handler know about this step for tbwatcher
+        # TODO(jhr): add ability to truncate history (need backend support)
+
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row, step):
 
