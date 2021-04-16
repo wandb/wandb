@@ -63,7 +63,10 @@ def sm(
     yield sm
 
 
-# @pytest.mark.skipif(platform.system() == "Windows", reason="git stopped working")
+@pytest.mark.skipif(
+    sys.version_info < (3, 0),
+    reason="py27 doesn't like my patching for conda-environment, just skipping",
+)
 def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     orig_exists = os.path.exists
     orig_call = subprocess.call
