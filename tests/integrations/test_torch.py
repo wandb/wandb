@@ -181,7 +181,7 @@ def test_double_log(wandb_init_run):
 
 def test_embedding_dict_watch(wandb_init_run):
     model = EmbModelWrapper()
-    wandb.watch(model, log_freq=1)
+    wandb.watch(model, log_freq=1, idx=0)
     opt = torch.optim.Adam(params=model.parameters())
     inp = torch.randint(16, [8, 5])
     out = model(inp)
