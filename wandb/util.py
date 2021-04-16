@@ -47,8 +47,8 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
+from wandb.errors import CommError
 from wandb.old.core import wandb_dir
-from wandb.errors.error import CommError
 from wandb import env
 
 logger = logging.getLogger(__name__)
@@ -467,6 +467,8 @@ def json_friendly(obj):
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -742,7 +744,10 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409}:
+                if e.response.status_code in {400, 403, 404, 409} or (
+                    e.response.status_code == 500
+                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
+                ):
                     return e
 
             if retry_count == max_retries:
@@ -755,9 +760,11 @@ def request_with_retry(func, *args, **kwargs):
             ):
                 logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
             else:
+                pass
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
                     e,
+                    func,
                     args,
                     kwargs,
                 )
@@ -1235,6 +1242,10 @@ def _has_internet():
         return False
 
 
+def rand_alphanumeric(length=8):
+    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+
+
 @contextlib.contextmanager
 def fsync_open(path, mode="w"):
     """
@@ -1253,3 +1264,18 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def _is_databricks():
+    # check if we are running inside a databricks notebook by
+    # inspecting sys.modules, searching for dbutils and verifying that
+    # it has the appropriate structure
+
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
+            shell = dbutils.shell
+            if hasattr(shell, "sc"):
+                sc = shell.sc
+                return sc.appName == "Databricks Shell"
+    return False

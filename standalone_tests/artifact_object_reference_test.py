@@ -33,7 +33,7 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio"]
+columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio", "np_data"]
 
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
@@ -191,6 +191,7 @@ aud_ref_gs = wandb.Audio(
     caption="star wars gs"
 )
 
+np_data = np.random.randint(255, size=(4, 16, 16, 3))
 
 def _make_wandb_table():
     classes = wandb.Classes([
@@ -199,7 +200,7 @@ def _make_wandb_table():
         {"id": 3, "name": "road"},
     ])
     table = wandb.Table(
-        columns=columns,
+        columns=[c for c in columns[:-1]],
         data=[
             [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
             [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud_ref_https],
@@ -208,6 +209,7 @@ def _make_wandb_table():
         ],
     )
     table.cast("class_id", classes.get_type())
+    table.add_column(columns[-1], np_data)
     return table
 
 def _make_wandb_joinedtable():
@@ -509,8 +511,20 @@ def test_table_slice_reference_artifact():
     assert not os.path.isdir(os.path.join(artifact_2._default_root()))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
-    assert t1.data[:1] == table1.data
-    assert t1.data[1:] == table2.data
+
+    def assert_eq_data(d1, d2):
+        assert len(d1) == len(d2)
+        for ndx in range(len(d1)):
+            assert len(d1[ndx]) == len(d2[ndx])
+            for i in range(len(d1[ndx])):
+                eq = d1[ndx][i] == d2[ndx][i]
+                if isinstance(eq, list) or isinstance(eq, np.ndarray):
+                    assert np.all(eq)
+                else:
+                    assert eq
+    
+    assert_eq_data(t1.data[:1], table1.data)
+    assert_eq_data(t1.data[1:], table2.data)
 
 # General helper function which will perform the following:
 #   Add the object to an artifact

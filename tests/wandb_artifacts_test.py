@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os
 import sys
 import pytest
@@ -8,6 +10,9 @@ import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
 import time
+from wandb.proto import wandb_internal_pb2 as pb
+
+sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def mock_boto(artifact, path=False):
@@ -106,6 +111,12 @@ def mock_http(artifact, path=False, headers={}):
     return mock
 
 
+def md5_string(string):
+    hash_md5 = hashlib.md5()
+    hash_md5.update(string.encode())
+    return base64.b64encode(hash_md5.digest()).decode("ascii")
+
+
 def test_add_one_file(runner):
     with runner.isolated_filesystem():
         with open("file1.txt", "w") as f:
@@ -183,7 +194,8 @@ def test_add_reference_local_file(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        artifact.add_reference("file://file1.txt")
+        e = artifact.add_reference("file://file1.txt")[0]
+        assert e.ref_target() == "file://file1.txt"
 
         assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
         manifest = artifact.manifest.to_manifest_json()
@@ -197,14 +209,16 @@ def test_add_reference_local_file(runner):
 def test_add_reference_local_file_no_checksum(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
+        size = os.path.getsize("file1.txt")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_reference("file://file1.txt", checksum=False)
 
-        assert artifact.digest == "2f66dd01e5aea4af52445f7602fe88a0"
+        assert artifact.digest == "415f3bca4b095cbbbbc47e0d44079e05"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["file1.txt"] == {
-            "digest": "file://file1.txt",
+            "digest": md5_string(str(size)),
             "ref": "file://file1.txt",
+            "size": size,
         }
 
 
@@ -235,6 +249,44 @@ def test_add_reference_local_dir(runner):
             "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
             "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
             "size": 4,
+        }
+
+
+def test_add_reference_local_dir_no_checksum(runner):
+    with runner.isolated_filesystem():
+        path_1 = os.path.join("file1.txt")
+        open(path_1, "w").write("hello")
+        size_1 = os.path.getsize(path_1)
+
+        path_2 = os.path.join("nest", "file2.txt")
+        os.mkdir("nest")
+        open(path_2, "w").write("my")
+        size_2 = os.path.getsize(path_2)
+
+        path_3 = os.path.join("nest", "nest", "file3.txt")
+        os.mkdir("nest/nest")
+        open(path_3, "w").write("dude")
+        size_3 = os.path.getsize(path_3)
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_reference("file://" + os.getcwd(), checksum=False)
+
+        assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["file1.txt"] == {
+            "digest": md5_string(str(size_1)),
+            "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
+            "size": size_1,
+        }
+        assert manifest["contents"]["nest/file2.txt"] == {
+            "digest": md5_string(str(size_2)),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
+            "size": size_2,
+        }
+        assert manifest["contents"]["nest/nest/file3.txt"] == {
+            "digest": md5_string(str(size_3)),
+            "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
+            "size": size_3,
         }
 
 
@@ -504,6 +556,47 @@ def test_add_obj_wbimage(runner):
                 "size": 215,
             },
         }
+
+
+def test_add_obj_using_brackets(runner):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact["my-image"] = wb_image
+
+        manifest = artifact.manifest.to_manifest_json()
+        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert manifest["contents"] == {
+            "media/cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
+                "size": 215,
+            },
+        }
+
+    with pytest.raises(ValueError):
+        image = artifact["my-image"]
+
+
+def test_artifact_interface_get_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        image = art["my-image"]
+
+
+def test_artifact_interface_set_item():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        art["my-image"] = 1
 
 
 def test_duplicate_wbimage_from_file(runner):
@@ -843,43 +936,176 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
-    art.add(t1, "t1")
-    run.log_artifact(art)
-    # Must call wait first
+    e = art.add(t1, "t1")
+
     with pytest.raises(ValueError):
-        assert art.id is not None
+        e.ref_target()
+
+    # These properties should be valid both before and after logging
+    testable_getters_valid = [
+        "id",
+        "entity",
+        "project",
+        "manifest",
+        "digest",
+        "type",
+        "name",
+        "state",
+        "size",
+        "description",
+        "metadata",
+    ]
+
+    # These are valid even before waiting!
+    testable_getters_always_valid = ["distributed_id"]
+
+    # These properties should be valid only after logging
+    testable_getters_invalid = ["version", "commit_hash", "aliases"]
+
+    # These setters should be valid both before and after logging
+    testable_setters_valid = ["description", "metadata"]
+
+    # These are valid even before waiting!
+    testable_setters_always_valid = ["distributed_id"]
+
+    # These setters should be valid only after logging
+    testable_setters_invalid = ["aliases"]
+
+    # These methods should be valid both before and after logging
+    testable_methods_valid = []
+
+    # These methods should be valid only after logging
+    testable_methods_invalid = [
+        "used_by",
+        "logged_by",
+        "get_path",
+        "get",
+        "download",
+        "checkout",
+        "verify",
+        "delete",
+    ]
+
+    setter_data = {"metadata": {}}
+    params = {"get_path": ["t1.table.json"], "get": ["t1"]}
+
+    # these are failures of mocking
+    special_errors = {
+        "save": wandb.errors.CommError,
+        "delete": wandb.errors.CommError,
+        "verify": ValueError,
+        "logged_by": KeyError,
+    }
+
+    for valid_getter in testable_getters_valid + testable_getters_always_valid:
+        _ = getattr(art, valid_getter)
+
+    for invalid_getter in testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, invalid_getter)
+
+    for valid_setter in testable_setters_valid + testable_setters_always_valid:
+        setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
+
+    for invalid_setter in testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(
+                art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
+            )
+
+    # Uncomment if there are ever entries in testable_methods_valid
+    # leaving commented for now since test coverage wants all lines to
+    # run
+    # for valid_method in testable_methods_valid:
+    #     attr_method = getattr(art, valid_method)
+    #     _ = attr_method(*params.get(valid_method, []))
+
+    for invalid_method in testable_methods_invalid:
+        attr_method = getattr(art, invalid_method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(invalid_method, []))
+
+    # THE LOG
+    run.log_artifact(art)
+
+    for getter in testable_getters_valid + testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, getter)
+
+    for setter in testable_setters_valid + testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid + testable_methods_invalid:
+        attr_method = getattr(art, method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(method, []))
+
+    # THE ALL IMPORTANT WAIT
     art.wait()
-    with pytest.raises(AttributeError):
-        assert art.FAKE_ATTRIBUTE is not None
-    assert art.id is not None
-    assert art.version is not None
-    assert art.name is not None
-    assert art.type is not None
-    # Purposely none due to mock
-    assert art.entity is None
-    # Purposely none due to mock
-    assert art.project is None
-    assert art.manifest is not None
-    assert art.digest is not None
-    assert art.state is not None
-    assert art.size is not None
-    assert art.commit_hash is not None
-    art.description = "desc"
-    assert art.description == "desc"
-    art.metadata = {"a": 1}
-    assert art.metadata == {"a": 1}
-    art.aliases = ["A"]
-    assert art.aliases == ["A"]
-    assert art.used_by() is not None
-    with pytest.raises(KeyError):  # expect a key error b/c project is not mocked
-        assert art.logged_by() is not None
-    assert art.get_path("t1.table.json") is not None
-    assert art.get("t1") is not None
-    assert art.download() is not None
-    assert art.checkout() is not None
-    with pytest.raises(ValueError):  # mock issue
-        assert art.verify() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
-        assert art.save() is not None
-    with pytest.raises(wandb.errors.error.CommError):  # mock issue
-        assert art.delete() is not None
+
+    for getter in testable_getters_valid + testable_getters_invalid:
+        _ = getattr(art, getter)
+
+    for setter in testable_setters_valid + testable_setters_invalid:
+        setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid + testable_methods_invalid:
+        attr_method = getattr(art, method)
+        if method in special_errors:
+            with pytest.raises(special_errors[method]):
+                _ = attr_method(*params.get(method, []))
+        else:
+            _ = attr_method(*params.get(method, []))
+
+
+def test_reference_download(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run.log_artifact(artifact)
+        run.finish()
+
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("my-test_reference_download:latest")
+        entry = artifact.get_path("StarWars3.wav")
+        entry.download()
+        assert (
+            entry.ref_target()
+            == "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+
+        entry = artifact.get_path("file1.txt")
+        entry.download()
+        with pytest.raises(ValueError):
+            assert entry.ref_target()
+
+
+def test_communicate_artifact(
+    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
+):
+    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
+    start_backend()
+
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(artifact)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()

@@ -27,10 +27,10 @@ else:
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 
+from .utils import first_filestream
 
-def test_send_status_request(
-    mock_server, internal_sender, start_backend,
-):
+
+def test_send_status_request(mock_server, internal_sender, start_backend):
     mock_server.ctx["stopped"] = True
     start_backend()
 
@@ -39,9 +39,7 @@ def test_send_status_request(
     assert status_resp.run_should_stop
 
 
-def test_parallel_requests(
-    mock_server, internal_sender, start_backend,
-):
+def test_parallel_requests(mock_server, internal_sender, start_backend):
     mock_server.ctx["stopped"] = True
     work_queue = queue.Queue()
     start_backend()
@@ -72,7 +70,7 @@ def test_parallel_requests(
 
 
 def test_resume_success(
-    mocked_run, test_settings, mock_server, internal_sender, start_backend,
+    mocked_run, test_settings, mock_server, internal_sender, start_backend
 ):
     test_settings.resume = "allow"
     mock_server.ctx["resume"] = True
@@ -84,7 +82,7 @@ def test_resume_success(
 
 
 def test_resume_error_never(
-    mocked_run, test_settings, mock_server, internal_sender, start_backend,
+    mocked_run, test_settings, mock_server, internal_sender, start_backend
 ):
     test_settings.resume = "never"
     mock_server.ctx["resume"] = True
@@ -98,7 +96,7 @@ def test_resume_error_never(
 
 
 def test_resume_error_must(
-    mocked_run, test_settings, mock_server, internal_sender, start_backend,
+    mocked_run, test_settings, mock_server, internal_sender, start_backend
 ):
     test_settings.resume = "must"
     mock_server.ctx["resume"] = False
@@ -113,7 +111,7 @@ def test_resume_error_must(
 
 
 def test_save_live_existing_file(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -124,7 +122,7 @@ def test_save_live_existing_file(
 
 
 def test_save_live_write_after_policy(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "live")]})
@@ -135,7 +133,7 @@ def test_save_live_write_after_policy(
 
 
 def test_save_live_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "live")]})
@@ -151,8 +149,16 @@ def test_save_live_multi_write(
 
 
 def test_save_live_glob_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend, mocker
 ):
+    def mock_min_size(self, size):
+        return 1
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 1)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
     start_backend()
     internal_sender.publish_files({"files": [("checkpoints/*", "live")]})
     mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
@@ -180,12 +186,13 @@ def test_save_live_glob_multi_write(
     print(
         "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
     )
+
     assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
     assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
 
 
 def test_save_rename_file(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "live")]})
@@ -201,7 +208,7 @@ def test_save_rename_file(
 
 
 def test_save_end_write_after_policy(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "end")]})
@@ -212,7 +219,7 @@ def test_save_end_write_after_policy(
 
 
 def test_save_end_existing_file(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -223,7 +230,7 @@ def test_save_end_existing_file(
 
 
 def test_save_end_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "end")]})
@@ -239,7 +246,7 @@ def test_save_end_multi_write(
 
 
 def test_save_now_write_after_policy(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "now")]})
@@ -250,7 +257,7 @@ def test_save_now_write_after_policy(
 
 
 def test_save_now_existing_file(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
@@ -261,7 +268,7 @@ def test_save_now_existing_file(
 
 
 def test_save_now_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("test.txt", "now")]})
@@ -277,7 +284,7 @@ def test_save_now_multi_write(
 
 
 def test_save_glob_multi_write(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("checkpoints/*", "now")]})
@@ -304,7 +311,7 @@ def test_save_glob_multi_write(
 
 
 def test_save_now_relative_path(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     internal_sender.publish_files({"files": [("foo/test.txt", "now")]})
@@ -318,7 +325,7 @@ def test_save_now_relative_path(
 
 
 def test_save_now_twice(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend,
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
     start_backend()
     file_path = os.path.join("foo", "test.txt")
@@ -334,6 +341,17 @@ def test_save_now_twice(
     stop_backend()
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
+
+
+def test_output(mocked_run, mock_server, internal_sender, start_backend, stop_backend):
+    start_backend()
+    for i in range(100):
+        internal_sender.publish_output("stdout", "\rSome recurring line")
+    internal_sender.publish_output("stdout", "\rFinal line baby\n")
+    stop_backend()
+    print("DUDE!", mock_server.ctx)
+    stream = first_filestream(mock_server.ctx)
+    assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 
 def test_sync_spell_run(
