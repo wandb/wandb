@@ -45,7 +45,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                     util.to_human_size(util.MAX_LINE_SIZE),
                     util.to_human_size(len(chunk.data)),
                 )
-                wandb.termerror(msg, repeat=False)
+                wandb.termerror(msg, repeat=False)  # todo: don't want logging from background
                 util.sentry_message(msg)
             else:
                 chunk_data.append(chunk.data)
@@ -63,7 +63,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
                 util.to_human_size(util.MAX_LINE_SIZE)
             )
-            wandb.termerror(msg, repeat=False)
+            wandb.termerror(msg, repeat=False)  # todo: don't want logging from background
             util.sentry_message(msg)
             return False
         return {"offset": 0, "content": [data]}
@@ -275,7 +275,7 @@ class FileStreamApi(object):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
             raise response
-            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
+            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")  # todo: don't want logging from background
             logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()
@@ -298,7 +298,7 @@ class FileStreamApi(object):
         for fs in file_stream_utils.split_files(files, max_mb=10):
             self._handle_response(
                 util.request_with_retry(
-                    self._client.post, self._endpoint, json={"files": fs}
+                    self._client.post, self._endpoint, json={"files": fs}, retry_callback=self._api.retry_callback
                 )
             )
 

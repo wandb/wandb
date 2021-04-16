@@ -723,7 +723,7 @@ def request_with_retry(func, *args, **kwargs):
         **kwargs: passed through to func
     """
     max_retries = kwargs.pop("max_retries", 30)
-    retry_callback = kwargs.pop('retry_callback', None)
+    retry_callback = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:
@@ -747,7 +747,9 @@ def request_with_retry(func, *args, **kwargs):
                     e.response.status_code == 500
                     and e.response.content == b'{"error":"context deadline exceeded"}\n'
                 ):
-                    return e    # todo: all these errors currently termlogged from background
+                    return (
+                        e  # todo: all these errors currently termlogged from background
+                    )
 
             if retry_count == max_retries:
                 return e
@@ -757,7 +759,7 @@ def request_with_retry(func, *args, **kwargs):
                 isinstance(e, requests.exceptions.HTTPError)
                 and e.response.status_code == 429
             ):
-                err_str = f'Filestream rate limit exceeded, retrying in {delay} seconds'
+                err_str = f"Filestream rate limit exceeded, retrying in {delay} seconds"
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
                 logger.info(err_str)

@@ -9,9 +9,9 @@ from __future__ import print_function
 from datetime import datetime
 import json
 import logging
+import multiprocessing
 import os
 import time
-import multiprocessing
 
 from pkg_resources import parse_version
 import requests
@@ -108,7 +108,9 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings, retry_callback=self.retry_callback)
+        self._api = internal_api.Api(
+            default_settings=settings, retry_callback=self.retry_callback
+        )
         self._api_settings = dict()
 
         # queue filled by retry_callback
@@ -231,7 +233,7 @@ class SendManager(object):
                 except queue.Empty:
                     break
                 except Exception as e:
-                    logger.warning(f'Error emptying retry queue: {e}')
+                    logger.warning(f"Error emptying retry queue: {e}")
         self._result_q.put(result)
 
     def send_request_login(self, record):
@@ -736,7 +738,7 @@ class SendManager(object):
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = u"{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 

@@ -147,7 +147,12 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface: BackendSender, stop_polling_interval: int = 15, retry_polling_interval: int = 1) -> None:
+    def __init__(
+        self,
+        interface: BackendSender,
+        stop_polling_interval: int = 15,
+        retry_polling_interval: int = 1,
+    ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
@@ -164,13 +169,19 @@ class RunStatusChecker(object):
     def check_retries(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=False, check_retries=True)
+            status_response = self._interface.communicate_status(
+                check_stop_req=False, check_retries=True
+            )
             if status_response and status_response.retry_responses:
                 for hr in status_response.retry_responses:
-                    if hr.http_status_code == 200 or hr.http_status_code == 0:  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog(f'{hr.http_response_text}')
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog(f"{hr.http_response_text}")
                     else:
-                        wandb.termlog(f'{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request')
+                        wandb.termlog(
+                            f"{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request"
+                        )
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self) -> None:
@@ -1908,7 +1919,7 @@ class Run(object):
         summary: str = None,
         goal: str = None,
         overwrite: bool = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Define metric properties which will later be logged with `wandb.log()`.
 

@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import time
+import multiprocessing
 
 from pkg_resources import parse_version
 import requests
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+    from six.moves.queue import Queue
+    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -105,8 +108,11 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings)
+        self._api = internal_api.Api(default_settings=settings, retry_callback=self.retry_callback)
         self._api_settings = dict()
+
+        # queue filled by retry_callback
+        self._retry_q = multiprocessing.Queue()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -149,6 +155,12 @@ class SendManager(object):
             result_q=result_q,
             interface=publish_interface,
         )
+
+    def retry_callback(self, status, response_text):
+        response = wandb_internal_pb2.HttpResponse()
+        response.http_status_code = status
+        response.http_response_text = response_text
+        self._retry_q.put(response)
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
@@ -212,6 +224,14 @@ class SendManager(object):
                     )
                 except Exception as e:
                     logger.warning("Failed to check stop requested status: %s", e)
+        if record.request.status.check_retries:
+            while True:
+                try:
+                    status_resp.retry_responses.append(self._retry_q.get_nowait())
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logger.warning(f'Error emptying retry queue: {e}')
         self._result_q.put(result)
 
     def send_request_login(self, record):

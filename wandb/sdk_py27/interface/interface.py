@@ -720,10 +720,11 @@ class BackendSender(object):
         self._publish(rec)
 
     def communicate_status(
-        self, check_stop_req, timeout = None
+        self, check_stop_req, check_retries = False, timeout = None
     ):
         status = pb.StatusRequest()
         status.check_stop_req = check_stop_req
+        status.check_retries = check_retries
         req = self._make_request(status=status)
 
         resp = self._communicate(req, timeout=timeout, local=True)
