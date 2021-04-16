@@ -486,8 +486,7 @@ class WandbCallback(keras.callbacks.Callback):
                         )
                     )
             except Exception as e:
-                # TODO: Perhaps we should not raise here, but rather log?
-                raise e
+                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
@@ -585,8 +584,10 @@ class WandbCallback(keras.callbacks.Callback):
                         infer_missing_processors=self.infer_missing_processors,
                     )
             except Exception as e:
-                # TODO: Perhaps we should not raise here, but rather log?
-                raise e
+                wandb.termwarn(
+                    "Error initializing ValidationDataLogger in WandbCallback. Skipping logging validation data. Error: "
+                    + str(e)
+                )
 
     def on_train_end(self, logs=None):
         pass
