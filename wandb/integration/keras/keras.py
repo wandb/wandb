@@ -558,6 +558,8 @@ class WandbCallback(keras.callbacks.Callback):
                             "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
                         )
                     else:
+                        x = None
+                        y_true = None
                         for i in range(self.validation_steps):
                             bx, by_true = next(self.generator)
                             if x is None:
