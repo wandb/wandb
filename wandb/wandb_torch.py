@@ -432,7 +432,12 @@ class TorchGraph(wandb.data_types.Graph):
                         self.create_forward_hook(name, modules)
                     )
                 )
-                hooks.append(sub_module.register_backward_hook(backward_hook))
+                # Models with dicts as output must use register_full_backward_hook
+                if hasattr(sub_module, "register_full_backward_hook"):
+                    hook = sub_module.register_full_backward_hook(backward_hook)
+                else:
+                    hook = sub_module.register_backward_hook(backward_hook)
+                hooks.append(hook)
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):
