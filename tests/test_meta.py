@@ -63,10 +63,6 @@ def sm(
     yield sm
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 0),
-    reason="py27 doesn't like my patching for conda-environment, just skipping",
-)
 def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     orig_exists = os.path.exists
     orig_call = subprocess.call
@@ -91,7 +87,9 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     print(mock_server.ctx)
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
     assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
-    assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
+    # py27 doesn't like my patching for conda-environment, just skipping
+    if sys.version_info > (3, 0):
+        assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 
