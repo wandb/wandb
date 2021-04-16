@@ -135,6 +135,7 @@ message ErrorInfo {
  */
 message RunExitRecord {
   int32 exit_code = 1;
+  string state = 2;
 }
 
 message RunExitResult {
