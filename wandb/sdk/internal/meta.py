@@ -12,7 +12,7 @@ import os
 from shutil import copyfile
 import sys
 
-from dockerpycreds.utils import find_executable
+from dockerpycreds.utils import find_executable  # type: ignore
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
