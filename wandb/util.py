@@ -1262,3 +1262,18 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def _is_databricks():
+    # check if we are running inside a databricks notebook by
+    # inspecting sys.modules, searching for dbutils and verifying that
+    # it has the appropriate structure
+
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
+            shell = dbutils.shell
+            if hasattr(shell, "sc"):
+                sc = shell.sc
+                return sc.appName == "Databricks Shell"
+    return False
