@@ -573,13 +573,17 @@ class ListType(Type):
     name = "list"
     types = [list, tuple, set, frozenset]
 
-    def __init__(self, element_type = None):
+    def __init__(
+        self,
+        element_type = None,
+        length = None,
+    ):
         if element_type is None:
             wb_type = UnknownType()
         else:
             wb_type = TypeRegistry.type_from_dtype(element_type)
 
-        self.params.update({"element_type": wb_type})
+        self.params.update({"element_type": wb_type, "length": length})
 
     @classmethod
     def from_obj(cls, py_obj = None):
@@ -606,7 +610,7 @@ class ListType(Type):
 
                 elm_type = _elm_type
 
-            return cls(elm_type)
+            return cls(elm_type, len(py_list))
 
     def assign_type(self, wb_type):
         if isinstance(wb_type, ListType):
@@ -614,7 +618,12 @@ class ListType(Type):
                 wb_type.params["element_type"]
             )
             if not isinstance(assigned_type, InvalidType):
-                return ListType(assigned_type)
+                return ListType(
+                    assigned_type,
+                    None
+                    if self.params["length"] != wb_type.params["length"]
+                    else self.params["length"],
+                )
 
         return InvalidType()
 
@@ -625,11 +634,12 @@ class ListType(Type):
             new_element_type = self.params["element_type"]
             # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
             # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
-            for obj in list(py_obj):  # type: ignore
+            py_list = list(py_obj)  # type: ignore
+            for obj in py_list:
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
-            return ListType(new_element_type)
+            return ListType(new_element_type, len(py_list))
 
         return InvalidType()
 
