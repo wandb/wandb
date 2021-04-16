@@ -12,7 +12,6 @@ import os
 from shutil import copyfile
 import sys
 
-from dockerpycreds.utils import find_executable  # type: ignore
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
@@ -68,14 +67,12 @@ class Meta(object):
             ) as f:
                 f.write("\n".join(installed_packages_list))
         except Exception:
-            logger.error("Error saving pip packages")
+            logger.exception("Error saving pip packages")
         logger.debug("save pip done")
 
     def _save_conda(self):
         current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
         if not current_shell_is_conda:
-            return False
-        if not find_executable("conda"):
             return False
 
         logger.debug("save conda")
@@ -85,7 +82,7 @@ class Meta(object):
             ) as f:
                 subprocess.call(["conda", "env", "export"], stdout=f)
         except Exception:
-            logger.error("Error saving conda packages")
+            logger.exception("Error saving conda packages")
         logger.debug("save conda done")
 
     def _save_code(self):
