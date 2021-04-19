@@ -1492,11 +1492,7 @@ class Run(object):
 
         exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
         logger.info("got exitcode: %d", exit_code)
-        if exit_code == 0:
-            # Cleanup our resume file on a clean exit
-            if os.path.exists(self._settings.resume_fname):
-                os.remove(self._settings.resume_fname)
-
+        
         self._exit_code = exit_code
         try:
             self._on_finish()
