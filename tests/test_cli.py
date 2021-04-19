@@ -949,6 +949,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
             == 1
         )
+        assert ctx["file_bytes"]["code/standalone_tests/code-toad.py"] > 0
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])

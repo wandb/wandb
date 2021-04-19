@@ -117,8 +117,8 @@ def test_object_type():
 
 
 def test_list_type():
-    assert ListType(int).assign([]) == ListType(int)
-    assert ListType(int).assign([1, 2, 3]) == ListType(int)
+    assert ListType(int).assign([]) == ListType(int, 0)
+    assert ListType(int).assign([1, 2, 3]) == ListType(int, 3)
     assert ListType(int).assign([1, "a", 3]) == InvalidType()
 
 
@@ -570,6 +570,10 @@ def test_table_specials():
         ),
         data_types.Table(data=[[1, True, 1]]),
     )
+
+
+def test_nan_non_float():
+    wandb.Table(dataframe=pd.DataFrame(data=[["A"], [np.nan]], columns=["a"]))
 
 
 def test_table_typing_numpy():

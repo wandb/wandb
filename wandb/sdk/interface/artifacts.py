@@ -11,10 +11,23 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict, Tuple, Callable
+
+    from typing import (
+        List,
+        Optional,
+        Union,
+        Dict,
+        Callable,
+        TYPE_CHECKING,
+        Sequence,
+        Tuple,
+    )
+
+    if TYPE_CHECKING:
+        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
-def md5_string(string):
+def md5_string(string: str) -> str:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
@@ -32,11 +45,11 @@ def md5_hash_file(path):
     return hash_md5
 
 
-def md5_file_b64(path):
+def md5_file_b64(path: str) -> str:
     return base64.b64encode(md5_hash_file(path).digest()).decode("ascii")
 
 
-def md5_file_hex(path):
+def md5_file_hex(path: str) -> str:
     return md5_hash_file(path).hexdigest()
 
 
@@ -46,6 +59,8 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest(object):
+    entries: Dict[str, "ArtifactEntry"]
+
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
@@ -79,7 +94,7 @@ class ArtifactManifest(object):
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
         self.entries[entry.path] = entry
 
-    def get_entry_by_path(self, path):
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
@@ -93,6 +108,14 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
+    path: str
+    ref: Optional[str]
+    digest: str
+    birth_artifact_id: Optional[str]
+    size: Optional[int]
+    extra: Dict
+    local_path: Optional[str]
+
     def parent_artifact(self) -> "Artifact":
         """
         Get the artifact to which this artifact entry belongs.
@@ -116,13 +139,11 @@ class ArtifactEntry(object):
         """
         raise NotImplementedError
 
-    def ref(self) -> str:
+    def ref_target(self) -> str:
         """
-        Gets the reference URL of this artifact entry.
-
+        Gets the reference URL that this artifact entry targets.
         Returns:
             (str): The reference URL of this artifact entry.
-
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
@@ -466,16 +487,16 @@ class Artifact(object):
         raise NotImplementedError
 
     def add(self, obj: WBValue, name: str):
-        """
-        Adds `obj` to the artifact, where the object is a W&B histogram or
-        media type.
+        """Adds wandb.WBValue `obj` to the artifact.
 
         ```
         obj = artifact.get(name)
         ```
 
         Arguments:
-            obj: (wandb.WBValue) The object to add.
+            obj: (wandb.WBValue) The object to add. Currently support one of
+                Bokeh, JoinedTable, PartitionedTable, Table, Classes, ImageMask,
+                BoundingBoxes2D, Audio, Image, Video, Html, Object3D
             name: (str) The path within the artifact to add the object.
 
         Returns:
@@ -596,7 +617,7 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def verify(self, root: Optional[str] = None):
+    def verify(self, root: Optional[str] = None) -> bool:
         """
         Verify that the actual contents of an artifact at a specified directory
         `root` match the expected contents of the artifact according to its
@@ -730,12 +751,19 @@ class StoragePolicy(object):
     def config(self):
         pass
 
-    def load_file(self, artifact, name, manifest_entry):
+    def load_file(
+        self, artifact: Artifact, name: str, manifest_entry: ArtifactEntry
+    ) -> str:
         raise NotImplementedError
 
     def store_file(
-        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
-    ):
+        self,
+        artifact_id: str,
+        artifact_manifest_id: str,
+        entry: ArtifactEntry,
+        preparer: "StepPrepare",
+        progress_callback: Optional[Callable] = None,
+    ) -> bool:
         raise NotImplementedError
 
     def store_reference(
@@ -743,19 +771,28 @@ class StoragePolicy(object):
     ):
         raise NotImplementedError
 
-    def load_reference(self, artifact, name, manifest_entry, local=False):
+    def load_reference(
+        self,
+        artifact: Artifact,
+        name: str,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
+    ) -> str:
         raise NotImplementedError
 
 
 class StorageHandler(object):
-    def scheme(self):
+    @property
+    def scheme(self) -> str:
         """
         :return: The scheme to which this handler applies.
         :rtype: str
         """
         pass
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(
+        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+    ) -> str:
         """
         Loads the file or directory within the specified artifact given its
         corresponding index entry.
@@ -763,11 +800,13 @@ class StorageHandler(object):
         :param manifest_entry: The index entry to load
         :type manifest_entry: ArtifactManifestEntry
         :return: A path to the file represented by `index_entry`
-        :rtype: os.PathLike
+        :rtype: str
         """
         pass
 
-    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+    def store_path(
+        self, artifact, path, name=None, checksum=True, max_objects=None
+    ) -> Sequence[ArtifactEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 
