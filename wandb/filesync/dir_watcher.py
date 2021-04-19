@@ -10,7 +10,7 @@ import glob
 wd_polling = util.vendor_import("watchdog.observers.polling")
 wd_events = util.vendor_import("watchdog.events")
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__file__)
 
 
 class FileEventHandler(object):
