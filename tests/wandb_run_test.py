@@ -125,6 +125,6 @@ def test_except_hook(test_settings):
     assert errs == ["Before wandb.init()", "After wandb.init()"]
 
     # make sure wandb prints the traceback
-    assert stderr == ["Exception: After wandb.init()\n", ""]
+    assert "".join(stderr) == "Exception: After wandb.init()\n"
 
     sys.stderr.write = old_stderr_write

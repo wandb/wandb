@@ -110,9 +110,13 @@ class Backend(object):
         main_mod_path = getattr(main_module, "__file__", None)
         main_mod_name = None
         if main_mod_spec is None:  # hack for pdb
-            main_mod_spec = importlib.machinery.ModuleSpec(
+            main_mod_spec = (
+                importlib.machinery.ModuleSpec(
                     name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
-                ) if sys.version_info[0] > 2 else None
+                )
+                if sys.version_info[0] > 2
+                else None
+            )
             main_module.__spec__ = main_mod_spec
         main_mod_name = getattr(main_mod_spec, "name", None)
         if main_mod_name is not None:
@@ -124,20 +128,6 @@ class Backend(object):
                 os.path.dirname(wandb.__file__), "mpmain", "__main__.py"
             )
             main_module.__file__ = fname
-
-        logger.info("starting backend process...")
-        # Start the process with __name__ == "__main__" workarounds
-        self.wandb_process.start()
-        self._internal_pid = self.wandb_process.pid
-        logger.info(
-            "started backend process with pid: {}".format(self.wandb_process.pid)
-        )
-
-        # Undo temporary changes from: __name__ == "__main__"
-        if save_mod_name:
-            main_module.__spec__.name = save_mod_name
-        elif save_mod_path:
-            main_module.__file__ = save_mod_path
 
         self.interface = interface.BackendSender(
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
