@@ -90,7 +90,6 @@ class Backend(object):
         self.result_q = self._multiprocessing.Queue()
         if settings.get("start_method") != "thread":
             process_class = self._multiprocessing.Process
-            # __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
         else:
             process_class = BackendThread
             # disable interal process checks since we are one process
