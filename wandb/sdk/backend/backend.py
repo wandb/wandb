@@ -6,6 +6,7 @@ Manage backend.
 
 """
 
+import importlib
 import logging
 import multiprocessing
 import os
@@ -89,6 +90,7 @@ class Backend(object):
         self.result_q = self._multiprocessing.Queue()
         if settings.get("start_method") != "thread":
             process_class = self._multiprocessing.Process
+            # __spec__ = "ModuleSpec(name='builtins', loader=<class '_frozen_importlib.BuiltinImporter'>)"
         else:
             process_class = BackendThread
             # disable interal process checks since we are one process
@@ -108,8 +110,12 @@ class Backend(object):
         main_mod_spec = getattr(main_module, "__spec__", None)
         main_mod_path = getattr(main_module, "__file__", None)
         main_mod_name = None
-        if main_mod_spec:
-            main_mod_name = getattr(main_mod_spec, "name", None)
+        if main_mod_spec is None:  # hack for pdb
+            main_mod_spec = importlib.machinery.ModuleSpec(
+                name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
+            )
+            main_module.__spec__ = main_mod_spec
+        main_mod_name = getattr(main_mod_spec, "name", None)
         if main_mod_name is not None:
             save_mod_name = main_mod_name
             main_module.__spec__.name = "wandb.mpmain"
