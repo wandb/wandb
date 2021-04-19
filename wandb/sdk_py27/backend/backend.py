@@ -110,8 +110,8 @@ class Backend(object):
         main_mod_name = None
         if main_mod_spec is None:  # hack for pdb
             main_mod_spec = importlib.machinery.ModuleSpec(
-                name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
-            )
+                    name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
+                ) if sys.version_info[0] > 2 else None
             main_module.__spec__ = main_mod_spec
         main_mod_name = getattr(main_mod_spec, "name", None)
         if main_mod_name is not None:
