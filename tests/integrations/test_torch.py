@@ -40,6 +40,25 @@ class DynamicModule(nn.Module):
         return x
 
 
+class EmbModel(nn.Module):
+    def __init__(self, x=16, y=32):
+        super().__init__()
+        self.emb1 = nn.Embedding(x, y)
+        self.emb2 = nn.Embedding(x, y)
+
+    def forward(self, x):
+        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+
+
+class EmbModelWrapper(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.emb = EmbModel(*args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return self.emb(*args, **kwargs)
+
+
 class Discrete(nn.Module):
     def __init__(self):
         super(Discrete, self).__init__()
@@ -158,6 +177,21 @@ def test_double_log(wandb_init_run):
     wandb.watch(net)
     with pytest.raises(ValueError):
         wandb.watch(net)
+
+
+def test_embedding_dict_watch(wandb_init_run):
+    model = EmbModelWrapper()
+    wandb.watch(model, log_freq=1, idx=0)
+    opt = torch.optim.Adam(params=model.parameters())
+    inp = torch.randint(16, [8, 5])
+    out = model(inp)
+    out = (out["key"]["emb1"]).sum(-1)
+    loss = F.mse_loss(out, inp.float())
+    loss.backward()
+    opt.step()
+    wandb.log({"loss": loss})
+    print(wandb.run._backend.history)
+    assert len(wandb.run._backend.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
 
 
 @pytest.mark.timeout(120)
