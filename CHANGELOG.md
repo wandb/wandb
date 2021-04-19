@@ -1,3 +1,16 @@
+## 0.10.26 (April 13, 2021)
+
+#### :bug: Bug Fix
+
+- Fix network handling issue where syncing stopped (use wandb sync to recover)
+- Fix auth problem when using sagemaker and hugginface integrations together
+- Fix handling of NaN values in tables with non floats
+- Lazy load API object to prevent unnessary file access on module load
+
+#### :nail_care: Enhancement
+
+- Improve error messages when using public api history accessors
+
 ## 0.10.25 (April 5, 2021)
 
 #### :bug: Bug Fix

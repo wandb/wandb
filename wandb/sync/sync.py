@@ -177,7 +177,7 @@ class SyncThread(threading.Thread):
                     sync_item = os.path.join(sync_item, filtered_files[0])
             root_dir = os.path.dirname(sync_item)
             # If we're syncing tensorboard, let's use a tmpdir
-            if tb_event_files > 0:
+            if tb_event_files > 0 and not sync_item.endswith(WANDB_SUFFIX):
                 root_dir = TMPDIR.name
             sm = sender.SendManager.setup(root_dir)
 
