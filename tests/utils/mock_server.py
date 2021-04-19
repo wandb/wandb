@@ -598,7 +598,6 @@ def create_app(user_ctx=None):
                         body.get("variables", {}).get("name", "")
                     ),
                     "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
-                    
                     "uploadHeaders": "",
                 },
             }
