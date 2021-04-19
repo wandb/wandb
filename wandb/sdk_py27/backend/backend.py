@@ -129,6 +129,20 @@ class Backend(object):
             )
             main_module.__file__ = fname
 
+        logger.info("starting backend process...")
+        # Start the process with __name__ == "__main__" workarounds
+        self.wandb_process.start()
+        self._internal_pid = self.wandb_process.pid
+        logger.info(
+            "started backend process with pid: {}".format(self.wandb_process.pid)
+        )
+
+        # Undo temporary changes from: __name__ == "__main__"
+        if save_mod_name:
+            main_module.__spec__.name = save_mod_name
+        elif save_mod_path:
+            main_module.__file__ = save_mod_path
+
         self.interface = interface.BackendSender(
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
