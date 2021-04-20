@@ -460,7 +460,7 @@ class Settings(object):
 
     @property
     def _kaggle(self) -> bool:
-        is_kaggle = util._is_kaggle()
+        is_kaggle = util._is_likely_kaggle()
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             assert isinstance(is_kaggle, bool)
         return is_kaggle

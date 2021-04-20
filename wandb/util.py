@@ -1265,6 +1265,12 @@ def _is_kaggle():
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
 
+def _is_likely_kaggle():
+   """
+   Telemetry to mark first runs from Kagglers. 
+   """
+   return _is_kaggle() or os.path.exists(os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))) or "kaggle" in sys.modules
+
 
 def _is_databricks():
     # check if we are running inside a databricks notebook by
