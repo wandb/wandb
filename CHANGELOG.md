@@ -1,3 +1,16 @@
+## 0.10.27 (April 19, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync condition where metrics at end of short run are dropped 
+- Fix `wandb sync` when tensorboard files are detected
+- Fix api key prompt in databricks notebook
+
+#### :nail_care: Enhancement
+
+- Integrate DSViz into Keras WandbCallback
+- Add support for conda dependencies (user submit)
+
 ## 0.10.26 (April 13, 2021)
 
 #### :bug: Bug Fix
