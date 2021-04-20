@@ -180,7 +180,7 @@ class RunStatusChecker(object):
                         wandb.termlog(f"{hr.http_response_text}")
                     else:
                         wandb.termlog(
-                            f"{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request"
+                            "{} encountered ({}), retrying request".format(hr.http_status_code, hr.http_response_text.rstrip())
                         )
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
