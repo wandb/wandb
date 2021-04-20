@@ -916,7 +916,19 @@ def test_interface_commit_hash(runner):
         artifact.commit_hash()
 
 
-def test_artifact_incremental(
+def test_artifact_incremental(live_mock_server, parse_ctx, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact(type="dataset", name="incremental-arty", incremental=True)
+    table = wandb.Table(columns=[], rows=[])
+    artifact.add(table, "table")
+    run.log_artifact(artifact)
+    run.finish()
+
+    manifests_created = parse_ctx(live_mock_server.get_ctx()).manifests_created
+    assert manifests_created[0]["type"] == "INCREMENTAL"
+
+
+def test_artifact_incremental_internal(
     mocked_run,
     mock_server,
     internal_sender,
