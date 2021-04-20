@@ -918,7 +918,7 @@ def test_interface_commit_hash(runner):
 
 def test_artifact_incremental(live_mock_server, parse_ctx, test_settings):
     run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(type="dataset", name="incremental-arty", incremental=True)
+    artifact = wandb.Artifact(type="dataset", name="incremental_test_PENDING", incremental=True)
     table = wandb.Table(columns=[], rows=[])
     artifact.add(table, "table")
     run.log_artifact(artifact)
