@@ -582,6 +582,8 @@ def json_friendly(obj):
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -875,10 +877,9 @@ def request_with_retry(func, *args, **kwargs):
             else:
                 pass
                 logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. func: %s, response: %s, args: %s, kwargs: %s",
+                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
                     e,
                     func,
-                    e.response.content,
                     args,
                     kwargs,
                 )
@@ -1356,6 +1357,10 @@ def _has_internet():
         return False
 
 
+def rand_alphanumeric(length=8):
+    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+
+
 @contextlib.contextmanager
 def fsync_open(path, mode="w"):
     """
@@ -1374,3 +1379,18 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def _is_databricks():
+    # check if we are running inside a databricks notebook by
+    # inspecting sys.modules, searching for dbutils and verifying that
+    # it has the appropriate structure
+
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
+            shell = dbutils.shell
+            if hasattr(shell, "sc"):
+                sc = shell.sc
+                return sc.appName == "Databricks Shell"
+    return False

@@ -1,3 +1,41 @@
+## 0.10.27 (April 19, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync condition where metrics at end of short run are dropped 
+- Fix `wandb sync` when tensorboard files are detected
+- Fix api key prompt in databricks notebook
+
+#### :nail_care: Enhancement
+
+- Integrate DSViz into Keras WandbCallback
+- Add support for conda dependencies (user submit)
+
+## 0.10.26 (April 13, 2021)
+
+#### :bug: Bug Fix
+
+- Fix network handling issue where syncing stopped (use wandb sync to recover)
+- Fix auth problem when using sagemaker and hugginface integrations together
+- Fix handling of NaN values in tables with non floats
+- Lazy load API object to prevent unnessary file access on module load
+
+#### :nail_care: Enhancement
+
+- Improve error messages when using public api history accessors
+
+## 0.10.25 (April 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix possible artifact cache race when using parallel artifact reads
+- Fix artifact reference when `checksum=False`
+
+#### :nail_care: Enhancement
+
+- Release `run.define_metric()` to simplify custom x-axis and more
+- Add column operators `add_column`, `get_column`, `get_index` to `wandb.Table()`
+
 ## 0.10.24 (March 30, 2021)
 
 #### :bug: Bug Fix

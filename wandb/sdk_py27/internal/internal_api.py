@@ -28,6 +28,7 @@ from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
+from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -165,10 +166,12 @@ class Api(object):
         key = None
         if auth:
             key = auth[-1]
+
         # Environment should take precedence
         env_key = self._environ.get(env.API_KEY)
+        sagemaker_key = parse_sm_secrets().get(env.API_KEY)
         default_key = self.default_settings.get("api_key")
-        return env_key or key or default_key
+        return env_key or key or sagemaker_key or default_key
 
     @property
     def api_url(self):
