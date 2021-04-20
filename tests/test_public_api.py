@@ -9,9 +9,11 @@ import os
 import json
 import pytest
 import platform
+import sys
 
 import wandb
 from wandb import Api
+from tests import utils
 
 
 @pytest.fixture
@@ -91,6 +93,21 @@ def test_run_from_path(mock_server, api):
     assert run.url == "https://wandb.ai/test/test/runs/test"
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
+)
+def test_run_from_tensorboard(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
+        run_id = wandb.util.generate_id()
+        api.sync_tensorboard(".", project="test", run_id=run_id)
+        assert mock_server.ctx["graphql"][-1]["variables"] == {
+            "entity": "mock_server_entity",
+            "name": run_id,
+            "project": "test",
+        }
+
+
 def test_run_retry(mock_server, api):
     mock_server.set_context("fail_graphql_times", 2)
     run = api.run("test/test/test")
@@ -108,6 +125,25 @@ def test_run_history_keys(mock_server, api):
         {"loss": 0, "acc": 100},
         {"loss": 1, "acc": 0},
     ]
+
+
+def test_run_history_keys_bad_arg(mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.history(keys="acc", pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.history(keys=[["acc"]], pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+    run.scan_history(keys="acc")
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.scan_history(keys=[["acc"]])
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
 
 
 def test_run_config(mock_server, api):
@@ -366,6 +402,15 @@ def test_artifact_manual_use(runner, mock_server, api):
     assert True
 
 
+def test_artifact_bracket_accessor(runner, live_mock_server, api):
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    assert art["t"].__class__ == wandb.Table
+    assert art["s"] is None
+    # TODO: Remove this once we support incremental adds
+    with pytest.raises(ValueError):
+        art["s"] = wandb.Table(data=[], columns=[])
+
+
 def test_artifact_manual_log(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
@@ -394,6 +439,38 @@ def test_artifact_verify(runner, mock_server, api):
     art.download()
     with pytest.raises(ValueError):
         art.verify()
+
+
+def test_artifact_save_norun(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save(settings=test_settings)
+
+
+def test_artifact_save_run(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        run = wandb.init(settings=test_settings)
+        artifact.save()
+        run.finish()
+
+
+def test_artifact_save_norun_nosettings(runner, mock_server, test_settings):
+    test_folder = os.path.dirname(os.path.realpath(__file__))
+    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+        artifact.add(wb_image, "my-image")
+        artifact.save()
 
 
 def test_sweep(runner, mock_server, api):

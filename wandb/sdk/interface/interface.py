@@ -22,6 +22,7 @@ from wandb.util import (
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
+    json_friendly_val,
     maybe_compress_summary,
     WandBJSONEncoderOld,
 )
@@ -136,7 +137,12 @@ class MessageRouter(object):
         with self._lock:
             future = self._pending_reqs.pop(msg.uuid, None)
         if future is None:
-            logger.warning("No listener found for msg with uuid %s (%s)", msg.uuid, msg)
+            # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
+            # could point to other issues.
+            if msg.uuid != "":
+                logger.warning(
+                    "No listener found for msg with uuid %s (%s)", msg.uuid, msg
+                )
             return
         future._set_object(msg)
 
@@ -246,7 +252,7 @@ class BackendSender(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(artifact.metadata)
+            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
@@ -266,7 +272,8 @@ class BackendSender(object):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
-            proto_entry.size = entry.size
+            if entry.size:
+                proto_entry.size = entry.size
             if entry.birth_artifact_id:
                 proto_entry.birth_artifact_id = entry.birth_artifact_id
             if entry.ref:

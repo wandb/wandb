@@ -93,7 +93,7 @@ def markdown_render(command):
             head = f'## {command}'
         else:
             head = f'# {command}'
-        with open("cli.md", 'a') as fp:
+        with open("library/cli.md", 'a') as fp:
             fp.write(
                 TEMPLATE.format(
                     head, # Heading
@@ -135,7 +135,7 @@ for k,v in parsed_dict.items():
         commands = """**Commands**\n| **Commands** | **Description** |\n|:--|:--|:--|\n""" + commands
         co_flag = False
 if usage or summary or options or commands:
-    with open("cli.md", 'w') as fp:
+    with open("library/cli.md", 'w') as fp:
         fp.write(
             TEMPLATE.format(
                 f"# wandb", # Heading

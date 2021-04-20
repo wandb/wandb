@@ -9,7 +9,7 @@ from __future__ import print_function
 
 import click
 import wandb
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 
 from .internal.internal_api import Api
 from .lib import apikey
@@ -144,7 +144,13 @@ class _WandbLogin(object):
             no_create=self._settings.force,
         )
         if key is False:
-            raise UsageError("api_key not configured (no-tty).  Run wandb login")
+            directive = (
+                "wandb login [your_api_key]"
+                if self._settings._cli_only_mode
+                else "wandb.login(key=[your_api_key])"
+            )
+            raise UsageError("api_key not configured (no-tty). call " + directive)
+
         self.update_session(key)
         self._key = key
 
