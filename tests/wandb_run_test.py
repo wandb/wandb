@@ -101,18 +101,3 @@ def test_log_code_custom_root(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
-
-
-def test_resume_successful_run(test_settings):
-    """Test for WB-5254. Ensures that even successfully terminated
-    runs can be resumed."""
-
-    test_settings.run_id = None
-    run = wandb.init(resume="auto", settings=test_settings)
-    run_id = run.id
-    wandb.join(0)
-
-    run2 = wandb.init(resume="auto", settings=test_settings)
-    run2_id = run2.id
-    wandb.join(0)
-    assert run_id == run2_id

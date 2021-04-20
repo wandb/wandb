@@ -114,9 +114,18 @@ def test_resume_never_failure(live_mock_server, test_settings):
 
 
 def test_resume_auto_success(live_mock_server, test_settings):
-    run = wandb.init(reinit=True, resume=True, settings=test_settings)
-    run.join()
-    assert not os.path.exists(test_settings.resume_fname)
+    """Test for WB-5254. Ensures that even successfully terminated
+    runs can be resumed."""
+
+    test_settings.run_id = None
+    run = wandb.init(resume="auto", settings=test_settings)
+    run_id = run.id
+    wandb.join(0)
+
+    run2 = wandb.init(resume="auto", settings=test_settings)
+    run2_id = run2.id
+    wandb.join(0)
+    assert run_id == run2_id
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
