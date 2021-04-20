@@ -1266,10 +1266,8 @@ def _is_kaggle():
     )
 
 def _is_likely_kaggle():
-   """
-   Telemetry to mark first runs from Kagglers. 
-   """
-   return _is_kaggle() or os.path.exists(os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))) or "kaggle" in sys.modules
+    # Telemetry to mark first runs from Kagglers. 
+    return _is_kaggle() or os.path.exists(os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))) or "kaggle" in sys.modules
 
 
 def _is_databricks():
