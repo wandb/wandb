@@ -16,6 +16,7 @@ REQUIREMENTS_FNAME = "requirements.txt"
 HISTORY_FNAME = "wandb-history.jsonl"
 EVENTS_FNAME = "wandb-events.jsonl"
 JOBSPEC_FNAME = "wandb-jobspec.json"
+CONDA_ENVIRONMENTS_FNAME = "conda-environment.yaml"
 
 
 def is_wandb_file(name):
@@ -26,6 +27,7 @@ def is_wandb_file(name):
         or name == REQUIREMENTS_FNAME
         or name == OUTPUT_FNAME
         or name == DIFF_FNAME
+        or name == CONDA_ENVIRONMENTS_FNAME
     )
 
 

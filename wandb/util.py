@@ -467,6 +467,8 @@ def json_friendly(obj):
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -1268,3 +1270,18 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def _is_databricks():
+    # check if we are running inside a databricks notebook by
+    # inspecting sys.modules, searching for dbutils and verifying that
+    # it has the appropriate structure
+
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
+            shell = dbutils.shell
+            if hasattr(shell, "sc"):
+                sc = shell.sc
+                return sc.appName == "Databricks Shell"
+    return False

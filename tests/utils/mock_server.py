@@ -32,6 +32,7 @@ def default_ctx():
         "k8s": False,
         "resume": False,
         "file_bytes": {},
+        "artifacts_by_id": {},
     }
 
 
@@ -553,13 +554,16 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+            _id = body.get("variables", {}).get("digest", "")
+            if _id != "":
+                ctx.get("artifacts_by_id")[_id] = body["variables"]
             return {
                 "data": {
                     "createArtifact": {
                         "artifact": artifact(
                             ctx,
                             collection_name,
-                            id_override=body.get("variables", {}).get("digest", ""),
+                            id_override=_id,
                             state="COMMITTED"
                             if "PENDING" not in collection_name
                             else "PENDING",
@@ -686,6 +690,8 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 3, "name": "run_table"}
             if "run-" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 4, "name": "run_table"}
+            if "wb_validation_data" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -740,6 +746,36 @@ def create_app(user_ctx=None):
             else:
                 ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
+            if _id in ctx.get("artifacts_by_id"):
+                art = ctx["artifacts_by_id"][_id]
+                if "-validation_predictions" in art["artifactCollectionNames"][0]:
+                    return {
+                        "version": 1,
+                        "storagePolicy": "wandb-storage-policy-v1",
+                        "storagePolicyConfig": {},
+                        "contents": {
+                            "validation_predictions.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            }
+                        },
+                    }
+                if "wb_validation_data" in art["artifactCollectionNames"][0]:
+                    return {
+                        "version": 1,
+                        "storagePolicy": "wandb-storage-policy-v1",
+                        "storagePolicyConfig": {},
+                        "contents": {
+                            "validation_data.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            },
+                            "media/tables/e14239fe.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            },
+                        },
+                    }
             if request.args.get("name") == "my-test_reference_download:latest":
                 return {
                     "version": 1,
@@ -791,6 +827,30 @@ def create_app(user_ctx=None):
                             "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         }
+                    },
+                }
+            elif _id in [
+                "2d9a7e0aa8407f0730e19e5bc55c3a45",
+                "c541de19b18331a4a33b282fc9d42510",
+                "6f3d6ed5417d2955afbc73bff0ed1609",
+                "7d797e62834a7d72538529e91ed958e2",
+                "03d3e221fd4da6c5fccb1fbd75fe475e",
+                "464aa7e0d7c3f8230e3fe5f10464a2e6",
+                "8ef51aeabcfcd89b719822de64f6a8bf",
+            ]:
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "validation_data.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
+                        "media/tables/e14239fe.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
                     },
                 }
             elif (
