@@ -602,6 +602,23 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+        if "mutation CreateArtifactFiles" in body["query"]:
+            return {
+                "data": {
+                    "files": [
+                        {
+                            "node": {
+                                "id": idx,
+                                "name": file["name"],
+                                "uploadUrl": "",
+                                "uploadheaders": [],
+                                "artifact": {"id": file["artifactID"]},
+                            }
+                            for idx, file in enumerate(body["variables"]["artifactFiles"])
+                        }
+                    ],
+                }
+            }
         if "mutation CommitArtifact(" in body["query"]:
             return {
                 "data": {
