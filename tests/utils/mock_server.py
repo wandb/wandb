@@ -614,7 +614,9 @@ def create_app(user_ctx=None):
                                 "uploadheaders": [],
                                 "artifact": {"id": file["artifactID"]},
                             }
-                            for idx, file in enumerate(body["variables"]["artifactFiles"])
+                            for idx, file in enumerate(
+                                body["variables"]["artifactFiles"]
+                            )
                         }
                     ],
                 }
