@@ -77,7 +77,7 @@ class _AddedObj(object):
 
 class Artifact(ArtifactInterface):
     """
-    Dataset versioning, model versioning, pipeline tracking with flexible and lightweight building block.
+    Flexible and lightweight building block for dataset and model versioning.
 
     Constructs an empty artifact whose contents can be populated using its
     `add` family of functions. Once the artifact has all the desired files,
