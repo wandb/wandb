@@ -175,7 +175,9 @@ class DirWatcher(object):
             return None
 
     def update_policy(self, path, policy):
+        print("Path", path, policy)
         self._user_file_policies[policy].add(path)
+        print(glob.glob(os.path.join(self._dir, path)))
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
             feh = self._get_file_event_handler(src_path, save_name)

@@ -95,6 +95,7 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
         self._step = 0
+        print("INITED A HANDLE")
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()

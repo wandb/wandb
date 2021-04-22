@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import datetime
 import fnmatch
+import json
 import os
 import sys
 import threading
@@ -156,8 +157,18 @@ class SyncThread(threading.Thread):
             sys.stdout.flush()
         watcher.finish()
         # send all of our records like a boss
+        step = 0
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
+            step += 1
+            if len(data.history.ListFields()) != 0:
+                item = data.history.item.add()
+                item.key = "_step"
+                item.value_json = json.dumps(step)
+            else:
+                for f in data.files.files:
+                    print(f.path)
+     
             send_manager.send(data)
         sys.stdout.flush()
         send_manager.finish()
