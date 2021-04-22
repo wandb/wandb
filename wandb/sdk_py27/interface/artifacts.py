@@ -898,7 +898,10 @@ class ArtifactsCache(object):
             tmp_file = os.path.join(
                 dirname,
                 "%s_%s"
-                % (ArtifactsCache._TMP_PREFIX, util.rand_alphanumeric(length=8, rand=self._random)),
+                % (
+                    ArtifactsCache._TMP_PREFIX,
+                    util.rand_alphanumeric(length=8, rand=self._random),
+                ),
             )
             with util.fsync_open(tmp_file, mode=mode) as f:
                 yield f
