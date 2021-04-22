@@ -112,7 +112,8 @@ env_settings: Dict[str, Optional[str]] = dict(
 )
 
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(
-    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","),
+    run_tags=lambda s: s.split(","),
+    ignore_globs=lambda s: s.split(","),
 )
 
 
@@ -1022,7 +1023,10 @@ class Settings(object):
     def _apply_login(
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        param_map = dict(key="api_key", host="base_url",)
+        param_map = dict(
+            key="api_key",
+            host="base_url",
+        )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 

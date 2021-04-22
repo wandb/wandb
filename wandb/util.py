@@ -954,11 +954,11 @@ def image_id_from_k8s():
 
 def async_call(target, timeout=None):
     """Accepts a method and optional timeout.
-       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
-       This new method blocks on the original and returns the result or None
-       if timeout was reached, along with the thread.
-       You can check thread.is_alive() to determine if a timeout was reached.
-       If an exception is thrown in the thread, we reraise it.
+    Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+    This new method blocks on the original and returns the result or None
+    if timeout was reached, along with the thread.
+    You can check thread.is_alive() to determine if a timeout was reached.
+    If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
 
@@ -1112,7 +1112,7 @@ def parse_sweep_id(parts_dict):
 
     Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-    
+
     Returns:
         None or str if there is an error
     """
@@ -1265,9 +1265,16 @@ def _is_kaggle():
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
 
+
 def _is_likely_kaggle():
-    # Telemetry to mark first runs from Kagglers. 
-    return _is_kaggle() or os.path.exists(os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))) or "kaggle" in sys.modules
+    # Telemetry to mark first runs from Kagglers.
+    return (
+        _is_kaggle()
+        or os.path.exists(
+            os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))
+        )
+        or "kaggle" in sys.modules
+    )
 
 
 def _is_databricks():
