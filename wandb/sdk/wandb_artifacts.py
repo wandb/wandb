@@ -19,6 +19,7 @@ import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
+from . import lib as wandb_lib
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -120,6 +121,7 @@ class Artifact(ArtifactInterface):
     _distributed_id: Optional[str]
     _metadata: dict
     _logged_artifact: Optional[ArtifactInterface]
+    _incremental: bool
 
     def __init__(
         self,
@@ -127,6 +129,7 @@ class Artifact(ArtifactInterface):
         type: str,
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
+        incremental: Optional[bool] = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -163,6 +166,11 @@ class Artifact(ArtifactInterface):
         self._metadata = metadata or {}
         self._distributed_id = None
         self._logged_artifact = None
+        self._incremental = False
+
+        if incremental:
+            self._incremental = incremental
+            wandb.termwarn("Using experimental arg `incremental`")
 
     @property
     def id(self) -> Optional[str]:
@@ -313,6 +321,10 @@ class Artifact(ArtifactInterface):
     @distributed_id.setter
     def distributed_id(self, distributed_id: Optional[str]) -> None:
         self._distributed_id = distributed_id
+
+    @property
+    def incremental(self) -> bool:
+        return self._incremental
 
     def used_by(self) -> List["wandb.apis.public.Run"]:
         if self._logged_artifact:
@@ -571,6 +583,11 @@ class Artifact(ArtifactInterface):
         Returns:
             None
         """
+
+        if self._incremental:
+            with wandb_lib.telemetry.context() as tel:
+                tel.feature.artifact_incremental = True
+
         if self._logged_artifact:
             return self._logged_artifact.save()
         else:
@@ -580,6 +597,11 @@ class Artifact(ArtifactInterface):
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:
+                    # redoing this here because in this branch we know we didn't
+                    # have the run at the beginning of the method
+                    if self._incremental:
+                        with wandb_lib.telemetry.context(run=run) as tel:
+                            tel.feature.artifact_incremental = True
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait
