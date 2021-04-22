@@ -923,8 +923,6 @@ class ArtifactsCache(object):
                 os.replace(tmp_file, path)
             except AttributeError:
                 os.rename(tmp_file, path)
-            except OSError:
-                pass
 
         return helper
 
