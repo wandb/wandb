@@ -31,6 +31,7 @@ def default_ctx():
         "k8s": False,
         "resume": False,
         "file_bytes": {},
+        "manifests_created": [],
         "artifacts_by_id": {},
     }
 
@@ -567,23 +568,57 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation CreateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "type": "INCREMENTAL"
+                if "incremental" in body.get("variables", {}).get("name", "")
+                else "FULL",
+                "file": {
+                    "id": 1,
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            ctx["manifests_created"].append(manifest)
+            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+        if "mutation UpdateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "type": "INCREMENTAL"
+                if "incremental" in body.get("variables", {}).get("name", "")
+                else "FULL",
+                "file": {
+                    "id": 1,
+                    "directUrl": request.url_root
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+        if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {
-                    "createArtifactManifest": {
-                        "artifactManifest": {
-                            "id": 1,
-                            "file": {
-                                "id": 1,
-                                "directUrl": request.url_root
-                                + "/storage?file=wandb_manifest.json&name={}".format(
-                                    body.get("variables", {}).get("name", "")
-                                ),
-                                "uploadUrl": request.url_root
-                                + "/storage?file=wandb_manifest.json",
-                                "uploadHeaders": "",
-                            },
+                    "files": [
+                        {
+                            "node": {
+                                "id": idx,
+                                "name": file["name"],
+                                "uploadUrl": "",
+                                "uploadheaders": [],
+                                "artifact": {"id": file["artifactID"]},
+                            }
+                            for idx, file in enumerate(
+                                body["variables"]["artifactFiles"]
+                            )
                         }
-                    }
+                    ],
                 }
             }
         if "mutation CommitArtifact(" in body["query"]:
@@ -711,6 +746,7 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
@@ -1118,6 +1154,10 @@ class ParseCTX(object):
     @property
     def metrics(self):
         return self.config.get("_wandb", {}).get("value", {}).get("m")
+
+    @property
+    def manifests_created(self):
+        return self._ctx.get("manifests_created") or []
 
 
 if __name__ == "__main__":
