@@ -715,7 +715,7 @@ class Projects(Paginator):
 
 
 class Project(Attrs):
-    """A project is a namespace for runs"""
+    """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
@@ -1401,15 +1401,20 @@ class Run(Attrs):
 
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep
-    Instantiate with:
-      api.sweep(sweep_path)
+    """A set of runs associated with a sweep.
+
+    Examples:
+        Instantiate with:
+        ```
+        api = wandb.Api()
+        sweep = api.sweep(path/to/sweep)
+        ```
 
     Attributes:
-        runs (`Runs`): list of runs
-        id (str): sweep id
-        project (str): name of project
-        config (str): dictionary of sweep configuration
+        runs: (`Runs`) list of runs
+        id: (str) sweep id
+        project: (str) name of project
+        config: (str) dictionary of sweep configuration
     """
 
     QUERY = gql(
@@ -1582,7 +1587,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is an iterable collection of `File` objects."""
+    """An iterable collection of `File` objects."""
 
     QUERY = gql(
         """
@@ -2569,6 +2574,8 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
 
 class Artifact(artifacts.Artifact):
     """
+    A wandb Artifact.
+
     An artifact that has been logged, including all its attributes, links to the runs
     that use it, and a link to the run that logged it.
 
