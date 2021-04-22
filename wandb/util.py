@@ -1242,8 +1242,9 @@ def _has_internet():
         return False
 
 
-def rand_alphanumeric(length=8):
-    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+def rand_alphanumeric(length=8, rand=None):
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
