@@ -1279,3 +1279,9 @@ def _is_databricks():
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
     return False
+
+
+def metric_is_wandb_dict(metric):
+    if "_type" in list(metric.keys()) and metric["_type"] in ["audio", "table-file", "joined-table", "table", "audio-file", "file", "object3D", "molecule", "html", "videos", "data-frame", "images/separated", "histogram"]:
+        return True
+    return False
