@@ -442,7 +442,9 @@ class TorchGraph(wandb.data_types.Graph):
                     )
                 )
                 # Models with dicts as output must use register_full_backward_hook
-                if self._should_use_full_hooks and hasattr(sub_module, "register_full_backward_hook"):
+                if self._should_use_full_hooks and hasattr(
+                    sub_module, "register_full_backward_hook"
+                ):
                     hook = sub_module.register_full_backward_hook(backward_hook)
                 else:
                     hook = sub_module.register_backward_hook(backward_hook)
