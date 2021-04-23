@@ -426,7 +426,8 @@ class BackendSender(object):
         get_summary: pb.GetSummaryRequest = None,
         pause: pb.PauseRequest = None,
         resume: pb.ResumeRequest = None,
-        status: pb.StatusRequest = None,
+        stop_status: pb.StopStatusRequest = None,
+        network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
         sampled_history: pb.SampledHistoryRequest = None,
         run_start: pb.RunStartRequest = None,
@@ -443,8 +444,10 @@ class BackendSender(object):
             request.pause.CopyFrom(pause)
         elif resume:
             request.resume.CopyFrom(resume)
-        elif status:
-            request.status.CopyFrom(status)
+        elif stop_status:
+            request.stop_status.CopyFrom(stop_status)
+        elif network_status:
+            request.network_status.CopyFrom(network_status)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif sampled_history:
@@ -720,18 +723,29 @@ class BackendSender(object):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_status(
-        self, check_stop_req: bool, timeout: int = None
-    ) -> Optional[pb.StatusResponse]:
-        status = pb.StatusRequest()
-        status.check_stop_req = check_stop_req
-        req = self._make_request(status=status)
+    def communicate_stop_status(
+        self, timeout: int = None
+    ) -> Optional[pb.StopStatusResponse]:
+        status = pb.StopStatusRequest()
+        req = self._make_request(stop_status=status)
 
         resp = self._communicate(req, timeout=timeout, local=True)
         if resp is None:
             return None
-        assert resp.response.status_response
-        return resp.response.status_response
+        assert resp.response.stop_status_response
+        return resp.response.stop_status_response
+
+    def communicate_network_status(
+        self, timeout: int = None
+    ) -> Optional[pb.NetworkStatusResponse]:
+        status = pb.NetworkStatusRequest()
+        req = self._make_request(network_status=status)
+
+        resp = self._communicate(req, timeout=timeout, local=True)
+        if resp is None:
+            return None
+        assert resp.response.network_status_response
+        return resp.response.network_status_response
 
     def publish_exit(self, exit_code: int) -> None:
         exit_data = self._make_exit(exit_code)

@@ -230,7 +230,7 @@ Parallel coordinates plots map hyperparameter values to model metrics. They're u
 
 <img src="https://i.imgur.com/THYXBN0.png" width="720" alt="Weights & Biases" />
 
-# 📜 Share insights with with Reports
+# 📜 Share insights with Reports
 Reports let you [organize visualizations, describe your findings, and share updates with collaborators](https://www.youtube.com/watch?v=o2dOSIDDr1w&&ab_channel=Weights%26Biases).
 
 ### Common use cases

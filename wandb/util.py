@@ -722,6 +722,7 @@ def request_with_retry(func, *args, **kwargs):
         **kwargs: passed through to func
     """
     max_retries = kwargs.pop("max_retries", 30)
+    retry_callback = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:
@@ -755,7 +756,12 @@ def request_with_retry(func, *args, **kwargs):
                 isinstance(e, requests.exceptions.HTTPError)
                 and e.response.status_code == 429
             ):
-                logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
+                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
+                    delay
+                )
+                if retry_callback:
+                    retry_callback(e.response.status_code, err_str)
+                logger.info(err_str)
             else:
                 pass
                 logger.warning(
@@ -1239,8 +1245,9 @@ def _has_internet():
         return False
 
 
-def rand_alphanumeric(length=8):
-    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+def rand_alphanumeric(length=8, rand=None):
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
