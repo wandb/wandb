@@ -13,6 +13,7 @@ import os
 import six
 import wandb
 from wandb.proto import wandb_internal_pb2
+from wandb.util import metric_is_wandb_dict
 
 from . import meta, sample, stats
 from . import tb_watcher
@@ -300,7 +301,7 @@ class HandleManager(object):
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
         # if the dict has _type key, its a wandb table object
-        if isinstance(v, dict) and "_type" not in list(v.keys()):
+        if isinstance(v, dict) and not metric_is_wandb_dict(v):
             updated = False
             for nk, nv in six.iteritems(v):
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
