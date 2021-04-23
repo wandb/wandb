@@ -6,6 +6,7 @@
 from collections import namedtuple
 import itertools
 import weakref
+import sys
 from six.moves import reduce
 from distutils.version import LooseVersion
 from operator import mul
@@ -306,6 +307,14 @@ class TorchHistory(object):
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
         super(TorchGraph, self).__init__("torch")
+        # When we changed to register_full_backward_hook a regression test running fastai v1
+        # started failing.  To maximize compatability we don't use full backward hooks
+        # when we detect fastai v1 has been imported :(
+        self._should_use_full_hooks = True
+        if "fastai" in sys.modules:
+            fastai = util.get_module("fastai")
+            if fastai.__version__.startswith("1."):
+                self._should_use_full_hooks = False
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
@@ -433,7 +442,7 @@ class TorchGraph(wandb.data_types.Graph):
                     )
                 )
                 # Models with dicts as output must use register_full_backward_hook
-                if hasattr(sub_module, "register_full_backward_hook"):
+                if self._should_use_full_hooks and hasattr(sub_module, "register_full_backward_hook"):
                     hook = sub_module.register_full_backward_hook(backward_hook)
                 else:
                     hook = sub_module.register_backward_hook(backward_hook)
