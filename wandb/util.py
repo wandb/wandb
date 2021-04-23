@@ -749,9 +749,7 @@ def request_with_retry(func, *args, **kwargs):
                     e.response.status_code == 500
                     and e.response.content == b'{"error":"context deadline exceeded"}\n'
                 ):
-                    return (
-                        e  # todo: all these errors currently termlogged from background
-                    )
+                    return e
 
             if retry_count == max_retries:
                 return e
