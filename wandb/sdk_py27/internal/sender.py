@@ -9,7 +9,6 @@ from __future__ import print_function
 from datetime import datetime
 import json
 import logging
-import multiprocessing
 import os
 import time
 
@@ -226,7 +225,7 @@ class SendManager(object):
             except Exception as e:
                 logger.warning("Failed to check stop requested status: %s", e)
         self._result_q.put(result)
-        
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 

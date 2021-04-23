@@ -101,7 +101,7 @@ class Retry(object):
                 # Only print resolved attempts once every minute
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(minutes=1):
                     self._last_print = datetime.datetime.now()
-                    self.retry_callback(200, f'{self._error_prefix} resolved after {datetime.datetime.now() - start_time}, resuming normal operation.')
+                    self.retry_callback(200, "{} resolved after {}, resuming normal operation.".format(self._error_prefix, datetime.datetime.now() - start_time))
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
@@ -118,7 +118,7 @@ class Retry(object):
                         # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
                         # but some of these can be raised before the retry handler thread (RunStatusChecker) is
                         # spawned in wandb_init
-                        wandb.termlog('{} ({}), entering retry loop.'.format(self._error_prefix, e.__class__.__name__))
+                        wandb.termlog("{} ({}), entering retry loop.".format(self._error_prefix, e.__class__.__name__))
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
             time.sleep(sleep + random.random() * 0.25 * sleep)
