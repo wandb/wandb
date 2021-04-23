@@ -14,6 +14,7 @@ class ResponseMock(object):
         pass
 
     def raise_for_status(self):
+        # convert flask Response to requests Response
         response = requests.Response()
         response.status_code = self.response.status_code
         if self.response.status_code == 429:

@@ -114,7 +114,7 @@ class SendManager(object):
         self._api_settings = dict()
 
         # queue filled by retry_callback
-        self._retry_q: "Queue[HttpResponse]" = multiprocessing.Queue()
+        self._retry_q: "Queue[HttpResponse]" = queue.Queue()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -212,28 +212,33 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
-    def send_request_status(self, record):
+    def send_request_stop_status(self, record):
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
-        status_resp = result.response.status_response
-        if record.request.status.check_stop_req:
-            status_resp.run_should_stop = False
-            if self._entity and self._project and self._run.run_id:
-                try:
-                    status_resp.run_should_stop = self._api.check_stop_requested(
-                        self._project, self._entity, self._run.run_id
-                    )
-                except Exception as e:
-                    logger.warning("Failed to check stop requested status: %s", e)
-        if record.request.status.check_retries:
-            while True:
-                try:
-                    status_resp.retry_responses.append(self._retry_q.get_nowait())
-                except queue.Empty:
-                    break
-                except Exception as e:
-                    logger.warning(f"Error emptying retry queue: {e}")
+        status_resp = result.response.stop_status_response
+        status_resp.run_should_stop = False
+        if self._entity and self._project and self._run.run_id:
+            try:
+                status_resp.run_should_stop = self._api.check_stop_requested(
+                    self._project, self._entity, self._run.run_id
+                )
+            except Exception as e:
+                logger.warning("Failed to check stop requested status: %s", e)
+        self._result_q.put(result)
+
+    def send_request_network_status(self, record):
+        assert record.control.req_resp
+
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        status_resp = result.response.network_status_response
+        while True:
+            try:
+                status_resp.network_responses.append(self._retry_q.get_nowait())
+            except queue.Empty:
+                break
+            except Exception as e:
+                logger.warning("Error emptying retry queue: {}".format(e))
         self._result_q.put(result)
 
     def send_request_login(self, record):
@@ -738,7 +743,7 @@ class SendManager(object):
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = u"{}{}{}{}".format(prepend, timestamp, prev_str, line)
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 

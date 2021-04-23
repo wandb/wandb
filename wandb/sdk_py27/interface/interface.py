@@ -425,7 +425,8 @@ class BackendSender(object):
         get_summary = None,
         pause = None,
         resume = None,
-        status = None,
+        stop_status = None,
+        network_status = None,
         poll_exit = None,
         sampled_history = None,
         run_start = None,
@@ -442,8 +443,10 @@ class BackendSender(object):
             request.pause.CopyFrom(pause)
         elif resume:
             request.resume.CopyFrom(resume)
-        elif status:
-            request.status.CopyFrom(status)
+        elif stop_status:
+            request.stop_status.CopyFrom(stop_status)
+        elif network_status:
+            request.network_status.CopyFrom(network_status)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif sampled_history:
@@ -719,19 +722,29 @@ class BackendSender(object):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_status(
-        self, check_stop_req, check_retries = False, timeout = None
+    def communicate_stop_status(
+        self, timeout = None
     ):
-        status = pb.StatusRequest()
-        status.check_stop_req = check_stop_req
-        status.check_retries = check_retries
-        req = self._make_request(status=status)
+        status = pb.StopStatusRequest()
+        req = self._make_request(stop_status=status)
 
         resp = self._communicate(req, timeout=timeout, local=True)
         if resp is None:
             return None
-        assert resp.response.status_response
-        return resp.response.status_response
+        assert resp.response.stop_status_response
+        return resp.response.stop_status_response
+
+    def communicate_network_status(
+        self, timeout = None
+    ):
+        status = pb.NetworkStatusRequest()
+        req = self._make_request(network_status=status)
+
+        resp = self._communicate(req, timeout=timeout, local=True)
+        if resp is None:
+            return None
+        assert resp.response.network_status_response
+        return resp.response.network_status_response
 
     def publish_exit(self, exit_code):
         exit_data = self._make_exit(exit_code)

@@ -47,7 +47,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                 )
                 wandb.termerror(
                     msg, repeat=False
-                )  # todo: don't want logging from background
+                )
                 util.sentry_message(msg)
             else:
                 chunk_data.append(chunk.data)
@@ -67,7 +67,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
             )
             wandb.termerror(
                 msg, repeat=False
-            )  # todo: don't want logging from background
+            )
             util.sentry_message(msg)
             return False
         return {"offset": 0, "content": [data]}
@@ -281,7 +281,7 @@ class FileStreamApi(object):
             raise response
             wandb.termerror(
                 "Droppped streaming file chunk (see wandb/debug.log)"
-            )  # todo: don't want logging from background
+            )
             logging.error("dropped chunk %s" % response)
         elif response.json().get("limits"):
             parsed = response.json()

@@ -162,32 +162,30 @@ class RunStatusChecker(object):
         self._stop_thread.daemon = True
         self._stop_thread.start()
 
-        self._retry_thread = threading.Thread(target=self.check_retries)
+        self._retry_thread = threading.Thread(target=self.check_network_status)
         self._retry_thread.daemon = True
         self._retry_thread.start()
 
-    def check_retries(self):
+    def check_network_status(self):
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(
-                check_stop_req=False, check_retries=True
-            )
-            if status_response and status_response.retry_responses:
-                for hr in status_response.retry_responses:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
                     if (
                         hr.http_status_code == 200 or hr.http_status_code == 0
                     ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog(f"{hr.http_response_text}")
+                        wandb.termlog("{}".format(hr.http_response_text))
                     else:
                         wandb.termlog(
-                            f"{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request"
+                            "{} encountered ({}), retrying request".format(hr.http_status_code, hr.http_response_text.rstrip())
                         )
             join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self):
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=True)
+            status_response = self._interface.communicate_stop_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
