@@ -299,7 +299,8 @@ class HandleManager(object):
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
-        if isinstance(v, dict):
+        # if the dict has _type key, its a wandb table object
+        if isinstance(v, dict) and "_type" not in list(v.keys()):
             updated = False
             for nk, nv in six.iteritems(v):
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
