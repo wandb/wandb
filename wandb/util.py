@@ -91,20 +91,6 @@ POW_2_BYTES = [
     ("EiB", 2 ** 60),
 ]
 
-WANDB_TYPES = [
-    "table-file",
-    "image-file",
-    "video-file",
-    "mask",
-    "bounding-boxes",
-    "classes",
-    "audio-file",
-    "html-file",
-    "molecule-file",
-    "metadata",
-    "object3D-file",
-]
-
 
 def sentry_message(message):
     if error_reporting_enabled():
@@ -1292,10 +1278,4 @@ def _is_databricks():
             if hasattr(shell, "sc"):
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
-    return False
-
-
-def metric_is_wandb_dict(metric):
-    if "_type" in list(metric.keys()) and metric["_type"] in WANDB_TYPES:
-        return True
     return False

@@ -68,6 +68,7 @@ else:
     )
 
 __all__ = [
+    "Audio",
     "Histogram",
     "Object3D",
     "Molecule",
@@ -161,6 +162,7 @@ class Table(Media):
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
     artifact_type = "table"
+    log_type = "table-file"
 
     def __init__(
         self,
@@ -494,7 +496,7 @@ class Table(Media):
         if isinstance(run_or_artifact, wandb_run.Run):
             json_dict.update(
                 {
-                    "_type": "table-file",
+                    "_type": self.log_type,
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                 }
@@ -1235,6 +1237,8 @@ class Graph(Media):
         root (wandb.Node): root node of the graph
     """
 
+    log_type = "graph-file"
+
     def __init__(self, format="keras"):
         super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
@@ -1271,7 +1275,7 @@ class Graph(Media):
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)
-        json_dict["_type"] = "graph-file"
+        json_dict["_type"] = self.log_type
         return json_dict
 
     def __getitem__(self, nid):
