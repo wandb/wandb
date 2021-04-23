@@ -1920,7 +1920,7 @@ class Run(object):
         summary = None,
         goal = None,
         overwrite = None,
-        **kwargs,
+        **kwargs
     ):
         """Define metric properties which will later be logged with `wandb.log()`.
 
