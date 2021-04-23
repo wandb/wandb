@@ -207,11 +207,12 @@ class RunStatusChecker(object):
 
 class Run(object):
     """
-    The run object corresponds to a single execution of your script,
-    typically this is an ML experiment. Create a run with `wandb.init()`.
+    A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    In distributed training, use `wandb.init()` to create a run for each process,
-    and set the group argument to organize runs into a larger experiment.
+    Create a run with `wandb.init()`.
+
+    In distributed training, use `wandb.init()` to create a run for
+    each process, and set the group argument to organize runs into a larger experiment.
 
     Currently there is a parallel Run object in the wandb.Api. Eventually these
     two objects will be merged.

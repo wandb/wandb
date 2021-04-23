@@ -321,6 +321,7 @@ message ArtifactRecord {
   ArtifactManifest              manifest = 12;
   string                        distributed_id=13;
   bool                          finalize=14;
+  bool                          incremental_beta1=100;
 }
 
 message ArtifactManifest {
