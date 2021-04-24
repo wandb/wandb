@@ -16,7 +16,7 @@ from wandb.proto import wandb_internal_pb2
 
 from . import meta, sample, stats
 from . import tb_watcher
-from ..lib import proto_util, handler_util
+from ..lib import handler_util, proto_util
 
 
 if wandb.TYPE_CHECKING:
