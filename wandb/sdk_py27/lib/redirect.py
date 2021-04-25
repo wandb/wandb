@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import signal
+import string
 import struct
 import sys
 import threading
@@ -27,6 +28,7 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
+SEP_RE = re.compile("\r|\n|\b|" + "|".join([c for c in [chr(int(a + b, 16)) for a, b in itertools.product(*(string.hexdigits[:16],) * 2)] if repr(c).startswith("'\\x")]))
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
 ANSI_BG = list(map(str, itertools.chain(range(40, 50), range(100, 108))))
@@ -156,6 +158,8 @@ class TerminalEmulator(object):
     An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
+    __slots__ = ("buffer", "cursor", "_num_lines", "_prev_num_lines", "_prev_last_line")
+
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
@@ -262,21 +266,26 @@ class TerminalEmulator(object):
             if i in self.buffer:
                 del self.buffer[i]
 
+    def _write_plain_text(self, plain_text):
+        self.buffer[self.cursor.y].update([(self.cursor.x + i, self.cursor.char.copy(data=c)) for i, c in enumerate(plain_text)])
+        self.cursor.x += len(plain_text)
+
     def _write_text(self, text):
-        for c in text:
+        prev_end = 0
+        for match in SEP_RE.finditer(text):
+            start, end = match.span()
+            self._write_plain_text(text[prev_end: start])
+            c = match.group()
             if c == "\n":
                 self.linefeed()
             elif c == "\r":
                 self.carriage_return()
             elif c == "\b":
                 self.cursor_left()
-            elif repr(c)[1:3] == "\\x":
-                continue
             else:
-                self.buffer[self.cursor.y][self.cursor.x] = self.cursor.char.copy(
-                    data=c
-                )
-                self.cursor.x += 1
+                continue
+            prev_end = end
+        self._write_plain_text(text[prev_end:])
 
     def _remove_osc(self, text):
         return re.sub(ANSI_OSC_RE, "", text)
@@ -661,8 +670,6 @@ class Redirect(RedirectBase):
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                if sys.platform != "darwin":
-                    self.src_wrapped_stream.flush()
             except OSError:
                 return
             try:
