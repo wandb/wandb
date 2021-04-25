@@ -40,6 +40,7 @@ message Feature {
   bool metric = 7;   // define_metric() called
   bool keras = 8;    // Keras WandbCallback used
   bool sagemaker = 9; // User is using sagemaker
+  bool artifact_incremental = 10; // Artifact(incremental=True) used
 }
 
 message Env {

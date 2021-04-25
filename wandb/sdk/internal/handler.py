@@ -517,7 +517,10 @@ class HandleManager(object):
     def handle_request_poll_exit(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
 
-    def handle_request_status(self, record: Record) -> None:
+    def handle_request_stop_status(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_request_network_status(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_request_get_summary(self, record: Record) -> None:
