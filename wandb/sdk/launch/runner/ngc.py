@@ -7,7 +7,7 @@ import time
 
 import wandb
 
-from .abstract import AbstractBackend, AbstractRun, Status
+from .abstract import AbstractRunner, AbstractRun, Status
 
 _logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class NGCSubmittedRun(AbstractRun):
         return self._status.state
 
 
-class NGCBackend(AbstractBackend):
+class NGCRunner(AbstractRunner):
     PREFIX = "wget -qO - https://wandb.me/ngc | bash && WANDB_API_KEY={} {}"
     DEFAULT_CFG = {
         "image": os.getenv(

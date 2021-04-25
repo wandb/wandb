@@ -902,13 +902,12 @@ def _user_args_to_dict(arguments, argument_type="P"):
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
     "as config to the backend. The exact content which should be "
-    "provided is different for each execution backend and is documented "
-    "at https://www.mlflow.org/docs/latest/projects.html.",
+    "provided is different for each execution backend.",
 )
 @click.option(
     "--no-conda",
     is_flag=True,
-    help="If specified, will assume that MLmodel/MLproject is running within "
+    help="If specified, will assume that code is running within "
     "a Conda environment with the necessary dependencies for "
     "the current project instead of attempting to create a new "
     "conda environment.",
@@ -917,14 +916,14 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "--storage-dir",
     envvar="WANDB_TMP_DIR",
     help="Only valid when ``backend`` is local. "
-    "MLflow downloads artifacts from distributed URIs passed to parameters of "
+    "W&B downloads artifacts from distributed URIs passed to parameters of "
     "type 'path' to subdirectories of storage_dir.",
 )
 @click.option(
     "--run-id",
     metavar="RUN_ID",
     help="If specified, the given run ID will be used instead of creating a new run. "
-    "Note: this argument is used internally by the MLflow project APIs "
+    "Note: this argument is used internally by the wandb APIs "
     "and should not be specified.",
 )
 def launch(

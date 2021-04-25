@@ -248,7 +248,7 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     return commands
 
 
-# Environment variable indicating a path to a conda installation. MLflow will default to running
+# Environment variable indicating a path to a conda installation. We will default to running
 # "conda" if unset
 WANDB_CONDA_HOME = "WANDB_CONDA_HOME"
 _logger = logging.getLogger(__name__)
@@ -320,7 +320,7 @@ def get_or_create_conda_env(conda_env_path, env_id=None):
             "Ensure Conda is installed as per the instructions at "
             "https://conda.io/projects/conda/en/latest/"
             "user-guide/install/index.html. "
-            "You can also configure MLflow to look for a specific "
+            "You can also configure W&B to look for a specific "
             "Conda executable by setting the {1} environment variable "
             "to the path of the Conda executable".format(conda_path, WANDB_CONDA_HOME)
         )

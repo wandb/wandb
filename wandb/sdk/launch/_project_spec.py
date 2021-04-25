@@ -94,6 +94,7 @@ def load_project(directory):
             entry_points=entry_points,
             docker_env=docker_env,
             name=project_name,
+            directory=directory,
         )
 
     default_conda_path = os.path.join(directory, DEFAULT_CONDA_FILE_NAME)

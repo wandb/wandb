@@ -7,7 +7,7 @@ import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
-from .backend import loader
+from .runner import loader
 from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
@@ -82,7 +82,7 @@ def run(
 ):
     """
     Run a W&B project. The project can be local or stored at a Git URI.
-    MLflow provides built-in support for running projects locally or remotely on a Databricks or
+    W&B provides built-in support for running projects locally or remotely on a Databricks or
     Kubernetes cluster. You can also run projects against other targets by installing an appropriate
     third-party plugin. See `Community Plugins <../plugins.html#community-plugins>`_ for more
     information.
@@ -91,8 +91,7 @@ def run(
     :raises: :py:class:`wandb.exceptions.ExecutionException` If a run launched in blocking mode
              is unsuccessful.
     :param uri: URI of project to run. A local filesystem path
-                or a Git repository URI (e.g. https://github.com/mlflow/mlflow-example)
-                pointing to a project directory containing an MLproject file.
+                or a Git repository URI pointing to a project directory containing an MLproject file.
     :param entry_point: Entry point to run within the project. If no entry point with the specified
                         name is found, runs the project file ``entry_point`` as a script,
                         using "python" to run ``.py`` files and the default shell (specified by
@@ -103,21 +102,15 @@ def run(
     :param experiment_name: Name of experiment under which to launch the run.
     :param experiment_id: ID of experiment under which to launch the run.
     :param backend: Execution backend for the run: W&B provides built-in support for "local",
-                    and "ngc" (experimental) backends. If running against
-                    Databricks, will run against a Databricks workspace determined as follows:
-                    if a Databricks tracking URI of the form ``databricks://profile`` has been set
-                    (e.g. by setting the MLFLOW_TRACKING_URI environment variable), will run
-                    against the workspace specified by <profile>. Otherwise, runs against the
-                    workspace specified by the default Databricks CLI profile.
+                    and "ngc" (experimental) backends.
     :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which will
                            be passed as config to the backend. The exact content which should be
-                           provided is different for each execution backend and is documented
-                           at https://www.mlflow.org/docs/latest/projects.html.
+                           provided is different for each execution backend
     :param use_conda: If True (the default), create a new Conda environment for the run and
                       install project dependencies within that environment. Otherwise, run the
                       project in the current environment without installing any project
                       dependencies.
-    :param storage_dir: Used only if ``backend`` is "local". MLflow downloads artifacts from
+    :param storage_dir: Used only if ``backend`` is "local". W&B downloads artifacts from
                         distributed URIs passed to parameters of type ``path`` to subdirectories of
                         ``storage_dir``.
     :param synchronous: Whether to block while waiting for a run to complete. Defaults to True.
@@ -127,19 +120,19 @@ def run(
                         asynchronous runs launched via this method will be terminated. If
                         ``synchronous`` is True and the run fails, the current process will
                         error out as well.
-    :param run_id: Note: this argument is used internally by the MLflow project APIs and should
+    :param run_id: Note: this argument is used internally by the W&B APIs and should
                    not be specified. If specified, the run ID will be used instead of
                    creating a new run.
-    :return: :py:class:`mlflow.projects.SubmittedRun` exposing information (e.g. run ID)
+    :return: :py:class:`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
              about the launched run.
     .. code-block:: python
         :caption: Example
-        import mlflow
-        project_uri = "https://github.com/mlflow/mlflow-example"
+        import wandb
+        project_uri = "https://github.com/wandb/examples"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
-        # Run MLflow project and create a reproducible conda environment
+        # Run W&B project and create a reproducible conda environment
         # on a local host
-        mlflow.run(project_uri, parameters=params)
+        wandb.launch(project_uri, parameters=params)
     .. code-block:: text
         :caption: Output
         ...
@@ -148,7 +141,7 @@ def run(
         RMSE: 0.788347345611717
         MAE: 0.6155576449938276
         R2: 0.19729662005412607
-        ... mlflow.projects: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
+        ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
     backend_config_dict = backend_config if backend_config is not None else {}
     if (

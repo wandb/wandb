@@ -6,8 +6,8 @@ import wandb
 from wandb import Settings
 from wandb.apis import internal_runqueue
 
-from ..backend.abstract import AbstractRun, State
-from ..backend.loader import load_backend
+from ..runner.abstract import AbstractRun, State
+from ..runner.loader import load_backend
 
 if wandb.TYPE_CHECKING:
     from typing import Dict

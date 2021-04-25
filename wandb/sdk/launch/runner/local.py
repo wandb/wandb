@@ -8,7 +8,7 @@ import sys
 
 from wandb.errors import ExecutionException
 
-from .abstract import AbstractBackend, AbstractRun
+from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
     get_conda_command,
     get_entry_point_command,
@@ -71,7 +71,7 @@ class LocalSubmittedRun(AbstractRun):
         return "failed"
 
 
-class LocalBackend(AbstractBackend):
+class LocalRunner(AbstractRunner):
     def run(
         self, project_uri, entry_point, params, version, backend_config, experiment_id
     ):
@@ -127,7 +127,7 @@ class LocalBackend(AbstractBackend):
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id
             )
-        # Otherwise, invoke `mlflow run` in a subprocess
+        # Otherwise, invoke `wandb launch` in a subprocess
         return _invoke_wandb_run_subprocess(
             work_dir=project.dir,
             entry_point=entry_point,
@@ -147,7 +147,7 @@ def _run_launch_cmd(cmd, env_map):
     """
     final_env = os.environ.copy()
     final_env.update(env_map)
-    # Launch `mlflow run` command as the leader of its own process group so that we can do a
+    # Launch `wandb launch` command as the leader of its own process group so that we can do a
     # best-effort cleanup of all its descendant processes if needed
     if sys.platform == "win32":
         return subprocess.Popen(
