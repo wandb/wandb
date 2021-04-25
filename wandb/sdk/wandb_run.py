@@ -155,33 +155,62 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface: BackendSender, polling_interval: int = 15) -> None:
+    def __init__(
+        self,
+        interface: BackendSender,
+        stop_polling_interval: int = 15,
+        retry_polling_interval: int = 1,
+    ) -> None:
         self._interface = interface
-        self._polling_interval = polling_interval
+        self._stop_polling_interval = stop_polling_interval
+        self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
-        self._thread.start()
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.daemon = True
+        self._stop_thread.start()
+
+        self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
+
+    def check_network_status(self) -> None:
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog("{}".format(hr.http_response_text))
+                    else:
+                        wandb.termlog(
+                            "{} encountered ({}), retrying request".format(
+                                hr.http_status_code, hr.http_response_text.rstrip()
+                            )
+                        )
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=True)
+            status_response = self._interface.communicate_stop_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._polling_interval)
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self) -> None:
         self._join_event.set()
 
     def join(self) -> None:
         self.stop()
-        self._thread.join()
+        self._stop_thread.join()
+        self._retry_thread.join()
 
 
 class Run(object):
