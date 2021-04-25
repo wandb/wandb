@@ -1,5 +1,6 @@
 #
 import logging
+import psutil
 import sys
 
 import wandb
@@ -18,12 +19,11 @@ def _is_jupyter_process():
     Detect if a script is run as a sub process (!python train.py) in a jupyter environment.
     The script could start its own sub procs and this method would return True for all of them.
     """
-    pid = os.getpid()
-    while pid:
-        proc = psutil.Process(p)
-        if proc.name().startswith('jupyter-'):
+    p = psutil.Process()
+    while p:
+        if p.name().startswith('jupyter-'):
             return True
-        pid = proc.ppid()
+        p = p.parent()
     return False
 
 
