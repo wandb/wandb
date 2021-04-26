@@ -206,7 +206,7 @@ def test_print_torch_model(cls, capfd):
         print(model)
         end = time.time()
         t = end - start
-        assert t < 0.8
+        assert t < 1
         r.uninstall()
 
 
