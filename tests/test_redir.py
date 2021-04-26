@@ -242,14 +242,36 @@ def test_offline_compression(console_settings, capfd, runner):
             s = wandb.Settings(mode="offline")
             console_settings._apply_settings(s)
             run = wandb.init(settings=console_settings)
-            for i in tqdm.tqdm(range(100), file=sys.stdout):
-                time.sleep(0.1)
+            for i in tqdm.tqdm(range(100), ncols=139, file=sys.stdout):
+                time.sleep(0.05)
+
             print("\n" * 1000)
             print("ABCD")
             print("EFGH")
+
+            print("QWERT")
+            print("YUIOP")
+            print("12345")
+
+            time.sleep(1)
+
+            print("\r\r\x1b[J\x1b[A\r\x1b[1J")
+
             run.finish()
             binary_log_file = (
                 os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
             )
-            binary_log = runner.invoke(cli.sync, ["--view", binary_log_file]).stdout
+            binary_log = runner.invoke(
+                cli.sync, ["--view", "--verbose", binary_log_file]
+            ).stdout
+
+            # Only a single output record is written when the run finishes
             assert binary_log.count("Record: output") == 1
+
+            # Only final state of progress bar is logged
+            assert binary_log.count("#") == 100
+
+            # Intermediete states are not logged
+            assert "QWERT" not in binary_log
+            assert "YUIOP" not in binary_log
+            assert "UIOP" in binary_log
