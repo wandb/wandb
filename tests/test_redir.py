@@ -9,6 +9,7 @@ import wandb
 import numpy as np
 import re
 import time
+import torch
 import tqdm
 
 
@@ -35,6 +36,13 @@ class CapList(list):
             if x.endswith(sep):
                 x = x[: -len(sep)]
         super(CapList, self).append(x)
+
+
+@pytest.fixture
+def console_settings(test_settings, request):
+    s = wandb.Settings(console=request.param)
+    test_settings._apply_settings(s)
+    return test_settings
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -182,3 +190,38 @@ def test_numpy(cls, capfd):
         r.install()
         print(np.random.randint(64, size=(40, 40, 40, 40)))
         r.uninstall()
+
+
+@pytest.mark.parametrize("cls", impls)
+@pytest.mark.timeout(2)
+def test_print_torch_model(cls, capfd):
+    # https://github.com/wandb/client/issues/2097
+    with capfd.disabled():
+        r = cls("stdout", [lambda _: None])
+        r.install()
+        model = torch.nn.ModuleList(
+            torch.nn.Conv2d(1, 1, 1, bias=False) for _ in range(1000)
+        )
+        start = time.time()
+        print(model)
+        end = time.time()
+        t = end - start
+        assert t < 0.8
+        r.uninstall()
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_run_with_console_redirect(console_settings, capfd):
+    with capfd.disabled():
+        run = wandb.init(settings=console_settings)
+
+        print(np.random.randint(64, size=(40, 40, 40, 40)))
+
+        model = torch.nn.ModuleList(
+            torch.nn.Conv2d(1, 1, 1, bias=False) for _ in range(1000)
+        )
+        print(model)
+
+        print("\n" * 1000)
+        print("---------------")
+        run.finish()

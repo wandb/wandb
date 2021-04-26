@@ -2,6 +2,7 @@
 import logging
 import sys
 
+import psutil
 import wandb
 
 logger = logging.getLogger(__name__)
@@ -13,13 +14,29 @@ STYLED_TABLE_HTML = """<style>
 """
 
 
+def _is_jupyter_process():
+    """
+    Detect if a script is run as a sub process (!python train.py) in a jupyter environment.
+    The script could start its own sub procs and this method would return True for all of them.
+    """
+    p = psutil.Process()
+    while p:
+        if p.name().startswith("jupyter-note"):
+            return True
+        p = p.parent()
+    return False
+
+
 def _get_python_type():
     try:
         from IPython import get_ipython  # type: ignore
 
         # Calling get_ipython can cause an ImportError
         if get_ipython() is None:
-            return "python"
+            if _is_jupyter_process():
+                return "jupyter"
+            else:
+                return "python"
     except ImportError:
         return "python"
     if "terminal" in get_ipython().__module__ or "spyder" in sys.modules:

@@ -1,8 +1,8 @@
 #
 import logging
-import psutil
 import sys
 
+import psutil
 import wandb
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def _is_jupyter_process():
     """
     p = psutil.Process()
     while p:
-        if p.name().startswith('jupyter-'):
+        if p.name().startswith("jupyter-note"):
             return True
         p = p.parent()
     return False

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 
+import numpy as np
 import wandb
 
 logger = logging.getLogger("wandb")
@@ -28,7 +29,19 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
-SEP_RE = re.compile("\r|\n|\b|" + "|".join([c for c in [chr(int(a + b, 16)) for a, b in itertools.product(*(string.hexdigits[:16],) * 2)] if repr(c).startswith("'\\x")]))
+SEP_RE = re.compile(
+    "\r|\n|"
+    + "|".join(
+        [
+            c
+            for c in [
+                chr(int(a + b, 16))
+                for a, b in itertools.product(*(string.hexdigits[:16],) * 2)
+            ]
+            if repr(c).startswith("'\\x")
+        ]
+    )
+)
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
 ANSI_BG = list(map(str, itertools.chain(range(40, 50), range(100, 108))))
@@ -158,8 +171,6 @@ class TerminalEmulator(object):
     An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
-    __slots__ = ("buffer", "cursor", "_num_lines", "_prev_num_lines", "_prev_last_line")
-
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
@@ -267,14 +278,20 @@ class TerminalEmulator(object):
                 del self.buffer[i]
 
     def _write_plain_text(self, plain_text):
-        self.buffer[self.cursor.y].update([(self.cursor.x + i, self.cursor.char.copy(data=c)) for i, c in enumerate(plain_text)])
+        self.buffer[self.cursor.y].update(
+            [
+                (self.cursor.x + i, self.cursor.char.copy(data=c))
+                for i, c in enumerate(plain_text)
+            ]
+        )
         self.cursor.x += len(plain_text)
 
     def _write_text(self, text):
         prev_end = 0
         for match in SEP_RE.finditer(text):
             start, end = match.span()
-            self._write_plain_text(text[prev_end: start])
+            self._write_plain_text(text[prev_end:start])
+            prev_end = end
             c = match.group()
             if c == "\n":
                 self.linefeed()
@@ -284,7 +301,6 @@ class TerminalEmulator(object):
                 self.cursor_left()
             else:
                 continue
-            prev_end = end
         self._write_plain_text(text[prev_end:])
 
     def _remove_osc(self, text):
@@ -356,28 +372,40 @@ class TerminalEmulator(object):
 
     def _get_line(self, n, formatting=True):
         line = self.buffer[n]
+        line_len = self._get_line_len(n)
         if not formatting:
-            return "".join(
-                [self.buffer[line][j] for j in range(self._get_line_len(line))]
-            )
+            return "".join([line[j].data for j in range(line_len)])
         else:
-            out = ""
-            prev_char = _defchar
-            for i in range(self._get_line_len(n)):
-                c = line[i]
-                if c.fg != prev_char.fg:
-                    out += _get_char(c.fg)
-                if c.bg != prev_char.bg:
-                    out += _get_char(c.bg)
-                for k in c.__slots__[3:]:
-                    ck = c[k]
-                    if ck != prev_char[k]:
-                        if not ck:
-                            k = "/" + k
-                        out += _get_char(ANSI_STYLES_REV[k])
-                out += c.data
-                prev_char = c
-            return out
+            out = [line[i].data for i in range(line_len)]
+
+            # for dynamic insert using original indices
+            idxs = np.arange(line_len)
+            insert = lambda i, c: (out.insert(idxs[i], c), idxs[i:].__iadd__(1))  # noqa
+
+            # 99% of terminal output doesn't have colors and styles. Optimize accordingly:
+            fgs = [int(_defchar.fg)] + [int(line[i].fg) for i in range(line_len)]
+            [
+                insert(i, _get_char(line[int(i)].fg)) for i in np.where(np.diff(fgs))[0]
+            ] if len(set(fgs)) > 1 else None
+            bgs = [int(_defchar.bg)] + [int(line[i].bg) for i in range(line_len)]
+            [
+                insert(i, _get_char(line[int(i)].bg)) for i in np.where(np.diff(bgs))[0]
+            ] if len(set(bgs)) > 1 else None
+            attrs = {
+                k: [False] + [line[i][k] for i in range(line_len)]
+                for k in Char.__slots__[3:]
+            }
+            [
+                [
+                    insert(
+                        i, _get_char(ANSI_STYLES_REV[k if line[int(i)][k] else "/" + k])
+                    )
+                    for i in np.where(np.diff(v))[0]
+                ]
+                for k, v in attrs.items()
+                if any(v)
+            ]
+            return "".join(out)
 
     def read(self):
         num_lines = self.num_lines
@@ -520,8 +548,10 @@ class StreamWrapper(RedirectBase):
     def flush(self):
         try:
             data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+        except Exception as e:
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                raise e
+            return
         if data:
             for cb in self.cbs:
                 try:
@@ -643,8 +673,10 @@ class Redirect(RedirectBase):
     def flush(self):
         try:
             data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+        except Exception as e:
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                raise e
+            return
         if data:
             for cb in self.cbs:
                 try:
