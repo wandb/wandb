@@ -2,6 +2,9 @@
 
 
 from __future__ import print_function
+
+fro
+
 import pytest
 import sys
 import os
@@ -215,7 +218,8 @@ def test_print_torch_model(cls, capfd):
         print(model)
         end = time.time()
         t2 = end - start
-        assert t2 - t1 < 0.2
+        overhead = t2 - t1
+        assert overhead < 0.1
         r.uninstall()
 
 
@@ -229,3 +233,23 @@ def test_run_with_console_redirect(console_settings, capfd):
         print("\n" * 1000)
         print("---------------")
         run.finish()
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_offline_compression(console_settings, capfd, runner):
+    with runner.isolated_filesystem():
+        with capfd.disabled():
+            s = wandb.Settings(mode="offline")
+            console_settings._apply_settings(s)
+            run = wandb.init(settings=console_settings)
+            for i in tqdm.tqdm(range(100)):
+                time.sleep(0.1)
+            print("\n" * 1000)
+            print("ABCD")
+            print("EFGH")
+            run.finish()
+            binary_log_file = (
+                os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+            )
+            binary_log = runner.invoke(cli.sync, ["--view", binary_log]).stdout
+            assert binary_log.count("Record: output") == 1
