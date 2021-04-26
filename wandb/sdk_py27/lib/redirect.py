@@ -548,10 +548,8 @@ class StreamWrapper(RedirectBase):
     def flush(self):
         try:
             data = self._emulator.read().encode("utf-8")
-        except Exception as e:
-            if "PYTEST_CURRENT_TEST" in os.environ:
-                raise e
-            return
+        except Exception:
+            data = b""
         if data:
             for cb in self.cbs:
                 try:
@@ -673,10 +671,8 @@ class Redirect(RedirectBase):
     def flush(self):
         try:
             data = self._emulator.read().encode("utf-8")
-        except Exception as e:
-            if "PYTEST_CURRENT_TEST" in os.environ:
-                raise e
-            return
+        except Exception:
+            data = b""
         if data:
             for cb in self.cbs:
                 try:
