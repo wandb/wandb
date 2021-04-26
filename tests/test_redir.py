@@ -258,7 +258,7 @@ def test_offline_compression(console_settings, capfd, runner):
         s = wandb.Settings(mode="offline")
         console_settings._apply_settings(s)
         run = wandb.init(settings=console_settings)
-        for i in tqdm.tqdm(range(100), ncols=139, file=sys.stdout):
+        for i in tqdm.tqdm(range(100), ncols=139):
             time.sleep(0.05)
 
         print("\n" * 1000)
@@ -281,8 +281,8 @@ def test_offline_compression(console_settings, capfd, runner):
             cli.sync, ["--view", "--verbose", binary_log_file]
         ).stdout
 
-        # Only a single output record is written when the run finishes
-        assert binary_log.count("Record: output") == 1
+        # Only a single output record per stream is written when the run finishes
+        assert binary_log.count("Record: output") == 2
 
         # Only final state of progress bar is logged
         assert binary_log.count("#" if os.name == "nt" else "█") == 100, binary_log.count
