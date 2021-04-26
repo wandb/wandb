@@ -267,7 +267,7 @@ def test_offline_compression(console_settings, capfd, runner):
         ).stdout
 
         # Only a single output record per stream is written when the run finishes
-        assert binary_log.count("Record: output") == 2
+        assert binary_log.count("Record: output") == 1
 
         # Only final state of progress bar is logged
         # assert binary_log.count("#" if os.name == "nt" else "█") == 100, binary_log.count
