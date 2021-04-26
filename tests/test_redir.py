@@ -9,7 +9,6 @@ import wandb
 import numpy as np
 import re
 import time
-import torch
 import tqdm
 
 
@@ -192,6 +191,7 @@ def test_numpy(cls, capfd):
         r.uninstall()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Torch not available.")
 @pytest.mark.parametrize("cls", impls)
 @pytest.mark.timeout(2)
 def test_print_torch_model(cls, capfd):
@@ -216,11 +216,6 @@ def test_run_with_console_redirect(console_settings, capfd):
         run = wandb.init(settings=console_settings)
 
         print(np.random.randint(64, size=(40, 40, 40, 40)))
-
-        model = torch.nn.ModuleList(
-            torch.nn.Conv2d(1, 1, 1, bias=False) for _ in range(1000)
-        )
-        print(model)
 
         print("\n" * 1000)
         print("---------------")

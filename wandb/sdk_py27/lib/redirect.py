@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 
-import numpy as np
+import numpy as np # type: ignore
 import wandb
 
 logger = logging.getLogger("wandb")
