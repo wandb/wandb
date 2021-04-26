@@ -269,7 +269,7 @@ def test_offline_compression(console_settings, capfd, runner):
             assert binary_log.count("Record: output") == 1
 
             # Only final state of progress bar is logged
-            assert binary_log.count("#") == 100
+            assert binary_log.count("#" if os.name == 'nt' else █) == 100
 
             # Intermediete states are not logged
             assert "QWERT" not in binary_log
