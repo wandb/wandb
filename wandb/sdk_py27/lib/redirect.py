@@ -505,17 +505,21 @@ class StreamWrapper(RedirectBase):
 
     def _emulator_write(self):
         while not self._stopped.is_set():
-            data = self._queue.get()
-            if isinstance(data, bytes):
+            if self._queue.empty():
+                time.sleep(0.5)
+                continue
+            while not self._queue.empty():
+                data = self._queue.get()
+                if isinstance(data, bytes):
+                    try:
+                        data = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        # TODO(frz)
+                        data = ""
                 try:
-                    data = data.decode("utf-8")
-                except UnicodeDecodeError:
-                    # TODO(frz)
-                    data = ""
-            try:
-                self._emulator.write(data)
-            except Exception:
-                pass
+                    self._emulator.write(data)
+                except Exception:
+                    pass
 
     def _callback(self):
         while not self._stopped.is_set():
@@ -569,13 +573,19 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        self.flush()
-        self._stopped.set()
         if sys.version_info[0] > 2:
             self.src_wrapped_stream.write = self._old_write
         else:
             setattr(sys, self.src, self._old_stream)
+
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        while not self._queue.empty():
+            time.sleep(0.1)
+
+        self._stopped.set()
+        self.flush()
         self._installed = False
+
         super(StreamWrapper, self).uninstall()
 
 
