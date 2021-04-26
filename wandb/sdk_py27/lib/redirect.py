@@ -13,7 +13,6 @@ import os
 import queue
 import re
 import signal
-import string
 import struct
 import sys
 import threading
@@ -32,16 +31,7 @@ ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
 SEP_RE = re.compile(
     "\r|\n|"
-    + "|".join(
-        [
-            c
-            for c in [
-                chr(int(a + b, 16))
-                for a, b in itertools.product(*(string.hexdigits[:16],) * 2)
-            ]
-            if repr(c).startswith("'\\x")
-        ]
-    )
+    + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
 )
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
