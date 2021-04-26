@@ -242,10 +242,10 @@ def test_run_with_console_redirect(console_settings, capfd):
 def test_offline_compression(console_settings, capfd, runner):
     with runner.isolated_filesystem():
         with capfd.disabled():
-            s = wandb.Settings(mode="offline")
-            console_settings._apply_settings(s)
+            # s = wandb.Settings(mode="offline")
+            # console_settings._apply_settings(s)
             run = wandb.init(settings=console_settings)
-            for i in tqdm.tqdm(range(100), file=sys.stdout):
+            for i in tqdm.tqdm(range(100), ncols=139, file=sys.stdout):
                 time.sleep(0.05)
 
             print("\n" * 1000)
