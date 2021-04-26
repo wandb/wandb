@@ -237,8 +237,8 @@ def test_run_with_console_redirect(console_settings, capfd):
         print("---------------")
         run.finish()
 
-@pytest.mark.parametrize("console_settings", [console_modes[1]], indirect=True)
-def test_offline_compression(console_settings, capfd):
+# @pytest.mark.parametrize("console_settings", [console_modes[1]], indirect=True)
+def test_offline_compression(capfd):
     with capfd.disabled():
         # s = wandb.Settings(mode="offline")
         # console_settings._apply_settings(s)
@@ -246,7 +246,7 @@ def test_offline_compression(console_settings, capfd):
         # for i in tqdm.tqdm(range(100), ncols=139):
         #     time.sleep(0.05)
 
-        print("\n" * 1000)
+        # print("\n" * 1000)
         print("ABCD")
         print("EFGH")
 
