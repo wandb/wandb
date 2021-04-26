@@ -23,6 +23,7 @@ def default_ctx():
     return {
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
+        "rate_limited_count": 0,  # used via "rate_limited_times"
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -285,6 +286,10 @@ def create_app(user_ctx=None):
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
+        if "rate_limited_times" in ctx:
+            if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
+                ctx["rate_limited_count"] += 1
+                return json.dumps({"error": "rate limit exceeded"}), 429
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
