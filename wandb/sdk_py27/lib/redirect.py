@@ -10,7 +10,6 @@ from collections import defaultdict
 import itertools
 import logging
 import os
-import queue
 import re
 import signal
 import struct
@@ -18,7 +17,9 @@ import sys
 import threading
 import time
 
+
 import numpy as np  # type: ignore
+from six.moves import queue
 import wandb
 
 logger = logging.getLogger("wandb")
@@ -31,6 +32,7 @@ ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
 SEP_RE = re.compile(
     "\r|\n|"
+    # Unprintable ascii characters:
     + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
 )
 
