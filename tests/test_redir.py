@@ -203,15 +203,19 @@ def test_print_torch_model(cls, capfd):
 
     with capfd.disabled():
         r = cls("stdout", [lambda _: None])
-        r.install()
         model = torch.nn.ModuleList(
             torch.nn.Conv2d(1, 1, 1, bias=False) for _ in range(1000)
         )
         start = time.time()
         print(model)
         end = time.time()
-        t = end - start
-        assert t < 2
+        t1 = end - start
+        r.install()
+        start = time.time()
+        print(model)
+        end = time.time()
+        t2 = end - start()
+        assert t2 - t1 < 0.2
         r.uninstall()
 
 
