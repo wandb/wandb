@@ -245,13 +245,11 @@ def test_run_with_console_redirect2(console_settings, capfd):
         console_settings._apply_settings(s)
         run = wandb.init(settings=console_settings)
 
-        print(np.random.randint(64, size=(40, 40, 40, 40)))
 
-        for i in tqdm.tqdm(range(100)):
-            time.sleep(0.02)
+        for i in tqdm.tqdm(range(100), ncols=139, file=sys.stdout):
+            time.sleep(0.05)
 
-        print("\n" * 1000)
-        print("---------------")
+
         run.finish()
 
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
