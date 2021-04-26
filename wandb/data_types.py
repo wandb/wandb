@@ -119,7 +119,28 @@ class _TableKey(str, _TableLinkMixin):
 
 
 class _TableIndex(int, _TableLinkMixin):
-    pass
+    def get_row(self):
+        row = {}
+        if self._table:
+            row = {
+                c: self._table.data[self][i] for i, c in enumerate(self._table.columns)
+            }
+
+        return row
+
+
+def _json_helper(val, artifact):
+    if isinstance(val, WBValue):
+        return val.to_json(artifact)
+    elif val.__class__ == dict:
+        res = {}
+        for key in val:
+            res[key] = _json_helper(val[key], artifact)
+        return res
+    elif hasattr(val, "tolist"):
+        return util.json_friendly(val.tolist())[0]
+    else:
+        return util.json_friendly(val)[0]
 
 
 class Table(Media):
@@ -210,7 +231,7 @@ class Table(Media):
         self._assert_valid_columns(columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
-        for row in ndarray.tolist():
+        for row in ndarray:
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
@@ -246,27 +267,9 @@ class Table(Media):
                 normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
             optional: (bool) - if the column should allow Nones
         """
-        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
-
-        # Assert valid options
         assert col_name in self.columns
-        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
-        is_fk = isinstance(wbtype, _TableForeignKeyType)
-        is_fi = isinstance(wbtype, _TableForeignIndexType)
-        if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
 
-        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
-            raise AssertionError("Cannot set a foreign table reference to same table")
-
-        if is_pk:
-            assert (
-                self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
-            )
+        wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
 
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
@@ -284,6 +287,25 @@ class Table(Media):
                     )
                 )
             wbtype = result_type
+
+        # Assert valid options
+        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
+        is_fk = isinstance(wbtype, _TableForeignKeyType)
+        is_fi = isinstance(wbtype, _TableForeignIndexType)
+        if is_pk or is_fk or is_fi:
+            assert (
+                not optional
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+
+        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+            raise AssertionError("Cannot set a foreign table reference to same table")
+
+        if is_pk:
+            assert (
+                self._pk_col is None
+            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                self._pk_col
+            )
 
         # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
@@ -314,19 +336,24 @@ class Table(Media):
         ), "Found column type {}, expected column type {}".format(
             other._column_types, self._column_types
         )
-        for row_ndx in range(len(self.data)):
-            for col_ndx in range(len(self.data[row_ndx])):
-                eq = eq and self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
-                assert (
-                    not should_assert or eq
-                ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                    row_ndx,
-                    col_ndx,
-                    other.data[row_ndx][col_ndx],
-                    self.data[row_ndx][col_ndx],
-                )
-                if not eq:
-                    return eq
+        if eq:
+            for row_ndx in range(len(self.data)):
+                for col_ndx in range(len(self.data[row_ndx])):
+                    _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                    # equal if all are equal
+                    if util.is_numpy_array(_eq):
+                        _eq = ((_eq * -1) + 1).sum() == 0
+                    eq = eq and _eq
+                    assert (
+                        not should_assert or eq
+                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                        row_ndx,
+                        col_ndx,
+                        other.data[row_ndx][col_ndx],
+                        self.data[row_ndx][col_ndx],
+                    )
+                    if not eq:
+                        return eq
         return eq
 
     def __eq__(self, other):
@@ -340,8 +367,8 @@ class Table(Media):
         """Add a row of data to the table. Argument length should match column length"""
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}".format(
-                    len(self.columns), self.columns
+                "This table expects {} columns: {}, found {}".format(
+                    len(self.columns), self.columns, len(data)
                 )
             )
 
@@ -359,8 +386,11 @@ class Table(Media):
         result_type = self._get_updated_result_type(data)
         self._column_types = result_type
 
+        # rows need to be mutable
+        if isinstance(data, tuple):
+            data = list(data)
         # Add the new data
-        self.data.append(list(data))
+        self.data.append(data)
 
         # Update the wrapper values if needed
         self._update_keys(force_last=True)
@@ -404,11 +434,45 @@ class Table(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
-        for row in json_obj["data"]:
+        column_types = None
+        np_deserialized_columns = {}
+        if json_obj.get("column_types") is not None:
+            column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
+            for col_name in column_types.params["type_map"]:
+                col_type = column_types.params["type_map"][col_name]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if (
+                    ndarray_type is not None
+                    and ndarray_type._get_serialization_path() is not None
+                ):
+                    serialization_path = ndarray_type._get_serialization_path()
+                    np = util.get_module(
+                        "numpy",
+                        required="Deserializing numpy columns requires numpy to be installed",
+                    )
+                    deserialized = np.load(
+                        source_artifact.get_path(serialization_path["path"]).download()
+                    )
+                    np_deserialized_columns[
+                        json_obj["columns"].index(col_name)
+                    ] = deserialized[serialization_path["key"]]
+                    ndarray_type._clear_serialization_path()
+
+        for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
-            for item in row:
+            for c_ndx, item in enumerate(row):
                 cell = item
-                if isinstance(item, dict) and "_type" in item:
+                if c_ndx in np_deserialized_columns:
+                    cell = np_deserialized_columns[c_ndx][r_ndx]
+                elif isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
@@ -417,10 +481,8 @@ class Table(Media):
 
         new_obj = cls(columns=json_obj["columns"], data=data)
 
-        if json_obj.get("column_types") is not None:
-            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-                json_obj["column_types"], source_artifact
-            )
+        if column_types is not None:
+            new_obj._column_types = column_types
 
         new_obj._update_keys()
         return new_obj
@@ -439,33 +501,48 @@ class Table(Media):
             )
 
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            for column in self.columns:
-                if isinstance(column, six.string_types) and "." in column:
-                    raise ValueError(
-                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
-                            column
-                        )
-                    )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
 
-            def json_helper(val):
-                if isinstance(val, WBValue):
-                    return val.to_json(artifact)
-                elif val.__class__ == dict:
-                    res = {}
-                    for key in val:
-                        res[key] = json_helper(val[key])
-                    return res
-                else:
-                    return util.json_friendly(val)[0]
+            ndarray_col_ndxs = set()
+            for col_ndx, col_name in enumerate(self.columns):
+                col_type = self._column_types.params["type_map"][col_name]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if ndarray_type is not None:
+                    np = util.get_module(
+                        "numpy",
+                        required="Serializing numpy requires numpy to be installed",
+                    )
+                    file_name = "{}_{}.npz".format(
+                        str(col_name), str(util.generate_id())
+                    )
+                    npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+                    np.savez_compressed(
+                        npz_file_name,
+                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                    )
+                    entry = artifact.add_file(
+                        npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
+                    )
+                    ndarray_type._set_serialization_path(entry.path, str(col_name))
+                    ndarray_col_ndxs.add(col_ndx)
 
             for row in data:
                 mapped_row = []
-                for v in row:
-                    mapped_row.append(json_helper(v))
+                for ndx, v in enumerate(row):
+                    if ndx in ndarray_col_ndxs:
+                        mapped_row.append(None)
+                    else:
+                        mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
+
             json_dict.update(
                 {
                     "_type": Table.artifact_type,
@@ -601,6 +678,110 @@ class Table(Media):
         else:
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
+
+    def add_column(self, name, data, optional=False):
+        """Add a column of data to the table.
+
+        Arguments
+            name: (str) - the unique name of the column
+            data: (list | np.array) - a column of homogenous data
+            optional: (bool) - if null-like values are permitted
+        """
+        assert isinstance(name, str) and name not in self.columns
+        is_np = util.is_numpy_array(data)
+        assert isinstance(data, list) or is_np
+        assert isinstance(optional, bool)
+        is_first_col = len(self.columns) == 0
+        assert is_first_col or len(data) == len(
+            self.data
+        ), "Expected length {}, found {}".format(len(self.data), len(data))
+
+        # Add the new data
+        for ndx in range(max(len(data), len(self.data))):
+            if is_first_col:
+                self.data.append([])
+            if is_np:
+                self.data[ndx].append(data[ndx])
+            else:
+                self.data[ndx].append(data[ndx])
+        # add the column
+        self.columns.append(name)
+
+        try:
+            self.cast(name, _dtypes.UnknownType(), optional=optional)
+        except TypeError as err:
+            # Undo the changes
+            if is_first_col:
+                self.data = []
+                self.columns = []
+            else:
+                for ndx in range(len(self.data)):
+                    self.data[ndx] = self.data[ndx][:-1]
+                self.columns = self.columns[:-1]
+            raise err
+
+    def get_column(self, name, convert_to=None):
+        """Retrieves a column of data from the table
+
+        Arguments
+            name: (str) - the name of the column
+            convert_to: (str, optional)
+                - "numpy": will convert the underlying data to numpy object
+        """
+        assert name in self.columns
+        assert convert_to is None or convert_to == "numpy"
+        if convert_to == "numpy":
+            np = util.get_module(
+                "numpy", required="Converting to numpy requires installing numpy"
+            )
+        col = []
+        col_ndx = self.columns.index(name)
+        for row in self.data:
+            item = row[col_ndx]
+            if convert_to is not None and isinstance(item, WBValue):
+                item = item.to_data_array()
+            col.append(item)
+        if convert_to == "numpy":
+            col = np.array(col)
+        return col
+
+    def get_index(self):
+        """Returns an array of row indexes which can be used in other tables to create links"""
+        ndxs = []
+        for ndx in range(len(self.data)):
+            index = _TableIndex(ndx)
+            index.set_table(self)
+            ndxs.append(index)
+        return ndxs
+
+    def index_ref(self, index):
+        """Get a reference to a particular row index in the table"""
+        assert index < len(self.data)
+        _index = _TableIndex(index)
+        _index.set_table(self)
+        return _index
+
+    def add_computed_columns(self, fn):
+        """Adds one or more computed columns based on existing data
+
+        Args:
+            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+                which is expected to return a dict representing new columns for that row, keyed
+                by the new column names.
+                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                        is set to true
+                    - `row` is a dictionary keyed by existing columns
+        """
+        new_columns = {}
+        for ndx, row in self.iterrows():
+            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            new_row_dict = fn(ndx, row_dict)
+            assert isinstance(new_row_dict, dict)
+            for key in new_row_dict:
+                new_columns[key] = new_columns.get(key, [])
+                new_columns[key].append(new_row_dict[key])
+        for new_col_name in new_columns:
+            self.add_column(new_col_name, new_columns[new_col_name])
 
 
 class _PartitionTablePartEntry:

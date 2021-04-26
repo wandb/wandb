@@ -147,42 +147,72 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface: BackendSender, polling_interval: int = 15) -> None:
+    def __init__(
+        self,
+        interface: BackendSender,
+        stop_polling_interval: int = 15,
+        retry_polling_interval: int = 1,
+    ) -> None:
         self._interface = interface
-        self._polling_interval = polling_interval
+        self._stop_polling_interval = stop_polling_interval
+        self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
-        self._thread.start()
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.daemon = True
+        self._stop_thread.start()
+
+        self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
+
+    def check_network_status(self) -> None:
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog("{}".format(hr.http_response_text))
+                    else:
+                        wandb.termlog(
+                            "{} encountered ({}), retrying request".format(
+                                hr.http_status_code, hr.http_response_text.rstrip()
+                            )
+                        )
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=True)
+            status_response = self._interface.communicate_stop_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._polling_interval)
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self) -> None:
         self._join_event.set()
 
     def join(self) -> None:
         self.stop()
-        self._thread.join()
+        self._stop_thread.join()
+        self._retry_thread.join()
 
 
 class Run(object):
     """
-    The run object corresponds to a single execution of your script,
-    typically this is an ML experiment. Create a run with `wandb.init()`.
+    A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    In distributed training, use `wandb.init()` to create a run for each process,
-    and set the group argument to organize runs into a larger experiment.
+    Create a run with `wandb.init()`.
+
+    In distributed training, use `wandb.init()` to create a run for
+    each process, and set the group argument to organize runs into a larger experiment.
 
     Currently there is a parallel Run object in the wandb.Api. Eventually these
     two objects will be merged.
@@ -1622,7 +1652,7 @@ class Run(object):
                     self._on_finish_progress(pusher_stats, done)
                 if done:
                     return poll_exit_resp
-            time.sleep(2)
+            time.sleep(0.1)
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1881,7 +1911,7 @@ class Run(object):
             print(s, file=f)
         self.save(spec_filename)
 
-    def _define_metric(
+    def define_metric(
         self,
         name: str,
         step_metric: Union[str, wandb_metric.Metric, None] = None,
@@ -1898,6 +1928,7 @@ class Run(object):
             name: Name of the metric.
             step_metric: Independent variable associated with the metric.
             step_sync: Automatically add `step_metric` to history if needed.
+                Defaults to True if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations: "min,max,mean,best,last,none"

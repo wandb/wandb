@@ -199,6 +199,13 @@ def test_login_key(capsys):
     assert wandb.api.api_key == "A" * 40
 
 
+def test_sagemaker_key(runner):
+    with runner.isolated_filesystem():
+        with open("secrets.env", "w") as f:
+            f.write("WANDB_API_KEY={}".format("S" * 40))
+        assert wandb.api.api_key == "S" * 40
+
+
 @pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
 def test_login_invalid_key():
     os.environ["WANDB_API_KEY"] = "B" * 40

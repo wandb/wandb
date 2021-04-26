@@ -69,6 +69,7 @@ class _WandbInit(object):
         self._teardown_hooks = []
         self._wl = None
         self._reporter = None
+        self._use_sagemaker = None
 
     def setup(self, kwargs) -> None:
         """
@@ -102,8 +103,7 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             for k, v in six.iteritems(sm_run):
                 kwargs.setdefault(k, v)
-            with telemetry.context() as tel:
-                tel.feature.sagemaker = True
+            self._use_sagemaker = True
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
@@ -358,7 +358,7 @@ class _WandbInit(object):
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
-            define_metric=drun._define_metric,
+            define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
         )
@@ -450,6 +450,8 @@ class _WandbInit(object):
             if s._windows:
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
+            if self._use_sagemaker:
+                tel.feature.sagemaker = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -533,7 +535,7 @@ class _WandbInit(object):
             save=run.save,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
-            define_metric=run._define_metric,
+            define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
         )
