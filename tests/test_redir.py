@@ -196,7 +196,7 @@ def test_numpy(cls, capfd):
     reason="Torch not available.",
 )
 @pytest.mark.parametrize("cls", impls)
-@pytest.mark.timeout(2)
+@pytest.mark.timeout(3)
 def test_print_torch_model(cls, capfd):
     # https://github.com/wandb/client/issues/2097
     import torch
@@ -211,7 +211,7 @@ def test_print_torch_model(cls, capfd):
         print(model)
         end = time.time()
         t = end - start
-        assert t < 1
+        assert t < 2
         r.uninstall()
 
 
