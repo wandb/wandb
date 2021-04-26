@@ -238,15 +238,15 @@ def test_run_with_console_redirect(console_settings, capfd):
         run.finish()
 
 @pytest.mark.parametrize("console_settings", [console_modes[1]], indirect=True)
-def test_offline_compression(console_settings, capfd):
+def test_offline_compression(console_settings, capfd, runner):
     with capfd.disabled():
-        # s = wandb.Settings(mode="offline")
-        # console_settings._apply_settings(s)
-        # run = wandb.init(settings=console_settings)
-        # for i in tqdm.tqdm(range(100), ncols=139):
-        #     time.sleep(0.05)
+        s = wandb.Settings(mode="offline")
+        console_settings._apply_settings(s)
+        run = wandb.init(settings=console_settings)
+        for i in tqdm.tqdm(range(100), ncols=139):
+            time.sleep(0.05)
 
-        # print("\n" * 1000)
+        print("\n" * 1000)
         print("ABCD")
         print("EFGH")
 
@@ -254,25 +254,28 @@ def test_offline_compression(console_settings, capfd):
         print("YUIOP")
         print("12345")
 
-        # time.sleep(1)
+        time.sleep(1)
 
-        # print("\r\r\x1b[J\x1b[A\r\x1b[1J")
+        print("\r\r\x1b[J\x1b[A\r\x1b[1J")
 
-        # run.finish()
-        # binary_log_file = (
-        #     os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
-        # )
-        # binary_log = runner.invoke(
-        #     cli.sync, ["--view", "--verbose", binary_log_file]
-        # ).stdout
+        run.finish()
+        binary_log_file = (
+            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+        )
+        binary_log = runner.invoke(
+            cli.sync, ["--view", "--verbose", binary_log_file]
+        ).stdout
 
-        # # Only a single output record per stream is written when the run finishes
-        # assert binary_log.count("Record: output") == 1
+        with open("log.txt", "w") as f:
+            f.write(binary_log)
 
-        # # Only final state of progress bar is logged
-        # # assert binary_log.count("#" if os.name == "nt" else "█") == 100, binary_log.count
+        # Only a single output record per stream is written when the run finishes
+        assert binary_log.count("Record: output") == 1
 
-        # # Intermediete states are not logged
-        # assert "QWERT" not in binary_log
-        # assert "YUIOP" not in binary_log
-        # assert "UIOP" in binary_log
+        # Only final state of progress bar is logged
+        # assert binary_log.count("#" if os.name == "nt" else "█") == 100, binary_log.count
+
+        # Intermediete states are not logged
+        assert "QWERT" not in binary_log
+        assert "YUIOP" not in binary_log
+        assert "UIOP" in binary_log
