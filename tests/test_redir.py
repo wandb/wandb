@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-fro
+from wandb.cli import cli
 
 import pytest
 import sys
