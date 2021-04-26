@@ -191,11 +191,16 @@ def test_numpy(cls, capfd):
         r.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Torch not available.")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9) or sys.version_info < (3, 5),
+    reason="Torch not available.",
+)
 @pytest.mark.parametrize("cls", impls)
 @pytest.mark.timeout(2)
 def test_print_torch_model(cls, capfd):
     # https://github.com/wandb/client/issues/2097
+    import torch
+
     with capfd.disabled():
         r = cls("stdout", [lambda _: None])
         r.install()
