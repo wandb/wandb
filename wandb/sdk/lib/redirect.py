@@ -10,9 +10,9 @@ from collections import defaultdict
 import itertools
 import logging
 import os
+import queue
 import re
 import signal
-import string
 import struct
 import sys
 import threading
@@ -31,16 +31,7 @@ ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
 SEP_RE = re.compile(
     "\r|\n|"
-    + "|".join(
-        [
-            c
-            for c in [
-                chr(int(a + b, 16))
-                for a, b in itertools.product(*(string.hexdigits[:16],) * 2)
-            ]
-            if repr(c).startswith("'\\x")
-        ]
-    )
+    + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
 )
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
@@ -502,6 +493,29 @@ class StreamWrapper(RedirectBase):
         self._installed = False
         self._emulator = TerminalEmulator()
 
+    def _emulator_write(self):
+        while not self._stopped.is_set():
+            if self._queue.empty():
+                time.sleep(0.5)
+                continue
+            while not self._queue.empty():
+                data = self._queue.get()
+                if isinstance(data, bytes):
+                    try:
+                        data = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        # TODO(frz)
+                        data = ""
+                try:
+                    self._emulator.write(data)
+                except Exception:
+                    pass
+
+    def _callback(self):
+        while not self._stopped.is_set():
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
+
     def install(self):
         super(StreamWrapper, self).install()
         if self._installed:
@@ -513,36 +527,25 @@ class StreamWrapper(RedirectBase):
 
         def write(data):
             self._old_write(data)
-            if isinstance(data, bytes):
-                try:
-                    data = data.decode("utf-8")
-                except UnicodeDecodeError:
-                    # TODO(frz)
-                    data = ""
-            try:
-                self._emulator.write(data)
-            except Exception:
-                pass
-            curr_time = time.time()
-            if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-                return
-            try:
-                data = self._emulator.read().encode("utf-8")
-            except Exception:
-                data = b""
-            if data:
-                self._prev_callback_timestamp = curr_time
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception:
-                        pass  # TODO(frz)
+            self._queue.put(data)
 
         if sys.version_info[0] > 2:
             stream.write = write
         else:
             self._old_stream = stream
             setattr(sys, self.src, _WrappedStream(stream, write))
+
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
+
+        if not wandb.run or wandb.run._settings.mode == "online":
+            self._callback_thread = threading.Thread(target=self._callback)
+            self._callback_thread.daemon = True
+            self._callback_thread.start()
+
         self._installed = True
 
     def flush(self):
@@ -560,12 +563,19 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        self.flush()
         if sys.version_info[0] > 2:
             self.src_wrapped_stream.write = self._old_write
         else:
             setattr(sys, self.src, self._old_stream)
+
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        while not self._queue.empty():
+            time.sleep(0.1)
+
+        self._stopped.set()
+        self.flush()
         self._installed = False
+
         super(StreamWrapper, self).uninstall()
 
 
@@ -648,6 +658,11 @@ class Redirect(RedirectBase):
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
@@ -657,13 +672,19 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
+
         self.src_wrapped_stream.flush()
-        time.sleep(0.5)
-        self._stopped.set()
+        time.sleep(0.1)
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
+
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        while not self._queue.empty():
+            time.sleep(0.1)
+
+        self._stopped.set()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -700,7 +721,16 @@ class Redirect(RedirectBase):
                         i += self._orig_src.write(data[i:])
             except OSError:
                 return
-            try:
-                self._emulator.write(data.decode("utf-8"))
-            except UnicodeDecodeError:
-                pass  # TODO(frz): partial unicode character?
+            self._queue.put(data)
+
+    def _emulator_write(self):
+        while not self._stopped.is_set():
+            if self._queue.empty():
+                time.sleep(0.5)
+                continue
+            while not self._queue.empty():
+                data = self._queue.get()
+                try:
+                    self._emulator.write(data.decode("utf-8"))
+                except Exception:
+                    pass
