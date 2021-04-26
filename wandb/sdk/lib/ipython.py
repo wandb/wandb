@@ -2,7 +2,6 @@
 import logging
 import sys
 
-import psutil
 import wandb
 
 logger = logging.getLogger(__name__)
