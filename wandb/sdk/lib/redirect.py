@@ -17,8 +17,22 @@ import sys
 import threading
 import time
 
+try:
+    import numpy as np  # type: ignore
+except ImportError:
 
-import numpy as np  # type: ignore
+    class _Numpy:
+        def where(self, x):
+            return ([i for i in range(len(x)) if x[i]],)
+
+        def diff(self, x):
+            return [x[i + 1] - x[i] for i in range(len(x) - 1)]
+
+        def arange(self, x):
+            return list(range(x))
+
+    np = _Numpy()
+
 from six.moves import queue
 import wandb
 
