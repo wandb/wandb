@@ -21,7 +21,7 @@ def _is_jupyter_process():
     """
     p = psutil.Process()
     while p:
-        if p.name().startswith("jupyter-note"):
+        if p.name().startswith("jupyter-note") or p.name().startswith("ipython"):
             return True
         p = p.parent()
     return False
