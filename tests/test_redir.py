@@ -251,5 +251,5 @@ def test_offline_compression(console_settings, capfd, runner):
             binary_log_file = (
                 os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
             )
-            binary_log = runner.invoke(cli.sync, ["--view", binary_log]).stdout
+            binary_log = runner.invoke(cli.sync, ["--view", binary_log_file]).stdout
             assert binary_log.count("Record: output") == 1
