@@ -660,7 +660,7 @@ class Redirect(RedirectBase):
             return
         self._installed = False
         self.src_wrapped_stream.flush()
-        time.sleep(1)
+        time.sleep(0.5)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
