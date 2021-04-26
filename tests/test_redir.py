@@ -238,8 +238,8 @@ def test_run_with_console_redirect(console_settings, capfd):
         run.finish()
 
 @pytest.mark.parametrize("console_settings", [console_modes[1]], indirect=True)
-def test_offline_compression(console_settings, capfd, runner):
-    with capfd.disabled():
+def test_offline_compression(console_settings, capsys, runner):
+    with capsys.disabled():
         # s = wandb.Settings(mode="offline")
         # console_settings._apply_settings(s)
         run = wandb.init(settings=console_settings)
