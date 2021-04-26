@@ -238,7 +238,7 @@ def test_run_with_console_redirect(console_settings, capfd):
         run.finish()
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+@pytest.mark.parametrize("console_settings", [console_modes[1]], indirect=True)
 def test_run_with_console_redirect2(console_settings, capfd):
     with capfd.disabled():
         s = wandb.Settings(mode="offline")
