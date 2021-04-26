@@ -239,7 +239,7 @@ def test_run_with_console_redirect(console_settings, capfd):
 
 
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_offline_compression(console_settings, capfd, runner, tmpdir):
+def test_offline_compression(console_settings, capfd, runner):
     with capfd.disabled():
         s = wandb.Settings(mode="offline")
         console_settings._apply_settings(s)
@@ -266,9 +266,6 @@ def test_offline_compression(console_settings, capfd, runner, tmpdir):
         binary_log = runner.invoke(
             cli.sync, ["--view", "--verbose", binary_log_file]
         ).stdout
-
-        with open(os.path.join(tmpdir, "log.txt"), "w") as f:
-            f.write(binary_log)
 
         # Only a single output record per stream is written when the run finishes
         assert binary_log.count("Record: output") == 2
