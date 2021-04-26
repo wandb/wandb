@@ -92,7 +92,7 @@ def test_formatting(cls, capfd):
         o = CapList()
         r = cls("stdout", cbs=[o.append])
         r.install()
-        print("\x1b[31m\x1b[40m\x1b[1mHello\x1b[22m\x1b[39m")
+        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
         r.uninstall()
         assert o == [b"\x1b[31m\x1b[40m\x1b[1mHello"]
 
