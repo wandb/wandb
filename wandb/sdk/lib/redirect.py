@@ -668,6 +668,11 @@ class Redirect(RedirectBase):
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
@@ -677,13 +682,18 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
+
         self.src_wrapped_stream.flush()
-        time.sleep(0.5)
-        self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
+
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        while not self._queue.empty():
+            time.sleep(0.1)
+
+        self._stopped.set()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -720,7 +730,16 @@ class Redirect(RedirectBase):
                         i += self._orig_src.write(data[i:])
             except OSError:
                 return
-            try:
-                self._emulator.write(data.decode("utf-8"))
-            except UnicodeDecodeError:
-                pass  # TODO(frz): partial unicode character?
+            self._queue.put(data)
+
+    def _emulator_write(self):
+        while not self._stopped.is_set():
+            if self._queue.empty():
+                time.sleep(0.5)
+                continue
+            while not self._queue.empty():
+                data = self._queue.get()
+                try:
+                    self._emulator.write(data.decode("utf-8"))
+                except Exception:
+                    pass
