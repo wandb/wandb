@@ -10,6 +10,7 @@ from collections import defaultdict
 import itertools
 import logging
 import os
+import queue
 import re
 import signal
 import string
@@ -502,6 +503,25 @@ class StreamWrapper(RedirectBase):
         self._installed = False
         self._emulator = TerminalEmulator()
 
+    def _emulator_write(self):
+        while not self._stopped.is_set():
+            data = self._queue.get()
+            if isinstance(data, bytes):
+                try:
+                    data = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    # TODO(frz)
+                    data = ""
+            try:
+                self._emulator.write(data)
+            except Exception:
+                pass
+
+    def _callback(self):
+        while not self._stopped.is_set():
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
+
     def install(self):
         super(StreamWrapper, self).install()
         if self._installed:
@@ -513,36 +533,25 @@ class StreamWrapper(RedirectBase):
 
         def write(data):
             self._old_write(data)
-            if isinstance(data, bytes):
-                try:
-                    data = data.decode("utf-8")
-                except UnicodeDecodeError:
-                    # TODO(frz)
-                    data = ""
-            try:
-                self._emulator.write(data)
-            except Exception:
-                pass
-            curr_time = time.time()
-            if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-                return
-            try:
-                data = self._emulator.read().encode("utf-8")
-            except Exception:
-                data = b""
-            if data:
-                self._prev_callback_timestamp = curr_time
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception:
-                        pass  # TODO(frz)
+            self._queue.put(data)
 
         if sys.version_info[0] > 2:
             stream.write = write
         else:
             self._old_stream = stream
             setattr(sys, self.src, _WrappedStream(stream, write))
+
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
+
+        if not wandb.run or wandb.run._settings.mode == "online":
+            self._callback_thread = threading.Thread(target=self._callback)
+            self._callback_thread.daemon = True
+            self._callback_thread.start()
+
         self._installed = True
 
     def flush(self):
@@ -561,6 +570,7 @@ class StreamWrapper(RedirectBase):
         if not self._installed:
             return
         self.flush()
+        self._stopped.set()
         if sys.version_info[0] > 2:
             self.src_wrapped_stream.write = self._old_write
         else:
