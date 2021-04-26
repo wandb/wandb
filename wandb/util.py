@@ -148,10 +148,7 @@ def vendor_setup():
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = (
-        "gql-0.2.0",
-        "graphql-core-1.1",
-    )
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -725,6 +722,7 @@ def request_with_retry(func, *args, **kwargs):
         **kwargs: passed through to func
     """
     max_retries = kwargs.pop("max_retries", 30)
+    retry_callback = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:
@@ -758,7 +756,12 @@ def request_with_retry(func, *args, **kwargs):
                 isinstance(e, requests.exceptions.HTTPError)
                 and e.response.status_code == 429
             ):
-                logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
+                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
+                    delay
+                )
+                if retry_callback:
+                    retry_callback(e.response.status_code, err_str)
+                logger.info(err_str)
             else:
                 pass
                 logger.warning(
@@ -954,11 +957,11 @@ def image_id_from_k8s():
 
 def async_call(target, timeout=None):
     """Accepts a method and optional timeout.
-       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
-       This new method blocks on the original and returns the result or None
-       if timeout was reached, along with the thread.
-       You can check thread.is_alive() to determine if a timeout was reached.
-       If an exception is thrown in the thread, we reraise it.
+    Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+    This new method blocks on the original and returns the result or None
+    if timeout was reached, along with the thread.
+    You can check thread.is_alive() to determine if a timeout was reached.
+    If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
 
@@ -1112,7 +1115,7 @@ def parse_sweep_id(parts_dict):
 
     Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-    
+
     Returns:
         None or str if there is an error
     """
@@ -1242,8 +1245,9 @@ def _has_internet():
         return False
 
 
-def rand_alphanumeric(length=8):
-    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+def rand_alphanumeric(length=8, rand=None):
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1263,6 +1267,17 @@ def _is_kaggle():
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
+    )
+
+
+def _is_likely_kaggle():
+    # Telemetry to mark first runs from Kagglers.
+    return (
+        _is_kaggle()
+        or os.path.exists(
+            os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))
+        )
+        or "kaggle" in sys.modules
     )
 
 
