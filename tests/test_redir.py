@@ -243,7 +243,7 @@ def test_offline_compression(capfd):
         s = wandb.Settings(mode="offline")
         console_settings._apply_settings(s)
         run = wandb.init(settings=console_settings)
-        assert run._out_redir._installed = True
+        assert run._out_redir._installed == True
         # for i in tqdm.tqdm(range(100), ncols=139):
         #     time.sleep(0.05)
 
