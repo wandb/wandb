@@ -246,7 +246,7 @@ def test_run_with_console_redirect2(console_settings, capfd):
         run = wandb.init(settings=console_settings)
 
 
-        for i in tqdm.tqdm(range(100), ncols=139, file=sys.stdout):
+        for i in tqdm.tqdm(range(100), ncols=139):
             time.sleep(0.05)
 
 
