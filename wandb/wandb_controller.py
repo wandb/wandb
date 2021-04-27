@@ -768,9 +768,10 @@ def sweep(sweep, entity=None, project=None):
       sweep_id: str. A unique identifier for the sweep.
 
     Examples:
+        Basic usage
+        ```python
         # this line initializes the sweep
         sweep_id = wandb.sweep({'name': 'my-awesome-sweep',
-                                'program': 'train.py',
                                 'metric': 'accuracy',
                                 'method': 'grid',
                                 'parameters': {'a': {'values': [1, 2, 3, 4]}}})
@@ -778,6 +779,7 @@ def sweep(sweep, entity=None, project=None):
         # this line actually runs it -- parameters are available to
         # my_train_func via wandb.config
         wandb.agent(sweep_id, function=my_train_func)
+        ```
     """
 
     from wandb.sweeps.config import SweepConfig
