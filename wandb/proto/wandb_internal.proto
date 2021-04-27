@@ -322,6 +322,7 @@ message ArtifactRecord {
   ArtifactManifest              manifest = 12;
   string                        distributed_id=13;
   bool                          finalize=14;
+  bool                          incremental_beta1=100;
 }
 
 message ArtifactManifest {
@@ -380,7 +381,8 @@ message AlertRecord {
  */
 message Request {
   oneof request_type {
-    StatusRequest         status = 1;
+    StopStatusRequest     stop_status = 1;
+    NetworkStatusRequest  network_status = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
     LoginRequest          login = 5;
@@ -401,7 +403,8 @@ message Request {
  */
 message Response {
   oneof response_type {
-    StatusResponse         status_response = 19;
+    StopStatusResponse     stop_status_response = 19;
+    NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
     PollExitResponse       poll_exit_response = 26;
@@ -468,12 +471,23 @@ message GetSummaryResponse {
 /*
  * StatusRequest:
  */
-message StatusRequest {
-  bool check_stop_req = 1;
+message StopStatusRequest {
 }
 
-message StatusResponse {
+message StopStatusResponse {
   bool run_should_stop = 1;
+}
+
+message NetworkStatusRequest {
+}
+
+message NetworkStatusResponse {
+  repeated HttpResponse network_responses = 1;
+}
+
+message HttpResponse {
+  int32 http_status_code = 1;
+  string http_response_text = 2;
 }
 
 /*
