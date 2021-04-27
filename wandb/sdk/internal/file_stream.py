@@ -298,7 +298,10 @@ class FileStreamApi(object):
         for fs in file_stream_utils.split_files(files, max_mb=10):
             self._handle_response(
                 util.request_with_retry(
-                    self._client.post, self._endpoint, json={"files": fs}
+                    self._client.post,
+                    self._endpoint,
+                    json={"files": fs},
+                    retry_callback=self._api.retry_callback,
                 )
             )
 

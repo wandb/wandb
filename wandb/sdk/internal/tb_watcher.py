@@ -339,6 +339,7 @@ class TBEventConsumer(object):
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
+        self.tb_history = TBHistory()
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
@@ -357,10 +358,18 @@ class TBEventConsumer(object):
     def finish(self) -> None:
         self._delay = 0
         self._shutdown.set()
+        try:
+            event = self._queue.get(True, 1)
+        except queue.Empty:
+            event = None
+        if event:
+            self._handle_event(event, history=self.tb_history)
+            items = self.tb_history._get_and_reset()
+            for item in items:
+                self._save_row(item,)
         self._thread.join()
 
     def _thread_body(self) -> None:
-        tb_history = TBHistory()
         while True:
             try:
                 event = self._queue.get(True, 1)
@@ -377,13 +386,13 @@ class TBEventConsumer(object):
                 if self._shutdown.is_set():
                     break
             if event:
-                self._handle_event(event, history=tb_history)
-                items = tb_history._get_and_reset()
+                self._handle_event(event, history=self.tb_history)
+                items = self.tb_history._get_and_reset()
                 for item in items:
                     self._save_row(item,)
         # flush uncommitted data
-        tb_history._flush()
-        items = tb_history._get_and_reset()
+        self.tb_history._flush()
+        items = self.tb_history._get_and_reset()
         for item in items:
             self._save_row(item)
 

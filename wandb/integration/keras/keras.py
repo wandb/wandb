@@ -18,6 +18,11 @@ from wandb.util import add_import_hook, is_numeric_array
 from importlib import import_module
 from itertools import chain
 
+if wandb.TYPE_CHECKING:
+    from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+else:
+    from wandb.sdk_py27.integration_utils.data_logging import ValidationDataLogger
+
 
 def is_dataset(data):
     dataset_ops = wandb.util.get_module("tensorflow.python.data.ops.dataset_ops")
@@ -263,8 +268,9 @@ class WandbCallback(keras.callbacks.Callback):
             ("image", "images", "segmentation_mask").
         output_type (string): type of the model output to help visualziation. can be one of:
             ("image", "images", "segmentation_mask").  
-        log_evaluation (boolean): if True save a dataframe containing the full
-            validation results at the end of training.
+        log_evaluation (boolean): if True, save a Table containing validation data and the 
+            model's preditions at each epoch. See `validation_indexes`, 
+            `validation_row_processor`, and `output_row_processor` for additional details.
         class_colors ([float, float, float]): if the input or output is a segmentation mask, 
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency (integer): if None, callback will log every epoch.
@@ -273,6 +279,23 @@ class WandbCallback(keras.callbacks.Callback):
         log_best_prefix (string): if None, no extra summary metrics will be saved.
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
+        validation_indexes ([wandb.data_types._TableLinkMixin]): an ordered list of index keys to associate 
+            with each validation example.  If log_evaluation is True and `validation_indexes` is provided,
+            then a Table of validation data will not be created and instead each prediction will
+            be associated with the row represented by the TableLinkMixin. The most common way to obtain
+            such keys are is use Table.get_index() which will return a list of row keys.
+        validation_row_processor (Callable): a function to apply to the validation data, commonly used to visualize the data. 
+            The function will receive an ndx (int) and a row (dict). If your model has a single input,
+            then row["input"] will be the input data for the row. Else, it will be keyed based on the name of the
+            input slot. If your fit function takes a single target, then row["target"] will be the target data for the row. Else,
+            it will be keyed based on the name of the output slots. For example, if your input data is a single ndarray,
+            but you wish to visualize the data as an Image, then you can provide `lambda ndx, row: {"img": wandb.Image(row["input"])}`
+            as the processor. Ignored if log_evaluation is False or `validation_indexes` are present.
+        output_row_processor (Callable): same as validation_row_processor, but applied to the model's output. `row["output"]` will contain
+            the results of the model output.
+        infer_missing_processors (bool): Determines if validation_row_processor and output_row_processor 
+            should be inferred if missing. Defaults to True. If `labels` are provided, we will attempt to infer classification-type
+            processors where appropriate.
     """
 
     def __init__(
@@ -298,6 +321,10 @@ class WandbCallback(keras.callbacks.Callback):
         log_batch_frequency=None,
         log_best_prefix="best_",
         save_graph=True,
+        validation_indexes=None,
+        validation_row_processor=None,
+        prediction_row_processor=None,
+        infer_missing_processors=True,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -383,6 +410,12 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+        self.validation_data_logger = None
+        self.validation_indexes = validation_indexes
+        self.validation_row_processor = validation_row_processor
+        self.prediction_row_processor = prediction_row_processor
+        self.infer_missing_processors = infer_missing_processors
+
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
         outputs = self.model(inputs)
@@ -442,6 +475,19 @@ class WandbCallback(keras.callbacks.Callback):
                     commit=False,
                 )
 
+        if self.log_evaluation and self.validation_data_logger:
+            try:
+                if not self.model:
+                    wandb.termwarn("WandbCallback unable to read model from trainer")
+                else:
+                    self.validation_data_logger.log_predictions(
+                        predictions=self.validation_data_logger.make_predictions(
+                            self.model.predict
+                        )
+                    )
+            except Exception as e:
+                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
 
@@ -500,11 +546,50 @@ class WandbCallback(keras.callbacks.Callback):
         pass
 
     def on_train_begin(self, logs=None):
-        pass
+        if self.log_evaluation:
+            try:
+                validation_data = None
+                if self.validation_data:
+                    validation_data = self.validation_data
+                elif self.generator:
+                    if not self.validation_steps:
+                        wandb.termwarn(
+                            "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
+                        )
+                    else:
+                        x = None
+                        y_true = None
+                        for i in range(self.validation_steps):
+                            bx, by_true = next(self.generator)
+                            if x is None:
+                                x, y_true = bx, by_true
+                            else:
+                                x, y_true = (
+                                    np.append(x, bx, axis=0),
+                                    np.append(y_true, by_true, axis=0),
+                                )
+                        validation_data = (x, y_true)
+                else:
+                    wandb.termwarn(
+                        "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                    )
+                if validation_data:
+                    self.validation_data_logger = ValidationDataLogger(
+                        inputs=validation_data[0],
+                        targets=validation_data[1],
+                        indexes=self.validation_indexes,
+                        validation_row_processor=self.validation_row_processor,
+                        prediction_row_processor=self.prediction_row_processor,
+                        class_labels=self.labels,
+                        infer_missing_processors=self.infer_missing_processors,
+                    )
+            except Exception as e:
+                wandb.termwarn(
+                    "Error initializing ValidationDataLogger in WandbCallback. Skipping logging validation data. Error: "
+                    + str(e)
+                )
 
     def on_train_end(self, logs=None):
-        if self.log_evaluation:
-            wandb.run.summary["results"] = self._log_dataframe()
         pass
 
     def on_test_begin(self, logs=None):
