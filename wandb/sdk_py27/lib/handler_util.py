@@ -4,14 +4,13 @@ import wandb.data_types as data_types
 def get_types():
     classes = map(data_types.__dict__.get, data_types.__all__)
     types = []
-    print(classes)
     for cls in classes:
-        if hasattr(cls, "log_type") and cls.log_type is not None:
-            print("log", cls.__name__, cls.log_type)
-            types.append(cls.log_type)
-        elif hasattr(cls, "artifact_type"):
-            print("arti", cls.__name__, cls.artifact_type)
-            types.append(cls.artifact_type)
+        if hasattr(cls, "_log_type") and cls._log_type is not None:
+            types.append(cls._log_type)
+    # add table-file type because this is a special case
+    # that does not have a matching _log_type for artifacts
+    # and files
+    types.append("table-file")
     return types
 
 
