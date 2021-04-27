@@ -413,6 +413,7 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
+        
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
@@ -440,8 +441,9 @@ class Media(WBValue):
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(self._run.dir, media_path)
+        print("NEW PATH", new_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
-
+        #print("NEW PATH EXISTS", os.path.exists(new_path))
         if self._is_tmp:
             shutil.move(self._path, new_path)
             self._path = new_path
@@ -451,6 +453,7 @@ class Media(WBValue):
             shutil.copy(self._path, new_path)
             self._path = new_path
             _datatypes_callback(media_path)
+        print("NEW PATH EXISTS", os.path.exists(new_path))
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`

@@ -8,6 +8,7 @@ import datetime
 import fnmatch
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -16,7 +17,7 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.util import check_and_warn_old
+from wandb.util import check_and_warn_old, to_forward_slash_path
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -118,7 +119,8 @@ class SyncThread(threading.Thread):
                     if tb_dir not in tb_logdirs:
                         tb_logdirs.append(tb_dir)
                 if len(tb_logdirs) > 0:
-                    tb_root = os.path.commonprefix(tb_logdirs)
+                    tb_root = to_forward_slash_path(
+                os.path.dirname(os.path.commonprefix(tb_logdirs)))
             elif TFEVENT_SUBSTRING in sync_item:
                 tb_root = os.path.dirname(os.path.abspath(sync_item))
                 tb_logdirs.append(tb_root)
@@ -133,6 +135,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+        
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
             url_quote(proto_run.entity),
@@ -149,8 +152,9 @@ class SyncThread(threading.Thread):
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
+        print("TMPDIR TMPDIR", TMPDIR.name)
         watcher = tb_watcher.TBWatcher(
-            settings, proto_run, send_manager._interface, True
+            settings, proto_run, send_manager._interface, True, False
         )
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
@@ -158,6 +162,7 @@ class SyncThread(threading.Thread):
         watcher.finish()
         # send all of our records like a boss
         step = 0
+        print(watcher._consumer._internal_run.dir)
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
             step += 1
@@ -166,8 +171,12 @@ class SyncThread(threading.Thread):
                 item.key = "_step"
                 item.value_json = json.dumps(step)
             else:
-                for f in data.files.files:
-                    print(f.path)
+                shutil.copy(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path), os.path.join(TMPDIR.name, "files"))
+                # pass
+                #print("FILE PATH PATH EXISTS", os.path.exists(data.files.files))
+                #print(data.files.files)
+                #print(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
+                #wandb.save(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
      
             send_manager.send(data)
         sys.stdout.flush()

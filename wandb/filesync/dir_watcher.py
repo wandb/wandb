@@ -156,6 +156,7 @@ class DirWatcher(object):
         self._api = api
         self._file_count = 0
         self._dir = settings.files_dir
+        print("FILES DIR", settings.files_dir)
         self._settings = settings
         self._user_file_policies = {"end": set(), "live": set(), "now": set()}
         self._file_pusher = file_pusher
@@ -175,9 +176,9 @@ class DirWatcher(object):
             return None
 
     def update_policy(self, path, policy):
-        print("Path", path, policy)
+        #print("Path", path, policy)
         self._user_file_policies[policy].add(path)
-        print(glob.glob(os.path.join(self._dir, path)))
+        #print(glob.glob(os.path.join(self._dir, path)))
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
             feh = self._get_file_event_handler(src_path, save_name)

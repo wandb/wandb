@@ -234,6 +234,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
         #             "Received hparams tf.summary, but could not import "
         #             "the hparams plugin from tensorboard"
         #         )
+    print("VALUES", values)
     return values
 
 
@@ -294,4 +295,5 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
         ):
             history.add({}, **kwargs)
         STEPS["global"]["last_log"] = timestamp
+    print("LOG LOG DICT", log_dict)
     history._row_update(log_dict)

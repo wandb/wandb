@@ -37,6 +37,7 @@ class History(object):
         self._callback = cb
 
     def _row_update(self, row):
+        print("ROW UPDATE", row)
         self._data.update(row)
 
     def _row_add(self, row):

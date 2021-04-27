@@ -108,6 +108,7 @@ class TBWatcher(object):
         run_proto: "RunRecord",
         interface: "BackendSender",
         force: bool = False,
+        publish_step: bool = False
     ) -> None:
         self._logdirs = {}
         self._consumer = None
@@ -117,6 +118,7 @@ class TBWatcher(object):
         self._force = force
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
+        self._publish_step = publish_step
         wandb.tensorboard.reset_state()
 
     def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
@@ -422,7 +424,7 @@ class TBEventConsumer(object):
             row[chart_key + "_table"] = table
 
         self._tbwatcher._interface.publish_history(
-            row, run=self._internal_run, publish_step=False
+            row, run=self._internal_run, publish_step=self._tbwatcher._publish_step
         )
 
 
