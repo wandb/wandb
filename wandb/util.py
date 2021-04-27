@@ -745,8 +745,13 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409} or (
-                    e.response.status_code == 500
+                if (
+                    hasattr(e.response, "status_code")
+                    and e.response.status_code in {400, 403, 404, 409}
+                ) or (
+                    hasattr(e.response, "status_code")
+                    and hasattr(e.response, "content")
+                    and e.response.status_code == 500
                     and e.response.content == b'{"error":"context deadline exceeded"}\n'
                 ):
                     return e
@@ -755,9 +760,8 @@ def request_with_retry(func, *args, **kwargs):
                 return e
             retry_count += 1
             delay = sleep + random.random() * 0.25 * sleep
-            if (
-                isinstance(e, requests.exceptions.HTTPError)
-                and e.response.status_code == 429
+            if isinstance(e, requests.exceptions.HTTPError) and (
+                hasattr(e.response, "status_code") and e.response.status_code == 429
             ):
                 err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
                     delay
