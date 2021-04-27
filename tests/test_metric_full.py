@@ -61,33 +61,15 @@ def test_metric_glob_none(live_mock_server, test_settings, parse_ctx):
 
 
 def test_metric_glob(live_mock_server, test_settings, parse_ctx):
-    logged_table = {
-        "_type": "table-file",
-        "path": "media/table/logged_table_0_c6d3d8ac.table.json",
-        "sha256": "c6d3d8ac248e7210cdf1e19340891f1e48f93254e256559a916a80d541ebb92f",
-        "size": 39,
-        "artifact_path": "wandb-artifact://7f4d3a69af1ff7d69aefd77b6faf1ed3bf5cd1adb4d1ddb5/logged_table.table.json",
-        "ncols": 1,
-        "nrows": 1,
-    }
     run = wandb.init(settings=test_settings)
     run.define_metric("*", step_metric="mystep")
-    run.log(
-        {
-            "logged_table": wandb.Table(
-                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]]
-            )
-        }
-    )
     run.log(dict(mystep=1, val=2))
 
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
 
-    assert six.viewitems(dict(val=2, logged_table=logged_table)) <= six.viewitems(
-        summary
-    )
+    assert six.viewitems(dict(val=2)) <= six.viewitems(summary)
 
 
 def test_metric_nosummary(live_mock_server, test_settings, parse_ctx):
