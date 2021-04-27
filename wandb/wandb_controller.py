@@ -738,14 +738,19 @@ def _sweep_status(sweep_obj, sweep_conf, sweep_runs):
 
 
 def sweep(sweep, entity=None, project=None):
-    """Register a specified sweep with the W&B backend.
+    """Initialize a hyperparameter sweep.
+
+    To generate hyperparameter suggestions from the sweep and use them
+    to train a model, call `wandb.agent` with the sweep_id returned by
+    this command.
 
     Parameters
     ----------
     sweep : dict, SweepConfig, or callable
         The sweep configuration (or configuration generator). If a
         dict or SweepConfig, should conform to the W&B sweep config
-        spec (https://docs.wandb.ai/guides/sweeps/configuration). If a
+        specification
+        (https://docs.wandb.ai/guides/sweeps/configuration). If a
         callable, should take no arguments and return a dict that
         conforms to the W&B sweep config spec.
     entity: str, optional
@@ -757,7 +762,7 @@ def sweep(sweep, entity=None, project=None):
         username. Change your default entity in
         [Settings](wandb.ai/settings) under "default location to
         create new projects".
-    project: str, optional 
+    project: str, optional
         The name of the project where you're sending the new run. If
         the project is not specified, the run is put in an
         "Uncategorized" project.
@@ -765,16 +770,24 @@ def sweep(sweep, entity=None, project=None):
     Returns
     -------
     sweep_id : str
-        Unique identifier for the sweep. 
+        Unique identifier for the sweep.
 
     Examples
     --------
+    Create a hyperparameter sweep, then run it:::
 
-        >>> sweep_id = wandb.sweep({'name': 'my-awesome-sweep', 'program': 'train.py', 
-        ...                         'metric': 'accuracy', 'method': 'grid', 
-        ...                         'parameters': {'a': {'values': [1, 2, 3, 4]}}})
+        # this line initializes the sweep
+        sweep_id = wandb.sweep({'name': 'my-awesome-sweep',
+                                'program': 'train.py',
+                                'metric': 'accuracy',
+                                'method': 'grid',
+                                'parameters': {'a': {'values': [1, 2, 3, 4]}}})
 
+        # this line actually runs it -- parameters are available to
+        # my_train_func via wandb.config
+        wandb.agent(sweep_id, function=my_train_func)
     """
+
     from wandb.sweeps.config import SweepConfig
     import types
 
