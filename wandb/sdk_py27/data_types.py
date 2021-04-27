@@ -2275,7 +2275,8 @@ def _data_frame_to_json(
 
 
 class _ClassesIdType(_dtypes.Type):
-    name = "wandb.Classes_id"
+    name = "classesId"
+    legacy_names = ["wandb.Classes_id"]
     types = [Classes]
 
     def __init__(
@@ -2368,7 +2369,25 @@ class _ClassesIdType(_dtypes.Type):
         return cls(classes_obj)
 
 
+class _VideoFileType(_dtypes.Type):
+    name = "video-file"
+    types = [Video]
+
+
+class _HtmlFileType(_dtypes.Type):
+    name = "html-file"
+    types = [Html]
+
+
+class _Object3DFileType(_dtypes.Type):
+    name = "object3D-file"
+    types = [Object3D]
+
+
 _dtypes.TypeRegistry.add(_ClassesIdType)
+_dtypes.TypeRegistry.add(_VideoFileType)
+_dtypes.TypeRegistry.add(_HtmlFileType)
+_dtypes.TypeRegistry.add(_Object3DFileType)
 
 __all__ = [
     "Histogram",
