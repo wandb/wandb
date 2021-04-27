@@ -3,6 +3,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import ElasticNet
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.datasets import make_regression, make_hastie_10_2
+import numpy as np
 import sys
 
 if sys.version_info >= (3, 9):
@@ -175,5 +176,21 @@ def test_feature_importance_attribute_exists_for_random_forest(wandb_init_run):
     model.fit(X, y)
 
     result = plot_feature_importances(model, feature_names=ten_features)
+
+    assert isinstance(result, wandb.viz.Visualize)
+
+def test_feature_importance_attribute_type(wandb_init_run):
+    X, y = make_regression(n_features=2, random_state=42)
+    model = ElasticNet(random_state=42)
+    model.fit(X, y)
+
+    # input np.array instead of list
+    two_features = np.array(["a", "b"])
+
+    result = None
+    try:
+        result = plot_feature_importances(model, feature_names=two_features)
+    except ValueError:
+        pytest.fail('incorrect plot_feature_importances arguments: ValueError')
 
     assert isinstance(result, wandb.viz.Visualize)
