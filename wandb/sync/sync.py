@@ -17,7 +17,9 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.sdk.internal import run as internal_run
 from wandb.util import check_and_warn_old, to_forward_slash_path
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
@@ -135,7 +137,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
-        
+
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
             url_quote(proto_run.entity),
@@ -152,33 +154,40 @@ class SyncThread(threading.Thread):
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
-        print("TMPDIR TMPDIR", TMPDIR.name)
+
+        def datatypes_cb(fname: str) -> None:
+            files = dict(files=[(fname, "now")])
+            self._tbwatcher._interface.publish_files(files)
+
+        run = internal_run.InternalRun(proto_run, settings=settings, datatypes_cb=datatypes_cb)
+        print("TMPDIR TMPDIR", TMPDIR.name, run.dir)
         watcher = tb_watcher.TBWatcher(
-            settings, proto_run, send_manager._interface, True, False
+            settings, proto_run, send_manager._interface, True, True
         )
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
         # send all of our records like a boss
-        step = 0
-        print(watcher._consumer._internal_run.dir)
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
-            step += 1
             if len(data.history.ListFields()) != 0:
                 item = data.history.item.add()
                 item.key = "_step"
-                item.value_json = json.dumps(step)
-            else:
-                shutil.copy(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path), os.path.join(TMPDIR.name, "files"))
+                item.value_json = json.dumps(data.history.step.num)
+            # elif len(data.files.files) > 0:
+                #shutil.copy(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path), os.path.join(TMPDIR.name, "files"))
                 # pass
                 #print("FILE PATH PATH EXISTS", os.path.exists(data.files.files))
                 #print(data.files.files)
                 #print(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
                 #wandb.save(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
-     
+                # path = os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)
+                # if (os.path.exists(path)):
+                #     data.files.files[0].path = path
+                #pass
             send_manager.send(data)
+        shutil.copytree(watcher._consumer._internal_run.dir, os.path.join(TMPDIR.name, "files"), dirs_exist_ok=True)
         sys.stdout.flush()
         send_manager.finish()
 

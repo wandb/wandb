@@ -296,4 +296,5 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
             history.add({}, **kwargs)
         STEPS["global"]["last_log"] = timestamp
     print("LOG LOG DICT", log_dict)
+    log_dict["_step"] = STEPS["global"]["step"]
     history._row_update(log_dict)
