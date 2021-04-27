@@ -742,7 +742,8 @@ def sweep(sweep, entity=None, project=None):
 
     To generate hyperparameter suggestions from the sweep and use them
     to train a model, call `wandb.agent` with the sweep_id returned by
-    this command.
+    this command. For command line functionality, see the command line
+    tool `wandb sweep` (https://docs.wandb.ai/ref/cli/wandb-sweep).
 
     Parameters
     ----------
@@ -786,6 +787,7 @@ def sweep(sweep, entity=None, project=None):
         # this line actually runs it -- parameters are available to
         # my_train_func via wandb.config
         wandb.agent(sweep_id, function=my_train_func)
+
     """
 
     from wandb.sweeps.config import SweepConfig
