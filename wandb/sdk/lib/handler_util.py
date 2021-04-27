@@ -18,6 +18,4 @@ WANDB_TYPES = get_types()
 
 
 def metric_is_wandb_dict(metric):
-    if "_type" in list(metric.keys()) and metric["_type"] in WANDB_TYPES:
-        return True
-    return False
+    return "_type" in list(metric.keys()) and metric["_type"] in WANDB_TYPES
