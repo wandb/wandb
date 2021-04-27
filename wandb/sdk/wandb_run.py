@@ -256,6 +256,7 @@ class Run(object):
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
     _exit_code: Optional[int]
+    _preempted: bool
 
     _run_status_checker: Optional[RunStatusChecker]
     _poll_exit_response: Optional[PollExitResponse]
@@ -304,6 +305,7 @@ class Run(object):
 
         self._hooks = None
         self._teardown_hooks = []
+        self._preempted = False
         self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
@@ -1186,11 +1188,12 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def finish(self, exit_code: int = None) -> None:
+    def finish(self, exit_code: int = None, preempted: bool = False) -> None:
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        preempted = preempted or wandb.preempted
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
@@ -1198,7 +1201,7 @@ class Run(object):
         for hook in self._teardown_hooks:
             hook()
         self._teardown_hooks = []
-        self._atexit_cleanup(exit_code=exit_code)
+        self._atexit_cleanup(exit_code=exit_code, preempted=preempted)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
