@@ -1307,4 +1307,3 @@ def _is_databricks():
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
     return False
-
