@@ -634,8 +634,14 @@ def plot_feature_importances(
 
         indices = np.argsort(importances)[::-1]
 
-        if not feature_names:
+        if feature_names is None or not len(feature_names) > 0:
             feature_names = indices
+        elif len(feature_names) != len(indices):
+            wandb.termwarn(
+                "incorrect feature_names length: got %d but should be %d."
+                % (len(feature_names), len(indices))
+            )
+            return
         else:
             feature_names = np.array(feature_names)[indices]
 
