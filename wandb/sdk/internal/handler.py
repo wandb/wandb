@@ -117,7 +117,8 @@ class HandleManager(object):
         assert request_type
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
-        logger.debug("handle_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("handle_request: {}".format(request_type))
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 

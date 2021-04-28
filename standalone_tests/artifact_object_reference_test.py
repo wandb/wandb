@@ -553,7 +553,7 @@ def assert_media_obj_referential_equality(obj):
     
     assert obj1 == obj
 
-    target_path = os.path.join(orig_dir, "obj." + type(obj).artifact_type + ".json")
+    target_path = os.path.join(orig_dir, "obj." + type(obj)._log_type + ".json")
     assert os.path.isfile(target_path)
 
     with wandb.init() as run:
@@ -573,7 +573,7 @@ def assert_media_obj_referential_equality(obj):
         obj._eq_debug(obj2, True)
 
     assert obj2 == obj
-    # name = "obj2." + type(obj).artifact_type + ".json"
+    # name = "obj2." + type(obj)._log_type + ".json"
     # start_path = os.path.join(mid_dir, name)
     # mid_artifact_ref.get_path(name).download()
     # assert os.path.islink(start_path)
@@ -597,7 +597,7 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
-    # name = "obj3." + type(obj).artifact_type + ".json"
+    # name = "obj3." + type(obj)._log_type + ".json"
     # start_path = os.path.join(down_dir, name)
     # down_artifact_ref.get_path(name).download()
     # assert os.path.islink(start_path)
