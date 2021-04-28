@@ -29,6 +29,9 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Tuple,
         Any,
     )  # noqa: F401
+else:
+    # Awful hack for python2
+    NamedTuple = object
 
 np = wandb.util.get_module("numpy")
 
@@ -218,7 +221,7 @@ class Monitor(object):
             millis (int): The number of milliseconds it took to make the predcition
             **kwargs: named arguments passed into the predict method
         """
-        # Py2 doesn't let me name this parameter above :(
+        # Py2 doesn't let me name this parameter as a kwarg :(
         millis = kwargs.get("millis")
         if millis is not None:
             del kwargs["millis"]

@@ -29,6 +29,9 @@ if wandb.TYPE_CHECKING:  # type: ignore
         Tuple,
         Any,
     )  # noqa: F401
+else:
+    # Awful hack for python2
+    NamedTuple = object
 
 np = wandb.util.get_module("numpy")
 

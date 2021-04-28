@@ -723,7 +723,10 @@ def create_app(user_ctx=None):
             art["artifactType"] = {"id": 1, "name": "dataset"}
             if "source" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 2, "name": "code"}
-            elif "logged_table" in body["variables"]["name"] or "run-" in body["variables"]["name"]:
+            elif (
+                "logged_table" in body["variables"]["name"]
+                or "run-" in body["variables"]["name"]
+            ):
                 art["artifactType"] = {"id": 3, "name": "run_table"}
             elif "monitored" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 4, "name": "inference"}
@@ -777,7 +780,9 @@ def create_app(user_ctx=None):
         # make sure to read the data
         request.get_data()
         if request.method == "PUT":
-            ctx["file_bytes"][file] = ctx["file_bytes"].get(file, 0) + request.content_length
+            ctx["file_bytes"][file] = (
+                ctx["file_bytes"].get(file, 0) + request.content_length
+            )
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
