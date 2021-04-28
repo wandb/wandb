@@ -112,7 +112,7 @@ class Retry(object):
                     raise
                 if self._num_iter == 2:
                     logger.exception('Retry attempt failed:')
-                    if isinstance(e, HTTPError) and e.response:
+                    if isinstance(e, HTTPError) and e.response and self.retry_callback:
                         self.retry_callback(e.response.status_code, e.response.text)
                     else:
                         # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
