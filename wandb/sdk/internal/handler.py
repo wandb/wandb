@@ -466,7 +466,7 @@ class HandleManager(object):
         self._dispatch_record(record, always_send=True)
 
     def handle_preempting(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
+        self._dispatch_record(record)
 
     def handle_header(self, record: Record) -> None:
         self._dispatch_record(record)

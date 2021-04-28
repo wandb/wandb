@@ -175,6 +175,10 @@ class SendManager(object):
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
 
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
+
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type

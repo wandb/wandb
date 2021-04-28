@@ -151,6 +151,7 @@ class FileStreamApi(object):
     """
 
     Finish = collections.namedtuple("Finish", ("exitcode", "preempted"))
+    Preempting = collections.namedtuple("Preempting", ())
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -241,6 +242,13 @@ class FileStreamApi(object):
             for item in items:
                 if isinstance(item, self.Finish):
                     finished = item
+                elif isinstance(item, self.Preempting):
+                    util.request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={"complete": False,
+                              "preempting": True}
+                    )
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
@@ -309,6 +317,9 @@ class FileStreamApi(object):
         name = path.split("/")[-1]
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
+
+    def enqueue_preempting(self):
+        self._queue.put(self.Preempting())
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
