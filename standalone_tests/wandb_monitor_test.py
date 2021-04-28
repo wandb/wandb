@@ -5,7 +5,7 @@ import numpy as np
 labels = ["foo", "bar", "baz"]
 
 
-@wandb.monitor(flush_interval=10, settings={"project": "test_monitor"})
+@wandb.beta.monitor(flush_interval=10, settings={"project": "test_monitor"})
 class Model(object):
     def predict(self, input, id=None):
         return np.random.random((3,))

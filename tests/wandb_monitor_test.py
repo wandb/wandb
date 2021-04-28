@@ -1,7 +1,14 @@
 import random
+import sys
 
 import numpy as np
+import pytest
 import wandb
+
+
+pytestmark = pytest.mark.skipif(
+    sys.version_info < (3, 5), reason="@wandb.beta.monitor requires Python 3.x",
+)
 
 
 def to_table(calls):
@@ -13,7 +20,7 @@ def to_table(calls):
 
 
 def test_monitor_function_auto_init(test_settings, live_mock_server):
-    @wandb.monitor(settings=test_settings, to_table=to_table)
+    @wandb.beta.monitor(settings=test_settings, to_table=to_table)
     def predict(stuff):
         return [random.random(), random.random()]
 
@@ -30,7 +37,7 @@ def test_monitor_function_auto_init(test_settings, live_mock_server):
 def test_monitor_class_manual_init(test_settings, live_mock_server):
     with wandb.init(settings=test_settings):
 
-        @wandb.monitor(settings=test_settings)
+        @wandb.beta.monitor(settings=test_settings)
         class Foo(object):
             def predict(self, stuff):
                 return [random.random(), random.random()]
@@ -50,7 +57,7 @@ def test_monitor_class_manual_init(test_settings, live_mock_server):
 
 def test_monitor_function_on_class(test_settings, live_mock_server):
     class Foo(object):
-        @wandb.monitor(settings=test_settings)
+        @wandb.beta.monitor(settings=test_settings)
         def predict(self, stuff):
             return [random.random(), random.random()]
 
@@ -69,7 +76,7 @@ def test_monitor_function_on_class(test_settings, live_mock_server):
 
 
 def test_monitor_manual(test_settings, live_mock_server):
-    wandb_monitor = wandb.Monitor(settings=test_settings, to_table=to_table)
+    wandb_monitor = wandb.beta.Monitor(settings=test_settings, to_table=to_table)
     wandb_monitor.input(np.random.randint(0, 255, (10, 10)))
     wandb_monitor.output([random.random(), random.random()])
     wandb_monitor.flush()
