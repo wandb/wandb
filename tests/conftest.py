@@ -252,20 +252,11 @@ def mocked_run(runner, test_settings):
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
-    whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
+    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
     monkeypatch.setattr(click, "launch", lambda x: 1)
-    monkeypatch.setattr(
-        whaaaaat,
-        "prompt",
-        lambda x: {
-            "project_name": "test_model",
-            "files": ["weights.h5"],
-            "attach": False,
-            "team_name": "Manual Entry",
-        },
-    )
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
