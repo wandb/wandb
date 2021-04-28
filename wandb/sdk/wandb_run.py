@@ -305,7 +305,7 @@ class Run(object):
 
         self._hooks = None
         self._teardown_hooks = []
-        self._preempted = False
+        self.preempted = False
         self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
@@ -1193,7 +1193,7 @@ class Run(object):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
-        preempted = preempted or wandb.preempted
+        preempted = preempted or self.preempted
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
@@ -1515,7 +1515,7 @@ class Run(object):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code: int = None) -> None:
+    def _atexit_cleanup(self, exit_code: int = None, preempted: bool = False) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -1532,7 +1532,7 @@ class Run(object):
 
         self._exit_code = exit_code
         try:
-            self._on_finish()
+            self._on_finish(preempted)
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
@@ -1657,7 +1657,7 @@ class Run(object):
                     return poll_exit_resp
             time.sleep(0.1)
 
-    def _on_finish(self) -> None:
+    def _on_finish(self, preempted: bool) -> None:
         trigger.call("on_finished")
 
         # populate final import telemetry
@@ -1694,7 +1694,7 @@ class Run(object):
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
         if self._backend:
-            self._backend.interface.publish_exit(self._exit_code)
+            self._backend.interface.publish_exit(self._exit_code, preempted)
 
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish()

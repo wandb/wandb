@@ -290,7 +290,7 @@ class BackendSender(object):
     def _make_exit(self, exit_code: int, preempted: bool) -> pb.RunExitRecord:
         exit = pb.RunExitRecord()
         exit.exit_code = exit_code
-        exit.preemtped = preempted
+        exit.preempted = preempted
         return exit
 
     def _make_config(

@@ -921,7 +921,7 @@ class SendManager(object):
             self._pusher.join()
             self._pusher = None
         if self._fs:
-            self._fs.finish(self._exit_code)
+            self._fs.finish(self._exit_code, self._preempted)
             self._fs = None
 
     def _max_cli_version(self):
