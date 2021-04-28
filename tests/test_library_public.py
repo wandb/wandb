@@ -36,8 +36,7 @@ SYMBOLS_ROOT_SDK = {
     "use_artifact",
     "define_metric",
     "summary",
-    "monitor",
-    "Monitor",
+    "beta",
     "config",
     "join",  # deprecate in favor of finish()
     "finish",
