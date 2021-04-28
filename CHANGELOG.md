@@ -6,6 +6,7 @@
 - Use `register_full_backward_hook` to support models with Dict outputs
 - Allow periods in table columns
 - Fix artifact cache collisions when using forked processes
+- Fix issue where custom charts do not display properly with pytorch-lightning
 
 #### :nail_care: Enhancement
 
