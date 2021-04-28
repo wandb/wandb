@@ -169,7 +169,7 @@ class SendManager(object):
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type != "output":
+        if record_type not in {"output", "request"}:
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
@@ -179,7 +179,8 @@ class SendManager(object):
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
-        logger.debug("send_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
