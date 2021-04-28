@@ -15,7 +15,7 @@ from six.moves import input
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
-from wandb.util import isatty
+from wandb.util import _is_databricks, isatty
 
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
@@ -88,7 +88,9 @@ def prompt_api_key(  # noqa: C901
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
-    elif not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin)):
+    elif (
+        not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin))
+    ) or _is_databricks():
         result = LOGIN_CHOICE_NOTTY
     elif local:
         result = LOGIN_CHOICE_EXISTS

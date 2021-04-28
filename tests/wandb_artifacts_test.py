@@ -10,6 +10,9 @@ import wandb.data_types as data_types
 import numpy as np
 import pandas as pd
 import time
+from wandb.proto import wandb_internal_pb2 as pb
+
+sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def mock_boto(artifact, path=False):
@@ -191,7 +194,8 @@ def test_add_reference_local_file(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        artifact.add_reference("file://file1.txt")
+        e = artifact.add_reference("file://file1.txt")[0]
+        assert e.ref_target() == "file://file1.txt"
 
         assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
         manifest = artifact.manifest.to_manifest_json()
@@ -912,6 +916,55 @@ def test_interface_commit_hash(runner):
         artifact.commit_hash()
 
 
+# this test hangs, which seems to be the result of incomplete mocks.
+# would be worth returning to it in the future
+# def test_artifact_incremental(runner, live_mock_server, parse_ctx, test_settings):
+#     with runner.isolated_filesystem():
+#         open("file1.txt", "w").write("hello")
+#         run = wandb.init(settings=test_settings)
+#         artifact = wandb.Artifact(type="dataset", name="incremental_test_PENDING", incremental=True)
+#         artifact.add_file("file1.txt")
+#         run.log_artifact(artifact)
+#         run.finish()
+
+#         manifests_created = parse_ctx(live_mock_server.get_ctx()).manifests_created
+#         assert manifests_created[0]["type"] == "INCREMENTAL"
+
+
+def test_artifact_incremental_internal(
+    mocked_run,
+    mock_server,
+    internal_sender,
+    internal_sm,
+    start_backend,
+    stop_backend,
+    parse_ctx,
+):
+    artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
+    start_backend()
+
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(artifact)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()
+
+    manifests_created = parse_ctx(mock_server.ctx).manifests_created
+    assert manifests_created[0]["type"] == "INCREMENTAL"
+
+
 def test_local_references(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
 
@@ -932,43 +985,176 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
-    art.add(t1, "t1")
-    run.log_artifact(art)
-    # Must call wait first
+    e = art.add(t1, "t1")
+
     with pytest.raises(ValueError):
-        assert art.id is not None
+        e.ref_target()
+
+    # These properties should be valid both before and after logging
+    testable_getters_valid = [
+        "id",
+        "entity",
+        "project",
+        "manifest",
+        "digest",
+        "type",
+        "name",
+        "state",
+        "size",
+        "description",
+        "metadata",
+    ]
+
+    # These are valid even before waiting!
+    testable_getters_always_valid = ["distributed_id"]
+
+    # These properties should be valid only after logging
+    testable_getters_invalid = ["version", "commit_hash", "aliases"]
+
+    # These setters should be valid both before and after logging
+    testable_setters_valid = ["description", "metadata"]
+
+    # These are valid even before waiting!
+    testable_setters_always_valid = ["distributed_id"]
+
+    # These setters should be valid only after logging
+    testable_setters_invalid = ["aliases"]
+
+    # These methods should be valid both before and after logging
+    testable_methods_valid = []
+
+    # These methods should be valid only after logging
+    testable_methods_invalid = [
+        "used_by",
+        "logged_by",
+        "get_path",
+        "get",
+        "download",
+        "checkout",
+        "verify",
+        "delete",
+    ]
+
+    setter_data = {"metadata": {}}
+    params = {"get_path": ["t1.table.json"], "get": ["t1"]}
+
+    # these are failures of mocking
+    special_errors = {
+        "save": wandb.errors.CommError,
+        "delete": wandb.errors.CommError,
+        "verify": ValueError,
+        "logged_by": KeyError,
+    }
+
+    for valid_getter in testable_getters_valid + testable_getters_always_valid:
+        _ = getattr(art, valid_getter)
+
+    for invalid_getter in testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, invalid_getter)
+
+    for valid_setter in testable_setters_valid + testable_setters_always_valid:
+        setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
+
+    for invalid_setter in testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(
+                art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
+            )
+
+    # Uncomment if there are ever entries in testable_methods_valid
+    # leaving commented for now since test coverage wants all lines to
+    # run
+    # for valid_method in testable_methods_valid:
+    #     attr_method = getattr(art, valid_method)
+    #     _ = attr_method(*params.get(valid_method, []))
+
+    for invalid_method in testable_methods_invalid:
+        attr_method = getattr(art, invalid_method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(invalid_method, []))
+
+    # THE LOG
+    run.log_artifact(art)
+
+    for getter in testable_getters_valid + testable_getters_invalid:
+        with pytest.raises(ValueError):
+            _ = getattr(art, getter)
+
+    for setter in testable_setters_valid + testable_setters_invalid:
+        with pytest.raises(ValueError):
+            setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid + testable_methods_invalid:
+        attr_method = getattr(art, method)
+        with pytest.raises(ValueError):
+            _ = attr_method(*params.get(method, []))
+
+    # THE ALL IMPORTANT WAIT
     art.wait()
-    with pytest.raises(AttributeError):
-        assert art.FAKE_ATTRIBUTE is not None
-    assert art.id is not None
-    assert art.version is not None
-    assert art.name is not None
-    assert art.type is not None
-    # Purposely none due to mock
-    assert art.entity is None
-    # Purposely none due to mock
-    assert art.project is None
-    assert art.manifest is not None
-    assert art.digest is not None
-    assert art.state is not None
-    assert art.size is not None
-    assert art.commit_hash is not None
-    art.description = "desc"
-    assert art.description == "desc"
-    art.metadata = {"a": 1}
-    assert art.metadata == {"a": 1}
-    art.aliases = ["A"]
-    assert art.aliases == ["A"]
-    assert art.used_by() is not None
-    with pytest.raises(KeyError):  # expect a key error b/c project is not mocked
-        assert art.logged_by() is not None
-    assert art.get_path("t1.table.json") is not None
-    assert art.get("t1") is not None
-    assert art.download() is not None
-    assert art.checkout() is not None
-    with pytest.raises(ValueError):  # mock issue
-        assert art.verify() is not None
-    with pytest.raises(wandb.errors.CommError):  # mock issue
-        assert art.save() is not None
-    with pytest.raises(wandb.errors.CommError):  # mock issue
-        assert art.delete() is not None
+
+    for getter in testable_getters_valid + testable_getters_invalid:
+        _ = getattr(art, getter)
+
+    for setter in testable_setters_valid + testable_setters_invalid:
+        setattr(art, setter, "TEST")
+
+    for method in testable_methods_valid + testable_methods_invalid:
+        attr_method = getattr(art, method)
+        if method in special_errors:
+            with pytest.raises(special_errors[method]):
+                _ = attr_method(*params.get(method, []))
+        else:
+            _ = attr_method(*params.get(method, []))
+
+
+def test_reference_download(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run.log_artifact(artifact)
+        run.finish()
+
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("my-test_reference_download:latest")
+        entry = artifact.get_path("StarWars3.wav")
+        entry.download()
+        assert (
+            entry.ref_target()
+            == "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+
+        entry = artifact.get_path("file1.txt")
+        entry.download()
+        with pytest.raises(ValueError):
+            assert entry.ref_target()
+
+
+def test_communicate_artifact(
+    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
+):
+    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
+    start_backend()
+
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(artifact)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()

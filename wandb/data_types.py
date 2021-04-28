@@ -68,6 +68,7 @@ else:
     )
 
 __all__ = [
+    "Audio",
     "Histogram",
     "Object3D",
     "Molecule",
@@ -119,7 +120,14 @@ class _TableKey(str, _TableLinkMixin):
 
 
 class _TableIndex(int, _TableLinkMixin):
-    pass
+    def get_row(self):
+        row = {}
+        if self._table:
+            row = {
+                c: self._table.data[self][i] for i, c in enumerate(self._table.columns)
+            }
+
+        return row
 
 
 def _json_helper(val, artifact):
@@ -131,7 +139,7 @@ def _json_helper(val, artifact):
             res[key] = _json_helper(val[key], artifact)
         return res
     elif hasattr(val, "tolist"):
-        return val.tolist()
+        return util.json_friendly(val.tolist())[0]
     else:
         return util.json_friendly(val)[0]
 
@@ -153,7 +161,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
-    artifact_type = "table"
+    _log_type = "table"
 
     def __init__(
         self,
@@ -494,13 +502,6 @@ class Table(Media):
             )
 
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            for column in self.columns:
-                if isinstance(column, six.string_types) and "." in column:
-                    raise ValueError(
-                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
-                            column
-                        )
-                    )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -538,14 +539,14 @@ class Table(Media):
                 mapped_row = []
                 for ndx, v in enumerate(row):
                     if ndx in ndarray_col_ndxs:
-                        mapped_row.append("ndarray({})".format(v.shape))
+                        mapped_row.append(None)
                     else:
                         mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
 
             json_dict.update(
                 {
-                    "_type": Table.artifact_type,
+                    "_type": Table._log_type,
                     "columns": self.columns,
                     "data": mapped_data,
                     "ncols": len(self.columns),
@@ -754,6 +755,35 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
+    def index_ref(self, index):
+        """Get a reference to a particular row index in the table"""
+        assert index < len(self.data)
+        _index = _TableIndex(index)
+        _index.set_table(self)
+        return _index
+
+    def add_computed_columns(self, fn):
+        """Adds one or more computed columns based on existing data
+
+        Args:
+            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+                which is expected to return a dict representing new columns for that row, keyed
+                by the new column names.
+                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                        is set to true
+                    - `row` is a dictionary keyed by existing columns
+        """
+        new_columns = {}
+        for ndx, row in self.iterrows():
+            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            new_row_dict = fn(ndx, row_dict)
+            assert isinstance(new_row_dict, dict)
+            for key in new_row_dict:
+                new_columns[key] = new_columns.get(key, [])
+                new_columns[key].append(new_row_dict[key])
+        for new_col_name in new_columns:
+            self.add_column(new_col_name, new_columns[new_col_name])
+
 
 class _PartitionTablePartEntry:
     """Helper class for PartitionTable to track its parts
@@ -779,7 +809,7 @@ class PartitionedTable(Media):
     is designed to point to a directory within an artifact.
     """
 
-    artifact_type = "partitioned-table"
+    _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
         """
@@ -856,7 +886,7 @@ class Audio(BatchableMedia):
         caption: (string) Caption to display with audio.
     """
 
-    artifact_type = "audio-file"
+    _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
@@ -915,7 +945,7 @@ class Audio(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self.artifact_type, "caption": self._caption,}
+            {"_type": self._log_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -1010,7 +1040,7 @@ class JoinedTable(Media):
             key or keys to perform the join
     """
 
-    artifact_type = "joined-table"
+    _log_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
         super(JoinedTable, self).__init__()
@@ -1094,7 +1124,7 @@ class JoinedTable(Media):
 
         json_obj.update(
             {
-                "_type": JoinedTable.artifact_type,
+                "_type": JoinedTable._log_type,
                 "table1": table1,
                 "table2": table2,
                 "join_key": self._join_key,
@@ -1130,7 +1160,7 @@ class Bokeh(Media):
         val: Bokeh plot
     """
 
-    artifact_type = "bokeh-file"
+    _log_type = "bokeh-file"
 
     def __init__(self, data_or_path):
         super(Bokeh, self).__init__()
@@ -1166,7 +1196,7 @@ class Bokeh(Media):
         # pull this into Media#to_json and remove this type override for all the media types.
         # There are only a few cases where the type is different between artifacts and runs.
         json_dict = super(Bokeh, self).to_json(run)
-        json_dict["_type"] = self.artifact_type
+        json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
@@ -1206,6 +1236,8 @@ class Graph(Media):
         root (wandb.Node): root node of the graph
     """
 
+    _log_type = "graph-file"
+
     def __init__(self, format="keras"):
         super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
@@ -1242,7 +1274,7 @@ class Graph(Media):
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)
-        json_dict["_type"] = "graph-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
     def __getitem__(self, nid):
