@@ -31,7 +31,8 @@ def default_ctx():
         "files": {},
         "k8s": False,
         "resume": False,
-        "summary": {},
+        "config": [],
+        "summary": [],
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
@@ -643,7 +644,7 @@ def create_app(user_ctx=None):
                     "project": {
                         "artifactType": {
                             "id": "1",
-                            "name": allowed_type,
+                            "name": "dataset",
                             "description": "",
                             "createdAt": datetime.now().isoformat(),
                         }
@@ -769,14 +770,14 @@ def create_app(user_ctx=None):
         run = request.args.get("run", "unknown")
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
-        ctx["storage"][run].append(request.args.get("file"))
-        size = ctx["files"].get(request.args.get("file"))
+        ctx["storage"][run].append(file)
+        size = ctx["files"].get(file)
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
         if request.method == "PUT":
-            ctx["file_bytes"] += request.content_length
+            ctx["file_bytes"][file] = ctx["file_bytes"].get(file, 0) + request.content_length
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]

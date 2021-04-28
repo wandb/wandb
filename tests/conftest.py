@@ -252,6 +252,12 @@ def mocked_run(runner, test_settings):
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
+    # For reasons not clear to me, sometimes the tests will load the system
+    # prompt_toolkit.  This makes sure we pull in our vendored version.  Uggg
+    # we really need to get rid of whaaaaat
+    for mod in list(sys.modules):
+        if mod.startswith("prompt_toolkit"):
+            del sys.modules[mod]
     whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
