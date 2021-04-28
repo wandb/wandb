@@ -2351,6 +2351,12 @@ class Run(object):
         self.finish(exit_code)
         return exc_type is None
 
+    def mark_preempting(self) -> None:
+        """Mark this run as preempting and tell the internal process
+        to immediately report this to the server."""
+        self.preempted = True
+        self._backend.interface.publish_preempting()
+
 
 # We define this outside of the run context to support restoring before init
 def restore(
