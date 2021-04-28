@@ -210,6 +210,11 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
+    def publish_preempting(self) -> None:
+        preempt_rec = pb.RunPreemptingRecord()
+        rec = self._make_record(preempting=preempt_rec)
+        self._publish(rec)
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
