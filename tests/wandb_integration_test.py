@@ -357,6 +357,24 @@ def test_version_retired(
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
+def test_end_to_end_preempting(
+    live_mock_server, test_settings, disable_console
+):
+    run = wandb.init()
+    run.mark_preempting()
+
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        ok = any(['preempting' in request_dict for request_dict in ctx['file_stream']])
+        if ok:
+            break
+        time.sleep(1)
+    assert ok
+    run.finish()
+
+
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
