@@ -754,10 +754,10 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
             "nodes:argmin",
         ]
 
-        # if CAN_INFER_IMAGE_AND_VIDEO:
-        #     cols.append("2dimages:image")
-        #     cols.append("3dimages:image")
-        #     cols.append("video:video")
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            cols.append("2dimages:image")
+            cols.append("3dimages:image")
+            cols.append("video:video")
 
         tcols = t.columns
         row = t.data[0]
@@ -783,14 +783,14 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
         assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
         assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
-        # if CAN_INFER_IMAGE_AND_VIDEO:
-        #     assert isinstance(
-        #         row[tcols.index("2dimages:image")], wandb.data_types.Image
-        #     )
-        #     assert isinstance(
-        #         row[tcols.index("3dimages:image")], wandb.data_types.Image
-        #     )
-        #     assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        if CAN_INFER_IMAGE_AND_VIDEO:
+            assert isinstance(
+                row[tcols.index("2dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(
+                row[tcols.index("3dimages:image")], wandb.data_types.Image
+            )
+            assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
 
 
 def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_server):
