@@ -713,7 +713,10 @@ def test_data_logger_pred_user_proc(test_settings, live_mock_server):
 
 
 def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
+    ndx = 0
+    print(ndx); ndx += 1
     with wandb.init(settings=test_settings) as run:
+        print(ndx); ndx += 1
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -723,6 +726,7 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
             class_labels=["a", "b", "c", "d", "e"],
             infer_missing_processors=True,
         )
+        print(ndx); ndx += 1
         t = vd.log_predictions(
             vd.make_predictions(
                 lambda inputs: {
@@ -736,6 +740,7 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
                 }
             )
         )
+        print(ndx); ndx += 1
 
         cols = [
             "val_row",
@@ -754,44 +759,68 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
             "nodes:argmin",
         ]
 
+        print(ndx); ndx += 1
         if CAN_INFER_IMAGE_AND_VIDEO:
             cols.append("2dimages:image")
+            print(ndx); ndx += 1
             cols.append("3dimages:image")
+            print(ndx); ndx += 1
             cols.append("video:video")
 
+        print(ndx); ndx += 1
         tcols = t.columns
-
+        print(ndx); ndx += 1
         row = t.data[0]
+        print(ndx); ndx += 1
 
         assert set(tcols) == set(cols)
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("val_row")], wandb.data_types._TableIndex)
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("simple")].tolist(), int)
+        print(ndx); ndx += 1
         assert len(row[tcols.index("wrapped")]) == 1
+        print(ndx); ndx += 1
         assert len(row[tcols.index("logits")]) == 5
+        print(ndx); ndx += 1
         assert len(row[tcols.index("nodes")]) == 10
+        print(ndx); ndx += 1
         assert row[tcols.index("2dimages")].shape == (5, 5)
+        print(ndx); ndx += 1
         assert row[tcols.index("3dimages")].shape == (5, 5, 3)
+        print(ndx); ndx += 1
         assert row[tcols.index("video")].shape == (5, 5, 3, 10)
+        print(ndx); ndx += 1
         assert isinstance(
             row[tcols.index("wrapped:class")], wandb.data_types._TableIndex
         )
+        print(ndx); ndx += 1
         assert isinstance(
             row[tcols.index("logits:max_class")], wandb.data_types._TableIndex
         )
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("logits:score")], dict)
         # assert isinstance(row[tcols.index("nodes:node")], dict)
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("nodes:node")], list)
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("nodes:argmax")].tolist(), int)
+        print(ndx); ndx += 1
         assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
+        print(ndx); ndx += 1
         if CAN_INFER_IMAGE_AND_VIDEO:
+            print(ndx); ndx += 1
             assert isinstance(
                 row[tcols.index("2dimages:image")], wandb.data_types.Image
             )
+            print(ndx); ndx += 1
             assert isinstance(
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
+            print(ndx); ndx += 1
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+            print(ndx); ndx += 1
 
 
 def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_server):
