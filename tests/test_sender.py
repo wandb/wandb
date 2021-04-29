@@ -140,6 +140,14 @@ def test_save_live_write_after_policy(
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
+def test_preempting_sent_to_server(
+    mocked_run, mock_server, internal_sender, start_backend, stop_backend
+):
+    start_backend()
+    internal_sender.publish_preempting()
+    stop_backend()
+    assert any(['preempting' in request_dict for request_dict in mock_server.ctx["file_stream"]])
+
 def test_save_live_multi_write(
     mocked_run, mock_server, internal_sender, start_backend, stop_backend
 ):
