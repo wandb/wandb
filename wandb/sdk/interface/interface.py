@@ -292,10 +292,9 @@ class BackendSender(object):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def _make_exit(self, exit_code: int, preempted: bool) -> pb.RunExitRecord:
+    def _make_exit(self, exit_code: int) -> pb.RunExitRecord:
         exit = pb.RunExitRecord()
         exit.exit_code = exit_code
-        exit.preempted = preempted
         return exit
 
     def _make_config(
@@ -756,8 +755,8 @@ class BackendSender(object):
         assert resp.response.network_status_response
         return resp.response.network_status_response
 
-    def publish_exit(self, exit_code: int, preempted: bool) -> None:
-        exit_data = self._make_exit(exit_code, preempted)
+    def publish_exit(self, exit_code: int) -> None:
+        exit_data = self._make_exit(exit_code)
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 

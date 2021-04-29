@@ -731,8 +731,8 @@ def stop_backend(
     start_handle_thread,
     start_send_thread,
 ):
-    def stop_backend_func(preempted=False):
-        internal_sender.publish_exit(0, preempted)
+    def stop_backend_func():
+        internal_sender.publish_exit(0)
         for _ in range(10):
             poll_exit_resp = internal_sender.communicate_poll_exit()
             assert poll_exit_resp, "poll exit timedout"

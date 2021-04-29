@@ -256,7 +256,6 @@ class Run(object):
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
     _exit_code: Optional[int]
-    _preempted: bool
 
     _run_status_checker: Optional[RunStatusChecker]
     _poll_exit_response: Optional[PollExitResponse]
@@ -305,7 +304,6 @@ class Run(object):
 
         self._hooks = None
         self._teardown_hooks = []
-        self.preempted = False
         self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
@@ -1188,12 +1186,11 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def finish(self, exit_code: int = None, preempted: bool = False) -> None:
+    def finish(self, exit_code: int = None) -> None:
         """Marks a run as finished, and finishes uploading all data.  This is
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
-        preempted = preempted or self.preempted
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
@@ -1201,7 +1198,7 @@ class Run(object):
         for hook in self._teardown_hooks:
             hook()
         self._teardown_hooks = []
-        self._atexit_cleanup(exit_code=exit_code, preempted=preempted)
+        self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         module.unset_globals()
@@ -1515,7 +1512,7 @@ class Run(object):
             sys.stderr = self._save_stderr
         logger.info("restore done")
 
-    def _atexit_cleanup(self, exit_code: int = None, preempted: bool = False) -> None:
+    def _atexit_cleanup(self, exit_code: int = None) -> None:
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -1532,7 +1529,7 @@ class Run(object):
 
         self._exit_code = exit_code
         try:
-            self._on_finish(preempted)
+            self._on_finish()
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
@@ -1657,7 +1654,7 @@ class Run(object):
                     return poll_exit_resp
             time.sleep(0.1)
 
-    def _on_finish(self, preempted: bool) -> None:
+    def _on_finish(self) -> None:
         trigger.call("on_finished")
 
         # populate final import telemetry
@@ -1694,7 +1691,7 @@ class Run(object):
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
         if self._backend:
-            self._backend.interface.publish_exit(self._exit_code, preempted)
+            self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish()
@@ -2354,7 +2351,6 @@ class Run(object):
     def mark_preempting(self) -> None:
         """Mark this run as preempting and tell the internal process
         to immediately report this to the server."""
-        self.preempted = True
         self._backend.interface.publish_preempting()
 
 

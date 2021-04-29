@@ -104,7 +104,7 @@ def test_log_code_custom_root(test_settings):
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
 
 
-def test_mark_preempted(fake_run, record_q, records_util):
+def test_mark_preempting(fake_run, record_q, records_util):
     run = fake_run()
     run.log(dict(this=1))
     run.log(dict(that=2))

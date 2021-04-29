@@ -372,8 +372,7 @@ def test_end_to_end_preempting(
             break
         time.sleep(1)
     assert ok
-    run.finish()
-
+    
 
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")

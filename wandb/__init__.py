@@ -56,7 +56,6 @@ Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
-preempted = False
 
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError

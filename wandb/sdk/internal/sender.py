@@ -119,7 +119,6 @@ class SendManager(object):
         self._partial_output = dict()
 
         self._exit_code = 0
-        self._preempted = False
 
     @classmethod
     def setup(cls, root_dir):
@@ -265,8 +264,6 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-        self._preempted = exit.preempted
-
         logger.info("handling exit code: %s", exit.exit_code)
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -308,7 +305,7 @@ class SendManager(object):
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
-                self._fs.finish(self._exit_code, self._preempted)
+                self._fs.finish(self._exit_code)
                 self._fs = None
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
@@ -925,7 +922,7 @@ class SendManager(object):
             self._pusher.join()
             self._pusher = None
         if self._fs:
-            self._fs.finish(self._exit_code, self._preempted)
+            self._fs.finish(self._exit_code)
             self._fs = None
 
     def _max_cli_version(self):

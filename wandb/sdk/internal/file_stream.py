@@ -150,7 +150,7 @@ class FileStreamApi(object):
     TODO: Differentiate between binary/text encoding.
     """
 
-    Finish = collections.namedtuple("Finish", ("exitcode", "preempted"))
+    Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -276,7 +276,7 @@ class FileStreamApi(object):
         util.request_with_retry(
             self._client.post,
             self._endpoint,
-            json={"complete": True, "exitcode": int(finished.exitcode), "preempted": finished.preempted},
+            json={"complete": True, "exitcode": int(finished.exitcode)},
         )
 
     def _handle_response(self, response):
@@ -331,14 +331,13 @@ class FileStreamApi(object):
         """
         self._queue.put(Chunk(filename, data))
 
-    def finish(self, exitcode, preempted):
+    def finish(self, exitcode):
         """Cleans up.
 
         Anything pushed after finish will be dropped.
 
         Arguments:
             exitcode: The exitcode of the watched process.
-            preempted: Whether the process was preempted.
         """
-        self._queue.put(self.Finish(exitcode, preempted))
+        self._queue.put(self.Finish(exitcode))
         self._thread.join()
