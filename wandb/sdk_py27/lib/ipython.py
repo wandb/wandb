@@ -20,7 +20,10 @@ def _get_python_type():
         # Calling get_ipython can cause an ImportError
         if get_ipython() is None:
             return "python"
-    except ImportError:
+    # If a user has a profile.py file in the current directory, importing ipython
+    # will throw an attribute error.  In that case just assume python instead
+    # of throwing an exception
+    except (ImportError, AttributeError):
         return "python"
     if "terminal" in get_ipython().__module__ or "spyder" in sys.modules:
         return "ipython"
