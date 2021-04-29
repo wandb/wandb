@@ -806,10 +806,10 @@ def create_app(user_ctx=None):
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
-                            "media/tables/e14239fe.table.json": {
+                            "media/tables/5aac4cea.table.json": {
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
-                            },
+                            }
                         },
                     }
             if request.args.get("name") == "my-test_reference_download:latest":
