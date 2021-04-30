@@ -392,7 +392,7 @@ class TerminalEmulator(object):
 
             # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
             # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
-            # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if 
+            # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if
             # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
             # Same logic is repeated for background colors and other attributes.
 
@@ -602,7 +602,9 @@ class StreamWrapper(RedirectBase):
             time.sleep(0.1)
             cnt += 1
             if cnt == 100:  # bail after 10 seconds
-                logger.warning("StreamWrapper: queue not empty after 10 seconds. Dropping logs.")
+                logger.warning(
+                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
+                )
                 break
 
         self._stopped.set()
@@ -706,15 +708,16 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
-        t = threading.Thread(target=self.src_wrapped_stream.flush)
-        t.start()
-        t.join()
-        # self.src_wrapped_stream.flush()
-        # time.sleep(0.1)
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
+
+        t = threading.Thread(
+            target=self.src_wrapped_stream.flush
+        )  # Calling flush() from the current thread does not flush the buffer instantly.
+        t.start()
+        t.join(timeout=10)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
         cnt = 0
@@ -722,7 +725,9 @@ class Redirect(RedirectBase):
             time.sleep(0.1)
             cnt += 1
             if cnt == 100:  # bail after 10 seconds
-                logger.warning("Redirect: queue not empty after 10 seconds. Dropping logs.")
+                logger.warning(
+                    "Redirect: queue not empty after 10 seconds. Dropping logs."
+                )
                 break
 
         self._stopped.set()
