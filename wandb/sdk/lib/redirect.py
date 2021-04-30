@@ -710,13 +710,9 @@ class Redirect(RedirectBase):
         self._installed = False
 
         self._stopped.set()
-        cnt = 0
+
         while not self._pipe_relay_stopped.is_set():
             time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logging.warn("Redirect: _pipe_relay_thread did not join in 10 seconds. Some terminal output might be lost.")
-
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
