@@ -603,7 +603,9 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         if not self._emulator_write_thread_stopped.wait(timeout=10):
-            logger.warn("Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs.")
+            logger.warn(
+                "Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs."
+            )
 
         self._stopped.set()
         self.flush()
@@ -709,7 +711,9 @@ class Redirect(RedirectBase):
 
         self._stopped.set()
         if not self._pipe_relay_thread_stopped.wait(timeout=10):
-            logger.warn("Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost.")
+            logger.warn(
+                "Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost."
+            )
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
@@ -722,7 +726,9 @@ class Redirect(RedirectBase):
         t.join(timeout=10)
 
         if not self._emulator_write_thread_stopped.wait(timeout=10):
-            logger.warn("Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs.")
+            logger.warn(
+                "Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs."
+            )
 
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
