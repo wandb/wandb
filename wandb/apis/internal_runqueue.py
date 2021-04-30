@@ -17,7 +17,7 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
-from wandb.old import retry
+from wandb.sdk.lib import retry
 from wandb.old.settings import Settings
 import yaml
 
