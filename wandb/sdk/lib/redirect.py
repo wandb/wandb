@@ -602,9 +602,9 @@ class StreamWrapper(RedirectBase):
         else:
             setattr(sys, self.src, self._old_stream)
 
-        if not self._emulator_write_thread_stopped.wait(timeout=10):
+        if not self._emulator_write_thread_stopped.wait(timeout=60):
             logger.warn(
-                "Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs."
+                "Redirect: _emulator_write_thread failed to join in 60 seconds. Dropping logs."
             )
 
         self._stopped.set()
