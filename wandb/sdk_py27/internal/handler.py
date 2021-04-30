@@ -16,7 +16,7 @@ from wandb.proto import wandb_internal_pb2
 
 from . import meta, sample, stats
 from . import tb_watcher
-from ..lib import proto_util
+from ..lib import handler_util, proto_util
 
 
 if wandb.TYPE_CHECKING:
@@ -117,7 +117,8 @@ class HandleManager(object):
         assert request_type
         handler_str = "handle_request_" + request_type
         handler = getattr(self, handler_str, None)
-        logger.debug("handle_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("handle_request: {}".format(request_type))
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
@@ -299,7 +300,8 @@ class HandleManager(object):
     ):
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
-        if isinstance(v, dict):
+        # if the dict has _type key, its a wandb table object
+        if isinstance(v, dict) and not handler_util.metric_is_wandb_dict(v):
             updated = False
             for nk, nv in six.iteritems(v):
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):

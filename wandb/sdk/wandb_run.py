@@ -151,7 +151,7 @@ class RunStatusChecker(object):
         self,
         interface: BackendSender,
         stop_polling_interval: int = 15,
-        retry_polling_interval: int = 1,
+        retry_polling_interval: int = 5,
     ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
@@ -2351,7 +2351,8 @@ class Run(object):
     def mark_preempting(self) -> None:
         """Mark this run as preempting and tell the internal process
         to immediately report this to the server."""
-        self._backend.interface.publish_preempting()
+        if self._backend:
+            self._backend.interface.publish_preempting()
 
 
 # We define this outside of the run context to support restoring before init
