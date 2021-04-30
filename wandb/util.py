@@ -270,7 +270,10 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "://api.wandb." in api_url:
+    if "://api.wandb.test" in api_url:
+        # dev mode
+        return api_url.replace("://api.", "://app.")
+    elif "://api.wandb." in api_url:
         # cloud
         return api_url.replace("://api.", "://")
     elif "://api." in api_url:
@@ -743,11 +746,10 @@ def request_with_retry(func, *args, **kwargs):
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
                 if (
-                    hasattr(e.response, "status_code")
+                    e.response is not None
                     and e.response.status_code in {400, 403, 404, 409}
                 ) or (
-                    hasattr(e.response, "status_code")
-                    and hasattr(e.response, "content")
+                    e.response is not None
                     and e.response.status_code == 500
                     and e.response.content == b'{"error":"context deadline exceeded"}\n'
                 ):
@@ -758,7 +760,7 @@ def request_with_retry(func, *args, **kwargs):
             retry_count += 1
             delay = sleep + random.random() * 0.25 * sleep
             if isinstance(e, requests.exceptions.HTTPError) and (
-                hasattr(e.response, "status_code") and e.response.status_code == 429
+                e.response is not None and e.response.status_code == 429
             ):
                 err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
                     delay

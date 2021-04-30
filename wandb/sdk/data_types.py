@@ -106,8 +106,8 @@ class WBValue(object):
 
     # Class Attributes
     _type_mapping: ClassVar[Optional["TypeMappingType"]] = None
-    # override artifact_type to indicate the type which the subclass deserializes
-    artifact_type: ClassVar[Optional[str]] = None
+    # override _log_type to indicate the type which the subclass deserializes
+    _log_type: ClassVar[Optional[str]] = None
 
     # Instance Attributes
     _artifact_source: Optional[_WBValueArtifactSource]
@@ -153,10 +153,10 @@ class WBValue(object):
             filetype (str, optional): the filetype to use. Defaults to "json".
 
         Returns:
-            str: a filename which is suffixed with it's `artifact_type` followed by the filetype
+            str: a filename which is suffixed with it's `_log_type` followed by the filetype
         """
-        if cls.artifact_type is not None:
-            suffix = cls.artifact_type + "." + filetype
+        if cls._log_type is not None:
+            suffix = cls._log_type + "." + filetype
         else:
             suffix = filetype
         if not name.endswith(suffix):
@@ -191,7 +191,7 @@ class WBValue(object):
 
     @staticmethod
     def type_mapping() -> "TypeMappingType":
-        """Returns a map from `artifact_type` to subclass. Used to lookup correct types for deserialization.
+        """Returns a map from `_log_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
             dict: dictionary of str:class
@@ -203,8 +203,8 @@ class WBValue(object):
             while len(frontier) > 0:
                 class_option = frontier.pop()
                 explored.add(class_option)
-                if class_option.artifact_type is not None:
-                    WBValue._type_mapping[class_option.artifact_type] = class_option
+                if class_option._log_type is not None:
+                    WBValue._type_mapping[class_option._log_type] = class_option
                 for subclass in class_option.__subclasses__():
                     if subclass not in explored:
                         frontier.append(subclass)
@@ -292,6 +292,7 @@ class Histogram(WBValue):
     """
 
     MAX_LENGTH: int = 512
+    _log_type = "histogram"
 
     def __init__(
         self,
@@ -332,7 +333,7 @@ class Histogram(WBValue):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
-        return {"_type": "histogram", "values": self.histogram, "bins": self.bins}
+        return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 
     def __sizeof__(self) -> int:
         """This returns an estimated size in bytes, currently the factor of 1.7
@@ -549,7 +550,7 @@ class Media(WBValue):
                         name = entry.path
 
                 json_obj["path"] = name
-            json_obj["_type"] = self.artifact_type
+            json_obj["_type"] = self._log_type
         return json_obj
 
     @classmethod
@@ -613,7 +614,7 @@ class Object3D(BatchableMedia):
     SUPPORTED_TYPES: ClassVar[Set[str]] = set(
         ["obj", "gltf", "glb", "babylon", "stl", "pts.json"]
     )
-    artifact_type: ClassVar[str] = "object3D-file"
+    _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
         self, data_or_path: Union["np.ndarray", str, "TextIO"], **kwargs: str
@@ -732,7 +733,7 @@ class Object3D(BatchableMedia):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Object3D, self).to_json(run_or_artifact)
-        json_dict["_type"] = Object3D.artifact_type
+        json_dict["_type"] = Object3D._log_type
 
         _, artifact_class = _safe_sdk_import()
 
@@ -787,6 +788,7 @@ class Molecule(BatchableMedia):
     SUPPORTED_TYPES = set(
         ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
     )
+    _log_type = "molecule-file"
 
     def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
         super(Molecule, self).__init__()
@@ -836,7 +838,7 @@ class Molecule(BatchableMedia):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Molecule, self).to_json(run_or_artifact)
-        json_dict["_type"] = "molecule-file"
+        json_dict["_type"] = self._log_type
         if self._caption:
             json_dict["caption"] = self._caption
         return json_dict
@@ -880,7 +882,7 @@ class Html(BatchableMedia):
             to False the HTML will pass through unchanged.
     """
 
-    artifact_type = "html-file"
+    _log_type = "html-file"
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
@@ -935,7 +937,7 @@ class Html(BatchableMedia):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Html, self).to_json(run_or_artifact)
-        json_dict["_type"] = "html-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
@@ -982,7 +984,7 @@ class Video(BatchableMedia):
         format: (string) format of video, necessary if initializing with path or io object.
     """
 
-    artifact_type = "video-file"
+    _log_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
     _width: Optional[int]
     _height: Optional[int]
@@ -1077,7 +1079,7 @@ class Video(BatchableMedia):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Video, self).to_json(run_or_artifact)
-        json_dict["_type"] = "video-file"
+        json_dict["_type"] = self._log_type
 
         if self._width is not None:
             json_dict["width"] = self._width
@@ -1193,7 +1195,7 @@ class ImageMask(Media):
     Wandb class for image masks, useful for segmentation tasks
     """
 
-    artifact_type = "mask"
+    _log_type = "mask"
 
     def __init__(self, val: dict, key: str) -> None:
         """
@@ -1285,7 +1287,7 @@ class ImageMask(Media):
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:
-        return "mask"
+        return cls._log_type
 
     def validate(self, val: dict) -> bool:
         np = util.get_module(
@@ -1323,7 +1325,9 @@ class BoundingBoxes2D(JSONMetadata):
     Wandb class for 2D bounding boxes
     """
 
-    artifact_type = "bounding-boxes"
+    _log_type = "bounding-boxes"
+    # TODO: when the change is made to have this produce a dict with a _type, define
+    # it here as _log_type, associate it in to_json
 
     def __init__(self, val: dict, key: str) -> None:
         """
@@ -1470,7 +1474,7 @@ class BoundingBoxes2D(JSONMetadata):
 
 
 class Classes(Media):
-    artifact_type = "classes"
+    _log_type = "classes"
 
     _class_set: Sequence[dict]
 
@@ -1502,7 +1506,7 @@ class Classes(Media):
         # In all other cases, artifact should be a true artifact.
         if run_or_artifact is not None:
             json_obj = super(Classes, self).to_json(run_or_artifact)
-        json_obj["_type"] = Classes.artifact_type
+        json_obj["_type"] = Classes._log_type
         json_obj["class_set"] = self._class_set
         return json_obj
 
@@ -1537,7 +1541,7 @@ class Image(BatchableMedia):
     # PIL limit
     MAX_DIMENSION = 65500
 
-    artifact_type = "image-file"
+    _log_type = "image-file"
 
     format: Optional[str]
     _grouping: Optional[str]
@@ -1753,7 +1757,7 @@ class Image(BatchableMedia):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
-        json_dict["_type"] = Image.artifact_type
+        json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
 
         if self._width is not None:
@@ -2000,6 +2004,8 @@ class Plotly(Media):
         val: matplotlib or plotly figure
     """
 
+    _log_type = "plotly-file"
+
     @classmethod
     def make_plot_media(
         cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
@@ -2038,7 +2044,7 @@ class Plotly(Media):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Plotly, self).to_json(run_or_artifact)
-        json_dict["_type"] = "plotly-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
 
@@ -2117,7 +2123,7 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
-            if hasattr(val, "artifact_type") and val.artifact_type == "table":
+            if hasattr(val, "_log_type") and val._log_type == "table":
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
