@@ -706,7 +706,11 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
-        self.src_wrapped_stream.flush()
+        t = threading.Thread(target=self.src_wrapped_stream.flush)
+        t.start()
+        t.join()
+        # self.src_wrapped_stream.flush()
+        # time.sleep(0.1)
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
