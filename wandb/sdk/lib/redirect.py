@@ -712,6 +712,7 @@ class Redirect(RedirectBase):
 
         self._stopped.set()
         cnt = 0
+        time.sleep(1)
         logger.warn("boop")
         while not self._pipe_relay_stopped.is_set():
             time.sleep(0.1)
