@@ -383,13 +383,25 @@ class TerminalEmulator(object):
         if not formatting:
             return "".join([line[j].data for j in range(line_len)])
         else:
+            # We have to loop through each character in the line and check if foreground, background and
+            # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
+            # (i-1)th character. If different, the appropriate ascii character fors switching the color/attribute
+            # should be appended to the output string before appending the actual character. This loop and subsequent
+            # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
+            # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
+
+            # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
+            # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
+            # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if 
+            # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
+            # Same logic is repeated for background colors and other attributes.
+
             out = [line[i].data for i in range(line_len)]
 
             # for dynamic insert using original indices
             idxs = np.arange(line_len)
             insert = lambda i, c: (out.insert(idxs[i], c), idxs[i:].__iadd__(1))  # noqa
 
-            # 99% of terminal output doesn't have colors and styles. Optimize accordingly:
             fgs = [int(_defchar.fg)] + [int(line[i].fg) for i in range(line_len)]
             [
                 insert(i, _get_char(line[int(i)].fg)) for i in np.where(np.diff(fgs))[0]
@@ -585,8 +597,13 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        cnt = 0
         while not self._queue.empty():
             time.sleep(0.1)
+            cnt += 1
+            if cnt == 100:  # bail after 10 seconds
+                logger.warning("StreamWrapper: queue not empty after 10 seconds. Dropping logs.")
+                break
 
         self._stopped.set()
         self.flush()
@@ -697,8 +714,13 @@ class Redirect(RedirectBase):
         os.close(self._pipe_read_fd)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        cnt = 0
         while not self._queue.empty():
             time.sleep(0.1)
+            cnt += 1
+            if cnt == 100:  # bail after 10 seconds
+                logger.warning("Redirect: queue not empty after 10 seconds. Dropping logs.")
+                break
 
         self._stopped.set()
         self.flush()
