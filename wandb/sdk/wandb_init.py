@@ -174,7 +174,7 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
-        if not settings._noop or True:
+        if not settings._noop:
             self._log_setup(settings)
 
             if settings._jupyter:
