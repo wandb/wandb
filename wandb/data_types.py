@@ -68,6 +68,7 @@ else:
     )
 
 __all__ = [
+    "Audio",
     "Histogram",
     "Object3D",
     "Molecule",
@@ -160,7 +161,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
-    artifact_type = "table"
+    _log_type = "table"
 
     def __init__(
         self,
@@ -501,13 +502,6 @@ class Table(Media):
             )
 
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            for column in self.columns:
-                if isinstance(column, six.string_types) and "." in column:
-                    raise ValueError(
-                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
-                            column
-                        )
-                    )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -552,7 +546,7 @@ class Table(Media):
 
             json_dict.update(
                 {
-                    "_type": Table.artifact_type,
+                    "_type": Table._log_type,
                     "columns": self.columns,
                     "data": mapped_data,
                     "ncols": len(self.columns),
@@ -815,7 +809,7 @@ class PartitionedTable(Media):
     is designed to point to a directory within an artifact.
     """
 
-    artifact_type = "partitioned-table"
+    _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
         """
@@ -892,7 +886,7 @@ class Audio(BatchableMedia):
         caption: (string) Caption to display with audio.
     """
 
-    artifact_type = "audio-file"
+    _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
@@ -951,7 +945,7 @@ class Audio(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self.artifact_type, "caption": self._caption,}
+            {"_type": self._log_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -1046,7 +1040,7 @@ class JoinedTable(Media):
             key or keys to perform the join
     """
 
-    artifact_type = "joined-table"
+    _log_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
         super(JoinedTable, self).__init__()
@@ -1130,7 +1124,7 @@ class JoinedTable(Media):
 
         json_obj.update(
             {
-                "_type": JoinedTable.artifact_type,
+                "_type": JoinedTable._log_type,
                 "table1": table1,
                 "table2": table2,
                 "join_key": self._join_key,
@@ -1166,7 +1160,7 @@ class Bokeh(Media):
         val: Bokeh plot
     """
 
-    artifact_type = "bokeh-file"
+    _log_type = "bokeh-file"
 
     def __init__(self, data_or_path):
         super(Bokeh, self).__init__()
@@ -1202,7 +1196,7 @@ class Bokeh(Media):
         # pull this into Media#to_json and remove this type override for all the media types.
         # There are only a few cases where the type is different between artifacts and runs.
         json_dict = super(Bokeh, self).to_json(run)
-        json_dict["_type"] = self.artifact_type
+        json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
@@ -1242,6 +1236,8 @@ class Graph(Media):
         root (wandb.Node): root node of the graph
     """
 
+    _log_type = "graph-file"
+
     def __init__(self, format="keras"):
         super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
@@ -1278,7 +1274,7 @@ class Graph(Media):
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)
-        json_dict["_type"] = "graph-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
     def __getitem__(self, nid):

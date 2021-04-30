@@ -35,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+    from six.moves.queue import Queue
+    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -105,8 +107,13 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings)
+        self._api = internal_api.Api(
+            default_settings=settings, retry_callback=self.retry_callback
+        )
         self._api_settings = dict()
+
+        # queue filled by retry_callback
+        self._retry_q = queue.Queue()
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -150,13 +157,19 @@ class SendManager(object):
             interface=publish_interface,
         )
 
+    def retry_callback(self, status, response_text):
+        response = wandb_internal_pb2.HttpResponse()
+        response.http_status_code = status
+        response.http_response_text = response_text
+        self._retry_q.put(response)
+
     def send(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type != "output":
+        if record_type not in {"output", "request"}:
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
@@ -166,7 +179,8 @@ class SendManager(object):
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
-        logger.debug("send_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
@@ -198,20 +212,33 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
-    def send_request_status(self, record):
+    def send_request_stop_status(self, record):
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
-        status_resp = result.response.status_response
-        if record.request.status.check_stop_req:
-            status_resp.run_should_stop = False
-            if self._entity and self._project and self._run.run_id:
-                try:
-                    status_resp.run_should_stop = self._api.check_stop_requested(
-                        self._project, self._entity, self._run.run_id
-                    )
-                except Exception as e:
-                    logger.warning("Failed to check stop requested status: %s", e)
+        status_resp = result.response.stop_status_response
+        status_resp.run_should_stop = False
+        if self._entity and self._project and self._run.run_id:
+            try:
+                status_resp.run_should_stop = self._api.check_stop_requested(
+                    self._project, self._entity, self._run.run_id
+                )
+            except Exception as e:
+                logger.warning("Failed to check stop requested status: %s", e)
+        self._result_q.put(result)
+
+    def send_request_network_status(self, record):
+        assert record.control.req_resp
+
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        status_resp = result.response.network_status_response
+        while True:
+            try:
+                status_resp.network_responses.append(self._retry_q.get_nowait())
+            except queue.Empty:
+                break
+            except Exception as e:
+                logger.warning("Error emptying retry queue: {}".format(e))
         self._result_q.put(result)
 
     def send_request_login(self, record):
@@ -857,6 +884,7 @@ class SendManager(object):
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
+            incremental=artifact.incremental_beta1,
         )
 
     def send_alert(self, data):

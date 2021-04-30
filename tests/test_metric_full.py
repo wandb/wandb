@@ -3,7 +3,7 @@ metric full tests.
 """
 
 import math
-
+import numpy as np
 import six
 import wandb
 
@@ -64,6 +64,7 @@ def test_metric_glob(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
     run.define_metric("*", step_metric="mystep")
     run.log(dict(mystep=1, val=2))
+
     run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
