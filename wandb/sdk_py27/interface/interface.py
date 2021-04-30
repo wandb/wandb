@@ -210,6 +210,11 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
+    def publish_preempting(self):
+        preempt_rec = pb.RunPreemptingRecord()
+        rec = self._make_record(preempting=preempt_rec)
+        self._publish(rec)
+
     def publish_history(
         self, data, step = None, run = None, publish_step = True
     ):
@@ -485,6 +490,7 @@ class BackendSender(object):
         footer = None,
         request = None,
         telemetry = None,
+        preempting = None,
     ):
         record = pb.Record()
         if run:
@@ -519,8 +525,10 @@ class BackendSender(object):
             record.telemetry.CopyFrom(telemetry)
         elif metric:
             record.metric.CopyFrom(metric)
+        elif preempting:
+            record.preempting.CopyFrom(preempting)
         else:
-            raise Exception("Invalid record")
+           raise Exception("Invalid record")
         return record
 
     def _publish(self, record, local = None):

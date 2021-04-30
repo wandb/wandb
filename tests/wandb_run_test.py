@@ -109,7 +109,7 @@ def test_mark_preempting(fake_run, record_q, records_util):
     run.log(dict(this=1))
     run.log(dict(that=2))
     run.mark_preempting()
-    
+
     r = records_util(record_q)
     assert len(r.records) == 3
     assert type(r.records[-1]) == RunPreemptingRecord

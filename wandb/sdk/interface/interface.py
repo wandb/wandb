@@ -528,7 +528,7 @@ class BackendSender(object):
         elif preempting:
             record.preempting.CopyFrom(preempting)
         else:
-           raise Exception("Invalid record")
+            raise Exception("Invalid record")
         return record
 
     def _publish(self, record: pb.Record, local: bool = None) -> None:

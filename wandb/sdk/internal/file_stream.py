@@ -246,8 +246,7 @@ class FileStreamApi(object):
                     util.request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False,
-                              "preempting": True}
+                        json={"complete": False, "preempting": True},
                     )
                 else:
                     # item is Chunk
