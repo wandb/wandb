@@ -723,11 +723,11 @@ class Redirect(RedirectBase):
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
-        # t = threading.Thread(
-        #     target=self.src_wrapped_stream.flush
-        # )  # Calling flush() from the current thread does not flush the buffer instantly.
-        # t.start()
-        # t.join(timeout=10)
+        t = threading.Thread(
+            target=self.src_wrapped_stream.flush
+        )  # Calling flush() from the current thread does not flush the buffer instantly.
+        t.start()
+        t.join(timeout=10)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
         cnt = 0
