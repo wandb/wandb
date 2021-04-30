@@ -524,11 +524,8 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while True:
+        while not self._stopped.is_set():
             if self._queue.empty():
-                if self._stopped.is_set():
-                    self._emulator_write_thread_stopped.set()
-                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
@@ -602,10 +599,16 @@ class StreamWrapper(RedirectBase):
         else:
             setattr(sys, self.src, self._old_stream)
 
-        if not self._emulator_write_thread_stopped.wait(timeout=10):
-            logger.warn(
-                "Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs."
-            )
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        cnt = 0
+        while not self._queue.empty():
+            time.sleep(0.1)
+            cnt += 1
+            if cnt == 100:  # bail after 10 seconds
+                logger.warning(
+                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
+                )
+                break
 
         self._stopped.set()
         self.flush()
@@ -710,10 +713,8 @@ class Redirect(RedirectBase):
             return
 
         self._stopped.set()
-        if not self._pipe_relay_thread_stopped.wait(timeout=60):
-            logger.warn(
-                "Redirect: _pipe_relay_thread failed to join in 60 seconds. Some terminal output might be lost."
-            )
+        if not self._pipe_relay_thread_stopped.wait(timeout=10):
+            logger.warn("Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost.")
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
@@ -725,10 +726,16 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        if not self._emulator_write_thread_stopped.wait(timeout=60):
-            logger.warn(
-                "Redirect: _emulator_write_thread failed to join in 60 seconds. Dropping logs."
-            )
+        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
+        cnt = 0
+        while not self._queue.empty():
+            time.sleep(0.1)
+            cnt += 1
+            if cnt == 100:  # bail after 10 seconds
+                logger.warning(
+                    "Redirect: queue not empty after 10 seconds. Dropping logs."
+                )
+                break
 
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
@@ -773,11 +780,8 @@ class Redirect(RedirectBase):
             self._queue.put(data)
 
     def _emulator_write(self):
-        while True:
+        while not self._stopped.is_set():
             if self._queue.empty():
-                if self._stopped.is_set():
-                    self._emulator_write_thread_stopped.set()
-                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():

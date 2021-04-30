@@ -524,11 +524,8 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while True
+        while not self._stopped.is_set():
             if self._queue.empty():
-                if self._stopped.is_set():
-                    self._emulator_write_thread_stopped.set()
-                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
@@ -783,11 +780,8 @@ class Redirect(RedirectBase):
             self._queue.put(data)
 
     def _emulator_write(self):
-        while True:
+        while not self._stopped.is_set():
             if self._queue.empty():
-                if self._stopped.is_set():
-                    self._emulator_write_thread_stopped.set()
-                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
