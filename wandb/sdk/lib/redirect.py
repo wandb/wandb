@@ -710,9 +710,9 @@ class Redirect(RedirectBase):
             return
 
         self._stopped.set()
-        if not self._pipe_relay_thread_stopped.wait(timeout=10):
+        if not self._pipe_relay_thread_stopped.wait(timeout=60):
             logger.warn(
-                "Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost."
+                "Redirect: _pipe_relay_thread failed to join in 60 seconds. Some terminal output might be lost."
             )
 
         os.dup2(self._orig_src_fd, self.src_fd)
@@ -725,9 +725,9 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        if not self._emulator_write_thread_stopped.wait(timeout=10):
+        if not self._emulator_write_thread_stopped.wait(timeout=60):
             logger.warn(
-                "Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs."
+                "Redirect: _emulator_write_thread failed to join in 60 seconds. Dropping logs."
             )
 
         self.flush()
