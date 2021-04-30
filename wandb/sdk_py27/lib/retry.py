@@ -4,16 +4,9 @@ import logging
 import os
 import random
 import time
-import traceback
-import weakref
-import sys
-
-import wandb
-from wandb import env
-from wandb import util
-from wandb.errors import Error
 
 from requests import HTTPError
+import wandb
 
 logger = logging.getLogger(__name__)
 

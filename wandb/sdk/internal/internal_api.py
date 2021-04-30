@@ -28,7 +28,7 @@ from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from ..lib.retry import Retry
+from ..lib.retry import retriable, Retry, TransientException
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -110,7 +110,7 @@ class Api(object):
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
-            retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
+            retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
 
     def reauth(self):
@@ -1126,7 +1126,7 @@ class Api(object):
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientException(exc=e))
+                util.sentry_reraise(TransientException(exc=e))
             else:
                 util.sentry_reraise(e)
 
