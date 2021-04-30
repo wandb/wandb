@@ -714,8 +714,8 @@ class Redirect(RedirectBase):
         while not self._pipe_relay_stopped.is_set():
             time.sleep(0.1)
             cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logging.warn("Redirect: _pipe_relay_thread did not join in 10 seconds. Some terminal output might be lost.")
+            # if cnt == 100:  # bail after 10 seconds
+            #     logging.warn("Redirect: _pipe_relay_thread did not join in 10 seconds. Some terminal output might be lost.")
 
 
         os.dup2(self._orig_src_fd, self.src_fd)
@@ -723,11 +723,11 @@ class Redirect(RedirectBase):
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
-        t = threading.Thread(
-            target=self.src_wrapped_stream.flush
-        )  # Calling flush() from the current thread does not flush the buffer instantly.
-        t.start()
-        t.join(timeout=10)
+        # t = threading.Thread(
+        #     target=self.src_wrapped_stream.flush
+        # )  # Calling flush() from the current thread does not flush the buffer instantly.
+        # t.start()
+        # t.join(timeout=10)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
         cnt = 0
