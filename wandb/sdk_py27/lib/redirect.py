@@ -41,6 +41,7 @@ logger = logging.getLogger("wandb")
 
 _redirects = {"stdout": None, "stderr": None}
 
+_LAST_WRITE_TOKEN = "L@stWr!t3T0k3n\n"
 
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
@@ -691,7 +692,6 @@ class Redirect(RedirectBase):
         os.dup2(self._pipe_write_fd, self.src_fd)
         self._installed = True
         self._stopped = threading.Event()
-        self._pipe_relay_stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
@@ -710,12 +710,9 @@ class Redirect(RedirectBase):
         self._installed = False
 
         self._stopped.set()
-
-        while not self._pipe_relay_stopped.is_set():
-            time.sleep(0.1)
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
 
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
@@ -760,16 +757,18 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                if self._stopped.is_set() and self._pipe_read_fd not in select.select([self._pipe_read_fd], [], [], 0)[0]:
-                    self._pipe_relay_stopped.set()
-                    return
+                brk = False
                 data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set() and _LAST_WRITE_TOKEN in data:
+                    data= b"".join(data.split(_LAST_WRITE_TOKEN), 1)
+                    brk = True
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
+                if brk:
+                    return 
             except OSError:
-                self._pipe_relay_stopped.set()
                 return
             self._queue.put(data)
 
