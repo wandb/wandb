@@ -108,7 +108,7 @@ class TBWatcher(object):
         run_proto: "RunRecord",
         interface: "BackendSender",
         force: bool = False,
-        publish_step: bool = False
+        publish_step: bool = False,
     ) -> None:
         self._logdirs = {}
         self._consumer = None

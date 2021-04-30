@@ -10,7 +10,6 @@ import json
 import logging
 import threading
 import uuid
-import os
 
 import six
 from six.moves import queue
@@ -226,7 +225,6 @@ class BackendSender(object):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore
-        print("HISTORY", history)
         self._publish_history(history)
 
     def publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:

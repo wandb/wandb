@@ -641,7 +641,9 @@ class SendManager(object):
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher, file_dir)
+        self._dir_watcher = DirWatcher(
+            self._settings, self._api, self._pusher, file_dir
+        )
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,

@@ -8,7 +8,6 @@ import datetime
 import fnmatch
 import json
 import os
-import shutil
 import sys
 import threading
 import time
@@ -17,8 +16,7 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.sdk.internal import run as internal_run
-from wandb.util import check_and_warn_old, to_forward_slash_path
+from wandb.util import check_and_warn_old, mkdir_exists_ok, to_forward_slash_path
 
 
 # TODO: consolidate dynamic imports
@@ -122,7 +120,8 @@ class SyncThread(threading.Thread):
                         tb_logdirs.append(tb_dir)
                 if len(tb_logdirs) > 0:
                     tb_root = to_forward_slash_path(
-                os.path.dirname(os.path.commonprefix(tb_logdirs)))
+                        os.path.dirname(os.path.commonprefix(tb_logdirs))
+                    )
             elif TFEVENT_SUBSTRING in sync_item:
                 tb_root = os.path.dirname(os.path.abspath(sync_item))
                 tb_logdirs.append(tb_root)
@@ -147,13 +146,14 @@ class SyncThread(threading.Thread):
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
         record = send_manager._interface._make_record(run=proto_run)
-        send_manager.send_run(record, file_dir=os.path.join(TMPDIR.name, 'files'))
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
+        mkdir_exists_ok(settings.files_dir)
+        send_manager.send_run(record, file_dir=settings.files_dir)
 
         watcher = tb_watcher.TBWatcher(
             settings, proto_run, send_manager._interface, True, True
@@ -170,11 +170,6 @@ class SyncThread(threading.Thread):
                 item.key = "_step"
                 item.value_json = json.dumps(data.history.step.num)
             send_manager.send(data)
-        for file_or_dir in os.listdir(watcher._consumer._internal_run.dir):
-            if os.path.isdir(os.path.join(watcher._consumer._internal_run.dir, file_or_dir)):
-                shutil.copytree(os.path.join(watcher._consumer._internal_run.dir, file_or_dir), os.path.join(TMPDIR.name, "files", file_or_dir))
-            else:
-                shutil.copy(os.path.join(watcher._consumer._internal_run.dir, file_or_dir), os.path.join(TMPDIR.name, "files"))
         sys.stdout.flush()
         send_manager.finish()
 

@@ -214,11 +214,12 @@ class BackendSender(object):
         self, data, step = None, run = None, publish_step = True
     ):
         run = run or self._run
+        given_step = step or data.get("_step")
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
-            assert step is not None
-            history.step.num = step
+            assert given_step is not None
+            history.step.num = given_step
         data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
