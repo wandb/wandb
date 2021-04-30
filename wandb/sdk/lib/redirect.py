@@ -524,8 +524,11 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True
             if self._queue.empty():
+                if self._stopped.is_set():
+                    self._emulator_write_thread_stopped.set()
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
@@ -568,6 +571,7 @@ class StreamWrapper(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread_stopped = threading.Event()
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
@@ -598,16 +602,8 @@ class StreamWrapper(RedirectBase):
         else:
             setattr(sys, self.src, self._old_stream)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logger.warning(
-                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
-                )
-                break
+        if not self._emulator_write_thread_stopped.wait(timeout=10):
+            logger.warn("Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs.")
 
         self._stopped.set()
         self.flush()
@@ -692,12 +688,14 @@ class Redirect(RedirectBase):
         os.dup2(self._pipe_write_fd, self.src_fd)
         self._installed = True
         self._stopped = threading.Event()
-        self._pipe_relay_stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
+        self._pipe_relay_thread_stopped = threading.Event()
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
+
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread_stopped = threading.Event()
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
@@ -710,7 +708,8 @@ class Redirect(RedirectBase):
             return
 
         self._stopped.set()
-        self._pipe_relay_stopped.wait(timeout=10)
+        if not self._pipe_relay_thread_stopped.wait(timeout=10):
+            logger.warn("Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost.")
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
@@ -722,16 +721,8 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logger.warning(
-                    "Redirect: queue not empty after 10 seconds. Dropping logs."
-                )
-                break
+        if not self._emulator_write_thread_stopped.wait(timeout=10):
+            logger.warn("Redirect: _emulator_write_thread failed to join in 10 seconds. Dropping logs.")
 
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
@@ -763,7 +754,7 @@ class Redirect(RedirectBase):
                     and self._pipe_read_fd
                     not in select.select([self._pipe_read_fd], [], [], 0)[0]
                 ):
-                    self._pipe_relay_stopped.set()
+                    self._pipe_relay_thread_stopped.set()
                     return
                 data = os.read(self._pipe_read_fd, 4096)
                 i = self._orig_src.write(data)
@@ -771,13 +762,16 @@ class Redirect(RedirectBase):
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
             except OSError:
-                self._pipe_relay_stopped.set()
+                self._pipe_relay_thread_stopped.set()
                 return
             self._queue.put(data)
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True:
             if self._queue.empty():
+                if self._stopped.is_set():
+                    self._emulator_write_thread_stopped.set()
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
