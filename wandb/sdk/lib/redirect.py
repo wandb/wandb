@@ -524,7 +524,7 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while True
+        while True:
             if self._queue.empty():
                 if self._stopped.is_set():
                     self._emulator_write_thread_stopped.set()
