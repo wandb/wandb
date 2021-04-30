@@ -28,7 +28,7 @@ from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from ..lib import retry
+from ..lib.retry import Retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -98,7 +98,7 @@ class Api(object):
             )
         )
         self.retry_callback = retry_callback
-        self.gql = retry.Retry(
+        self.gql = Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,

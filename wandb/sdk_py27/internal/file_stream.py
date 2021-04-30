@@ -141,7 +141,6 @@ class BinaryFilePolicy(DefaultFilePolicy):
         self._offset += len(data)
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
-
 class FileStreamApi(object):
     """Pushes chunks of files to our streaming endpoint.
 
@@ -237,6 +236,7 @@ class FileStreamApi(object):
         posted_anything_time = time.time()
         ready_chunks = []
         finished = None
+        last_log = 0
         while finished is None:
             items = self._read_queue()
             for item in items:

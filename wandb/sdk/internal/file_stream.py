@@ -141,6 +141,7 @@ class BinaryFilePolicy(DefaultFilePolicy):
         self._offset += len(data)
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
+
 class FileStreamApi(object):
     """Pushes chunks of files to our streaming endpoint.
 

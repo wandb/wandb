@@ -17,8 +17,8 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
-from wandb.sdk.lib import retry
 from wandb.old.settings import Settings
+from wandb.sdk.lib.retry import Retry
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
-        self.gql = retry.Retry(
+        self.gql = Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,

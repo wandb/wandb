@@ -529,7 +529,6 @@ class BackendSender(object):
         if local:
             record.control.local = local
         if self.record_q:
-            print("RECORD", rec)
             self.record_q.put(record)
 
     def _communicate(
