@@ -412,7 +412,7 @@ def request_with_retry(func, *args, **kwargs):
                 )
                 return e
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Filestream encountered unhandled exception in retry: {}".format(e)
             )
             raise e
