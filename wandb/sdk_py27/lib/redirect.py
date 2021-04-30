@@ -712,7 +712,6 @@ class Redirect(RedirectBase):
         self._stopped.set()
         os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
 
-        logger.warning("Last token written")
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
