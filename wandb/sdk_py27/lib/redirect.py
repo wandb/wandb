@@ -712,9 +712,12 @@ class Redirect(RedirectBase):
         self._stopped.set()
         os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
 
+        logger.warning("Last token written")
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
+
+        logger.warning("Streams restored")
 
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
@@ -722,6 +725,7 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
+        logger.warning("flushed")
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
         cnt = 0
         while not self._queue.empty():
@@ -732,10 +736,12 @@ class Redirect(RedirectBase):
                     "Redirect: queue not empty after 10 seconds. Dropping logs."
                 )
                 break
-
+        logger.warning("queue emptied")
         self.flush()
+        logger.warning("callbacks flushed")
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
+        logger.warning("done")
 
     def flush(self):
         try:
