@@ -160,7 +160,6 @@ class SyncThread(threading.Thread):
             self._tbwatcher._interface.publish_files(files)
 
         run = internal_run.InternalRun(proto_run, settings=settings, datatypes_cb=datatypes_cb)
-        print("TMPDIR TMPDIR", TMPDIR.name, run.dir)
         watcher = tb_watcher.TBWatcher(
             settings, proto_run, send_manager._interface, True, True
         )
@@ -175,19 +174,12 @@ class SyncThread(threading.Thread):
                 item = data.history.item.add()
                 item.key = "_step"
                 item.value_json = json.dumps(data.history.step.num)
-            # elif len(data.files.files) > 0:
-                #shutil.copy(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path), os.path.join(TMPDIR.name, "files"))
-                # pass
-                #print("FILE PATH PATH EXISTS", os.path.exists(data.files.files))
-                #print(data.files.files)
-                #print(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
-                #wandb.save(os.path.exists(os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)))
-                # path = os.path.join(watcher._consumer._internal_run.dir, data.files.files[0].path)
-                # if (os.path.exists(path)):
-                #     data.files.files[0].path = path
-                #pass
             send_manager.send(data)
-        shutil.copytree(watcher._consumer._internal_run.dir, os.path.join(TMPDIR.name, "files"), dirs_exist_ok=True)
+        for file_or_dir in os.listdir(watcher._consumer._internal_run.dir):
+            if os.path.isdir(os.path.join(watcher._consumer._internal_run.dir, file_or_dir)):
+                shutil.copytree(os.path.join(watcher._consumer._internal_run.dir, file_or_dir), os.path.join(TMPDIR.name, "files", file_or_dir))
+            else:
+                shutil.copy(os.path.join(watcher._consumer._internal_run.dir, file_or_dir), os.path.join(TMPDIR.name, "files"))
         sys.stdout.flush()
         send_manager.finish()
 
