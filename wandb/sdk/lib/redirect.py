@@ -711,7 +711,6 @@ class Redirect(RedirectBase):
         self._installed = False
 
         self._stopped.set()
-        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
         cnt = 0
         while not self._pipe_relay_stopped.is_set():
             time.sleep(0.1)
