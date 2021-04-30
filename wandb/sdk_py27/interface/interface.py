@@ -214,7 +214,7 @@ class BackendSender(object):
         self, data, step = None, run = None, publish_step = True
     ):
         run = run or self._run
-        given_step = step or data.get("_step")
+        given_step = step if step is not None else data.get("_step", None)
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
