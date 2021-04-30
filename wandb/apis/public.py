@@ -28,9 +28,9 @@ import yaml
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
-    from wandb.sdk.lib.retry import retriable
+    from wandb.sdk.lib import retry
 else:
-    from wandb.sdk_py27.lib.retry import retriable
+    from wandb.sdk_py27.lib import retry
 
 
 # TODO: consolidate dynamic imports
@@ -179,7 +179,7 @@ class RetryingClient(object):
     def app_url(self):
         return util.app_url(self._client.transport.url).replace("/graphql", "/")
 
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -1719,7 +1719,7 @@ class File(object):
         return 0
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -2036,7 +2036,7 @@ class HistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -2103,7 +2103,7 @@ class SampledHistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )

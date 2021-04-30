@@ -22,9 +22,9 @@ import yaml
 
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
-    from wandb.sdk.lib.retry import Retry
+    from wandb.sdk.lib import retry
 else:
-    from wandb.sdk_py27.lib.retry import Retry
+    from wandb.sdk_py27.lib import retry
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
-        self.gql = Retry(
+        self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
