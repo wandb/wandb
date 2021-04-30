@@ -706,8 +706,6 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
-        self.src_wrapped_stream.flush()
-        time.sleep(0.1)
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
@@ -722,6 +720,7 @@ class Redirect(RedirectBase):
                 logger.warning("Redirect: queue not empty after 10 seconds. Dropping logs.")
                 break
 
+        self.src_wrapped_stream.flush()
         self._stopped.set()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
