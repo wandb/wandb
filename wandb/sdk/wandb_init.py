@@ -174,10 +174,11 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
-        self._log_setup(settings)
+        if not settings._noop or True:
+            self._log_setup(settings)
 
-        if settings._jupyter:
-            self._jupyter_setup(settings)
+            if settings._jupyter:
+                self._jupyter_setup(settings)
 
         self.settings = settings.freeze()
 
