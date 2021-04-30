@@ -487,7 +487,7 @@ class SendManager(object):
         except requests.RequestException:
             return False
 
-    def send_run(self, data) -> None:
+    def send_run(self, data, file_dir=None) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
@@ -550,7 +550,7 @@ class SendManager(object):
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
-            self._start_run_threads()
+            self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
 
@@ -618,7 +618,7 @@ class SendManager(object):
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self):
+    def _start_run_threads(self, file_dir=None):
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
@@ -641,7 +641,7 @@ class SendManager(object):
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
+        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher, file_dir)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,

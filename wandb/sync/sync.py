@@ -147,7 +147,7 @@ class SyncThread(threading.Thread):
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
         record = send_manager._interface._make_record(run=proto_run)
-        send_manager.send(record)
+        send_manager.send_run(record, file_dir=os.path.join(TMPDIR.name, 'files'))
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
             run_id=proto_run.run_id,
@@ -155,11 +155,6 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
-        def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
-            self._tbwatcher._interface.publish_files(files)
-
-        run = internal_run.InternalRun(proto_run, settings=settings, datatypes_cb=datatypes_cb)
         watcher = tb_watcher.TBWatcher(
             settings, proto_run, send_manager._interface, True, True
         )

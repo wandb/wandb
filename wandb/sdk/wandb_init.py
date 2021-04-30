@@ -416,7 +416,6 @@ class _WandbInit(object):
             return wandb.run
 
         logger.info("starting backend")
-
         backend = Backend(settings=s)
         backend.ensure_launched()
         backend.server_connect()
