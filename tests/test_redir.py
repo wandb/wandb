@@ -281,7 +281,6 @@ def test_offline_compression(console_settings, capfd, runner):
 
 
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-@pytest.mark.timeout(60)
 def test_very_long_output(console_settings, capfd, runner):
     # https://wandb.atlassian.net/browse/WB-5437
     with capfd.disabled():
