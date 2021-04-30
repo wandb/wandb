@@ -604,9 +604,9 @@ class StreamWrapper(RedirectBase):
         while not self._queue.empty():
             time.sleep(0.1)
             cnt += 1
-            if cnt == 100:  # bail after 10 seconds
+            if cnt == 600:  # bail after 60 seconds
                 logger.warning(
-                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
+                    "StreamWrapper: queue not empty after 60 seconds. Dropping logs."
                 )
                 break
 
@@ -713,8 +713,8 @@ class Redirect(RedirectBase):
             return
 
         self._stopped.set()
-        if not self._pipe_relay_thread_stopped.wait(timeout=10):
-            logger.warn("Redirect: _pipe_relay_thread failed to join in 10 seconds. Some terminal output might be lost.")
+        if not self._pipe_relay_thread_stopped.wait(timeout=60):
+            logger.warn("Redirect: _pipe_relay_thread failed to join in 60 seconds. Some terminal output might be lost.")
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
@@ -731,9 +731,9 @@ class Redirect(RedirectBase):
         while not self._queue.empty():
             time.sleep(0.1)
             cnt += 1
-            if cnt == 100:  # bail after 10 seconds
+            if cnt == 600:  # bail after 60 seconds
                 logger.warning(
-                    "Redirect: queue not empty after 10 seconds. Dropping logs."
+                    "Redirect: queue not empty after 60 seconds. Dropping logs."
                 )
                 break
 
