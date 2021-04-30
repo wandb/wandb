@@ -278,3 +278,22 @@ def test_offline_compression(console_settings, capfd, runner):
         assert "YUIOP" not in binary_log
         assert "12345" not in binary_log
         assert "UIOP" in binary_log
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+@pytest.mark.timeout(10)
+def test_very_long_output(console_settings, capfd, runner):
+    # https://wandb.atlassian.net/browse/WB-5437
+    with capfd.disabled():
+        run = wandb.init(settings=console_settings)
+        print("LOG" * 1000000)
+        print("===finish===")
+        run.finish()
+        binary_log_file = (
+            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+        )
+        binary_log = runner.invoke(
+            cli.sync, ["--view", "--verbose", binary_log_file]
+        ).stdout
+        assert "LOG" * 1000000 in binary_log
+        assert "===finish===" in binary_log

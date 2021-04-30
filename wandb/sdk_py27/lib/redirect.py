@@ -692,6 +692,7 @@ class Redirect(RedirectBase):
         os.dup2(self._pipe_write_fd, self.src_fd)
         self._installed = True
         self._stopped = threading.Event()
+        self._pipe_relay_stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
@@ -707,10 +708,9 @@ class Redirect(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        self._installed = False
 
         self._stopped.set()
-        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+        self._pipe_relay_stopped.wait(timeout=10)
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
@@ -732,9 +732,10 @@ class Redirect(RedirectBase):
                     "Redirect: queue not empty after 10 seconds. Dropping logs."
                 )
                 break
+
         self.flush()
-        logger.warning("callbacks flushed")
         _WSCH.remove_fd(self._pipe_read_fd)
+        self._installed = False
         super(Redirect, self).uninstall()
 
     def flush(self):
@@ -757,18 +758,20 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                brk = False
+                if (
+                    self._stopped.is_set()
+                    and self._pipe_read_fd
+                    not in select.select([self._pipe_read_fd], [], [], 0)[0]
+                ):
+                    self._pipe_relay_stopped.set()
+                    return
                 data = os.read(self._pipe_read_fd, 4096)
-                if self._stopped.is_set() and _LAST_WRITE_TOKEN in data:
-                    data= b"".join(data.split(_LAST_WRITE_TOKEN), 1)
-                    brk = True
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                if brk:
-                    return 
             except OSError:
+                self._pipe_relay_stopped.set()
                 return
             self._queue.put(data)
 

@@ -708,10 +708,8 @@ class Redirect(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        self._installed = False
 
         self._stopped.set()
-        cnt = 0
         self._pipe_relay_stopped.wait(timeout=10)
 
         os.dup2(self._orig_src_fd, self.src_fd)
@@ -737,6 +735,7 @@ class Redirect(RedirectBase):
 
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
+        self._installed = False
         super(Redirect, self).uninstall()
 
     def flush(self):
@@ -759,7 +758,11 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                if self._stopped.is_set() and self._pipe_read_fd not in select.select([self._pipe_read_fd], [], [], 0)[0]:
+                if (
+                    self._stopped.is_set()
+                    and self._pipe_read_fd
+                    not in select.select([self._pipe_read_fd], [], [], 0)[0]
+                ):
                     self._pipe_relay_stopped.set()
                     return
                 data = os.read(self._pipe_read_fd, 4096)
