@@ -355,7 +355,6 @@ def request_with_retry(func, *args, **kwargs):
             try:
                 response = func(*args, **kwargs)
                 response.raise_for_status()
-                raise requests.exceptions.RequestException
                 return response
             except (
                 requests.exceptions.ConnectionError,
@@ -416,3 +415,4 @@ def request_with_retry(func, *args, **kwargs):
             logger.error(
                 "Filestream encountered unhandled exception in retry: {}".format(e)
             )
+            raise e
