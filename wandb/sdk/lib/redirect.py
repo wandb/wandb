@@ -766,6 +766,7 @@ class Redirect(RedirectBase):
             try:
                 if self._stopped.is_set() and self._pipe_read_fd not in select.select([self._pipe_read_fd], [], [], 0)[0]:
                     self._pipe_relay_stopped.set()
+                    return
                 data = os.read(self._pipe_read_fd, 4096)
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing

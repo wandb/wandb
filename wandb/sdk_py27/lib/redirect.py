@@ -11,6 +11,7 @@ import itertools
 import logging
 import os
 import re
+import select
 import signal
 import struct
 import sys
@@ -690,11 +691,11 @@ class Redirect(RedirectBase):
         os.dup2(self._pipe_write_fd, self.src_fd)
         self._installed = True
         self._stopped = threading.Event()
+        self._pipe_relay_stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
-        self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
@@ -707,6 +708,15 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
+
+        self._stopped.set()
+        cnt = 0
+        while not self._pipe_relay_stopped.is_set():
+            time.sleep(0.1)
+            cnt += 1
+            if cnt == 100:  # bail after 10 seconds
+                logging.warn("Redirect: _pipe_relay_thread did not join in 10 seconds. Some terminal output might be lost.")
+
 
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, b"\n")
@@ -730,7 +740,6 @@ class Redirect(RedirectBase):
                 )
                 break
 
-        self._stopped.set()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -755,17 +764,16 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                data = os.read(self._pipe_read_fd, 4096)
-                if self._stopped.is_set():
+                if self._stopped.is_set() and self._pipe_read_fd not in select.select([self._pipe_read_fd], [], [], 0)[0]:
+                    self._pipe_relay_stopped.set()
                     return
-            except OSError:
-                return
-            try:
+                data = os.read(self._pipe_read_fd, 4096)
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
             except OSError:
+                self._pipe_relay_stopped.set()
                 return
             self._queue.put(data)
 
