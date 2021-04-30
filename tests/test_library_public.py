@@ -171,6 +171,7 @@ SYMBOLS_RUN = {
     "restore",
     "notes",
     "tags",
+    "mark_preempting",
 }
 
 # symbols having to do with resuming, we should clean this up
