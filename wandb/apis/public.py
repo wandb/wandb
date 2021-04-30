@@ -23,8 +23,14 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
-from wandb.sdk.lib.retry import retriable
 import yaml
+
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib.retry import retriable
+else:
+    from wandb.sdk_py27.lib.retry import retriable
 
 
 # TODO: consolidate dynamic imports
