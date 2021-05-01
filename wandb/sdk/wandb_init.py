@@ -21,6 +21,7 @@ import six
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
+from wandb.integration import ngc
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -130,6 +131,15 @@ class _WandbInit(object):
                 continue
             for k, v in config_data.items():
                 self.config.setdefault(k, v)
+
+        # add any special config vars we've detected
+        if ngc.active():
+            self.config["_wandb"] = self.config.get("_wandb", {})
+            self.config["_wandb"]["ngc"] = {
+                "job_id": ngc.job_id(),
+                "run_id": ngc.run_id(),
+                "dataset_info": ngc.dataset_info(),
+            }
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
