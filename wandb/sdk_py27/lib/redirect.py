@@ -45,6 +45,8 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n\n"
+
 SEP_RE = re.compile(
     "\r|\n|"
     # Unprintable ascii characters:
@@ -692,8 +694,7 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
-        self._pipe_relay_thread_stopped = threading.Event()
-        self._pipe_relay_thread.daemon = True
+        # self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
         self._stopped = threading.Event()
@@ -711,11 +712,9 @@ class Redirect(RedirectBase):
         self._installed = False
 
         self._stopped.set()
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+        self._pipe_relay_thread.join()
         os.dup2(self._orig_src_fd, self.src_fd)
-
-        while self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
-            time.sleep(0.1)
-
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
@@ -765,13 +764,18 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
+                brk = False
                 data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set() and _LAST_WRITE_TOKEN in data:
+                    brk = True
+                    data = data.replace(_LAST_WRITE_TOKEN, b"", 1)
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
+                if brk:
+                    return
             except OSError:
-                self._pipe_relay_thread_stopped.set()
                 return
             self._queue.put(data)
 
