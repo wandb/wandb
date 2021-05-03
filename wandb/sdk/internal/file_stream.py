@@ -175,9 +175,10 @@ class FileStreamApi(object):
         )
         self._file_policies = {}
         self._queue = queue.Queue()
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
+        self._thread.name = "FileStreamThread"
         self._thread.daemon = True
         self._init_endpoint()
 
@@ -273,6 +274,16 @@ class FileStreamApi(object):
             json={"complete": True, "exitcode": int(finished.exitcode)},
         )
 
+    def _thread_except_body(self):
+        # Consolidate with internal_util.ExceptionThread
+        try:
+            self._thread_body()
+        except Exception as e:
+            logger.exception("generic exception in filestream thread")
+            exc_info = sys.exc_info()
+            util.sentry_exc(exc_info, delay=True)
+            raise e
+
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
@@ -331,6 +342,7 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
+        # FIXME("check for exception")
         self._thread.join()
 
 
