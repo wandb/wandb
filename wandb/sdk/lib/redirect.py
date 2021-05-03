@@ -763,20 +763,19 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                data = b""
                 if self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
                     data = os.read(self._pipe_read_fd, 4096)
+                    i = self._orig_src.write(data)
+                    if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
+                        while i < len(data):
+                            i += self._orig_src.write(data[i:])
+                    self._queue.put(data)
                 elif self._stopped.is_set():
                     return
                 else:
                     time.sleep(0.1)
-                i = self._orig_src.write(data)
-                if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
-                    while i < len(data):
-                        i += self._orig_src.write(data[i:])
             except OSError:
                 return
-            self._queue.put(data)
 
     def _emulator_write(self):
         while not self._stopped.is_set():
