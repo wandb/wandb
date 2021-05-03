@@ -11,6 +11,7 @@ import itertools
 import logging
 import os
 import re
+import select
 import signal
 import struct
 import sys
@@ -753,14 +754,14 @@ class Redirect(RedirectBase):
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
     def _pipe_relay(self):
+        has_data = lambda: self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]
         while True:
             try:
+                while not has_data:
+                    if self._stopped.is_set():
+                        return
+                    time.sleep(0.1)
                 data = os.read(self._pipe_read_fd, 4096)
-                if self._stopped.is_set():
-                    return
-            except OSError:
-                return
-            try:
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
