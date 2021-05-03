@@ -151,7 +151,7 @@ class RunStatusChecker(object):
         self,
         interface: BackendSender,
         stop_polling_interval: int = 15,
-        retry_polling_interval: int = 1,
+        retry_polling_interval: int = 5,
     ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval

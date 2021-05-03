@@ -151,7 +151,7 @@ class RunStatusChecker(object):
         self,
         interface,
         stop_polling_interval = 15,
-        retry_polling_interval = 1,
+        retry_polling_interval = 5,
     ):
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
