@@ -424,7 +424,12 @@ def request_with_retry(func, *args, **kwargs):
             if sleep > MAX_SLEEP_SECONDS:
                 sleep = MAX_SLEEP_SECONDS
         except requests.exceptions.RequestException as e:
-            logger.error(response.json()["error"])  # XXX clean this up
+            error_message = "unknown error"
+            try:
+                error_message = response.json()["error"]  # XXX clean this up
+            except Exception:
+                pass
+            logger.error("requests_with_retry error: {}".format(error_message))
             logger.exception(
                 "requests_with_retry encountered unretryable exception: %s", e
             )
