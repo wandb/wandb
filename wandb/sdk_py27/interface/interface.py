@@ -609,6 +609,7 @@ class BackendSender(object):
         val = None,
     ):
         cfg = self._make_config(data=data, key=key, val=val)
+
         self._publish_config(cfg)
 
     def _publish_config(self, cfg):
