@@ -692,7 +692,7 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
-        self._pipe_relay_thread_stopped = thread.Event()
+        self._pipe_relay_thread_stopped = threading.Event()
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
