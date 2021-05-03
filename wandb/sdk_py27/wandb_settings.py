@@ -713,6 +713,13 @@ class Settings(object):
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
+    def _apply_setup(
+        self, setup_settings, _logger = None
+    ):
+        if _logger:
+            _logger.info("setting setup settings: {}".format(setup_settings))
+        self._update(setup_settings, _source=self.Source.SETUP)
+
     def _path_convert_part(
         self, path_part, format_dict
     ):
