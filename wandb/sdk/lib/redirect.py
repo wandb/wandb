@@ -388,7 +388,7 @@ class TerminalEmulator(object):
         else:
             # We have to loop through each character in the line and check if foreground, background and
             # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
-            # (i-1)th character. If different, the appropriate ascii character fors switching the color/attribute
+            # (i-1)th character. If different, the appropriate ascii character for switching the color/attribute
             # should be appended to the output string before appending the actual character. This loop and subsequent
             # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
             # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
