@@ -105,12 +105,13 @@ class Retry(object):
                     minutes=1
                 ):
                     self._last_print = datetime.datetime.now()
-                    self.retry_callback(
-                        200,
-                        "{} resolved after {}, resuming normal operation.".format(
-                            self._error_prefix, datetime.datetime.now() - start_time
-                        ),
-                    )
+                    if self.retry_callback:
+                        self.retry_callback(
+                            200,
+                            "{} resolved after {}, resuming normal operation.".format(
+                                self._error_prefix, datetime.datetime.now() - start_time
+                            ),
+                        )
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
