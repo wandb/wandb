@@ -602,9 +602,9 @@ class StreamWrapper(RedirectBase):
         while not self._queue.empty():
             time.sleep(0.1)
             cnt += 1
-            if cnt == 100:  # bail after 10 seconds
+            if cnt == 100:  # bail after 60 seconds
                 logger.warning(
-                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
+                    "StreamWrapper: queue not empty after 60 seconds. Dropping logs."
                 )
                 break
 
@@ -731,9 +731,9 @@ class Redirect(RedirectBase):
         while not self._queue.empty():
             time.sleep(0.1)
             cnt += 1
-            if cnt == 100:  # bail after 10 seconds
+            if cnt == 100:  # bail after 60 seconds
                 logger.warning(
-                    "Redirect: queue not empty after 10 seconds. Dropping logs."
+                    "Redirect: queue not empty after 60 seconds. Dropping logs."
                 )
                 break
 
