@@ -601,17 +601,6 @@ class StreamWrapper(RedirectBase):
         else:
             setattr(sys, self.src, self._old_stream)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        # cnt = 0
-        # while not self._queue.empty():
-        #     time.sleep(0.1)
-        #     cnt += 1
-        #     if cnt == 100:  # bail after 60 seconds
-        #         logger.warning(
-        #             "StreamWrapper: queue not empty after 60 seconds. Dropping logs."
-        #         )
-        #         break
-
         self._stopped.set()
         self._emulator_write_thread.join()
         self.flush()
@@ -720,11 +709,6 @@ class Redirect(RedirectBase):
         self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
 
-        # if not self._pipe_relay_thread_stopped.wait(timeout=60):
-        #         logger.warning(
-        #             "Redirect: _pipe_relay_thread did not join in 60 seconds. Some terminal output might be lost."
-        #         )
-
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
         )  # Calling flush() from the current thread does not flush the buffer instantly.
@@ -732,16 +716,6 @@ class Redirect(RedirectBase):
         t.join(timeout=10)
 
         self._emulator_write_thread.join()
-        # cnt = 0
-        # while not self._queue.empty():
-        #     time.sleep(0.1)
-        #     cnt += 1
-        #     if cnt == 100:  # bail after 60 seconds
-        #         logger.warning(
-        #             "Redirect: queue not empty after 60 seconds. Dropping logs."
-        #         )
-        #         break
-
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -766,10 +740,15 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                if self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
+                if (
+                    self._pipe_read_fd
+                    in select.select([self._pipe_read_fd], [], [], 0)[0]
+                ):
                     data = os.read(self._pipe_read_fd, 4096)
                     i = self._orig_src.write(data)
-                    if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
+                    if (
+                        i is not None
+                    ):  # python 3 w/ unbuffered i/o: we need to keep writing
                         while i < len(data):
                             i += self._orig_src.write(data[i:])
                     self._queue.put(data)
