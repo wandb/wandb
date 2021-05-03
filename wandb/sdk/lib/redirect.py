@@ -728,16 +728,16 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 60 seconds
-                logger.warning(
-                    "Redirect: queue not empty after 60 seconds. Dropping logs."
-                )
-                break
+        self._emulator_write_thread.join()
+        # cnt = 0
+        # while not self._queue.empty():
+        #     time.sleep(0.1)
+        #     cnt += 1
+        #     if cnt == 100:  # bail after 60 seconds
+        #         logger.warning(
+        #             "Redirect: queue not empty after 60 seconds. Dropping logs."
+        #         )
+        #         break
 
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
@@ -778,8 +778,10 @@ class Redirect(RedirectBase):
                 return
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True:
             if self._queue.empty():
+                if self._stopped.is_set():
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
