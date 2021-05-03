@@ -539,7 +539,7 @@ class StreamWrapper(RedirectBase):
                     pass
 
     def _callback(self):
-        while not self._stopped.is_set():
+        while not (self._stopped.is_set() and self._queue.empty()):
             self.flush()
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
