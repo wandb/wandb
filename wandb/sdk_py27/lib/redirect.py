@@ -694,7 +694,7 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
-        # self._pipe_relay_thread.daemon = True
+        self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
         self._stopped = threading.Event()
@@ -712,10 +712,9 @@ class Redirect(RedirectBase):
         self._installed = False
 
         self._stopped.set()
-        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
-        self._pipe_relay_thread.join()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
+        self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
 
         # if not self._pipe_relay_thread_stopped.wait(timeout=60):
@@ -764,17 +763,16 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                brk = False
-                data = os.read(self._pipe_read_fd, 4096)
-                if self._stopped.is_set() and _LAST_WRITE_TOKEN in data:
-                    brk = True
-                    data = data.replace(_LAST_WRITE_TOKEN, b"", 1)
+                if self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
+                    data = os.read(self._pipe_read_fd, 4096)
+                elif self._stopped.is_set():
+                    return
+                else:
+                    time.sleep(0.1)
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                if brk:
-                    return
             except OSError:
                 return
             self._queue.put(data)
