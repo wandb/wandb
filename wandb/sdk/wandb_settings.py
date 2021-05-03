@@ -716,7 +716,7 @@ class Settings(object):
     def _apply_setup(
         self, setup_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        ## TODO: add logger for coverage
+        # TODO: add logger for coverage
         # if _logger:
         #     _logger.info("setting setup settings: {}".format(setup_settings))
         self._update(setup_settings, _source=self.Source.SETUP)
