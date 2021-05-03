@@ -14,6 +14,7 @@ import wandb
 from wandb import util
 from wandb import env
 
+import six
 from six.moves import queue
 
 from ..lib import file_stream_utils
@@ -159,6 +160,8 @@ class FileStreamApi(object):
     def __init__(self, api, run_id, start_time, settings=None):
         if settings is None:
             settings = dict()
+        # NOTE: exc_info is set in thread_except_body context and readable by calling threads
+        self._exc_info = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
@@ -175,9 +178,10 @@ class FileStreamApi(object):
         )
         self._file_policies = {}
         self._queue = queue.Queue()
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
+        self._thread.name = "FileStreamThread"
         self._thread.daemon = True
         self._init_endpoint()
 
@@ -273,6 +277,17 @@ class FileStreamApi(object):
             json={"complete": True, "exitcode": int(finished.exitcode)},
         )
 
+    def _thread_except_body(self):
+        # TODO: Consolidate with internal_util.ExceptionThread
+        try:
+            self._thread_body()
+        except Exception as e:
+            exc_info = sys.exc_info()
+            self._exc_info = exc_info
+            logger.exception("generic exception in filestream thread")
+            util.sentry_exc(exc_info, delay=True)
+            raise e
+
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
@@ -331,7 +346,12 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
+        # TODO(jhr): join on a thread which exited with an exception is a noop, clean up this path
         self._thread.join()
+        if self._exc_info:
+            logger.error("FileStream exception", exc_info=self._exc_info)
+            # reraising the original exception, will get recaught in internal.py for the sender thread
+            six.reraise(*self._exc_info)
 
 
 MAX_SLEEP_SECONDS = 60 * 5
@@ -352,67 +372,60 @@ def request_with_retry(func, *args, **kwargs):
     retry_count = 0
     while True:
         try:
-            try:
-                response = func(*args, **kwargs)
-                response.raise_for_status()
-                return response
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.HTTPError,
-                requests.exceptions.Timeout,
-            ) as e:
-                if isinstance(e, requests.exceptions.HTTPError):
-                    # Non-retriable HTTP errors.
-                    #
-                    # We retry 500s just to be cautious, and because the back end
-                    # returns them when there are infrastructure issues. If retrying
-                    # some request winds up being problematic, we'll change the
-                    # back end to indicate that it shouldn't be retried.
-                    if (
-                        e.response is not None
-                        and e.response.status_code in {400, 403, 404, 409}
-                    ) or (
-                        e.response is not None
-                        and e.response.status_code == 500
-                        and e.response.content
-                        == b'{"error":"context deadline exceeded"}\n'
-                    ):
-                        return e
-
-                if retry_count == max_retries:
-                    return e
-                retry_count += 1
-                delay = sleep + random.random() * 0.25 * sleep
-                if isinstance(e, requests.exceptions.HTTPError) and (
-                    e.response is not None and e.response.status_code == 429
+            response = func(*args, **kwargs)
+            response.raise_for_status()
+            return response
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.Timeout,
+        ) as e:
+            if isinstance(e, requests.exceptions.HTTPError):
+                # Non-retriable HTTP errors.
+                #
+                # We retry 500s just to be cautious, and because the back end
+                # returns them when there are infrastructure issues. If retrying
+                # some request winds up being problematic, we'll change the
+                # back end to indicate that it shouldn't be retried.
+                if (
+                    e.response is not None
+                    and e.response.status_code in {400, 403, 404, 409}
+                ) or (
+                    e.response is not None
+                    and e.response.status_code == 500
+                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
                 ):
-                    err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                        delay
-                    )
-                    if retry_callback:
-                        retry_callback(e.response.status_code, err_str)
-                    logger.info(err_str)
-                else:
-                    pass
-                    logger.warning(
-                        "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
-                        e,
-                        func,
-                        args,
-                        kwargs,
-                    )
-                time.sleep(delay)
-                sleep *= 2
-                if sleep > MAX_SLEEP_SECONDS:
-                    sleep = MAX_SLEEP_SECONDS
-            except requests.exceptions.RequestException as e:
-                logger.error(response.json()["error"])  # XXX clean this up
-                logger.exception(
-                    "requests_with_retry encountered unretryable exception: %s", e
-                )
+                    return e
+
+            if retry_count == max_retries:
                 return e
-        except Exception as e:
+            retry_count += 1
+            delay = sleep + random.random() * 0.25 * sleep
+            if isinstance(e, requests.exceptions.HTTPError) and (
+                e.response is not None and e.response.status_code == 429
+            ):
+                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
+                    delay
+                )
+                if retry_callback:
+                    retry_callback(e.response.status_code, err_str)
+                logger.info(err_str)
+            else:
+                pass
+                logger.warning(
+                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
+                    e,
+                    func,
+                    args,
+                    kwargs,
+                )
+            time.sleep(delay)
+            sleep *= 2
+            if sleep > MAX_SLEEP_SECONDS:
+                sleep = MAX_SLEEP_SECONDS
+        except requests.exceptions.RequestException as e:
+            logger.error(response.json()["error"])  # XXX clean this up
             logger.exception(
-                "Filestream encountered unhandled exception in retry: {}".format(e)
+                "requests_with_retry encountered unretryable exception: %s", e
             )
-            raise e
+            return e
