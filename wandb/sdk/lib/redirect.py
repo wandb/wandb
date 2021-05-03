@@ -535,8 +535,8 @@ class StreamWrapper(RedirectBase):
                 data = self._queue.get()
                 try:
                     self._emulator.write(data.decode("utf-8"))
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise e
 
     def _callback(self):
         while not (self._stopped.is_set() and self._queue.empty()):
@@ -578,7 +578,8 @@ class StreamWrapper(RedirectBase):
     def flush(self):
         try:
             data = self._emulator.read().encode("utf-8")
-        except Exception:
+        except Exception as e:
+            raise e
             data = b""
         if data:
             for cb in self.cbs:
