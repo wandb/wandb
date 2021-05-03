@@ -763,6 +763,7 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
+                data = b""
                 if self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
                     data = os.read(self._pipe_read_fd, 4096)
                 elif self._stopped.is_set():
