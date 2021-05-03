@@ -219,7 +219,7 @@ def test_print_torch_model(cls, capfd):
         end = time.time()
         t2 = end - start
         overhead = t2 - t1
-        assert overhead < 0.1
+        assert overhead < 0.2
         r.uninstall()
 
 

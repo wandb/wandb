@@ -45,7 +45,6 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
-_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n\n"
 
 SEP_RE = re.compile(
     "\r|\n|"
