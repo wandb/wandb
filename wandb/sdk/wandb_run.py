@@ -2006,8 +2006,8 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
-        wandb.watch(models, criterion, log, log_freq, idx)
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, full_hooks=True) -> None:  # type: ignore
+        wandb.watch(models, criterion, log, log_freq, idx, full_hooks)
 
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore

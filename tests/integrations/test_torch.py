@@ -172,6 +172,21 @@ def test_all_logging(wandb_init_run):
     assert len(wandb.run._backend.history) == 3
 
 
+def test_all_logging_no_full_hooks(wandb_init_run):
+    # TODO(jhr): does not work with --flake-finder
+    net = ConvNet()
+    wandb.watch(net, log="all", log_freq=1, full_hooks=False)
+    for i in range(3):
+        output = net(dummy_torch_tensor((32, 1, 28, 28)))
+        grads = torch.ones(32, 10)
+        output.backward(grads)
+        wandb.log({"a": 2})
+        assert len(wandb.run._backend.history[0]) == 20
+        assert len(wandb.run._backend.history[0]["parameters/fc2.bias"]["bins"]) == 65
+        assert len(wandb.run._backend.history[0]["gradients/fc2.bias"]["bins"]) == 65
+    assert len(wandb.run._backend.history) == 3
+
+
 def test_double_log(wandb_init_run):
     net = ConvNet()
     wandb.watch(net)
