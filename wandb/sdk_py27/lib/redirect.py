@@ -754,10 +754,12 @@ class Redirect(RedirectBase):
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
     def _pipe_relay(self):
-        has_data = lambda: self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]
         while True:
             try:
-                while not has_data:
+                while (
+                    self._pipe_read_fd
+                    not in select.select([self._pipe_read_fd], [], [], 0)[0]
+                ):
                     if self._stopped.is_set():
                         return
                     time.sleep(0.1)
