@@ -692,6 +692,7 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
+        self._pipe_relay_thread_stopped = thread.Event()
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
@@ -709,8 +710,13 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
+        self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.write(self._pipe_write_fd, b"\n")
+
+        if not self._pipe_relay_thread_stopped.wait(timeout=60):
+                logger.warning(
+                    "Redirect: _pipe_relay_thread did not join in 60 seconds. Some terminal output might be lost."
+                )
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
@@ -731,7 +737,6 @@ class Redirect(RedirectBase):
                 )
                 break
 
-        self._stopped.set()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -759,16 +764,20 @@ class Redirect(RedirectBase):
         )
         while True:
             try:
-                while not has_data:
-                    if self._stopped.is_set():
-                        return
+                if has_data():
+                    data = os.read(self._pipe_read_fd, 4096)
+                elif self._stopped.is_set():
+                    self._pipe_relay_thread_stopped.set()
+                    return
+                else:
                     time.sleep(0.1)
-                data = os.read(self._pipe_read_fd, 4096)
+                    continue
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
             except OSError:
+                self._pipe_relay_thread_stopped.set()
                 return
             self._queue.put(data)
 
