@@ -713,12 +713,16 @@ class Redirect(RedirectBase):
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
 
-        if not self._pipe_relay_thread_stopped.wait(timeout=60):
-                logger.warning(
-                    "Redirect: _pipe_relay_thread did not join in 60 seconds. Some terminal output might be lost."
-                )
+        while self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]:
+            time.sleep(0.1)
+
         os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
+
+        # if not self._pipe_relay_thread_stopped.wait(timeout=60):
+        #         logger.warning(
+        #             "Redirect: _pipe_relay_thread did not join in 60 seconds. Some terminal output might be lost."
+        #         )
 
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
@@ -759,19 +763,9 @@ class Redirect(RedirectBase):
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
     def _pipe_relay(self):
-        has_data = (
-            lambda: self._pipe_read_fd in select.select([self._pipe_read_fd], [], [], 0)[0]
-        )
         while True:
             try:
-                if has_data():
-                    data = os.read(self._pipe_read_fd, 4096)
-                elif self._stopped.is_set():
-                    self._pipe_relay_thread_stopped.set()
-                    return
-                else:
-                    time.sleep(0.1)
-                    continue
+                data = os.read(self._pipe_read_fd, 4096)
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
