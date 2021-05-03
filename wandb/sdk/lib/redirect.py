@@ -11,6 +11,7 @@ import itertools
 import logging
 import os
 import re
+import select
 import signal
 import struct
 import sys
@@ -43,6 +44,8 @@ _redirects = {"stdout": None, "stderr": None}
 
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
+
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n\n"
 
 SEP_RE = re.compile(
     "\r|\n|"
@@ -522,25 +525,27 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True:
             if self._queue.empty():
+                if self._stopped.is_set():
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
                 data = self._queue.get()
-                if isinstance(data, bytes):
-                    try:
-                        data = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        # TODO(frz)
-                        data = ""
                 try:
+                    if isinstance(data, bytes):
+                        try:
+                            data = data.decode("utf-8")
+                        except UnicodeDecodeError:
+                            # TODO(frz)
+                            data = ""
                     self._emulator.write(data)
                 except Exception:
                     pass
 
     def _callback(self):
-        while not self._stopped.is_set():
+        while not (self._stopped.is_set() and self._queue.empty()):
             self.flush()
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
@@ -596,18 +601,8 @@ class StreamWrapper(RedirectBase):
         else:
             setattr(sys, self.src, self._old_stream)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logger.warning(
-                    "StreamWrapper: queue not empty after 10 seconds. Dropping logs."
-                )
-                break
-
         self._stopped.set()
+        self._emulator_write_thread.join()
         self.flush()
         self._installed = False
 
@@ -708,9 +703,10 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
+        self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.write(self._pipe_write_fd, b"\n")
         os.close(self._pipe_write_fd)
+        self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
 
         t = threading.Thread(
@@ -719,18 +715,7 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 10 seconds
-                logger.warning(
-                    "Redirect: queue not empty after 10 seconds. Dropping logs."
-                )
-                break
-
-        self._stopped.set()
+        self._emulator_write_thread.join()
         self.flush()
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
@@ -755,23 +740,30 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                data = os.read(self._pipe_read_fd, 4096)
-                if self._stopped.is_set():
+                if (
+                    self._pipe_read_fd
+                    in select.select([self._pipe_read_fd], [], [], 0)[0]
+                ):
+                    data = os.read(self._pipe_read_fd, 4096)
+                    i = self._orig_src.write(data)
+                    if (
+                        i is not None
+                    ):  # python 3 w/ unbuffered i/o: we need to keep writing
+                        while i < len(data):
+                            i += self._orig_src.write(data[i:])
+                    self._queue.put(data)
+                elif self._stopped.is_set():
                     return
+                else:
+                    time.sleep(0.1)
             except OSError:
                 return
-            try:
-                i = self._orig_src.write(data)
-                if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
-                    while i < len(data):
-                        i += self._orig_src.write(data[i:])
-            except OSError:
-                return
-            self._queue.put(data)
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True:
             if self._queue.empty():
+                if self._stopped.is_set():
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
