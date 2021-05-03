@@ -525,20 +525,16 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        while not self._stopped.is_set():
+        while True:
             if self._queue.empty():
+                if self._stopped.is_set():
+                    return
                 time.sleep(0.5)
                 continue
             while not self._queue.empty():
                 data = self._queue.get()
-                if isinstance(data, bytes):
-                    try:
-                        data = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        # TODO(frz)
-                        data = ""
                 try:
-                    self._emulator.write(data)
+                    self._emulator.write(data.decode("utf-8"))
                 except Exception:
                     pass
 
@@ -600,17 +596,18 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         # Joining daemonic thread might hang, so we wait for the queue to empty out instead:
-        cnt = 0
-        while not self._queue.empty():
-            time.sleep(0.1)
-            cnt += 1
-            if cnt == 100:  # bail after 60 seconds
-                logger.warning(
-                    "StreamWrapper: queue not empty after 60 seconds. Dropping logs."
-                )
-                break
+        # cnt = 0
+        # while not self._queue.empty():
+        #     time.sleep(0.1)
+        #     cnt += 1
+        #     if cnt == 100:  # bail after 60 seconds
+        #         logger.warning(
+        #             "StreamWrapper: queue not empty after 60 seconds. Dropping logs."
+        #         )
+        #         break
 
         self._stopped.set()
+        self._emulator_write_thread.join()
         self.flush()
         self._installed = False
 
