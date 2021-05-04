@@ -325,3 +325,25 @@ def test_metric_nested_glob(live_mock_server, test_settings, parse_ctx):
     assert summary.get("this", {}).get("that", {}).get("max") == 4
     assert len(metrics) == 1
     assert metrics[0] == {"1": "this.that", "7": [1, 2]}
+
+
+def test_metric_debouncing(live_mock_server, test_settings, parse_ctx):
+    # addresses WB-5424
+    run = wandb.init(settings=test_settings)
+    run.define_metric('*', summary="min,max")
+
+    # test many defined metrics logged at once
+    log_arg = {str(i): i for i in range(300)}
+    run.log(log_arg)
+
+    # and serially
+    for i in range(300, 600):
+        run.log({str(i): i})
+
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+
+    # without debouncing, the number of config updates should be ~600, one for each defined metric
+    # with debouncing, the number should be << 10
+    assert len(ctx_util.config) < 10
