@@ -984,8 +984,9 @@ class DeferRequest(google___protobuf___message___Message):
         FLUSH_DIR = typing___cast(DeferRequest.DeferStateValue, 4)
         FLUSH_FP = typing___cast(DeferRequest.DeferStateValue, 5)
         FLUSH_FS = typing___cast(DeferRequest.DeferStateValue, 6)
-        FLUSH_FINAL = typing___cast(DeferRequest.DeferStateValue, 7)
-        END = typing___cast(DeferRequest.DeferStateValue, 8)
+        FLUSH_DEBOUNCER = typing___cast(DeferRequest.DeferStateValue, 7)
+        FLUSH_FINAL = typing___cast(DeferRequest.DeferStateValue, 8)
+        END = typing___cast(DeferRequest.DeferStateValue, 9)
     BEGIN = typing___cast(DeferRequest.DeferStateValue, 0)
     FLUSH_STATS = typing___cast(DeferRequest.DeferStateValue, 1)
     FLUSH_TB = typing___cast(DeferRequest.DeferStateValue, 2)
@@ -993,8 +994,9 @@ class DeferRequest(google___protobuf___message___Message):
     FLUSH_DIR = typing___cast(DeferRequest.DeferStateValue, 4)
     FLUSH_FP = typing___cast(DeferRequest.DeferStateValue, 5)
     FLUSH_FS = typing___cast(DeferRequest.DeferStateValue, 6)
-    FLUSH_FINAL = typing___cast(DeferRequest.DeferStateValue, 7)
-    END = typing___cast(DeferRequest.DeferStateValue, 8)
+    FLUSH_DEBOUNCER = typing___cast(DeferRequest.DeferStateValue, 7)
+    FLUSH_FINAL = typing___cast(DeferRequest.DeferStateValue, 8)
+    END = typing___cast(DeferRequest.DeferStateValue, 9)
     type___DeferState = DeferState
 
     state: type___DeferRequest.DeferStateValue = ...
