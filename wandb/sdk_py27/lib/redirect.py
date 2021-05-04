@@ -533,6 +533,11 @@ class StreamWrapper(RedirectBase):
             with self._queue.mutex:
                 data = "".join(self._queue.queue)
                 self._queue.queue.clear()
+            if self._stopped.is_set() and len(data) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                self.flush(data)
+                return
             try:
                 self._emulator.write(data)
             except Exception:
@@ -597,25 +602,14 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         self._stopped.set()
-        data = None
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            self._emulator_write_thread.join(timeout=5)
-            if self._emulator_write_thread.is_alive():
-                if self._queue.empty():
-                    # We can't recover from this state.
-                    logger.debug("Terminal output processing took too long. Dropping logs.")
-                else:
-                    logger.debug("Terminal output processing took too long. Logging data without processing.")
-                    with self._queue.mutex:
-                        data = "".join(self._queue.queue)
-                        self._queue.queue.clear()
-            else:
-                wandb.termlog("Done.")
-        self.flush(data)
-        self._installed = False
+            self._emulator_write_thread.join()
+            wandb.termlog("Done.")
+        self.flush()
 
+        self._installed = False
         super(StreamWrapper, self).uninstall()
 
 
@@ -725,22 +719,13 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        data = None
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            self._emulator_write_thread.join(timeout=5)
-            if self._emulator_write_thread.is_alive():
-                if self._queue.empty():
-                    # We can't recover from this state.
-                    wandb.termlog("Terminal output processing took too long. Dropping logs.")
-                else:
-                    wandb.termlog("Terminal output processing took too long. Logging data without processing.")
-                    with self._queue.mutex:
-                        data = b"".join(self._queue.queue).decode("utf-8")
-                        self._queue.queue.clear()
+            self._emulator_write_thread.join()
             wandb.termlog("Done.")
-        self.flush(data)
+        self.flush()
+
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
 
@@ -794,6 +779,11 @@ class Redirect(RedirectBase):
             with self._queue.mutex:
                 data = b"".join(self._queue.queue)
                 self._queue.queue.clear()
+            if self._stopped.is_set() and len(data) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                self.flush(data)
+                return
             try:
                 self._emulator.write(data.decode("utf-8"))
             except Exception:
