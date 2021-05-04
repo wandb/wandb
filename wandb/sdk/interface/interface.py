@@ -253,6 +253,7 @@ class BackendSender(object):
             proto_artifact.description = artifact.description
         if artifact.metadata:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
+        proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
@@ -425,7 +426,8 @@ class BackendSender(object):
         get_summary: pb.GetSummaryRequest = None,
         pause: pb.PauseRequest = None,
         resume: pb.ResumeRequest = None,
-        status: pb.StatusRequest = None,
+        stop_status: pb.StopStatusRequest = None,
+        network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
         sampled_history: pb.SampledHistoryRequest = None,
         run_start: pb.RunStartRequest = None,
@@ -442,8 +444,10 @@ class BackendSender(object):
             request.pause.CopyFrom(pause)
         elif resume:
             request.resume.CopyFrom(resume)
-        elif status:
-            request.status.CopyFrom(status)
+        elif stop_status:
+            request.stop_status.CopyFrom(stop_status)
+        elif network_status:
+            request.network_status.CopyFrom(network_status)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif sampled_history:
@@ -534,6 +538,8 @@ class BackendSender(object):
 
     def _communicate_async(self, rec: pb.Record, local: bool = None) -> _Future:
         assert self._router
+        if self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
         future = self._router.send_and_receive(rec, local=local)
         return future
 
@@ -605,6 +611,7 @@ class BackendSender(object):
         val: Any = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
+
         self._publish_config(cfg)
 
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
@@ -719,18 +726,29 @@ class BackendSender(object):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_status(
-        self, check_stop_req: bool, timeout: int = None
-    ) -> Optional[pb.StatusResponse]:
-        status = pb.StatusRequest()
-        status.check_stop_req = check_stop_req
-        req = self._make_request(status=status)
+    def communicate_stop_status(
+        self, timeout: int = None
+    ) -> Optional[pb.StopStatusResponse]:
+        status = pb.StopStatusRequest()
+        req = self._make_request(stop_status=status)
 
         resp = self._communicate(req, timeout=timeout, local=True)
         if resp is None:
             return None
-        assert resp.response.status_response
-        return resp.response.status_response
+        assert resp.response.stop_status_response
+        return resp.response.stop_status_response
+
+    def communicate_network_status(
+        self, timeout: int = None
+    ) -> Optional[pb.NetworkStatusResponse]:
+        status = pb.NetworkStatusRequest()
+        req = self._make_request(network_status=status)
+
+        resp = self._communicate(req, timeout=timeout, local=True)
+        if resp is None:
+            return None
+        assert resp.response.network_status_response
+        return resp.response.network_status_response
 
     def publish_exit(self, exit_code: int) -> None:
         exit_data = self._make_exit(exit_code)
@@ -751,12 +769,10 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def communicate_poll_exit(
-        self, timeout: int = None
-    ) -> Optional[pb.PollExitResponse]:
+    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
         poll_request = pb.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
-        result = self._communicate(rec, timeout=timeout)
+        result = self._communicate(rec)
         if result is None:
             return None
         poll_exit_response = result.response.poll_exit_response

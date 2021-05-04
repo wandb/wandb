@@ -1,3 +1,38 @@
+## 0.10.29 (May 3, 2021)
+
+#### :bug: Bug Fix
+
+- Fix more network handling issues causing runs to be marked crashed (wandb sync to recover)
+- Improve logging and exception handling to improve reporting and logging of crashed processes
+
+## 0.10.28 (April 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix network handling issue causing runs to be marked crashed (wandb sync to recover)
+- Use `register_full_backward_hook` to support models with Dict outputs
+- Allow periods in table columns
+- Fix artifact cache collisions when using forked processes
+- Fix issue where custom charts do not display properly with pytorch-lightning
+
+#### :nail_care: Enhancement
+
+- Add experimental incremental artifact support
+- Improve warnings when logging is being rate limited
+
+## 0.10.27 (April 19, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync condition where metrics at end of short run are dropped 
+- Fix `wandb sync` when tensorboard files are detected
+- Fix api key prompt in databricks notebook
+
+#### :nail_care: Enhancement
+
+- Integrate DSViz into Keras WandbCallback
+- Add support for conda dependencies (user submit)
+
 ## 0.10.26 (April 13, 2021)
 
 #### :bug: Bug Fix

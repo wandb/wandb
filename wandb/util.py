@@ -148,10 +148,7 @@ def vendor_setup():
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = (
-        "gql-0.2.0",
-        "graphql-core-1.1",
-    )
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -267,13 +264,15 @@ class PreInitObject(object):
 
 np = get_module("numpy")
 
-MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "://api.wandb." in api_url:
+    if "://api.wandb.test" in api_url:
+        # dev mode
+        return api_url.replace("://api.", "://app.")
+    elif "://api.wandb." in api_url:
         # cloud
         return api_url.replace("://api.", "://")
     elif "://api." in api_url:
@@ -700,6 +699,8 @@ def no_retry_auth(e):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
         return True
+    if e.response is None:
+        return True
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
@@ -713,71 +714,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
-
-
-def request_with_retry(func, *args, **kwargs):
-    """Perform a requests http call, retrying with exponential backoff.
-
-    Arguments:
-        func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
-        *args: passed through to func
-        **kwargs: passed through to func
-    """
-    max_retries = kwargs.pop("max_retries", 30)
-    sleep = 2
-    retry_count = 0
-    while True:
-        try:
-            response = func(*args, **kwargs)
-            response.raise_for_status()
-            return response
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.Timeout,
-        ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
-                # Non-retriable HTTP errors.
-                #
-                # We retry 500s just to be cautious, and because the back end
-                # returns them when there are infrastructure issues. If retrying
-                # some request winds up being problematic, we'll change the
-                # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409} or (
-                    e.response.status_code == 500
-                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
-                ):
-                    return e
-
-            if retry_count == max_retries:
-                return e
-            retry_count += 1
-            delay = sleep + random.random() * 0.25 * sleep
-            if (
-                isinstance(e, requests.exceptions.HTTPError)
-                and e.response.status_code == 429
-            ):
-                logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
-            else:
-                pass
-                logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
-                    e,
-                    func,
-                    args,
-                    kwargs,
-                )
-            time.sleep(delay)
-            sleep *= 2
-            if sleep > MAX_SLEEP_SECONDS:
-                sleep = MAX_SLEEP_SECONDS
-        except requests.exceptions.RequestException as e:
-            logger.error(response.json()["error"])  # XXX clean this up
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
-            return e
 
 
 def find_runner(program):
@@ -954,11 +890,11 @@ def image_id_from_k8s():
 
 def async_call(target, timeout=None):
     """Accepts a method and optional timeout.
-       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
-       This new method blocks on the original and returns the result or None
-       if timeout was reached, along with the thread.
-       You can check thread.is_alive() to determine if a timeout was reached.
-       If an exception is thrown in the thread, we reraise it.
+    Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+    This new method blocks on the original and returns the result or None
+    if timeout was reached, along with the thread.
+    You can check thread.is_alive() to determine if a timeout was reached.
+    If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
 
@@ -1112,7 +1048,7 @@ def parse_sweep_id(parts_dict):
 
     Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-    
+
     Returns:
         None or str if there is an error
     """
@@ -1242,8 +1178,9 @@ def _has_internet():
         return False
 
 
-def rand_alphanumeric(length=8):
-    return "".join(random.choice("0123456789ABCDEF") for _ in range(length))
+def rand_alphanumeric(length=8, rand=None):
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1263,6 +1200,17 @@ def _is_kaggle():
     return (
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
+    )
+
+
+def _is_likely_kaggle():
+    # Telemetry to mark first runs from Kagglers.
+    return (
+        _is_kaggle()
+        or os.path.exists(
+            os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))
+        )
+        or "kaggle" in sys.modules
     )
 
 

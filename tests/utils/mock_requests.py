@@ -14,8 +14,15 @@ class ResponseMock(object):
         pass
 
     def raise_for_status(self):
-        if self.response.status_code >= 400:
-            raise requests.exceptions.HTTPError("Bad Request", response=self.response)
+        # convert flask Response to requests Response
+        response = requests.Response()
+        response.status_code = self.response.status_code
+        if self.response.status_code == 429:
+            response._content = b'{"error": "rate limit exceeded"}'
+            raise requests.exceptions.HTTPError(response=response)
+        elif self.response.status_code >= 400:
+            response._content = b"Bad Request"
+            raise requests.exceptions.HTTPError(response=response)
 
     @property
     def status_code(self):
