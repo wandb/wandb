@@ -578,13 +578,15 @@ class StreamWrapper(RedirectBase):
     def flush(self, data=None):
         if data is None:
             try:
-                data = self._emulator.read().encode("utf-8")
+                data_ = self._emulator.read().encode("utf-8")
             except Exception:
-                data = ""
-        if data:
+                data_ = ""
+        else:
+            data_ = data
+        if data_:
             for cb in self.cbs:
                 try:
-                    cb(data)
+                    cb(data_)
                 except Exception:
                     pass  # TODO(frz)
 
@@ -746,13 +748,15 @@ class Redirect(RedirectBase):
     def flush(self, data=None):
         if data is None:
             try:
-                data = self._emulator.read().encode("utf-8")
+                data_ = self._emulator.read().encode("utf-8")
             except Exception:
-                data = ""
-        if data:
+                data_ = ""
+        else:
+            data_ = data
+        if data_:
             for cb in self.cbs:
                 try:
-                    cb(data)
+                    cb(data_)
                 except Exception:
                     pass  # TODO(frz)
 
