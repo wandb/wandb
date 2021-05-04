@@ -265,7 +265,6 @@ class PreInitObject(object):
 
 np = get_module("numpy")
 
-MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
@@ -701,6 +700,8 @@ def no_retry_auth(e):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
         return True
+    if e.response is None:
+        return True
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
@@ -714,81 +715,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
-
-
-def request_with_retry(func, *args, **kwargs):
-    """Perform a requests http call, retrying with exponential backoff.
-
-    Arguments:
-        func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
-        *args: passed through to func
-        **kwargs: passed through to func
-    """
-    max_retries = kwargs.pop("max_retries", 30)
-    retry_callback = kwargs.pop("retry_callback", None)
-    sleep = 2
-    retry_count = 0
-    while True:
-        try:
-            response = func(*args, **kwargs)
-            response.raise_for_status()
-            return response
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.Timeout,
-        ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
-                # Non-retriable HTTP errors.
-                #
-                # We retry 500s just to be cautious, and because the back end
-                # returns them when there are infrastructure issues. If retrying
-                # some request winds up being problematic, we'll change the
-                # back end to indicate that it shouldn't be retried.
-                if (
-                    hasattr(e.response, "status_code")
-                    and e.response.status_code in {400, 403, 404, 409}
-                ) or (
-                    hasattr(e.response, "status_code")
-                    and hasattr(e.response, "content")
-                    and e.response.status_code == 500
-                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
-                ):
-                    return e
-
-            if retry_count == max_retries:
-                return e
-            retry_count += 1
-            delay = sleep + random.random() * 0.25 * sleep
-            if isinstance(e, requests.exceptions.HTTPError) and (
-                hasattr(e.response, "status_code") and e.response.status_code == 429
-            ):
-                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                    delay
-                )
-                if retry_callback:
-                    retry_callback(e.response.status_code, err_str)
-                logger.info(err_str)
-            else:
-                pass
-                logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
-                    e,
-                    func,
-                    args,
-                    kwargs,
-                )
-            time.sleep(delay)
-            sleep *= 2
-            if sleep > MAX_SLEEP_SECONDS:
-                sleep = MAX_SLEEP_SECONDS
-        except requests.exceptions.RequestException as e:
-            logger.error(response.json()["error"])  # XXX clean this up
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
-            return e
 
 
 def find_runner(program):
