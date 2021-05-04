@@ -274,8 +274,9 @@ def runner(monkeypatch, mocker):
 
 
 @pytest.fixture(autouse=True)
-def reset_setup():
+def reset_globals():
     wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+    wandb.wandb_sdk.wandb_watch._global_watch_idx = 0
 
 
 @pytest.fixture(autouse=True)
