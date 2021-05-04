@@ -156,7 +156,7 @@ class SyncThread(threading.Thread):
         send_manager.send_run(record, file_dir=settings.files_dir)
 
         watcher = tb_watcher.TBWatcher(
-            settings, proto_run, send_manager._interface, True, True
+            settings, proto_run, send_manager._interface, True
         )
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
@@ -166,9 +166,15 @@ class SyncThread(threading.Thread):
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
             if len(data.history.ListFields()) != 0:
+                # this will always exist since tb_watcher injects global_step into each record
+                global_step = next(
+                    data.history.item[i].value_json
+                    for i in range(len(data.history.item))
+                    if data.history.item[i].key == "global_step"
+                )
                 item = data.history.item.add()
                 item.key = "_step"
-                item.value_json = json.dumps(data.history.step.num)
+                item.value_json = global_step
             send_manager.send(data)
         sys.stdout.flush()
         send_manager.finish()
