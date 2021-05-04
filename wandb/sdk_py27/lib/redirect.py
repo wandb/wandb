@@ -530,18 +530,13 @@ class StreamWrapper(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            while not self._queue.empty():
-                data = self._queue.get()
-                try:
-                    if isinstance(data, bytes):
-                        try:
-                            data = data.decode("utf-8")
-                        except UnicodeDecodeError:
-                            # TODO(frz)
-                            data = ""
-                    self._emulator.write(data)
-                except Exception:
-                    pass
+            with self._queue.mutex:
+                data = "".join(self._queue.queue)
+                self._queue.queue.clear(d)
+            try:
+                self._emulator.write(data)
+            except Exception:
+                pass
 
     def _callback(self):
         while not (self._stopped.is_set() and self._queue.empty()):
@@ -580,11 +575,12 @@ class StreamWrapper(RedirectBase):
 
         self._installed = True
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                return
         if data:
             for cb in self.cbs:
                 try:
@@ -601,8 +597,21 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         self._stopped.set()
-        self._emulator_write_thread.join()
-        self.flush()
+        data = None
+        if not self._emulator_write_thread.join(timeout=5):
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            if not self._emulator_write_thread.join(timeout=5):
+                if self._queue.empty():
+                    # We can't recover from this state.
+                    logger.debug("Terminal output processing took too long. Dropping logs.")
+                else:
+                    logger.debug("Terminal output processing took too long. Logging data without processing.")
+                    with self._queue.mutex:
+                        data = "".join(self._queue.queue)
+                        self._queue.queue.clear()
+            else:
+                wandb.termlog("Done.")
+        self.flush(data)
         self._installed = False
 
         super(StreamWrapper, self).uninstall()
@@ -714,16 +723,29 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        self._emulator_write_thread.join()
-        self.flush()
+        if not self._emulator_write_thread.join(timeout=5):
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            if not self._emulator_write_thread.join(timeout=5):
+                if self._queue.empty():
+                    # We can't recover from this state.
+                    logger.debug("Terminal output processing took too long. Dropping logs.")
+                else:
+                    logger.debug("Terminal output processing took too long. Logging data without processing.")
+                    with self._queue.mutex:
+                        data = "".join(self._queue.queue)
+                        self._queue.queue.clear()
+            else:
+                wandb.termlog("Done.")
+        self.flush(data)
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                return
         if data:
             for cb in self.cbs:
                 try:
