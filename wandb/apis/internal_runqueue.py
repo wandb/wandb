@@ -17,9 +17,14 @@ import wandb
 from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
-from wandb.old import retry
 from wandb.old.settings import Settings
 import yaml
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib import retry
+else:
+    from wandb.sdk_py27.lib import retry
 
 logger = logging.getLogger(__name__)
 
