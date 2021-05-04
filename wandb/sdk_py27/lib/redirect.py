@@ -732,7 +732,7 @@ class Redirect(RedirectBase):
                 else:
                     logger.debug("Terminal output processing took too long. Logging data without processing.")
                     with self._queue.mutex:
-                        data = "".join(self._queue.queue)
+                        data = b"".join(self._queue.queue).decode("utf-8")
                         self._queue.queue.clear()
             else:
                 wandb.termlog("Done.")
