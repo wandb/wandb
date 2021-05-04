@@ -580,7 +580,7 @@ class StreamWrapper(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                return
+                data = ""
         if data:
             for cb in self.cbs:
                 try:
@@ -598,9 +598,11 @@ class StreamWrapper(RedirectBase):
 
         self._stopped.set()
         data = None
-        if not self._emulator_write_thread.join(timeout=5):
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            if not self._emulator_write_thread.join(timeout=5):
+            self._emulator_write_thread.join(timeout=5)
+            if self._emulator_write_thread.is_alive():
                 if self._queue.empty():
                     # We can't recover from this state.
                     logger.debug("Terminal output processing took too long. Dropping logs.")
@@ -722,10 +724,11 @@ class Redirect(RedirectBase):
         )  # Calling flush() from the current thread does not flush the buffer instantly.
         t.start()
         t.join(timeout=10)
-
-        if not self._emulator_write_thread.join(timeout=5):
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            if not self._emulator_write_thread.join(timeout=5):
+            self._emulator_write_thread.join(timeout=5)
+            if self._emulator_write_thread.is_alive():
                 if self._queue.empty():
                     # We can't recover from this state.
                     logger.debug("Terminal output processing took too long. Dropping logs.")
@@ -745,7 +748,7 @@ class Redirect(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                return
+                data = ""
         if data:
             for cb in self.cbs:
                 try:

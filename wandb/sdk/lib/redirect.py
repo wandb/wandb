@@ -565,7 +565,7 @@ class StreamWrapper(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        # self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
         if not wandb.run or wandb.run._settings.mode == "online":
@@ -598,9 +598,11 @@ class StreamWrapper(RedirectBase):
 
         self._stopped.set()
         data = None
-        if not self._emulator_write_thread.join(timeout=5):
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            if not self._emulator_write_thread.join(timeout=5):
+            self._emulator_write_thread.join(timeout=5)
+            if self._emulator_write_thread.is_alive():
                 if self._queue.empty():
                     # We can't recover from this state.
                     logger.debug("Terminal output processing took too long. Dropping logs.")
@@ -699,7 +701,7 @@ class Redirect(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        # self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
@@ -722,10 +724,11 @@ class Redirect(RedirectBase):
         )  # Calling flush() from the current thread does not flush the buffer instantly.
         t.start()
         t.join(timeout=10)
-
-        if not self._emulator_write_thread.join(timeout=5):
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
-            if not self._emulator_write_thread.join(timeout=5):
+            self._emulator_write_thread.join(timeout=5)
+            if self._emulator_write_thread.is_alive():
                 if self._queue.empty():
                     # We can't recover from this state.
                     logger.debug("Terminal output processing took too long. Dropping logs.")
