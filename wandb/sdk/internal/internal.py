@@ -159,6 +159,7 @@ def wandb_internal(
             print("Thread {}:".format(thread.name), file=sys.stderr)
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
+            wandb.termerror("Internal wandb error: file data was not synced")
             sys.exit(-1)
 
 
@@ -166,7 +167,6 @@ def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> Non
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
-    logging.root.handlers = []
     log_handler = logging.FileHandler(log_fname)
     log_handler.setLevel(log_level)
 
@@ -193,6 +193,7 @@ def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> Non
     # are not streamed to `debug-internal.log` when we spawn with fork
     # TODO: (cvp) we should really take another pass at logging in general
     root = logging.getLogger("wandb")
+    root.propagate = False
     root.setLevel(logging.DEBUG)
     root.addHandler(log_handler)
 
