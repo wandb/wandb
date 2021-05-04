@@ -733,14 +733,13 @@ class Redirect(RedirectBase):
             if self._emulator_write_thread.is_alive():
                 if self._queue.empty():
                     # We can't recover from this state.
-                    logger.debug("Terminal output processing took too long. Dropping logs.")
+                    wandb.termlog("Terminal output processing took too long. Dropping logs.")
                 else:
-                    logger.debug("Terminal output processing took too long. Logging data without processing.")
+                    wandb.termlog("Terminal output processing took too long. Logging data without processing.")
                     with self._queue.mutex:
                         data = b"".join(self._queue.queue).decode("utf-8")
                         self._queue.queue.clear()
-            else:
-                wandb.termlog("Done.")
+            wandb.termlog("Done.")
         self.flush(data)
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
