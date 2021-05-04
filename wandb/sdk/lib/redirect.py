@@ -524,6 +524,7 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
+        data = ""
         while True:
             if self._queue.empty():
                 if self._stopped.is_set():
@@ -578,15 +579,13 @@ class StreamWrapper(RedirectBase):
     def flush(self, data=None):
         if data is None:
             try:
-                data_ = self._emulator.read().encode("utf-8")
+                data = self._emulator.read().encode("utf-8")
             except Exception:
-                data_ = ""
-        else:
-            data_ = data
-        if data_:
+                data = ""
+        if data:
             for cb in self.cbs:
                 try:
-                    cb(data_)
+                    cb(data)
                 except Exception:
                     pass  # TODO(frz)
 
@@ -748,15 +747,13 @@ class Redirect(RedirectBase):
     def flush(self, data=None):
         if data is None:
             try:
-                data_ = self._emulator.read().encode("utf-8")
+                data = self._emulator.read().encode("utf-8")
             except Exception:
-                data_ = ""
-        else:
-            data_ = data
-        if data_:
+                data = ""
+        if data:
             for cb in self.cbs:
                 try:
-                    cb(data_)
+                    cb(data)
                 except Exception:
                     pass  # TODO(frz)
 
@@ -788,6 +785,7 @@ class Redirect(RedirectBase):
                 return
 
     def _emulator_write(self):
+        data = b""
         while True:
             if self._queue.empty():
                 if self._stopped.is_set():
