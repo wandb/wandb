@@ -238,9 +238,10 @@ class SendManager(object):
         config_value_dict = self._config_format(self._consolidated_config)
         if config_value_dict != self._config_at_last_debounce:
             # TODO(jhr): check result of upsert_run?
-            self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings
-            )
+            if self._run:
+                self._api.upsert_run(
+                    name=self._run.run_id, config=config_value_dict, **self._api_settings
+                )
 
         self._debounced_records = []
         self._config_at_last_debounce = config_value_dict
