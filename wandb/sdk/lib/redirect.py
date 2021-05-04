@@ -532,7 +532,7 @@ class StreamWrapper(RedirectBase):
                 continue
             with self._queue.mutex:
                 data = "".join(self._queue.queue)
-                self._queue.queue.clear(d)
+                self._queue.queue.clear()
             try:
                 self._emulator.write(data)
             except Exception:
