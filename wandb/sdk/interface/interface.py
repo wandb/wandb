@@ -538,6 +538,8 @@ class BackendSender(object):
 
     def _communicate_async(self, rec: pb.Record, local: bool = None) -> _Future:
         assert self._router
+        if self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
         future = self._router.send_and_receive(rec, local=local)
         return future
 
@@ -767,12 +769,11 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def communicate_poll_exit(
-        self, timeout: int = None
-    ) -> Optional[pb.PollExitResponse]:
+    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
+        print("debug")
         poll_request = pb.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
-        result = self._communicate(rec, timeout=timeout)
+        result = self._communicate(rec)
         if result is None:
             return None
         poll_exit_response = result.response.poll_exit_response
