@@ -103,6 +103,7 @@ def wandb_internal(
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
+        debounce_interval_ms=1000
     )
     threads.append(record_sender_thread)
 
@@ -214,9 +215,10 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "BackendSender",
+        debounce_interval_ms: "float" = 20,
     ) -> None:
         super(HandlerThread, self).__init__(
-            input_record_q=record_q, result_q=result_q, stopped=stopped,
+            input_record_q=record_q, result_q=result_q, stopped=stopped, debounce_interval_ms=debounce_interval_ms
         )
         self.name = "HandlerThread"
         self._settings = settings
@@ -261,9 +263,10 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         interface: "BackendSender",
+        debounce_interval_ms: "float" = 1000
     ) -> None:
         super(SenderThread, self).__init__(
-            input_record_q=record_q, result_q=result_q, stopped=stopped,
+            input_record_q=record_q, result_q=result_q, stopped=stopped, debounce_interval_ms=debounce_interval_ms
         )
         self.name = "SenderThread"
         self._settings = settings
@@ -302,9 +305,10 @@ class WriterThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         writer_q: "Queue[Record]",
+        debounce_interval_ms: "float" = 20
     ) -> None:
         super(WriterThread, self).__init__(
-            input_record_q=writer_q, result_q=result_q, stopped=stopped,
+            input_record_q=writer_q, result_q=result_q, stopped=stopped, debounce_interval_ms=debounce_interval_ms
         )
         self.name = "WriterThread"
         self._settings = settings
