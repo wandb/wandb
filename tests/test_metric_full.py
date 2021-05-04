@@ -327,7 +327,7 @@ def test_metric_nested_glob(live_mock_server, test_settings, parse_ctx):
     assert metrics[0] == {"1": "this.that", "7": [1, 2]}
 
 
-def test_metric_debouncing(live_mock_server, test_settings, parse_ctx):
+def test_metric_debouncing(live_mock_server, test_settings):
     # addresses WB-5424
     run = wandb.init(settings=test_settings)
     run.define_metric('*', summary="min,max")
@@ -342,8 +342,9 @@ def test_metric_debouncing(live_mock_server, test_settings, parse_ctx):
 
     run.finish()
 
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    ctx = live_mock_server.get_ctx()
 
-    # without debouncing, the number of config updates should be ~600, one for each defined metric
-    # with debouncing, the number should be << 10
-    assert len(ctx_util.config) < 10
+    # without debouncing, the number of config updates should be ~600, one for each defined metric.
+    # with debouncing, the number should be << 12 (the minimum number of debounce loops to exceed the
+    # 60s test timeout at a 5s debounce interval)
+    assert ctx['upsert_bucket_count'] < 12
