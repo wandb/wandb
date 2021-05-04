@@ -1,3 +1,10 @@
+## 0.10.29 (May 3, 2021)
+
+#### :bug: Bug Fix
+
+- Fix more network handling issues causing runs to be marked crashed (wandb sync to recover)
+- Improve logging and exception handling to improve reporting and logging of crashed processes
+
 ## 0.10.28 (April 28, 2021)
 
 #### :bug: Bug Fix
