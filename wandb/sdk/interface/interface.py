@@ -770,7 +770,6 @@ class BackendSender(object):
         return result.exit_result
 
     def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
-        print("debug")
         poll_request = pb.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
         result = self._communicate(rec)
