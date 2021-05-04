@@ -182,6 +182,7 @@ def test_all_logging_no_full_hooks(wandb_init_run):
         output.backward(grads)
         wandb.log({"a": 2})
         assert len(wandb.run._backend.history[0]) == 20
+        print("WTF", wandb.run._backend.history[0])
         assert len(wandb.run._backend.history[0]["parameters/fc2.bias"]["bins"]) == 65
         assert len(wandb.run._backend.history[0]["gradients/fc2.bias"]["bins"]) == 65
     assert len(wandb.run._backend.history) == 3
