@@ -241,7 +241,6 @@ class FileStreamApi(object):
         posted_anything_time = time.time()
         ready_chunks = []
         finished = None
-        last_log = 0
         while finished is None:
             items = self._read_queue()
             for item in items:
