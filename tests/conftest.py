@@ -732,13 +732,14 @@ def stop_backend(
     start_send_thread,
 ):
     def stop_backend_func():
+        done = False
         internal_sender.publish_exit(0)
-        for _ in range(10):
+        for _ in range(30):
             poll_exit_resp = internal_sender.communicate_poll_exit()
-            assert poll_exit_resp, "poll exit timedout"
-            done = poll_exit_resp.done
-            if done:
-                break
+            if poll_exit_resp:
+                done = poll_exit_resp.done
+                if done:
+                    break
             time.sleep(1)
         assert done, "backend didnt shutdown"
 
