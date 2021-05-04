@@ -806,7 +806,7 @@ def create_app(user_ctx=None):
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
-                            "media/tables/e14239fe.table.json": {
+                            "media/tables/5aac4cea.table.json": {
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
@@ -829,7 +829,10 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
-            elif _id == "bb8043da7d78ff168a695cff097897d2":
+            elif (
+                _id == "bb8043da7d78ff168a695cff097897d2"
+                or _id == "ad4d74ac0e4167c6cf4aaad9d59b9b44"
+            ):
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -841,7 +844,10 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "f006aa8f99aa79d7b68e079c0a200d21":
+            elif (
+                _id == "f006aa8f99aa79d7b68e079c0a200d21"
+                or _id == "1e7cd18d9e99bed4244322db45b281ee"
+            ):
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
