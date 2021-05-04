@@ -68,6 +68,7 @@ else:
     )
 
 __all__ = [
+    "Audio",
     "Histogram",
     "Object3D",
     "Molecule",
@@ -160,7 +161,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
-    artifact_type = "table"
+    _log_type = "table"
 
     def __init__(
         self,
@@ -254,7 +255,7 @@ class Table(Media):
         if dtype.__class__ != list:
             dtype = [dtype for _ in range(len(self.columns))]
 
-        self._column_types = _dtypes.DictType({})
+        self._column_types = _dtypes.TypedDictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
@@ -289,9 +290,9 @@ class Table(Media):
             wbtype = result_type
 
         # Assert valid options
-        is_pk = isinstance(wbtype, _TablePrimaryKeyType)
-        is_fk = isinstance(wbtype, _TableForeignKeyType)
-        is_fi = isinstance(wbtype, _TableForeignIndexType)
+        is_pk = isinstance(wbtype, _PrimaryKeyType)
+        is_fk = isinstance(wbtype, _ForeignKeyType)
+        is_fi = isinstance(wbtype, _ForeignIndexType)
         if is_pk or is_fk or is_fi:
             assert (
                 not optional
@@ -545,7 +546,7 @@ class Table(Media):
 
             json_dict.update(
                 {
-                    "_type": Table.artifact_type,
+                    "_type": Table._log_type,
                     "columns": self.columns,
                     "data": mapped_data,
                     "ncols": len(self.columns),
@@ -576,13 +577,13 @@ class Table(Media):
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
-        self.cast(col_name, _TablePrimaryKeyType())
+        self.cast(col_name, _PrimaryKeyType())
 
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
-        self.cast(col_name, _TableForeignKeyType(table, table_col))
+        self.cast(col_name, _ForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
         """Updates the known key-like columns based on the current
@@ -599,10 +600,10 @@ class Table(Media):
         # Buildup the known keys from column types
         c_types = self._column_types.params["type_map"]
         for t in c_types:
-            if isinstance(c_types[t], _TablePrimaryKeyType):
+            if isinstance(c_types[t], _PrimaryKeyType):
                 _pk_col = t
-            elif isinstance(c_types[t], _TableForeignKeyType) or isinstance(
-                c_types[t], _TableForeignIndexType
+            elif isinstance(c_types[t], _ForeignKeyType) or isinstance(
+                c_types[t], _ForeignIndexType
             ):
                 _fk_cols.add(t)
 
@@ -647,7 +648,7 @@ class Table(Media):
                 col_ndx = self.columns.index(fk_col)
 
                 # Wrap the Foreign Keys
-                if isinstance(c_types[fk_col], _TableForeignKeyType) and not isinstance(
+                if isinstance(c_types[fk_col], _ForeignKeyType) and not isinstance(
                     self.data[row_ndx][col_ndx], _TableKey
                 ):
                     self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
@@ -657,9 +658,9 @@ class Table(Media):
                     )
 
                 # Wrap the Foreign Indexes
-                elif isinstance(
-                    c_types[fk_col], _TableForeignIndexType
-                ) and not isinstance(self.data[row_ndx][col_ndx], _TableIndex):
+                elif isinstance(c_types[fk_col], _ForeignIndexType) and not isinstance(
+                    self.data[row_ndx][col_ndx], _TableIndex
+                ):
                     self.data[row_ndx][col_ndx] = _TableIndex(
                         self.data[row_ndx][col_ndx]
                     )
@@ -808,7 +809,7 @@ class PartitionedTable(Media):
     is designed to point to a directory within an artifact.
     """
 
-    artifact_type = "partitioned-table"
+    _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
         """
@@ -885,7 +886,7 @@ class Audio(BatchableMedia):
         caption: (string) Caption to display with audio.
     """
 
-    artifact_type = "audio-file"
+    _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
@@ -944,7 +945,7 @@ class Audio(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self.artifact_type, "caption": self._caption,}
+            {"_type": self._log_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -1039,7 +1040,7 @@ class JoinedTable(Media):
             key or keys to perform the join
     """
 
-    artifact_type = "joined-table"
+    _log_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
         super(JoinedTable, self).__init__()
@@ -1123,7 +1124,7 @@ class JoinedTable(Media):
 
         json_obj.update(
             {
-                "_type": JoinedTable.artifact_type,
+                "_type": JoinedTable._log_type,
                 "table1": table1,
                 "table2": table2,
                 "join_key": self._join_key,
@@ -1159,7 +1160,7 @@ class Bokeh(Media):
         val: Bokeh plot
     """
 
-    artifact_type = "bokeh-file"
+    _log_type = "bokeh-file"
 
     def __init__(self, data_or_path):
         super(Bokeh, self).__init__()
@@ -1195,7 +1196,7 @@ class Bokeh(Media):
         # pull this into Media#to_json and remove this type override for all the media types.
         # There are only a few cases where the type is different between artifacts and runs.
         json_dict = super(Bokeh, self).to_json(run)
-        json_dict["_type"] = self.artifact_type
+        json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
@@ -1235,6 +1236,8 @@ class Graph(Media):
         root (wandb.Node): root node of the graph
     """
 
+    _log_type = "graph-file"
+
     def __init__(self, format="keras"):
         super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
@@ -1271,7 +1274,7 @@ class Graph(Media):
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)
-        json_dict["_type"] = "graph-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
     def __getitem__(self, nid):
@@ -1604,8 +1607,9 @@ class Edge(WBValue):
 # Custom dtypes for typing system
 
 
-class _ImageType(_dtypes.Type):
-    name = "wandb.Image"
+class _ImageFileType(_dtypes.Type):
+    name = "image-file"
+    legacy_names = ["wandb.Image"]
     types = [Image]
 
     def __init__(self, box_keys=None, mask_keys=None):
@@ -1632,7 +1636,7 @@ class _ImageType(_dtypes.Type):
         )
 
     def assign_type(self, wb_type=None):
-        if isinstance(wb_type, _ImageType):
+        if isinstance(wb_type, _ImageFileType):
             box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
             mask_keys = self.params["mask_keys"].assign_type(
                 wb_type.params["mask_keys"]
@@ -1641,7 +1645,7 @@ class _ImageType(_dtypes.Type):
                 isinstance(box_keys, _dtypes.InvalidType)
                 or isinstance(mask_keys, _dtypes.InvalidType)
             ):
-                return _ImageType(box_keys, mask_keys)
+                return _ImageFileType(box_keys, mask_keys)
 
         return _dtypes.InvalidType()
 
@@ -1664,19 +1668,20 @@ class _ImageType(_dtypes.Type):
 
 
 class _TableType(_dtypes.Type):
-    name = "wandb.Table"
+    name = "table"
+    legacy_names = ["wandb.Table"]
     types = [Table]
 
     def __init__(self, column_types=None):
         if column_types is None:
             column_types = _dtypes.UnknownType()
         if isinstance(column_types, dict):
-            column_types = _dtypes.DictType(column_types)
+            column_types = _dtypes.TypedDictType(column_types)
         elif not (
-            isinstance(column_types, _dtypes.DictType)
+            isinstance(column_types, _dtypes.TypedDictType)
             or isinstance(column_types, _dtypes.UnknownType)
         ):
-            raise TypeError("column_types must be a dict or DictType")
+            raise TypeError("column_types must be a dict or TypedDictType")
 
         self.params.update({"column_types": column_types})
 
@@ -1698,8 +1703,9 @@ class _TableType(_dtypes.Type):
             return cls(py_obj._column_types)
 
 
-class _TableForeignKeyType(_dtypes.Type):
-    name = "wandb.TableForeignKey"
+class _ForeignKeyType(_dtypes.Type):
+    name = "foreignKey"
+    legacy_names = ["wandb.TableForeignKey"]
     types = [_TableKey]
 
     def __init__(self, table, col_name):
@@ -1712,7 +1718,7 @@ class _TableForeignKeyType(_dtypes.Type):
         if isinstance(wb_type, _dtypes.StringType):
             return self
         elif (
-            isinstance(wb_type, _TableForeignKeyType)
+            isinstance(wb_type, _ForeignKeyType)
             and id(self.params["table"]) == id(wb_type.params["table"])
             and self.params["col_name"] == wb_type.params["col_name"]
         ):
@@ -1728,14 +1734,14 @@ class _TableForeignKeyType(_dtypes.Type):
             return cls(py_obj._table, py_obj._col_name)
 
     def to_json(self, artifact=None):
-        res = super(_TableForeignKeyType, self).to_json(artifact)
+        res = super(_ForeignKeyType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(
-                "_TableForeignKeyType does not support serialization without an artifact"
+                "_ForeignKeyType does not support serialization without an artifact"
             )
         return res
 
@@ -1747,7 +1753,7 @@ class _TableForeignKeyType(_dtypes.Type):
         col_name = None
         if artifact is None:
             raise AssertionError(
-                "_TableForeignKeyType does not support deserialization without an artifact"
+                "_ForeignKeyType does not support deserialization without an artifact"
             )
         else:
             table = artifact.get(json_dict["params"]["table"])
@@ -1759,8 +1765,9 @@ class _TableForeignKeyType(_dtypes.Type):
         return cls(table, col_name)
 
 
-class _TableForeignIndexType(_dtypes.Type):
-    name = "wandb.TableForeignIndex"
+class _ForeignIndexType(_dtypes.Type):
+    name = "foreignIndex"
+    legacy_names = ["wandb.TableForeignIndex"]
     types = [_TableIndex]
 
     def __init__(self, table):
@@ -1770,9 +1777,9 @@ class _TableForeignIndexType(_dtypes.Type):
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _dtypes.NumberType):
             return self
-        elif isinstance(wb_type, _TableForeignIndexType) and id(
-            self.params["table"]
-        ) == id(wb_type.params["table"]):
+        elif isinstance(wb_type, _ForeignIndexType) and id(self.params["table"]) == id(
+            wb_type.params["table"]
+        ):
             return self
 
         return _dtypes.InvalidType()
@@ -1785,14 +1792,14 @@ class _TableForeignIndexType(_dtypes.Type):
             return cls(py_obj._table)
 
     def to_json(self, artifact=None):
-        res = super(_TableForeignIndexType, self).to_json(artifact)
+        res = super(_ForeignIndexType, self).to_json(artifact)
         if artifact is not None:
             table_name = "media/tables/t_{}".format(util.generate_id())
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
             raise AssertionError(
-                "_TableForeignIndexType does not support serialization without an artifact"
+                "_ForeignIndexType does not support serialization without an artifact"
             )
         return res
 
@@ -1803,7 +1810,7 @@ class _TableForeignIndexType(_dtypes.Type):
         table = None
         if artifact is None:
             raise AssertionError(
-                "_TableForeignIndexType does not support deserialization without an artifact"
+                "_ForeignIndexType does not support deserialization without an artifact"
             )
         else:
             table = artifact.get(json_dict["params"]["table"])
@@ -1814,12 +1821,13 @@ class _TableForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
-class _TablePrimaryKeyType(_dtypes.Type):
-    name = "wandb.TablePrimaryKey"
+class _PrimaryKeyType(_dtypes.Type):
+    name = "primaryKey"
+    legacy_names = ["wandb.TablePrimaryKey"]
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _dtypes.StringType) or isinstance(
-            wb_type, _TablePrimaryKeyType
+            wb_type, _PrimaryKeyType
         ):
             return self
         return _dtypes.InvalidType()
@@ -1832,8 +1840,32 @@ class _TablePrimaryKeyType(_dtypes.Type):
             return cls()
 
 
-_dtypes.TypeRegistry.add(_ImageType)
+class _AudioFileType(_dtypes.Type):
+    name = "audio-file"
+    types = [Audio]
+
+
+class _BokehFileType(_dtypes.Type):
+    name = "bokeh-file"
+    types = [Bokeh]
+
+
+class _JoinedTableType(_dtypes.Type):
+    name = "joined-table"
+    types = [JoinedTable]
+
+
+class _PartitionedTableType(_dtypes.Type):
+    name = "partitioned-table"
+    types = [PartitionedTable]
+
+
+_dtypes.TypeRegistry.add(_AudioFileType)
+_dtypes.TypeRegistry.add(_BokehFileType)
+_dtypes.TypeRegistry.add(_ImageFileType)
 _dtypes.TypeRegistry.add(_TableType)
-_dtypes.TypeRegistry.add(_TableForeignKeyType)
-_dtypes.TypeRegistry.add(_TablePrimaryKeyType)
-_dtypes.TypeRegistry.add(_TableForeignIndexType)
+_dtypes.TypeRegistry.add(_JoinedTableType)
+_dtypes.TypeRegistry.add(_PartitionedTableType)
+_dtypes.TypeRegistry.add(_ForeignKeyType)
+_dtypes.TypeRegistry.add(_PrimaryKeyType)
+_dtypes.TypeRegistry.add(_ForeignIndexType)

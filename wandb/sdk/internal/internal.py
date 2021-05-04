@@ -159,6 +159,7 @@ def wandb_internal(
             print("Thread {}:".format(thread.name), file=sys.stderr)
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
+            wandb.termerror("Internal wandb error: file data was not synced")
             sys.exit(-1)
 
 
