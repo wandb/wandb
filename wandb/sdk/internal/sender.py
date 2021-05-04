@@ -227,6 +227,9 @@ class SendManager(object):
                 logger.warning("Failed to check stop requested status: %s", e)
         self._result_q.put(result)
 
+    def debounce(self) -> None:
+        pass
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 

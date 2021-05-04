@@ -244,6 +244,9 @@ class HandlerThread(internal_util.RecordLoopThread):
     def _finish(self) -> None:
         self._hm.finish()
 
+    def _debounce(self) -> None:
+        self._hm.debounce()
+
 
 class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
@@ -282,6 +285,9 @@ class SenderThread(internal_util.RecordLoopThread):
     def _finish(self) -> None:
         self._sm.finish()
 
+    def _debounce(self) -> None:
+        self._sm.debounce()
+
 
 class WriterThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to writer routines."""
@@ -315,6 +321,9 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _finish(self) -> None:
         self._wm.finish()
+
+    def _debounce(self) -> None:
+        self._wm.debounce()
 
 
 class ProcessCheck(object):
