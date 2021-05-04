@@ -524,7 +524,6 @@ class StreamWrapper(RedirectBase):
         self._emulator = TerminalEmulator()
 
     def _emulator_write(self):
-        data = ""
         while True:
             if self._queue.empty():
                 if self._stopped.is_set():
@@ -725,6 +724,8 @@ class Redirect(RedirectBase):
         )  # Calling flush() from the current thread does not flush the buffer instantly.
         t.start()
         t.join(timeout=10)
+
+        data = None
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
             wandb.termlog("Processing terminal ouput (%s)..." % self.src)
@@ -785,7 +786,6 @@ class Redirect(RedirectBase):
                 return
 
     def _emulator_write(self):
-        data = b""
         while True:
             if self._queue.empty():
                 if self._stopped.is_set():
