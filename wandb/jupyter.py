@@ -359,7 +359,7 @@ class Notebook(object):
                 },
             )
             state_path = os.path.join("code", "_session_history.ipynb")
-            wandb.run._config_callback(
+            wandb.run._set_config_wandb(
                 val=state_path, key=("_wandb", "session_history")
             )
             wandb.util.mkdir_exists_ok(os.path.join(wandb.run.dir, "code"))
