@@ -765,9 +765,10 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            while not self._queue.empty():
-                data = self._queue.get()
-                try:
-                    self._emulator.write(data.decode("utf-8"))
-                except Exception:
-                    pass
+            with self._queue.mutex:
+                data = "".join(self._queue.queue)
+                self._queue.queue.clear()
+            try:
+                self._emulator.write(data.decode("utf-8"))
+            except Exception:
+                pass
