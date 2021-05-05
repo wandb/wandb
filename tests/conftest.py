@@ -252,20 +252,11 @@ def mocked_run(runner, test_settings):
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
-    whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
+    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
     monkeypatch.setattr(click, "launch", lambda x: 1)
-    monkeypatch.setattr(
-        whaaaaat,
-        "prompt",
-        lambda x: {
-            "project_name": "test_model",
-            "files": ["weights.h5"],
-            "attach": False,
-            "team_name": "Manual Entry",
-        },
-    )
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
@@ -465,6 +456,29 @@ def wandb_init_run(request, runner, mocker, mock_server):
         unset_globals()
         for k, v in args["env"].items():
             del os.environ[k]
+
+
+@pytest.fixture
+def wandb_init(request, runner, mocker, mock_server):
+    def init(*args, **kwargs):
+        try:
+            mocks_from_args(mocker, default_wandb_args(), mock_server)
+            #  TODO: likely not the right thing to do, we shouldn't be setting this
+            wandb._IS_INTERNAL_PROCESS = False
+            #  We want to run setup every time in tests
+            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+            return wandb.init(
+                settings=wandb.Settings(
+                    console="off", mode="offline", _except_exit=False
+                ),
+                *args,
+                **kwargs
+            )
+        finally:
+            unset_globals()
+
+    return init
 
 
 @pytest.fixture()
