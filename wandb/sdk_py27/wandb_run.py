@@ -782,7 +782,7 @@ class Run(object):
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _set_config_wandb(self, key, val):
-        self._config_callback(key=key, val=val)
+        self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record):
         if self._backend:

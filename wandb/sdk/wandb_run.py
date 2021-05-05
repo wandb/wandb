@@ -781,8 +781,8 @@ class Run(object):
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
-    def _set_config_wandb(self, key: Union[Tuple[str, ...], str], val: Any):
-        self._config_callback(key=key, val=val)
+    def _set_config_wandb(self, key: str, val: Any) -> None:
+        self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         if self._backend:
