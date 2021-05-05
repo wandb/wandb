@@ -71,7 +71,7 @@ class RecordLoopThread(ExceptionThread):
         input_record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        debounce_interval_ms: "float" = 20
+        debounce_interval_ms: "float" = 20,
     ) -> None:
         ExceptionThread.__init__(self, stopped=stopped)
         self._input_record_q = input_record_q
@@ -95,7 +95,7 @@ class RecordLoopThread(ExceptionThread):
         self._setup()
         start = time.time()
         while not self._stopped.is_set():
-            if time.time() - start >= self._debounce_interval_ms / 1000.:
+            if time.time() - start >= self._debounce_interval_ms / 1000.0:
                 self._debounce()
             try:
                 record = self._input_record_q.get(timeout=1)

@@ -34,7 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
-        "upsert_bucket_count": 0
+        "upsert_bucket_count": 0,
     }
 
 

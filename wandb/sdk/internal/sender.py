@@ -240,7 +240,9 @@ class SendManager(object):
             # TODO(jhr): check result of upsert_run?
             if self._run:
                 self._api.upsert_run(
-                    name=self._run.run_id, config=config_value_dict, **self._api_settings
+                    name=self._run.run_id,
+                    config=config_value_dict,
+                    **self._api_settings
                 )
 
         self._debounced_records = []
