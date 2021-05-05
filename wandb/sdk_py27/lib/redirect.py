@@ -531,15 +531,15 @@ class StreamWrapper(RedirectBase):
                 time.sleep(0.5)
                 continue
             with self._queue.mutex:
-                data = "".join(self._queue.queue)
+                data = self._queue.queue.copy()
                 self._queue.queue.clear()
             if self._stopped.is_set() and len(data) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
-                self.flush(data.encode("utf-8"))
+                [self.flush(line.encode("utf-8")) for line in data]
                 return
             try:
-                self._emulator.write(data)
+                self._emulator.write("".join(data))
             except Exception:
                 pass
 
@@ -777,14 +777,14 @@ class Redirect(RedirectBase):
                 time.sleep(0.5)
                 continue
             with self._queue.mutex:
-                data = b"".join(self._queue.queue)
+                data = self._queue.queue.copy()
                 self._queue.queue.clear()
             if self._stopped.is_set() and len(data) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
-                self.flush(data)
+                [self.flush(line) for line in data]
                 return
             try:
-                self._emulator.write(data.decode("utf-8"))
+                self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
                 pass
