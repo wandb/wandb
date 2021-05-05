@@ -530,18 +530,18 @@ class StreamWrapper(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            while not self._queue.empty():
-                data = self._queue.get()
-                try:
-                    if isinstance(data, bytes):
-                        try:
-                            data = data.decode("utf-8")
-                        except UnicodeDecodeError:
-                            # TODO(frz)
-                            data = ""
-                    self._emulator.write(data)
-                except Exception:
-                    pass
+            with self._queue.mutex:
+                data = self._queue.queue.copy()
+                self._queue.queue.clear()
+            if self._stopped.is_set() and len(data) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                [self.flush(line.encode("utf-8")) for line in data]
+                return
+            try:
+                self._emulator.write("".join(data))
+            except Exception:
+                pass
 
     def _callback(self):
         while not (self._stopped.is_set() and self._queue.empty()):
@@ -580,11 +580,12 @@ class StreamWrapper(RedirectBase):
 
         self._installed = True
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                return
         if data:
             for cb in self.cbs:
                 try:
@@ -601,10 +602,14 @@ class StreamWrapper(RedirectBase):
             setattr(sys, self.src, self._old_stream)
 
         self._stopped.set()
-        self._emulator_write_thread.join()
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            self._emulator_write_thread.join()
+            wandb.termlog("Done.")
         self.flush()
-        self._installed = False
 
+        self._installed = False
         super(StreamWrapper, self).uninstall()
 
 
@@ -714,16 +719,22 @@ class Redirect(RedirectBase):
         t.start()
         t.join(timeout=10)
 
-        self._emulator_write_thread.join()
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            self._emulator_write_thread.join()
+            wandb.termlog("Done.")
         self.flush()
+
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                return
         if data:
             for cb in self.cbs:
                 try:
@@ -765,9 +776,15 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            while not self._queue.empty():
-                data = self._queue.get()
-                try:
-                    self._emulator.write(data.decode("utf-8"))
-                except Exception:
-                    pass
+            with self._queue.mutex:
+                data = self._queue.queue.copy()
+                self._queue.queue.clear()
+            if self._stopped.is_set() and len(data) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                [self.flush(line) for line in data]
+                return
+            try:
+                self._emulator.write(b"".join(data).decode("utf-8"))
+            except Exception:
+                pass
