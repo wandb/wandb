@@ -551,10 +551,7 @@ def test_add_obj_wbimage(runner):
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
-            },
+            'my-image.image-file.json': {'digest': 'A8NTF/lXHjyjy9NVTnH8vw==', 'size': 293}
         }
 
 
@@ -577,10 +574,7 @@ def test_add_obj_using_brackets(runner):
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
-            },
+            'my-image.image-file.json': {'digest': 'A8NTF/lXHjyjy9NVTnH8vw==', 'size': 293}
         }
 
     with pytest.raises(ValueError):
