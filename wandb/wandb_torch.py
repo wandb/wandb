@@ -311,6 +311,7 @@ class TorchGraph(wandb.data_types.Graph):
         # started failing.  To maximize compatability we don't use full backward hooks
         # when we detect fastai v1 has been imported :(
         self._should_use_full_hooks = True
+        self._graph_hooks = {}
         if "fastai" in sys.modules:
             fastai = util.get_module("fastai")
             if fastai.__version__.startswith("1."):
@@ -322,13 +323,13 @@ class TorchGraph(wandb.data_types.Graph):
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
 
-    def create_forward_hook(self, name, modules):
+    def create_forward_hook(self, name, graph_idx):
         graph = self
 
         def after_forward_hook(module, input, output):
-            if id(module) in modules:
+            if id(module) not in self._graph_hooks.keys():
+                # shound not happen
                 return
-            modules.add(id(module))
             if not isinstance(output, tuple):
                 output = (output,)
             parameters = [
@@ -354,12 +355,19 @@ class TorchGraph(wandb.data_types.Graph):
                 elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):
                     graph.criterion = output[0][0].grad_fn
 
+            # log graph and remove hook
+            hook = self._graph_hooks.pop(id(module), None)
+            if hook is not None:
+                hook.remove()
+
+            if not self._graph_hooks:
+                # we went through the entire graph
+                wandb.run.summary["graph_%i" % graph_idx] = self
+
         return after_forward_hook
 
     def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
         torch = util.get_module("torch", "Could not import torch")
-        hooks = []
-        modules = set()
         layers = 0
         graph = self
         if hasattr(module, "_wandb_watch_called") and module._wandb_watch_called:
@@ -399,56 +407,9 @@ class TorchGraph(wandb.data_types.Graph):
             if isinstance(sub_module, tuple(module_types)):
                 self.hook_torch_modules(sub_module, prefix=name)
             else:
-
-                def backward_hook(module, input, output):
-                    [hook.remove() for hook in hooks]
-                    graph.loaded = True
-                    if wandb.run:
-                        wandb.run.summary["graph_%i" % graph_idx] = graph
-                    else:
-                        wandb.termwarn(
-                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch",
-                            repeat=False,
-                        )
-                    # TODO: Keeping this here as a starting point for adding graph data
-                    if not graph.loaded:
-
-                        def traverse(node, functions=[]):
-                            if hasattr(node, "grad_fn"):
-                                node = node.grad_fn
-
-                            if hasattr(node, "variable"):
-                                node = graph.nodes_by_id.get(id(node.variable))
-                                if node:
-                                    node.functions = list(functions)
-                                    del functions[:]
-
-                            if hasattr(node, "next_functions"):
-                                functions.append(type(node).__name__)
-                                for f in node.next_functions:
-                                    if f[0]:
-                                        functions.append(type(f[0]).__name__)
-                                        traverse(f[0], functions)
-
-                            if hasattr(node, "saved_tensors"):
-                                for t in node.saved_tensors:
-                                    traverse(t)
-
-                        traverse(graph.criterion)
-
-                hooks.append(
-                    sub_module.register_forward_hook(
-                        self.create_forward_hook(name, modules)
-                    )
+                self._graph_hooks[id(sub_module)] = sub_module.register_forward_hook(
+                    self.create_forward_hook(name, graph_idx)
                 )
-                # Models with dicts as output must use register_full_backward_hook
-                if self._should_use_full_hooks and hasattr(
-                    sub_module, "register_full_backward_hook"
-                ):
-                    hook = sub_module.register_full_backward_hook(backward_hook)
-                else:
-                    hook = sub_module.register_backward_hook(backward_hook)
-                hooks.append(hook)
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):
