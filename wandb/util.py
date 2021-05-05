@@ -13,6 +13,7 @@ import json
 import getpass
 import logging
 import math
+import numbers
 import os
 import re
 import shlex
@@ -34,7 +35,7 @@ from six.moves.urllib.parse import urlparse
 import click
 import requests
 import six
-from six.moves import queue
+from six.moves import queue, input
 import textwrap
 from sys import getsizeof
 from collections import namedtuple
@@ -47,7 +48,7 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
-from wandb.errors import CommError
+from wandb.errors import CommError, term
 from wandb.old.core import wandb_dir
 from wandb import env
 
@@ -756,9 +757,6 @@ def downsample(values, target_length):
     return result
 
 
-import numbers
-
-
 def has_num(dictionary, key):
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
@@ -954,6 +952,28 @@ def class_colors(class_count):
         colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)
         for i in range(class_count - 1)
     ]
+
+
+def _prompt_choice():
+    try:
+        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
+    except ValueError:
+        return -1
+
+
+def prompt_choices(choices, allow_manual=False):
+    """Allow a user to choose from a list of options"""
+    for i, choice in enumerate(choices):
+        wandb.termlog("(%i) %s" % (i + 1, choice))
+
+    idx = -1
+    while idx < 0 or idx > len(choices) - 1:
+        idx = _prompt_choice()
+        if idx < 0 or idx > len(choices) - 1:
+            wandb.termwarn("Invalid choice")
+    result = choices[idx]
+    wandb.termlog("You chose '%s'" % result)
+    return result
 
 
 def guess_data_type(shape, risky=False):
