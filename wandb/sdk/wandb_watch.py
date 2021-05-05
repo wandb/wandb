@@ -17,7 +17,7 @@ _global_watch_idx = 0
 
 
 def watch(
-    models, criterion=None, log="gradients", log_freq=1000, idx=None, full_hooks=True
+    models, criterion=None, log="gradients", log_freq=1000, idx=None, full_hooks=None
 ):
     """
     Hooks into the torch model to collect gradients and the topology.  Should be extended
@@ -29,7 +29,7 @@ def watch(
         log: (str) One of "gradients", "parameters", "all", or None
         log_freq: (int) log gradients and parameters every N batches
         idx: (int) an index to be used when calling wandb.watch on multiple models
-        full_hooks: (bool) defaults to True, set to false to use `register_backward_hook`
+        full_hooks: (bool) defaults to True, set to False to use `register_backward_hook`
             instead of `register_full_backward_hook`.
 
     Returns:

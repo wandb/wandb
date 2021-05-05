@@ -305,19 +305,19 @@ class TorchHistory(object):
 
 
 class TorchGraph(wandb.data_types.Graph):
-    def __init__(self, full_hooks=True):
+    def __init__(self, full_hooks=None):
         super(TorchGraph, self).__init__("torch")
+        self._should_use_full_hooks = True if full_hooks is None else full_hooks
         # When we changed to register_full_backward_hook a regression test running fastai v1
         # started failing.  To maximize compatability we don't use full backward hooks
-        # when we detect fastai v1 has been imported :(
-        self._should_use_full_hooks = full_hooks
-        if "fastai" in sys.modules:
+        # when we detect fastai v1 has been imported and the user doesn't override
+        if full_hooks is None and "fastai" in sys.modules:
             fastai = util.get_module("fastai")
             if fastai.__version__.startswith("1."):
                 self._should_use_full_hooks = False
 
     @classmethod
-    def hook_torch(cls, model, criterion=None, graph_idx=0, full_hooks=True):
+    def hook_torch(cls, model, criterion=None, graph_idx=0, full_hooks=None):
         graph = TorchGraph(full_hooks)
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
