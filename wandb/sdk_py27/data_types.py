@@ -550,6 +550,7 @@ class Media(WBValue):
                         name = entry.path
 
                 json_obj["path"] = name
+                json_obj["sha256"] = self._sha256
             json_obj["_type"] = self._log_type
         return json_obj
 
