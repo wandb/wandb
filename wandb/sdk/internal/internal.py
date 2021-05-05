@@ -103,7 +103,7 @@ def wandb_internal(
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
-        debounce_interval_ms=5000,
+        debounce_interval_ms=3000,
     )
     threads.append(record_sender_thread)
 

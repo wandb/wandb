@@ -777,9 +777,7 @@ class SendManager(object):
             self._debounced_records.append(data)
         else:
             self._api.upsert_run(
-                name=self._run.run_id,
-                config=config_value_dict,
-                **self._api_settings
+                name=self._run.run_id, config=config_value_dict, **self._api_settings
             )
             self._config_at_last_upsert = config_value_dict
 

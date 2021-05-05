@@ -120,7 +120,7 @@ class SendManager(object):
 
         # keep the previous config to determine if an upsert_run should be
         # sent on debounce
-        self._config_at_last_debounce = {}
+        self._config_at_last_upsert = {}
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -236,7 +236,7 @@ class SendManager(object):
 
     def debounce(self):
         config_value_dict = self._config_format(self._consolidated_config)
-        if config_value_dict != self._config_at_last_debounce:
+        if config_value_dict != self._config_at_last_upsert:
             # TODO(jhr): check result of upsert_run?
             if self._run:
                 self._api.upsert_run(
@@ -246,7 +246,7 @@ class SendManager(object):
                 )
 
         self._debounced_records = []
-        self._config_at_last_debounce = config_value_dict
+        self._config_at_last_upsert = config_value_dict
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -771,9 +771,16 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
-    def _update_config(self, data):
+    def _update_config(self, data, debounce=False):
         config_value_dict = self._config_format(self._consolidated_config)
-        self._debounced_records.append(data)
+        if debounce:
+            self._debounced_records.append(data)
+        else:
+            self._api.upsert_run(
+                name=self._run.run_id, config=config_value_dict, **self._api_settings
+            )
+            self._config_at_last_upsert = config_value_dict
+
         self._config_save(config_value_dict)
 
     def send_config(self, data):
@@ -818,7 +825,7 @@ class SendManager(object):
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
             self._config_metric_index_dict[metric.name] = next_idx
-        self._update_config(data)
+        self._update_config(data, debounce=True)
 
     def send_telemetry(self, data):
         telem = data.telemetry
