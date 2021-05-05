@@ -536,7 +536,7 @@ class StreamWrapper(RedirectBase):
             if self._stopped.is_set() and len(data) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
-                self.flush(data)
+                self.flush(data.encode("utf-8"))
                 return
             try:
                 self._emulator.write(data)
@@ -585,7 +585,7 @@ class StreamWrapper(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                data = ""
+                return
         if data:
             for cb in self.cbs:
                 try:
@@ -734,7 +734,7 @@ class Redirect(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                data = ""
+                return
         if data:
             for cb in self.cbs:
                 try:
