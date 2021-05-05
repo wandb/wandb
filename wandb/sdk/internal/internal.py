@@ -215,7 +215,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "BackendSender",
-        debounce_interval_ms: "float" = 20,
+        debounce_interval_ms: "float" = 1000,
     ) -> None:
         super(HandlerThread, self).__init__(
             input_record_q=record_q,
@@ -311,7 +311,7 @@ class WriterThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         writer_q: "Queue[Record]",
-        debounce_interval_ms: "float" = 20,
+        debounce_interval_ms: "float" = 1000,
     ) -> None:
         super(WriterThread, self).__init__(
             input_record_q=writer_q,

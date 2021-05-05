@@ -10,8 +10,8 @@ from __future__ import print_function
 
 import logging
 import sys
-import time
 import threading
+import time
 
 from six.moves import queue
 import wandb
@@ -71,7 +71,7 @@ class RecordLoopThread(ExceptionThread):
         input_record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        debounce_interval_ms: "float" = 20,
+        debounce_interval_ms: "float" = 1000,
     ) -> None:
         ExceptionThread.__init__(self, stopped=stopped)
         self._input_record_q = input_record_q
