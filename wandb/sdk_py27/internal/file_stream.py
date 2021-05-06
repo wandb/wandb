@@ -293,9 +293,16 @@ class FileStreamApi(object):
             wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
             logging.error("dropped chunk %s" % response)
             raise response
-        elif response.json().get("limits"):
-            parsed = response.json()
-            self._api.dynamic_settings.update(parsed["limits"])
+        else:
+            parsed = None
+            try:
+                parsed = response.json()
+            except Exception:
+                pass
+            if isinstance(parsed, dict):
+                limits = parsed.get("limits")
+                if isinstance(limits, dict):
+                    self._api.dynamic_settings.update(limits)
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
