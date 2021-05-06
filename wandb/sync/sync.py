@@ -199,7 +199,11 @@ class SyncThread(threading.Thread):
                     self._send_tensorboard(tb_root, tb_logdirs, sm)
                     continue
             ds = datastore.DataStore()
-            ds.open_for_scan(sync_item)
+            try:
+                ds.open_for_scan(sync_item)
+            except AssertionError:
+                print(".wandb file is empty, skipping: {}".format(sync_item))
+                continue
 
             # save exit for final send
             exit_pb = None
