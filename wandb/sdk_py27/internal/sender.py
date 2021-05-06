@@ -116,7 +116,7 @@ class SendManager(object):
         self._retry_q = queue.Queue()
 
         # do we need to debounce?
-        self._needs_debounce = False
+        self._config_needs_debounce = False
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -231,9 +231,17 @@ class SendManager(object):
         self._result_q.put(result)
 
     def debounce(self):
-        if self._needs_debounce:
+        if self._config_needs_debounce:
             # TODO(jhr): check result of upsert_run?
-            self._update_config(force_send=True)
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -302,7 +310,7 @@ class SendManager(object):
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
         elif state == defer.FLUSH_DEBOUNCER:
-            if self._needs_debounce:
+            if self._config_needs_debounce:
                 self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
@@ -758,16 +766,8 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
-    def _update_config(self, force_send=False):
-        config_value_dict = self._config_format(self._consolidated_config)
-        if force_send:
-            self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings
-            )
-            self._needs_debounce = False
-        else:
-            self._needs_debounce = True
-        self._config_save(config_value_dict)
+    def _update_config(self):
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
