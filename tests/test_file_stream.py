@@ -32,28 +32,36 @@ def assert_history(publish_util):
     assert ctx_util.history == converted_history
 
 
-def test_fstream_resp_limits_none(publish_util, mock_server):
+def test_fstream_resp_limits_none(publish_util, mock_server, inject_requests):
     resp_normal = json.dumps({"exitcode": None})
-    mock_server.ctx["inject"]["file_stream"]["responses"].append(resp_normal)
+
+    match = inject_requests.Match(path_suffix="/file_stream")
+    inject_requests.add(match=match, response=resp_normal)
     assert_history(publish_util)
 
 
-def test_fstream_resp_limits_valid(publish_util, mock_server):
+def test_fstream_resp_limits_valid(publish_util, mock_server, inject_requests):
     dynamic_settings = {"heartbeat_seconds": 10}
     resp_limits = json.dumps({"exitcode": None, "limits": dynamic_settings})
-    mock_server.ctx["inject"]["file_stream"]["responses"].append(resp_limits)
+
+    match = inject_requests.Match(path_suffix="/file_stream")
+    inject_requests.add(match=match, response=resp_limits)
     assert_history(publish_util)
     # note: we are not testing that the limits changed, only that they were accepted
 
 
-def test_fstream_resp_limits_malformed(publish_util, mock_server):
+def test_fstream_resp_limits_malformed(publish_util, mock_server, inject_requests):
     dynamic_settings = {"heartbeat_seconds": 10}
     resp_limits = json.dumps({"exitcode": None, "limits": "junk"})
-    mock_server.ctx["inject"]["file_stream"]["responses"].append(resp_limits)
+
+    match = inject_requests.Match(path_suffix="/file_stream")
+    inject_requests.add(match=match, response=resp_limits)
     assert_history(publish_util)
 
 
-def test_fstream_resp_malformed(publish_util, mock_server):
-    resp_limits = "{junk broken]"
-    mock_server.ctx["inject"]["file_stream"]["responses"].append(resp_limits)
+def test_fstream_resp_malformed(publish_util, mock_server, inject_requests):
+    resp_invalid = "invalid json {junk broken]"
+
+    match = inject_requests.Match(path_suffix="/file_stream")
+    inject_requests.add(match=match, response=resp_invalid)
     assert_history(publish_util)
