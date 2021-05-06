@@ -425,10 +425,10 @@ message DeferRequest {
     FLUSH_STATS = 1;
     FLUSH_TB = 2;
     FLUSH_SUM = 3;
-    FLUSH_DIR = 4;
-    FLUSH_FP = 5;
-    FLUSH_FS = 6;
-    FLUSH_DEBOUNCER = 7;
+    FLUSH_DEBOUNCER = 4;
+    FLUSH_DIR = 5;
+    FLUSH_FP = 6;
+    FLUSH_FS = 7;
     FLUSH_FINAL = 8;
     END = 9;
   }
